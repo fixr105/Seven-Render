@@ -1,0 +1,10 @@
+{
+  "id": "CREDIT-TEST-001",
+  "Credit User ID": "CREDIT-TEST-001",
+  "Name": "John Credit Analyst",
+  "Email": "credit.analyst@test.com",
+  "Phone": "+91 9876543212",
+  "Role": "credit_team",
+  "Status": "Active"
+}
+

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -13,6 +15,10 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -55,6 +61,33 @@ export const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await handleLogin(email, password);
+  };
+
+  const handleForgotPassword = async () => {
+    if (!resetEmail.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    setResetLoading(true);
+    setError('');
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) {
+        setError(resetError.message || 'Failed to send password reset email');
+        setResetLoading(false);
+      } else {
+        setResetSuccess(true);
+        setResetLoading(false);
+      }
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -116,9 +149,13 @@ export const Login: React.FC = () => {
                 <input type="checkbox" className="w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary" />
                 Remember me
               </label>
-              <a href="#" className="text-sm text-brand-primary hover:underline">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-sm text-brand-primary hover:underline"
+              >
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             <Button
@@ -149,7 +186,7 @@ export const Login: React.FC = () => {
                   navigate('/dashboard');
                 }}
                 disabled={loading}
-                className="px-3 py-2 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-2 text-xs font-medium text-white bg-[#332f78] rounded hover:bg-[#2a2560] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 👤 Client
               </button>
@@ -200,6 +237,100 @@ export const Login: React.FC = () => {
           <p>© 2025 Seven Fincorp. All rights reserved.</p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <Modal
+        isOpen={showForgotPassword}
+        onClose={() => {
+          setShowForgotPassword(false);
+          setResetEmail('');
+          setResetSuccess(false);
+          setError('');
+        }}
+        size="md"
+      >
+        <ModalHeader onClose={() => {
+          setShowForgotPassword(false);
+          setResetEmail('');
+          setResetSuccess(false);
+          setError('');
+        }}>
+          Reset Password
+        </ModalHeader>
+        <ModalBody>
+          {resetSuccess ? (
+            <div className="text-center py-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-success" />
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-2">Check Your Email</h3>
+              <p className="text-sm text-neutral-600">
+                We've sent a password reset link to <strong>{resetEmail}</strong>
+              </p>
+              <p className="text-sm text-neutral-500 mt-2">
+                Please check your inbox and follow the instructions to reset your password.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-neutral-600">
+                Enter your email address and we'll send you a link to reset your password.
+              </p>
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-error">
+                  {error}
+                </div>
+              )}
+              <Input
+                type="email"
+                label="Email Address"
+                placeholder="Enter your email"
+                icon={Mail}
+                iconPosition="left"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                required
+              />
+            </div>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          {resetSuccess ? (
+            <Button
+              variant="primary"
+              onClick={() => {
+                setShowForgotPassword(false);
+                setResetEmail('');
+                setResetSuccess(false);
+              }}
+            >
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setResetEmail('');
+                  setError('');
+                }}
+                disabled={resetLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleForgotPassword}
+                loading={resetLoading}
+                disabled={!resetEmail.trim()}
+              >
+                Send Reset Link
+              </Button>
+            </>
+          )}
+        </ModalFooter>
+      </Modal>
     </div>
   );
 };

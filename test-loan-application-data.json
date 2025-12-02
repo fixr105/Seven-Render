@@ -1,0 +1,22 @@
+{
+  "id": "APP-TEST-001",
+  "File ID": "SF20250115001",
+  "Client": "Test Corporation Pvt Ltd",
+  "Applicant Name": "John Doe",
+  "Loan Product": "Home Loan",
+  "Requested Loan Amount": "5000000",
+  "Documents": "Aadhar, PAN, Salary Slip",
+  "Status": "pending_kam_review",
+  "Assigned Credit Analyst": "Credit Analyst 1",
+  "Assigned NBFC": "",
+  "Lender Decision Status": "",
+  "Lender Decision Date": "",
+  "Lender Decision Remarks": "",
+  "Approved Loan Amount": "",
+  "AI File Summary": "Applicant has good credit history and stable income",
+  "Form Data": "{\"property_type\": \"Residential\", \"property_value\": 7000000}",
+  "Creation Date": "2025-01-15",
+  "Submitted Date": "2025-01-15",
+  "Last Updated": "2025-01-15T10:30:00.000Z"
+}
+

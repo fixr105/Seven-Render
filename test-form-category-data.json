@@ -1,0 +1,12 @@
+{
+  "id": "CATEGORY-TEST-001",
+  "Log Entry ID": "CATEGORY-TEST-001",
+  "File": "SF20250115001",
+  "Timestamp": "2025-01-15T15:00:00.000Z",
+  "Actor": "Admin User",
+  "Action/Event Type": "category_created",
+  "Details/Message": "Form category created for client onboarding",
+  "Target User/Role": "client",
+  "Resolved": "False"
+}
+

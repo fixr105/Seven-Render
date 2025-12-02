@@ -68,7 +68,7 @@ export const NBFCDashboard: React.FC = () => {
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
     clientName: app.client?.company_name || 'Unknown',
     loanType: app.loan_product?.name || 'N/A',
-    amount: `₹${((app.form_data?.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
+    amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
     status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
     sentDate: new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
   }));
@@ -199,7 +199,7 @@ export const NBFCDashboard: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+              <div className="mb-4 p-3 bg-[#332f78]/10 border border-[#332f78]/30 rounded text-sm text-[#332f78]">
                 <AlertCircle className="w-4 h-4 inline mr-2" />
                 You have {pendingDecision} application{pendingDecision !== 1 ? 's' : ''} pending your decision. 
                 Click "Review" to open and make a decision.
@@ -217,4 +217,5 @@ export const NBFCDashboard: React.FC = () => {
     </>
   );
 };
+
 

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Menu, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface TopBarProps {
   title: string;
@@ -9,8 +11,15 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificationCount = 0, userName = 'User' }) => {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
 
   return (
     <header className="bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30">
@@ -96,15 +105,33 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
                   <div className="px-4 py-2 border-b border-neutral-200">
                     <p className="text-sm font-medium text-neutral-900">{userName}</p>
                   </div>
-                  <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors">
+                  <button 
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      navigate('/profile');
+                    }}
+                  >
                     <User className="w-4 h-4" />
                     Profile
                   </button>
-                  <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors">
+                  <button 
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      navigate('/settings');
+                    }}
+                  >
                     <SettingsIcon className="w-4 h-4" />
                     Settings
                   </button>
-                  <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-error hover:bg-neutral-50 transition-colors">
+                  <button 
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-error hover:bg-neutral-50 transition-colors"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      handleLogout();
+                    }}
+                  >
                     <LogOut className="w-4 h-4" />
                     Logout
                   </button>

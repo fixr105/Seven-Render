@@ -10,6 +10,7 @@ import { Select } from '../components/ui/Select';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Clock, CheckCircle, XCircle, Send, Download, Edit } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
+import { useNavigation } from '../hooks/useNavigation';
 import { supabase } from '../lib/supabase';
 
 const getStatusVariant = (status: string): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
@@ -68,7 +69,6 @@ export const ApplicationDetail: React.FC = () => {
   const navigate = useNavigate();
   const { userRole, userRoleId } = useAuth();
   const { unreadCount } = useNotifications();
-  const [activeItem, setActiveItem] = useState('applications');
   const [loading, setLoading] = useState(true);
   const [application, setApplication] = useState<any>(null);
   const [queries, setQueries] = useState<Query[]>([]);
@@ -135,7 +135,8 @@ export const ApplicationDetail: React.FC = () => {
           *,
           client:dsa_clients(company_name, contact_person, email, phone),
           loan_product:loan_products(name, code, description),
-          assigned_nbfc:nbfc_partners(name, contact_person)
+          assigned_nbfc:nbfc_partners(name, contact_person),
+          assigned_credit_analyst_user:user_roles!loan_applications_assigned_credit_analyst_fkey(id)
         `)
         .eq('id', id)
         .single();
@@ -342,23 +343,20 @@ export const ApplicationDetail: React.FC = () => {
     }
   };
 
-  const handleNavigation = (path: string) => {
-    navigate(path);
-    setActiveItem(path.substring(1) || 'dashboard');
-  };
+  const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   const statusOptions = [
     { value: 'draft', label: 'Draft' },
-    { value: 'pending_kam_review', label: 'Pending KAM Review' },
+    { value: 'pending_kam_review', label: 'Submitted / Pending KAM Review' },
     { value: 'kam_query_raised', label: 'KAM Query Raised' },
-    { value: 'forwarded_to_credit', label: 'Forwarded to Credit' },
+    { value: 'forwarded_to_credit', label: 'Approved by KAM / Forwarded to Credit' },
     { value: 'credit_query_raised', label: 'Credit Query Raised' },
     { value: 'in_negotiation', label: 'In Negotiation' },
     { value: 'sent_to_nbfc', label: 'Sent to NBFC' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'approved', label: 'NBFC Approved' },
+    { value: 'rejected', label: 'NBFC Rejected' },
     { value: 'disbursed', label: 'Disbursed' },
-    { value: 'closed', label: 'Closed' },
+    { value: 'closed', label: 'Closed/Archived' },
   ];
 
   if (loading) {
@@ -411,8 +409,8 @@ export const ApplicationDetail: React.FC = () => {
     >
       {/* Header Actions */}
       <div className="flex items-center justify-between mb-6">
-        <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/applications')}>
-          Back to Applications
+        <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate(-1)}>
+          Back
         </Button>
         <div className="flex gap-2">
           {(userRole === 'kam' || userRole === 'credit_team') && (
@@ -450,15 +448,50 @@ export const ApplicationDetail: React.FC = () => {
                   <p className="font-semibold text-neutral-900">{application.client?.company_name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500">Loan Type</p>
-                  <p className="font-semibold text-neutral-900">{application.loan_product?.name}</p>
+                  <p className="text-sm text-neutral-500">Applicant Name</p>
+                  <p className="font-semibold text-neutral-900">{application.applicant_name || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500">Amount</p>
+                  <p className="text-sm text-neutral-500">Loan Product</p>
+                  <p className="font-semibold text-neutral-900">{application.loan_product?.name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-neutral-500">Requested Amount</p>
                   <p className="font-semibold text-neutral-900">
-                    {formatAmount(application.form_data?.loan_amount || application.form_data?.amount || 0)}
+                    {formatAmount(application.requested_loan_amount || 0)}
                   </p>
                 </div>
+                {application.approved_loan_amount && (
+                  <div>
+                    <p className="text-sm text-neutral-500">Approved Amount</p>
+                    <p className="font-semibold text-success">
+                      {formatAmount(application.approved_loan_amount)}
+                    </p>
+                  </div>
+                )}
+                {application.assigned_credit_analyst && (
+                  <div>
+                    <p className="text-sm text-neutral-500">Assigned Credit Analyst</p>
+                    <p className="font-semibold text-neutral-900">Assigned</p>
+                  </div>
+                )}
+                {application.assigned_nbfc_id && application.assigned_nbfc && (
+                  <div>
+                    <p className="text-sm text-neutral-500">Assigned NBFC</p>
+                    <p className="font-semibold text-neutral-900">{application.assigned_nbfc.name}</p>
+                  </div>
+                )}
+                {application.lender_decision_status && (
+                  <div>
+                    <p className="text-sm text-neutral-500">Lender Decision</p>
+                    <p className="font-semibold text-neutral-900">{application.lender_decision_status}</p>
+                    {application.lender_decision_date && (
+                      <p className="text-xs text-neutral-500 mt-1">
+                        {formatDate(application.lender_decision_date)}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-neutral-500">Created</p>
                   <p className="font-semibold text-neutral-900">{formatDate(application.created_at)}</p>

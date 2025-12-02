@@ -1,0 +1,13 @@
+{
+  "id": "FIELD-TEST-001",
+  "Field ID": "FIELD-TEST-001",
+  "Category": "Personal Information",
+  "Field Label": "Full Name",
+  "Field Type": "text",
+  "Field Placeholder": "Enter your full name",
+  "Field Options": "",
+  "Is Mandatory": "True",
+  "Display Order": "1",
+  "Active": "True"
+}
+

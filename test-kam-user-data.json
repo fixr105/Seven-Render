@@ -1,0 +1,11 @@
+{
+  "id": "KAM-TEST-001",
+  "KAM ID": "KAM-TEST-001",
+  "Name": "John KAM Manager",
+  "Email": "kam.manager@test.com",
+  "Phone": "+91 9876543211",
+  "Managed Clients": "Test Corporation Pvt Ltd, ABC Industries",
+  "Role": "kam",
+  "Status": "Active"
+}
+

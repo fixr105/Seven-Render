@@ -1,0 +1,14 @@
+{
+  "id": "LEDGER-TEST-001",
+  "Ledger Entry ID": "LEDGER-TEST-001",
+  "Client": "Test Corporation Pvt Ltd",
+  "Loan File": "SF20250101001",
+  "Date": "2025-01-15",
+  "Disbursed Amount": "5000000",
+  "Commission Rate": "1.5",
+  "Payout Amount": "75000",
+  "Description": "Commission for loan disbursement - Test entry",
+  "Dispute Status": "None",
+  "Payout Request": "False"
+}
+

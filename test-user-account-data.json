@@ -1,0 +1,10 @@
+{
+  "id": "USER-TEST-001",
+  "Username": "testuser@example.com",
+  "Password": "Test@123456",
+  "Role": "client",
+  "Associated Profile": "Test Corporation Pvt Ltd",
+  "Last Login": "2025-01-15T10:30:00.000Z",
+  "Account Status": "Active"
+}
+

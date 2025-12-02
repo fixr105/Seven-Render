@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
+import { useNavigation } from '../hooks/useNavigation';
 import { supabase } from '../lib/supabase';
 
 interface Client {
@@ -39,7 +40,6 @@ export const Clients: React.FC = () => {
   const navigate = useNavigate();
   const { userRole, userRoleId } = useAuth();
   const { unreadCount } = useNotifications();
-  const [activeItem, setActiveItem] = useState('clients');
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +51,8 @@ export const Clients: React.FC = () => {
     email: '',
     phone: '',
     password: '',
+    commission_rate: '1.0',
+    enabled_modules: [] as string[],
   });
 
   const sidebarItems = [
@@ -155,6 +157,8 @@ export const Clients: React.FC = () => {
           phone: newClient.phone,
           kam_id: userRole === 'kam' ? userRoleId : null,
           is_active: true,
+          commission_rate: parseFloat(newClient.commission_rate) / 100 || 0.01,
+          modules_enabled: newClient.enabled_modules.length > 0 ? newClient.enabled_modules : ['M1', 'M2', 'M3', 'M4', 'M5'],
         });
 
       if (clientError) throw clientError;
@@ -166,6 +170,8 @@ export const Clients: React.FC = () => {
         email: '',
         phone: '',
         password: '',
+        commission_rate: '1.0',
+        enabled_modules: [],
       });
       fetchClients();
       alert('Client onboarded successfully!');
@@ -177,10 +183,7 @@ export const Clients: React.FC = () => {
     }
   };
 
-  const handleNavigation = (path: string) => {
-    navigate(path);
-    setActiveItem(path.substring(1) || 'dashboard');
-  };
+  const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   const filteredClients = clients.filter(client =>
     searchQuery === '' ||
@@ -342,6 +345,8 @@ export const Clients: React.FC = () => {
             email: '',
             phone: '',
             password: '',
+            commission_rate: '1.0',
+            enabled_modules: [],
           });
         }}
         size="md"
@@ -389,6 +394,47 @@ export const Clients: React.FC = () => {
               required
               helpText="The client will use this to log in for the first time"
             />
+            <Input
+              type="number"
+              label="Commission Rate (%)"
+              placeholder="1.0"
+              value={newClient.commission_rate}
+              onChange={(e) => setNewClient({ ...newClient, commission_rate: e.target.value })}
+              helpText="Default commission rate for this client (e.g., 1.0 for 1%)"
+            />
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Enabled Modules
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].map((module) => (
+                  <label key={module} className="flex items-center gap-2 p-2 border border-neutral-200 rounded hover:bg-neutral-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newClient.enabled_modules.includes(module)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setNewClient({
+                            ...newClient,
+                            enabled_modules: [...newClient.enabled_modules, module],
+                          });
+                        } else {
+                          setNewClient({
+                            ...newClient,
+                            enabled_modules: newClient.enabled_modules.filter(m => m !== module),
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary"
+                    />
+                    <span className="text-sm text-neutral-700">{module}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">
+                Select which modules this client has access to
+              </p>
+            </div>
           </div>
         </ModalBody>
         <ModalFooter>

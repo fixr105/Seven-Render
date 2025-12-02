@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon, Home, FileText, Users, DollarSign, BarChart3, Settings, Menu, X } from 'lucide-react';
+import logo from '../ui/logo.png';
 
 interface NavItem {
   id: string;
@@ -40,16 +41,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-blue-700">
+        <div className="flex items-center justify-between p-4 border-b border-[#332f78]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-              <span className="text-brand-primary font-bold text-lg">SF</span>
-            </div>
-            <span className="font-bold text-lg">Seven Fincorp</span>
+            <img src={logo} alt="Logo" className="h-10 w-auto" />
           </div>
           <button
             onClick={onToggle}
-            className="lg:hidden p-1 rounded hover:bg-blue-700 transition-colors"
+            className="lg:hidden p-1 rounded hover:bg-[#332f78] transition-colors cursor-none-hover"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
@@ -70,10 +68,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
                   if (window.innerWidth < 1024) onToggle();
                 }}
                 className={`
-                  w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+                  w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-none-hover
                   ${isActive
-                    ? 'bg-blue-700 text-white border-l-4 border-white'
-                    : 'text-blue-100 hover:bg-blue-700 hover:text-white'
+                    ? 'bg-[#332f78] text-white border-l-4 border-white'
+                    : 'text-white/80 hover:bg-[#332f78] hover:text-white hover:translate-x-1 hover:shadow-md'
                   }
                 `}
               >
@@ -90,14 +88,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
         </nav>
 
         {/* User info */}
-        <div className="p-4 border-t border-blue-700">
+        <div className="p-4 border-t border-[#332f78]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-[#332f78] rounded-full flex items-center justify-center">
               <span className="text-sm font-medium">U</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">User Name</p>
-              <p className="text-xs text-blue-200 truncate">{userRole}</p>
+              <p className="text-xs text-white/70 truncate">{userRole}</p>
             </div>
           </div>
         </div>

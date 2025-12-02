@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/Card';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { TextArea } from '../components/ui/TextArea';
 import { FileUpload } from '../components/ui/FileUpload';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, Send } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import { useNotifications } from '../hooks/useNotifications';
+import { useNavigation } from '../hooks/useNavigation';
 
 interface UploadedFile {
   id: string;
@@ -16,36 +20,73 @@ interface UploadedFile {
   progress?: number;
 }
 
+interface FormData {
+  applicant_name: string;
+  loan_product_id: string;
+  requested_loan_amount: string;
+  form_data: Record<string, any>;
+}
+
 export const NewApplication: React.FC = () => {
-  const [activeItem, setActiveItem] = useState('applications');
+  const navigate = useNavigate();
+  const { userRole, userRoleId } = useAuth();
+  const { unreadCount } = useNotifications();
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
+  const [formData, setFormData] = useState<FormData>({
+    applicant_name: '',
+    loan_product_id: '',
+    requested_loan_amount: '',
+    form_data: {},
+  });
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
     { id: 'applications', label: 'Applications', icon: FileText, path: '/applications', badge: 5 },
-    { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },
-    { id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' },
+    ...(userRole === 'kam' || userRole === 'credit_team' ? [{ id: 'clients', label: 'Clients', icon: Users, path: '/clients' }] : []),
+    ...(userRole === 'client' || userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
   ];
 
-  const loanTypeOptions = [
-    { value: '', label: 'Select Loan Type' },
-    { value: 'home', label: 'Home Loan' },
-    { value: 'lap', label: 'Loan Against Property' },
-    { value: 'business', label: 'Business Loan' },
-    { value: 'personal', label: 'Personal Loan' },
-    { value: 'working-capital', label: 'Working Capital' },
-  ];
+  const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const employmentTypeOptions = [
-    { value: '', label: 'Select Employment Type' },
-    { value: 'salaried', label: 'Salaried' },
-    { value: 'self-employed', label: 'Self-Employed' },
-    { value: 'professional', label: 'Professional' },
-    { value: 'business', label: 'Business Owner' },
-  ];
+  useEffect(() => {
+    fetchClientId();
+    fetchLoanProducts();
+  }, [userRoleId]);
+
+  const fetchClientId = async () => {
+    if (userRole !== 'client' || !userRoleId) return;
+    
+    try {
+      const { data } = await supabase
+        .from('dsa_clients')
+        .select('id')
+        .eq('user_id', userRoleId)
+        .maybeSingle();
+      
+      if (data) setClientId(data.id);
+    } catch (error) {
+      console.error('Error fetching client ID:', error);
+    }
+  };
+
+  const fetchLoanProducts = async () => {
+    try {
+      const { data } = await supabase
+        .from('loan_products')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (data) setLoanProducts(data);
+    } catch (error) {
+      console.error('Error fetching loan products:', error);
+    }
+  };
 
   const handleFilesSelected = (files: File[]) => {
     const newFiles: UploadedFile[] = files.map(file => ({
@@ -77,144 +118,159 @@ export const NewApplication: React.FC = () => {
     setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
-  const handleSubmit = (e: React.FormEvent, saveAsDraft = false) => {
+  const handleSubmit = async (e: React.FormEvent, saveAsDraft = false) => {
     e.preventDefault();
+    
+    if (!formData.applicant_name || !formData.loan_product_id || !formData.requested_loan_amount) {
+      alert('Please fill in all required fields: Applicant Name, Loan Product, and Requested Loan Amount');
+      return;
+    }
+
+    if (!clientId) {
+      alert('Client information not found. Please contact support.');
+      return;
+    }
+
     setLoading(true);
 
-    setTimeout(() => {
+    try {
+      // Generate file number
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const fileNumber = `SF${timestamp.slice(-8)}`;
+
+      // Prepare application data - only direct inputs per JSON spec
+      const applicationData: any = {
+        file_number: fileNumber,
+        client_id: clientId,
+        applicant_name: formData.applicant_name,
+        loan_product_id: formData.loan_product_id,
+        requested_loan_amount: parseFloat(formData.requested_loan_amount.replace(/[^0-9.]/g, '')) || 0,
+        status: saveAsDraft ? 'draft' : 'pending_kam_review',
+        form_data: formData.form_data, // Store additional form data
+        // Computed fields - set automatically
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...(saveAsDraft ? {} : { submitted_at: new Date().toISOString() }),
+      };
+
+      const { data, error } = await supabase
+        .from('loan_applications')
+        .insert(applicationData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // TODO: Upload documents to storage and link to application
+      // For now, we'll handle document uploads separately
+
+      // Create audit log entry
+      await supabase.from('audit_logs').insert({
+        application_id: data.id,
+        user_id: userRoleId,
+        action_type: saveAsDraft ? 'draft_saved' : 'application_submitted',
+        message: saveAsDraft ? 'Application saved as draft' : 'Application submitted for review',
+        metadata: { file_number: fileNumber },
+      });
+
+      alert(saveAsDraft ? 'Application saved as draft successfully!' : 'Application submitted successfully!');
+      navigate('/applications');
+    } catch (error: any) {
+      console.error('Error saving application:', error);
+      alert(`Failed to ${saveAsDraft ? 'save' : 'submit'} application: ${error.message}`);
+    } finally {
       setLoading(false);
-      console.log(saveAsDraft ? 'Saved as draft' : 'Application submitted');
-    }, 1500);
+    }
   };
 
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
-      onItemClick={setActiveItem}
+      onItemClick={handleNavigation}
       pageTitle="New Loan Application"
-      userRole="DSA Client"
-      userName="ABC Corp"
-      notificationCount={3}
+      userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+      userName="User"
+      notificationCount={unreadCount}
     >
       <form onSubmit={(e) => handleSubmit(e, false)}>
-        {/* Applicant Information */}
+        {/* Core Required Fields per JSON Specification */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Applicant Information</CardTitle>
+            <CardTitle>Application Details</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="Full Name"
+                label="Applicant Name *"
                 placeholder="Enter applicant's full name"
+                value={formData.applicant_name}
+                onChange={(e) => setFormData({ ...formData, applicant_name: e.target.value })}
                 required
               />
+              <Select
+                label="Loan Product *"
+                options={[
+                  { value: '', label: 'Select Loan Product' },
+                  ...loanProducts.map(p => ({ value: p.id, label: p.name }))
+                ]}
+                value={formData.loan_product_id}
+                onChange={(e) => setFormData({ ...formData, loan_product_id: e.target.value })}
+                required
+              />
+              <Input
+                label="Requested Loan Amount *"
+                type="text"
+                placeholder="₹ 50,00,000"
+                value={formData.requested_loan_amount}
+                onChange={(e) => setFormData({ ...formData, requested_loan_amount: e.target.value })}
+                required
+                helperText="Enter amount in Indian Rupees"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Additional Form Data - Stored in form_data JSON field */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Additional Information (Optional)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Email Address"
                 type="email"
                 placeholder="applicant@example.com"
-                required
+                onChange={(e) => setFormData({
+                  ...formData,
+                  form_data: { ...formData.form_data, email: e.target.value }
+                })}
               />
               <Input
                 label="Mobile Number"
                 type="tel"
                 placeholder="+91 98765 43210"
-                required
-              />
-              <Input
-                label="Date of Birth"
-                type="date"
-                required
+                onChange={(e) => setFormData({
+                  ...formData,
+                  form_data: { ...formData.form_data, phone: e.target.value }
+                })}
               />
               <Input
                 label="PAN Number"
                 placeholder="ABCDE1234F"
-                required
+                onChange={(e) => setFormData({
+                  ...formData,
+                  form_data: { ...formData.form_data, pan: e.target.value }
+                })}
               />
               <Input
                 label="Aadhaar Number"
                 placeholder="1234 5678 9012"
-                required
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Loan Details */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Loan Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select
-                label="Loan Type"
-                options={loanTypeOptions}
-                required
-              />
-              <Input
-                label="Loan Amount"
-                type="number"
-                placeholder="₹ 50,00,000"
-                required
-              />
-              <Input
-                label="Loan Tenure (months)"
-                type="number"
-                placeholder="240"
-                required
-              />
-              <Input
-                label="Monthly Income"
-                type="number"
-                placeholder="₹ 1,00,000"
-                required
-              />
-              <Select
-                label="Employment Type"
-                options={employmentTypeOptions}
-                required
-              />
-              <Input
-                label="Company/Business Name"
-                placeholder="Enter company name"
-              />
-            </div>
-            <div className="mt-4">
-              <TextArea
-                label="Purpose of Loan"
-                placeholder="Describe the purpose of the loan..."
-                required
-                rows={3}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Property Details (for Home Loan / LAP) */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Property Details (if applicable)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Property Address"
-                placeholder="Enter property address"
-              />
-              <Input
-                label="Property Value"
-                type="number"
-                placeholder="₹ 75,00,000"
-              />
-              <Input
-                label="Property Type"
-                placeholder="e.g., Residential, Commercial"
-              />
-              <Input
-                label="City"
-                placeholder="Enter city"
+                onChange={(e) => setFormData({
+                  ...formData,
+                  form_data: { ...formData.form_data, aadhaar: e.target.value }
+                })}
               />
             </div>
           </CardContent>
@@ -226,9 +282,9 @@ export const NewApplication: React.FC = () => {
             <CardTitle>Required Documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
-              <p className="text-sm text-blue-800 font-medium mb-2">Please upload the following documents:</p>
-              <ul className="text-sm text-blue-700 space-y-1 ml-4 list-disc">
+            <div className="mb-4 p-4 bg-[#332f78]/10 border border-[#332f78]/30 rounded">
+              <p className="text-sm text-[#332f78] font-medium mb-2">Please upload the following documents:</p>
+              <ul className="text-sm text-[#332f78] space-y-1 ml-4 list-disc">
                 <li>PAN Card</li>
                 <li>Aadhaar Card</li>
                 <li>Last 3 months bank statements</li>
@@ -249,20 +305,6 @@ export const NewApplication: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Additional Information */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Additional Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TextArea
-              label="Additional Notes"
-              placeholder="Any additional information you'd like to share..."
-              rows={4}
-              helperText="Optional: Add any relevant details that may help in processing your application"
-            />
-          </CardContent>
-        </Card>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 justify-end">

@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
+import { useNavigation } from '../hooks/useNavigation';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings } from 'lucide-react';
 import { ClientDashboard } from './dashboards/ClientDashboard';
 import { KAMDashboard } from './dashboards/KAMDashboard';
@@ -10,10 +10,8 @@ import { CreditDashboard } from './dashboards/CreditDashboard';
 import { NBFCDashboard } from './dashboards/NBFCDashboard';
 
 export const Dashboard: React.FC = () => {
-  const navigate = useNavigate();
   const { userRole, user } = useAuth();
   const { unreadCount } = useNotifications();
-  const [activeItem, setActiveItem] = useState('dashboard');
 
   // Role-based sidebar items
   const sidebarItems = useMemo(() => {
@@ -87,17 +85,13 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const { activeItem, handleNavigation } = useNavigation(sidebarItems);
+
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
-      onItemClick={(id) => {
-        const item = sidebarItems.find(i => i.id === id);
-        if (item) {
-          navigate(item.path);
-          setActiveItem(id);
-        }
-      }}
+      onItemClick={handleNavigation}
       pageTitle="Dashboard"
       userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}

@@ -1,0 +1,21 @@
+/**
+ * Reports Routes
+ */
+
+import { Router } from 'express';
+import { reportsController } from '../controllers/reports.controller.js';
+import { authenticate } from '../middleware/auth.middleware.js';
+import { requireCredit, requireCreditOrKAM } from '../middleware/rbac.middleware.js';
+
+const router = Router();
+
+router.use(authenticate);
+
+// Generate - CREDIT only
+router.post('/daily/generate', requireCredit, reportsController.generateDailySummary.bind(reportsController));
+
+// Get - CREDIT or KAM
+router.get('/daily/:date', requireCreditOrKAM, reportsController.getDailySummary.bind(reportsController));
+
+export default router;
+

@@ -1,0 +1,12 @@
+{
+  "id": "AUDIT-TEST-001",
+  "Log Entry ID": "AUDIT-TEST-001",
+  "File": "SF20250115001",
+  "Timestamp": "2025-01-15T14:30:00.000Z",
+  "Actor": "KAM User - John Doe",
+  "Action/Event Type": "status_change",
+  "Details/Message": "Status changed from pending_kam_review to forwarded_to_credit",
+  "Target User/Role": "credit_team",
+  "Resolved": "False"
+}
+

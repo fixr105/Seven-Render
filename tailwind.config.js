@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        'brand-primary': '#2A5DB0',
+        'brand-primary': '#332f78',
         'brand-secondary': '#20A070',
         'neutral': {
           0: '#FFFFFF',
@@ -52,7 +52,7 @@ export default {
         'level-1': '0 1px 3px rgba(0,0,0,0.1)',
         'level-2': '0 4px 8px rgba(0,0,0,0.15)',
         'level-3': '0 8px 16px rgba(0,0,0,0.15)',
-        'focus': '0 0 0 3px rgba(42,93,176,0.4)',
+        'focus': '0 0 0 3px rgba(51,47,120,0.4)',
       },
       screens: {
         'xs': '480px',

@@ -8,6 +8,10 @@ import { ApplicationDetail } from './pages/ApplicationDetail';
 import { NewApplication } from './pages/NewApplication';
 import { Ledger } from './pages/Ledger';
 import { Clients } from './pages/Clients';
+import { Profile } from './pages/Profile';
+import { Settings } from './pages/Settings';
+import { Reports } from './pages/Reports';
+import { WebhookTest } from './pages/WebhookTest';
 
 function App() {
   return (
@@ -66,6 +70,42 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['kam', 'credit_team']}>
                 <Clients />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <Reports />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/webhook-test"
+            element={
+              <ProtectedRoute allowedRoles={['credit_team', 'kam']}>
+                <WebhookTest />
               </ProtectedRoute>
             }
           />

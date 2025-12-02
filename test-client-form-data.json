@@ -1,0 +1,13 @@
+{
+  "id": "CLIENT-TEST-001",
+  "company_name": "Test Corporation Pvt Ltd",
+  "contact_person": "John Doe",
+  "email": "test@example.com",
+  "phone": "+91 9876543210",
+  "commission_rate": "1.5",
+  "enabled_modules": ["M1", "M2", "M3", "M4", "M5"],
+  "is_active": true,
+  "kam_id": null
+}
+
+
