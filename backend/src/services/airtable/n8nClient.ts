@@ -34,56 +34,81 @@ export class N8nClient {
           return {} as N8nGetResponse;
         }
 
-        const firstItem = data[0] as any;
-        
-        // Detect table type based on field names
-        if (firstItem.Username !== undefined) {
-          // This is a User Accounts array
-          return { 'User Accounts': data } as N8nGetResponse;
-        } else if (firstItem['Notification ID'] !== undefined || firstItem['Recipient User'] !== undefined) {
-          // This is a Notifications array
-          return { 'Notifications': data } as N8nGetResponse;
-        } else if (firstItem['File ID'] !== undefined || firstItem['Client'] !== undefined) {
-          // This is a Loan Applications array
-          return { 'Loan Applications': data } as N8nGetResponse;
-        } else if (firstItem['Client ID'] !== undefined || firstItem['Client Name'] !== undefined) {
-          // This is a Clients array
-          return { 'Clients': data } as N8nGetResponse;
-        } else if (firstItem['KAM ID'] !== undefined || (firstItem.Email !== undefined && firstItem.Name !== undefined && firstItem.Role === 'KAM')) {
-          // This is a KAM Users array
-          return { 'KAM Users': data } as N8nGetResponse;
-        } else if (firstItem['Credit User ID'] !== undefined || (firstItem.Email !== undefined && firstItem.Name !== undefined && firstItem.Role === 'Credit')) {
-          // This is a Credit Team Users array
-          return { 'Credit Team Users': data } as N8nGetResponse;
-        } else if (firstItem['Lender ID'] !== undefined || firstItem['Lender Name'] !== undefined) {
-          // This is an NBFC Partners array
-          return { 'NBFC Partners': data } as N8nGetResponse;
-        } else if (firstItem['Product ID'] !== undefined || firstItem['Product Name'] !== undefined) {
-          // This is a Loan Products array
-          return { 'Loan Products': data } as N8nGetResponse;
-        } else if (firstItem['Category ID'] !== undefined || firstItem['Category Name'] !== undefined) {
-          // This is a Form Categories array
-          return { 'Form Categories': data } as N8nGetResponse;
-        } else if (firstItem['Field ID'] !== undefined || firstItem['Field Label'] !== undefined) {
-          // This is a Form Fields array
-          return { 'Form Fields': data } as N8nGetResponse;
-        } else if (firstItem['Log Entry ID'] !== undefined || firstItem['Action/Event Type'] !== undefined) {
-          // This is a File Audit Log array
-          return { 'File Audit Log': data } as N8nGetResponse;
-        } else if (firstItem['Activity ID'] !== undefined || firstItem['Performed By'] !== undefined) {
-          // This is an Admin Activity Log array
-          return { 'Admin Activity log': data } as N8nGetResponse;
-        } else if (firstItem['Entry ID'] !== undefined || firstItem['Transaction Type'] !== undefined) {
-          // This is a Commission Ledger array
-          return { 'COMISSIONLEDGER': data } as N8nGetResponse;
-        } else if (firstItem['Report Date'] !== undefined || firstItem['Summary Content'] !== undefined) {
-          // This is a Daily Summary Reports array
-          return { 'Daily Summary Reports': data } as N8nGetResponse;
+        // The GET webhook returns a mixed array with records from all tables
+        // We need to group them by table type based on field detection
+        const grouped: any = {
+          'User Accounts': [],
+          'Notifications': [],
+          'Loan Applications': [],
+          'Clients': [],
+          'KAM Users': [],
+          'Credit Team Users': [],
+          'NBFC Partners': [],
+          'Loan Products': [],
+          'Form Categories': [],
+          'Form Fields': [],
+          'File Audit Log': [],
+          'Admin Activity log': [],
+          'COMISSIONLEDGER': [],
+          'Daily Summary Reports': [],
+          'Client Form Mapping': [],
+        };
+
+        // Process each record and categorize it
+        for (const record of data) {
+          const item = record as any;
+          
+          // Skip records with only id and createdTime (empty records)
+          const keys = Object.keys(item).filter(k => k !== 'id' && k !== 'createdTime');
+          if (keys.length === 0) {
+            continue; // Skip empty records
+          }
+
+          // Detect table type based on unique identifier fields (check in priority order)
+          if (item.Username !== undefined) {
+            grouped['User Accounts'].push(item);
+          } else if (item['Notification ID'] !== undefined || item['Recipient User'] !== undefined) {
+            grouped['Notifications'].push(item);
+          } else if (item['File ID'] !== undefined || item['Client'] !== undefined) {
+            grouped['Loan Applications'].push(item);
+          } else if (item['Client ID'] !== undefined || item['Client Name'] !== undefined) {
+            grouped['Clients'].push(item);
+          } else if (item['KAM ID'] !== undefined || (item.Email !== undefined && item.Name !== undefined && (item.Role === 'KAM' || item.Role === 'kam'))) {
+            grouped['KAM Users'].push(item);
+          } else if (item['Credit User ID'] !== undefined || (item.Email !== undefined && item.Name !== undefined && (item.Role === 'Credit' || item.Role === 'credit_team'))) {
+            grouped['Credit Team Users'].push(item);
+          } else if (item['Lender ID'] !== undefined || item['Lender Name'] !== undefined) {
+            grouped['NBFC Partners'].push(item);
+          } else if (item['Product ID'] !== undefined || item['Product Name'] !== undefined) {
+            grouped['Loan Products'].push(item);
+          } else if (item['Category ID'] !== undefined || item['Category Name'] !== undefined) {
+            grouped['Form Categories'].push(item);
+          } else if (item['Field ID'] !== undefined || item['Field Label'] !== undefined) {
+            grouped['Form Fields'].push(item);
+          } else if (item['Log Entry ID'] !== undefined || item['Action/Event Type'] !== undefined) {
+            grouped['File Audit Log'].push(item);
+          } else if (item['Activity ID'] !== undefined || item['Performed By'] !== undefined) {
+            grouped['Admin Activity log'].push(item);
+          } else if (item['Entry ID'] !== undefined || item['Transaction Type'] !== undefined || item['Ledger Entry ID'] !== undefined) {
+            grouped['COMISSIONLEDGER'].push(item);
+          } else if (item['Report Date'] !== undefined || item['Summary Content'] !== undefined) {
+            grouped['Daily Summary Reports'].push(item);
+          } else if (item['Mapping ID'] !== undefined) {
+            grouped['Client Form Mapping'].push(item);
+          }
+          // If no match, skip the record (might be an unknown table or incomplete record)
         }
-        
-        // Unknown array type, return as-is (might be a single table response)
-        console.warn('Unknown array type in GET response, returning as-is');
-        return data as any;
+
+        // Remove empty arrays to clean up the response
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(grouped)) {
+          if (Array.isArray(value) && value.length > 0) {
+            cleaned[key] = value;
+          }
+        }
+
+        console.log(`✅ Grouped ${data.length} records into ${Object.keys(cleaned).length} tables: ${Object.keys(cleaned).join(', ')}`);
+        return cleaned as N8nGetResponse;
       }
       
       // If the response is an object, check if it has the expected structure
