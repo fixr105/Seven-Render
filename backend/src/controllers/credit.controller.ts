@@ -12,9 +12,11 @@ export class CreditController {
    */
   async getDashboard(req: Request, res: Response): Promise<void> {
     try {
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only the tables we need
+      const [applications, auditLogs] = await Promise.all([
+        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('File Auditing Log'),
+      ]);
 
       // Files by stage
       const filesByStage = {
@@ -85,8 +87,8 @@ export class CreditController {
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, kamId, clientId, nbfcId, productId, dateFrom, dateTo } = req.query;
-      const allData = await n8nClient.getAllData();
-      let applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      let applications = await n8nClient.fetchTable('Loan Application');
 
       // Apply filters
       if (status) {
@@ -143,9 +145,11 @@ export class CreditController {
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only the tables we need
+      const [applications, auditLogs] = await Promise.all([
+        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('File Auditing Log'),
+      ]);
 
       const application = applications.find((app) => app.id === id);
 
@@ -191,8 +195,8 @@ export class CreditController {
     try {
       const { id } = req.params;
       const { message, requestedDocs, clarifications } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -231,10 +235,10 @@ export class CreditController {
       // Send notification to KAM
       try {
         const { notificationService } = await import('../services/notifications/notification.service.js');
-        const kamUsers = allData['KAM Users'] || [];
+        const kamUsers = await n8nClient.fetchTable('KAM Users');
         
         // Find KAM assigned to this client
-        const clients = allData['Clients'] || [];
+        const clients = await n8nClient.fetchTable('Clients');
         const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
         const kamId = client?.['Assigned KAM'] || '';
         
@@ -275,8 +279,8 @@ export class CreditController {
   async markInNegotiation(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -321,8 +325,8 @@ export class CreditController {
     try {
       const { id } = req.params;
       const { nbfcIds } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -368,8 +372,8 @@ export class CreditController {
     try {
       const { id } = req.params;
       const { nbfcId, decision, approvedAmount, terms, rejectionReason, clarificationMessage } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -441,8 +445,8 @@ export class CreditController {
     try {
       const { id } = req.params;
       const { disbursedAmount, disbursedDate } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -455,10 +459,8 @@ export class CreditController {
       // The Client field in Loan Applications is a reference to the Client table
       let commissionRate = 1.5; // Default fallback
       
-      // Try to get client data - Clients might be in a separate table or referenced
-      // For now, we'll check if there's a Clients table in the data
-      // If not available, we'll use the default rate
-      const clients = allData['Clients'] || [];
+      // Fetch only Clients table to get commission rate
+      const clients = await n8nClient.fetchTable('Clients');
       const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
       
       if (client && client['Commission Rate']) {
@@ -534,7 +536,7 @@ export class CreditController {
         const { notificationService } = await import('../services/notifications/notification.service.js');
         
         // Get client email from Client table
-        const clients = allData['Clients'] || [];
+        const clients = await n8nClient.fetchTable('Clients');
         const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
         const clientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || req.user!.email;
         
@@ -587,8 +589,8 @@ export class CreditController {
    */
   async getPayoutRequests(req: Request, res: Response): Promise<void> {
     try {
-      const allData = await n8nClient.getAllData();
-      const ledgerEntries = allData['Commission Ledger'] || [];
+      // Fetch only Commission Ledger table
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
       const payoutRequests = ledgerEntries
         .filter(
@@ -625,8 +627,8 @@ export class CreditController {
     try {
       const { id } = req.params;
       const { approvedAmount, note } = req.body;
-      const allData = await n8nClient.getAllData();
-      const ledgerEntries = allData['Commission Ledger'] || [];
+      // Fetch only Commission Ledger table
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
       const entry = ledgerEntries.find((e) => e.id === id);
 
       if (!entry) {
@@ -672,8 +674,8 @@ export class CreditController {
       // Send notification
       try {
         const { notificationService } = await import('../services/notifications/notification.service.js');
-        const allData = await n8nClient.getAllData();
-        const clients = allData['Clients'] || [];
+        // Fetch only Clients table
+        const clients = await n8nClient.fetchTable('Clients');
         const client = clients.find((c: any) => c.id === entry.Client || c['Client ID'] === entry.Client);
         const clientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
         
@@ -708,8 +710,8 @@ export class CreditController {
     try {
       const { id } = req.params;
       const { reason } = req.body;
-      const allData = await n8nClient.getAllData();
-      const ledgerEntries = allData['Commission Ledger'] || [];
+      // Fetch only Commission Ledger table
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
       const entry = ledgerEntries.find((e) => e.id === id);
 
       if (!entry) {
@@ -737,8 +739,8 @@ export class CreditController {
       // Send notification
       try {
         const { notificationService } = await import('../services/notifications/notification.service.js');
-        const allData = await n8nClient.getAllData();
-        const clients = allData['Clients'] || [];
+        // Fetch only Clients table
+        const clients = await n8nClient.fetchTable('Clients');
         const client = clients.find((c: any) => c.id === entry.Client || c['Client ID'] === entry.Client);
         const clientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
         

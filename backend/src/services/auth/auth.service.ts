@@ -60,10 +60,8 @@ export class AuthService {
       role,
     };
 
-    // Fetch role-specific data from GET webhook (only after user account is validated)
+    // Fetch role-specific data from individual webhooks (only after user account is validated)
     // This is separate from login to keep login fast and use dedicated webhook
-    const allData = await n8nClient.getAllData();
-    
     switch (role) {
       case UserRole.CLIENT:
         // Client profile is in User Accounts with Associated Profile
@@ -72,8 +70,9 @@ export class AuthService {
         break;
 
       case UserRole.KAM:
-        const kamUsers = allData['KAM Users'] || [];
-        const kamUser = kamUsers.find((k) => k.Email.toLowerCase() === email.toLowerCase());
+        // Fetch only KAM Users table
+        const kamUsers = await n8nClient.fetchTable('KAM Users');
+        const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
         if (kamUser) {
           authUser.kamId = kamUser.id;
           authUser.name = kamUser.Name;
@@ -81,15 +80,17 @@ export class AuthService {
         break;
 
       case UserRole.CREDIT:
-        const creditUsers = allData['Credit Team Users'] || [];
-        const creditUser = creditUsers.find((c) => c.Email.toLowerCase() === email.toLowerCase());
+        // Fetch only Credit Team Users table
+        const creditUsers = await n8nClient.fetchTable('Credit Team Users');
+        const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
         if (creditUser) {
           authUser.name = creditUser.Name;
         }
         break;
 
       case UserRole.NBFC:
-        const nbfcPartners = allData['NBFC Partners'] || [];
+        // Fetch only NBFC Partners table
+        const nbfcPartners = await n8nClient.fetchTable('NBFC Partners');
         // NBFC users might have email in Contact Email/Phone
         const nbfcPartner = nbfcPartners.find((n) => 
           n['Contact Email/Phone']?.toLowerCase().includes(email.toLowerCase())

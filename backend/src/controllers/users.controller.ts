@@ -22,8 +22,8 @@ export class UsersController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const kamUsers = allData['KAM Users'] || [];
+      // Fetch only KAM Users table
+      const kamUsers = await n8nClient.fetchTable('KAM Users');
 
       res.json({
         success: true,
@@ -53,8 +53,8 @@ export class UsersController {
   async getKAMUser(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const kamUsers = allData['KAM Users'] || [];
+      // Fetch only KAM Users table
+      const kamUsers = await n8nClient.fetchTable('KAM Users');
       
       const user = kamUsers.find((u: any) => u.id === id || u['KAM ID'] === id);
 
@@ -102,8 +102,8 @@ export class UsersController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const userAccounts = allData['User Accounts'] || [];
+      // Fetch only User Accounts table
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
 
       res.json({
         success: true,
@@ -132,8 +132,8 @@ export class UsersController {
   async getUserAccount(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const userAccounts = allData['User Accounts'] || [];
+      // Fetch only User Accounts table
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
       
       const account = userAccounts.find((a: any) => a.id === id);
 
@@ -192,8 +192,8 @@ export class UsersController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const userAccounts = allData['User Accounts'] || [];
+      // Fetch only User Accounts table
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
       const account = userAccounts.find((a: any) => a.id === id);
 
       if (!account) {

@@ -73,8 +73,8 @@ export class LoanController {
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, dateFrom, dateTo, search } = req.query;
-      const allData = await n8nClient.getAllData();
-      let applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table instead of all data
+      let applications = await n8nClient.fetchTable('Loan Application');
 
       // Filter by role
       applications = dataFilterService.filterLoanApplications(applications, req.user!);
@@ -131,9 +131,11 @@ export class LoanController {
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only the tables we need
+      const [applications, auditLogs] = await Promise.all([
+        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('File Auditing Log'),
+      ]);
 
       let application = applications.find((app) => app.id === id);
 
@@ -190,8 +192,8 @@ export class LoanController {
 
       const { id } = req.params;
       const { formData, documentUploads } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application || application.Client !== req.user.clientId) {
@@ -268,8 +270,8 @@ export class LoanController {
       }
 
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application || application.Client !== req.user.clientId) {

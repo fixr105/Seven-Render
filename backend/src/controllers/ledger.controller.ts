@@ -19,8 +19,8 @@ export class LedgerController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      let ledgerEntries = allData['Commission Ledger'] || [];
+      // Fetch only Commission Ledger table
+      let ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
       // Filter by client
       ledgerEntries = ledgerEntries.filter(
@@ -69,8 +69,8 @@ export class LedgerController {
 
       const { ledgerEntryId } = req.params;
       const { message } = req.body;
-      const allData = await n8nClient.getAllData();
-      const ledgerEntries = allData['Commission Ledger'] || [];
+      // Fetch only Commission Ledger table
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
       const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
 
       if (!entry || entry.Client !== req.user!.clientId) {
@@ -121,8 +121,8 @@ export class LedgerController {
       }
 
       const { amountRequested, full } = req.body;
-      const allData = await n8nClient.getAllData();
-      let ledgerEntries = allData['Commission Ledger'] || [];
+      // Fetch only Commission Ledger table
+      let ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
       // Filter by client
       ledgerEntries = ledgerEntries.filter(
@@ -209,8 +209,8 @@ export class LedgerController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const ledgerEntries = allData['Commission Ledger'] || [];
+      // Fetch only Commission Ledger table
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
       const payoutRequests = ledgerEntries
         .filter(

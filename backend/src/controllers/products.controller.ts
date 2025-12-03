@@ -14,8 +14,8 @@ export class ProductsController {
    */
   async listLoanProducts(req: Request, res: Response): Promise<void> {
     try {
-      const allData = await n8nClient.getAllData();
-      const products = allData['Loan Products'] || [];
+      // Fetch only Loan Products table
+      const products = await n8nClient.fetchTable('Loan Products');
 
       // Filter active products if requested
       const { activeOnly } = req.query;
@@ -51,8 +51,8 @@ export class ProductsController {
   async getLoanProduct(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const products = allData['Loan Products'] || [];
+      // Fetch only Loan Products table
+      const products = await n8nClient.fetchTable('Loan Products');
       
       const product = products.find((p: any) => p.id === id || p['Product ID'] === id);
 
@@ -89,8 +89,8 @@ export class ProductsController {
    */
   async listNBFCPartners(req: Request, res: Response): Promise<void> {
     try {
-      const allData = await n8nClient.getAllData();
-      const partners = allData['NBFC Partners'] || [];
+      // Fetch only NBFC Partners table
+      const partners = await n8nClient.fetchTable('NBFC Partners');
 
       // Filter active partners if requested
       const { activeOnly } = req.query;
@@ -127,8 +127,8 @@ export class ProductsController {
   async getNBFCPartner(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const partners = allData['NBFC Partners'] || [];
+      // Fetch only NBFC Partners table
+      const partners = await n8nClient.fetchTable('NBFC Partners');
       
       const partner = partners.find((p: any) => p.id === id || p['Lender ID'] === id);
 

@@ -20,8 +20,8 @@ export class ReportsController {
 
       const { date } = req.body;
       const reportDate = date || new Date().toISOString().split('T')[0];
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
 
       // Filter applications for the report date
       const dateApplications = applications.filter(
@@ -120,8 +120,8 @@ ${metrics.pendingQueries > 0 ? `- ${metrics.pendingQueries} queries pending reso
   async getDailySummary(req: Request, res: Response): Promise<void> {
     try {
       const { date } = req.params;
-      const allData = await n8nClient.getAllData();
-      const reports = allData['Daily summary Reports'] || [];
+      // Fetch only Daily Summary Report table
+      const reports = await n8nClient.fetchTable('Daily Summary Report');
 
       const report = reports.find((r) => r['Report Date'] === date);
 

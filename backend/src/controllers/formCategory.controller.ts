@@ -15,8 +15,8 @@ export class FormCategoryController {
   async listCategories(req: Request, res: Response): Promise<void> {
     try {
       // Allow authenticated users (filtered by role in routes if needed)
-      const allData = await n8nClient.getAllData();
-      const categories = allData['Form Categories'] || [];
+      // Fetch only Form Categories table
+      const categories = await n8nClient.fetchTable('Form Categories');
 
       res.json({
         success: true,
@@ -44,8 +44,8 @@ export class FormCategoryController {
   async getCategory(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const categories = allData['Form Categories'] || [];
+      // Fetch only Form Categories table
+      const categories = await n8nClient.fetchTable('Form Categories');
       const category = categories.find((c) => c.id === id);
 
       if (!category) {
@@ -142,8 +142,8 @@ export class FormCategoryController {
       const { categoryName, description, displayOrder, active } = req.body;
 
       // Get existing category data
-      const allData = await n8nClient.getAllData();
-      const categories = allData['Form Categories'] || [];
+      // Fetch only Form Categories table
+      const categories = await n8nClient.fetchTable('Form Categories');
       const existingCategory = categories.find((c) => c.id === id);
 
       if (!existingCategory) {
@@ -202,8 +202,8 @@ export class FormCategoryController {
       const { id } = req.params;
 
       // Get existing category
-      const allData = await n8nClient.getAllData();
-      const categories = allData['Form Categories'] || [];
+      // Fetch only Form Categories table
+      const categories = await n8nClient.fetchTable('Form Categories');
       const existingCategory = categories.find((c) => c.id === id);
 
       if (!existingCategory) {

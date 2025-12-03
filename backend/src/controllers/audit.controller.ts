@@ -14,9 +14,11 @@ export class AuditController {
   async getFileAuditLog(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only the tables we need
+      const [applications, auditLogs] = await Promise.all([
+        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('File Auditing Log'),
+      ]);
 
       const application = applications.find((app) => app.id === id);
 
@@ -75,8 +77,8 @@ export class AuditController {
       }
 
       const { dateFrom, dateTo, performedBy, actionType, targetEntity } = req.query;
-      const allData = await n8nClient.getAllData();
-      let activityLogs = allData['Admin Activity log'] || [];
+      // Fetch only Admin Activity Log table
+      let activityLogs = await n8nClient.fetchTable('Admin Activity Log');
 
       // Apply filters
       if (dateFrom || dateTo) {

@@ -43,17 +43,16 @@ export class AuthController {
         return;
       }
 
-      // Get fresh data from n8n to include name
-      const allData = await n8nClient.getAllData();
+      // Get name from role-specific table
       let name = req.user.email.split('@')[0];
 
       // Try to get name from role-specific table
       if (req.user.role === 'kam') {
-        const kamUsers = allData['KAM Users'] || [];
+        const kamUsers = await n8nClient.fetchTable('KAM Users');
         const kamUser = kamUsers.find((k) => k.id === req.user.kamId);
         if (kamUser) name = kamUser.Name;
       } else if (req.user.role === 'credit_team') {
-        const creditUsers = allData['Credit Team Users'] || [];
+        const creditUsers = await n8nClient.fetchTable('Credit Team Users');
         const creditUser = creditUsers.find((c) => c.Email === req.user.email);
         if (creditUser) name = creditUser.Name;
       }

@@ -18,10 +18,12 @@ export class ClientController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
-      const ledgerEntries = allData['Commission Ledger'] || [];
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only the tables we need
+      const [applications, ledgerEntries, auditLogs] = await Promise.all([
+        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('Commission Ledger'),
+        n8nClient.fetchTable('File Auditing Log'),
+      ]);
 
       // Filter by client
       const clientApplications = applications.filter(
@@ -110,10 +112,13 @@ export class ClientController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const mappings = allData['Client Form Mapping'] || [];
-      const categories = allData['Form Categories'] || [];
-      const fields = allData['Form Fields'] || [];
+      // Fetch only the tables we need
+      const [mappings, categories] = await Promise.all([
+        n8nClient.fetchTable('Client Form Mapping'),
+        n8nClient.fetchTable('Form Categories'),
+      ]);
+      // Fetch only Form Fields table
+      const fields = await n8nClient.fetchTable('Form Fields');
 
       // Get mappings for this client and product
       const clientMappings = mappings.filter(
@@ -174,9 +179,11 @@ export class ClientController {
 
       const { id, queryId } = req.params;
       const { message, newDocs, answers } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only the tables we need
+      const [applications, auditLogs] = await Promise.all([
+        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('File Auditing Log'),
+      ]);
 
       const application = applications.find((app) => app.id === id);
       if (!application || application.Client !== req.user.clientId) {

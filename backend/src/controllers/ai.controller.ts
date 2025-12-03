@@ -14,8 +14,8 @@ export class AIController {
   async generateSummary(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -71,8 +71,8 @@ Application Summary for ${application['File ID']}:
   async getSummary(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {

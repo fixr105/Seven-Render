@@ -31,8 +31,12 @@ export class QueriesController {
       }
 
       // Get all data to verify parent exists
-      const allData = await n8nClient.getAllData();
-      const queries = allData['Queries'] || [];
+      // Note: Queries are stored in File Auditing Log, not a separate table
+      // Fetch File Auditing Log and filter for query action types
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
+      const queries = auditLogs.filter((log: any) => 
+        log['Action/Event Type']?.toLowerCase().includes('query')
+      );
       
       // Find parent query
       const parentQuery = queries.find((q: any) => q.id === parentId);
@@ -105,10 +109,8 @@ export class QueriesController {
   async getThread(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      
-      // Get queries from File Auditing Log (filter by query action types)
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch File Auditing Log table
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
       
       // Filter for query-related entries
       const queryEntries = auditLogs.filter(
@@ -194,8 +196,8 @@ export class QueriesController {
   async resolveQuery(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only File Auditing Log table
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
       
       // Find query entry
       const queryEntry = auditLogs.find((q: any) => q.id === id);
@@ -241,8 +243,8 @@ export class QueriesController {
   async reopenQuery(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only File Auditing Log table
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
       
       // Find query entry
       const queryEntry = auditLogs.find((q: any) => q.id === id);

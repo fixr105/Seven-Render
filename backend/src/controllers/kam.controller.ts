@@ -18,11 +18,15 @@ export class KAMController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const userAccounts = allData['User Accounts'] || [];
-      const applications = allData['Loan Applications'] || [];
-      const ledgerEntries = allData['Commission Ledger'] || [];
-      const auditLogs = allData['File Auditing Log'] || [];
+      // Fetch only the tables we need
+      const [userAccounts, applications] = await Promise.all([
+        n8nClient.fetchTable('User Accounts'),
+        n8nClient.fetchTable('Loan Application'),
+      ]);
+      const [ledgerEntries, auditLogs] = await Promise.all([
+        n8nClient.fetchTable('Commission Ledger'),
+        n8nClient.fetchTable('File Auditing Log'),
+      ]);
 
       // Get managed clients (clients with this KAM)
       const managedClients = userAccounts.filter(
@@ -174,10 +178,8 @@ export class KAMController {
     try {
       const { id } = req.params;
       const { enabledModules, commissionRate } = req.body;
-      const allData = await n8nClient.getAllData();
-      
-      // Get existing client data
-      const clients = allData['Clients'] || [];
+      // Fetch only Clients table
+      const clients = await n8nClient.fetchTable('Clients');
       const client = clients.find((c: any) => c.id === id || c['Client ID'] === id);
 
       if (!client) {
@@ -231,8 +233,8 @@ export class KAMController {
   async getFormMappings(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const mappings = allData['Client Form Mapping'] || [];
+      // Fetch only Client Form Mapping table
+      const mappings = await n8nClient.fetchTable('Client Form Mapping');
 
       const clientMappings = mappings.filter((m) => m.Client === id);
 
@@ -297,9 +299,12 @@ export class KAMController {
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, clientId } = req.query;
-      const allData = await n8nClient.getAllData();
-      const userAccounts = allData['User Accounts'] || [];
-      let applications = allData['Loan Applications'] || [];
+      // Fetch only the tables we need
+      const [userAccounts, applications] = await Promise.all([
+        n8nClient.fetchTable('User Accounts'),
+        n8nClient.fetchTable('Loan Application'),
+      ]);
+      let apps = applications;
 
       // Get managed clients
       const managedClients = userAccounts.filter((u) => u.Role === 'client');
@@ -345,8 +350,8 @@ export class KAMController {
     try {
       const { id } = req.params;
       const { formData, notes } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -408,8 +413,8 @@ export class KAMController {
     try {
       const { id } = req.params;
       const { message, fieldsRequested, documentsRequested, allowsClientToEdit } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -458,7 +463,7 @@ export class KAMController {
       // Send notification
       try {
         const { notificationService } = await import('../services/notifications/notification.service.js');
-        const clients = allData['Clients'] || [];
+        const clients = await n8nClient.fetchTable('Clients');
         const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
         const clientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
         
@@ -495,8 +500,8 @@ export class KAMController {
   async forwardToCredit(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {

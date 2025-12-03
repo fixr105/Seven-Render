@@ -6,10 +6,116 @@
 import fetch from 'node-fetch';
 import { n8nConfig } from '../../config/airtable.js';
 import { N8nGetResponse, UserAccount } from '../../types/entities.js';
+import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';
 
 export class N8nClient {
   /**
+   * Fetch data from a single table webhook
+   * @param tableName - Name of the table to fetch
+   * @returns Array of records from the table
+   */
+  async fetchTable(tableName: string): Promise<any[]> {
+    const url = getWebhookUrl(tableName);
+    if (!url) {
+      console.warn(`No webhook URL configured for table: ${tableName}`);
+      return [];
+    }
+
+    try {
+      console.log(`Fetching ${tableName} from: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Webhook failed for ${tableName}: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Handle different response formats
+      if (Array.isArray(data)) {
+        console.log(`✅ Fetched ${data.length} records from ${tableName}`);
+        return data;
+      } else if (data.records && Array.isArray(data.records)) {
+        console.log(`✅ Fetched ${data.records.length} records from ${tableName}`);
+        return data.records;
+      } else if (data.data && Array.isArray(data.data)) {
+        console.log(`✅ Fetched ${data.data.length} records from ${tableName}`);
+        return data.data;
+      } else if (typeof data === 'object') {
+        // Single record or object with table name as key
+        const tableKey = Object.keys(data).find(key => 
+          Array.isArray(data[key]) || 
+          (typeof data[key] === 'object' && data[key] !== null)
+        );
+        if (tableKey && Array.isArray(data[tableKey])) {
+          console.log(`✅ Fetched ${data[tableKey].length} records from ${tableName}`);
+          return data[tableKey];
+        } else {
+          // Single record
+          console.log(`✅ Fetched 1 record from ${tableName}`);
+          return [data];
+        }
+      }
+      
+      console.warn(`Unexpected response format from ${tableName} webhook`);
+      return [];
+    } catch (error) {
+      console.error(`Error fetching ${tableName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch multiple tables in parallel
+   * @param tableNames - Array of table names to fetch
+   * @returns Object with table names as keys and arrays of records as values
+   */
+  async fetchMultipleTables(tableNames: string[]): Promise<Record<string, any[]>> {
+    // Validate table names
+    const invalidTables = tableNames.filter(t => !TABLE_NAMES.includes(t));
+    if (invalidTables.length > 0) {
+      console.warn(`Invalid table names: ${invalidTables.join(', ')}`);
+    }
+
+    const validTables = tableNames.filter(t => TABLE_NAMES.includes(t));
+    
+    // Fetch all tables in parallel
+    const fetchPromises = validTables.map(async (tableName) => {
+      try {
+        const data = await this.fetchTable(tableName);
+        return { tableName, data, error: null };
+      } catch (error: any) {
+        console.error(`Failed to fetch ${tableName}:`, error);
+        return { tableName, data: [], error: error.message };
+      }
+    });
+
+    const results = await Promise.all(fetchPromises);
+    
+    // Build result object
+    const result: Record<string, any[]> = {};
+    results.forEach(({ tableName, data, error }) => {
+      if (error) {
+        console.error(`Error fetching ${tableName}: ${error}`);
+        result[tableName] = [];
+      } else {
+        result[tableName] = data;
+      }
+    });
+
+    return result;
+  }
+
+  /**
    * GET all data from Airtable via n8n
+   * @deprecated Use fetchTable() or fetchMultipleTables() instead
+   * This method is kept for backward compatibility but should not be used in new code
    */
   async getAllData(): Promise<N8nGetResponse> {
     try {

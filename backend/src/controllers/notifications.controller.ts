@@ -15,8 +15,8 @@ export class NotificationsController {
   async getNotifications(req: Request, res: Response): Promise<void> {
     try {
       const { unreadOnly, limit } = req.query;
-      const allData = await n8nClient.getAllData();
-      const notifications = allData['Notifications'] || [];
+      // Fetch only Notifications table
+      const notifications = await n8nClient.fetchTable('Notifications');
 
       // Filter by user
       let userNotifications = notifications;
@@ -97,8 +97,8 @@ export class NotificationsController {
    */
   async getUnreadCount(req: Request, res: Response): Promise<void> {
     try {
-      const allData = await n8nClient.getAllData();
-      const notifications = allData['Notifications'] || [];
+      // Fetch only Notifications table
+      const notifications = await n8nClient.fetchTable('Notifications');
 
       let userNotifications = notifications;
       
@@ -137,8 +137,8 @@ export class NotificationsController {
   async markAsRead(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const notifications = allData['Notifications'] || [];
+      // Fetch only Notifications table
+      const notifications = await n8nClient.fetchTable('Notifications');
       
       const notification = notifications.find((n: any) => n.id === id);
       
@@ -193,8 +193,8 @@ export class NotificationsController {
    */
   async markAllAsRead(req: Request, res: Response): Promise<void> {
     try {
-      const allData = await n8nClient.getAllData();
-      const notifications = allData['Notifications'] || [];
+      // Fetch only Notifications table
+      const notifications = await n8nClient.fetchTable('Notifications');
 
       // Filter user's unread notifications
       let userNotifications = notifications;

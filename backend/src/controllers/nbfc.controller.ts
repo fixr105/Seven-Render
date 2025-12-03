@@ -17,8 +17,8 @@ export class NBFController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
 
       // Get applications assigned to this NBFC
       const assignedApplications = applications.filter(
@@ -53,8 +53,8 @@ export class NBFController {
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, dateFrom, dateTo, amountMin, amountMax } = req.query;
-      const allData = await n8nClient.getAllData();
-      let applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      let applications = await n8nClient.fetchTable('Loan Application');
 
       // Filter by assigned NBFC
       applications = applications.filter(
@@ -110,8 +110,8 @@ export class NBFController {
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -157,8 +157,8 @@ export class NBFController {
     try {
       const { id } = req.params;
       const { decision, approvedAmount, terms, rejectionReason, clarificationMessage } = req.body;
-      const allData = await n8nClient.getAllData();
-      const applications = allData['Loan Applications'] || [];
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {

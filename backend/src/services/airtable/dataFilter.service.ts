@@ -99,12 +99,13 @@ export class DataFilterService {
 
   /**
    * Get client IDs managed by a KAM
+   * @deprecated This method should be updated to use individual webhooks
+   * For now, it accepts userAccounts array directly
    */
   async getKAMManagedClients(
     kamId: string,
-    allData: N8nGetResponse
+    userAccounts: any[]
   ): Promise<string[]> {
-    const userAccounts = allData['User Accounts'] || [];
     // Clients have Role='client' and Associated Profile might link to KAM
     // This is a simplified version - adjust based on actual schema
     return userAccounts

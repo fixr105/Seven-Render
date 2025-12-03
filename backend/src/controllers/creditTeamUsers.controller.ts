@@ -20,8 +20,8 @@ export class CreditTeamUsersController {
         return;
       }
 
-      const allData = await n8nClient.getAllData();
-      const creditUsers = allData['Credit Team Users'] || [];
+      // Fetch only Credit Team Users table
+      const creditUsers = await n8nClient.fetchTable('Credit Team Users');
 
       res.json({
         success: true,
@@ -55,8 +55,8 @@ export class CreditTeamUsersController {
       }
 
       const { id } = req.params;
-      const allData = await n8nClient.getAllData();
-      const creditUsers = allData['Credit Team Users'] || [];
+      // Fetch only Credit Team Users table
+      const creditUsers = await n8nClient.fetchTable('Credit Team Users');
       const user = creditUsers.find((u) => u.id === id);
 
       if (!user) {
@@ -154,8 +154,8 @@ export class CreditTeamUsersController {
       const { name, email, phone, role, status } = req.body;
 
       // Get existing user data
-      const allData = await n8nClient.getAllData();
-      const creditUsers = allData['Credit Team Users'] || [];
+      // Fetch only Credit Team Users table
+      const creditUsers = await n8nClient.fetchTable('Credit Team Users');
       const existingUser = creditUsers.find((u) => u.id === id);
 
       if (!existingUser) {
@@ -215,8 +215,8 @@ export class CreditTeamUsersController {
       const { id } = req.params;
 
       // Get existing user
-      const allData = await n8nClient.getAllData();
-      const creditUsers = allData['Credit Team Users'] || [];
+      // Fetch only Credit Team Users table
+      const creditUsers = await n8nClient.fetchTable('Credit Team Users');
       const existingUser = creditUsers.find((u) => u.id === id);
 
       if (!existingUser) {
