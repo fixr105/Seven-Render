@@ -243,9 +243,19 @@ class ApiService {
         data: data.data || data,
       };
     } catch (error: any) {
+      console.error('API request error:', error);
+      // Provide more specific error messages
+      let errorMessage = 'Network error';
+      
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        errorMessage = `Cannot connect to backend API at ${this.baseUrl}. Please ensure the server is running.`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return {
         success: false,
-        error: error.message || 'Network error',
+        error: errorMessage,
       };
     }
   }

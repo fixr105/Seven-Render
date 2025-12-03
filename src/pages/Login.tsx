@@ -39,12 +39,16 @@ export const Login: React.FC = () => {
         // Provide more helpful error messages
         let errorMessage = signInError.message || 'Invalid email or password';
         
-        if (signInError.message?.includes('Email not confirmed')) {
+        // Check for network/connection errors
+        if (signInError.message?.includes('Failed to fetch') || 
+            signInError.message?.includes('Network error') ||
+            signInError.message?.includes('fetch')) {
+          const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+          errorMessage = `Cannot connect to backend API (${apiUrl}). Please ensure the backend server is running.`;
+        } else if (signInError.message?.includes('Invalid email or password')) {
+          errorMessage = 'Invalid email or password. The test user may not exist in the system. Please contact administrator to create test users.';
+        } else if (signInError.message?.includes('Email not confirmed')) {
           errorMessage = 'Email not confirmed. Please check your email or contact administrator.';
-        } else if (signInError.message?.includes('Invalid login credentials')) {
-          errorMessage = 'Invalid email or password. Please check your credentials or create a test user first.';
-        } else if (signInError.message?.includes('Failed to fetch')) {
-          errorMessage = 'Connection error. Please check your Supabase configuration in .env file.';
         }
         
         setError(errorMessage);
@@ -52,8 +56,16 @@ export const Login: React.FC = () => {
       } else {
         navigate('/dashboard');
       }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (err.message?.includes('fetch') || err.message?.includes('Network')) {
+        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        errorMessage = `Cannot connect to backend API (${apiUrl}). Please ensure the backend server is running.`;
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };

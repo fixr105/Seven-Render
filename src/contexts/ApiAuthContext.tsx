@@ -13,6 +13,7 @@ interface ApiAuthContextType {
   logout: () => void;
   refreshUser: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
+  signInAsTestUser: (role: UserRole, email: string) => void;
 }
 
 const ApiAuthContext = createContext<ApiAuthContextType | undefined>(undefined);
@@ -59,10 +60,13 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         setUser(response.data.user);
         return {};
       } else {
-        return { error: response.error || 'Login failed' };
+        // Return error object with message property
+        const errorMessage = response.error || 'Login failed';
+        return { error: { message: errorMessage } };
       }
     } catch (error: any) {
-      return { error: error.message || 'Login failed' };
+      console.error('Login error in ApiAuthContext:', error);
+      return { error: { message: error.message || 'Login failed' } };
     }
   };
 
@@ -75,6 +79,27 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
     return user?.role === role;
   };
 
+  const signInAsTestUser = (role: UserRole, email: string) => {
+    // Create a mock user for bypass/test mode
+    const mockUser: UserContext = {
+      id: `test-${role}-${Date.now()}`,
+      email: email,
+      role: role,
+      name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      clientId: role === 'client' ? `test-client-${Date.now()}` : undefined,
+      kamId: role === 'kam' ? `test-kam-${Date.now()}` : undefined,
+      nbfcId: role === 'nbfc' ? `test-nbfc-${Date.now()}` : undefined,
+    };
+
+    // Store a test token in localStorage
+    const testToken = `test-token-${role}-${Date.now()}`;
+    apiService.setToken(testToken);
+    
+    // Set the user directly (bypass API call)
+    setUser(mockUser);
+    setLoading(false);
+  };
+
   return (
     <ApiAuthContext.Provider
       value={{
@@ -84,6 +109,7 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         logout,
         refreshUser,
         hasRole,
+        signInAsTestUser,
       }}
     >
       {children}
