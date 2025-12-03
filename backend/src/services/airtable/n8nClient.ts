@@ -26,32 +26,86 @@ export class N8nClient {
 
       const data = await response.json();
       
-      // Handle case where response might be an array (e.g., User Accounts array)
+      // Handle case where response might be an array (e.g., User Accounts, Notifications, etc.)
       // or an object with table names as keys
       if (Array.isArray(data)) {
-        // If it's an array, check if it looks like User Accounts
-        if (data.length > 0 && data[0].Username !== undefined) {
-          // This is a User Accounts array, wrap it in the expected format
-          return { 'User Accounts': data } as N8nGetResponse;
+        if (data.length === 0) {
+          // Empty array, return empty object
+          return {} as N8nGetResponse;
         }
-        // Otherwise, it might be a different table, return as-is wrapped
+
+        const firstItem = data[0] as any;
+        
+        // Detect table type based on field names
+        if (firstItem.Username !== undefined) {
+          // This is a User Accounts array
+          return { 'User Accounts': data } as N8nGetResponse;
+        } else if (firstItem['Notification ID'] !== undefined || firstItem['Recipient User'] !== undefined) {
+          // This is a Notifications array
+          return { 'Notifications': data } as N8nGetResponse;
+        } else if (firstItem['File ID'] !== undefined || firstItem['Client'] !== undefined) {
+          // This is a Loan Applications array
+          return { 'Loan Applications': data } as N8nGetResponse;
+        } else if (firstItem['Client ID'] !== undefined || firstItem['Client Name'] !== undefined) {
+          // This is a Clients array
+          return { 'Clients': data } as N8nGetResponse;
+        } else if (firstItem['KAM ID'] !== undefined || (firstItem.Email !== undefined && firstItem.Name !== undefined && firstItem.Role === 'KAM')) {
+          // This is a KAM Users array
+          return { 'KAM Users': data } as N8nGetResponse;
+        } else if (firstItem['Credit User ID'] !== undefined || (firstItem.Email !== undefined && firstItem.Name !== undefined && firstItem.Role === 'Credit')) {
+          // This is a Credit Team Users array
+          return { 'Credit Team Users': data } as N8nGetResponse;
+        } else if (firstItem['Lender ID'] !== undefined || firstItem['Lender Name'] !== undefined) {
+          // This is an NBFC Partners array
+          return { 'NBFC Partners': data } as N8nGetResponse;
+        } else if (firstItem['Product ID'] !== undefined || firstItem['Product Name'] !== undefined) {
+          // This is a Loan Products array
+          return { 'Loan Products': data } as N8nGetResponse;
+        } else if (firstItem['Category ID'] !== undefined || firstItem['Category Name'] !== undefined) {
+          // This is a Form Categories array
+          return { 'Form Categories': data } as N8nGetResponse;
+        } else if (firstItem['Field ID'] !== undefined || firstItem['Field Label'] !== undefined) {
+          // This is a Form Fields array
+          return { 'Form Fields': data } as N8nGetResponse;
+        } else if (firstItem['Log Entry ID'] !== undefined || firstItem['Action/Event Type'] !== undefined) {
+          // This is a File Audit Log array
+          return { 'File Audit Log': data } as N8nGetResponse;
+        } else if (firstItem['Activity ID'] !== undefined || firstItem['Performed By'] !== undefined) {
+          // This is an Admin Activity Log array
+          return { 'Admin Activity log': data } as N8nGetResponse;
+        } else if (firstItem['Entry ID'] !== undefined || firstItem['Transaction Type'] !== undefined) {
+          // This is a Commission Ledger array
+          return { 'COMISSIONLEDGER': data } as N8nGetResponse;
+        } else if (firstItem['Report Date'] !== undefined || firstItem['Summary Content'] !== undefined) {
+          // This is a Daily Summary Reports array
+          return { 'Daily Summary Reports': data } as N8nGetResponse;
+        }
+        
+        // Unknown array type, return as-is (might be a single table response)
+        console.warn('Unknown array type in GET response, returning as-is');
         return data as any;
       }
       
-      // If the response is an object but doesn't have 'User Accounts', 
-      // check if it has User Accounts data in a different format
+      // If the response is an object, check if it has the expected structure
       if (typeof data === 'object' && !Array.isArray(data)) {
-        // Check if any key contains user account-like data
+        // Check if it already has table keys (expected format)
+        const hasTableKeys = Object.keys(data).some(key => 
+          Array.isArray(data[key as keyof typeof data])
+        );
+        
+        if (hasTableKeys) {
+          // Already in expected format
+          return data as N8nGetResponse;
+        }
+        
+        // Check if any key contains table-like data
         const keys = Object.keys(data);
         for (const key of keys) {
-          if (Array.isArray(data[key]) && data[key].length > 0) {
-            const firstItem = data[key][0];
-            if (firstItem && firstItem.Username !== undefined) {
-              // Found User Accounts in a different key, normalize it
-              if (key !== 'User Accounts') {
-                data['User Accounts'] = data[key];
-              }
-              break;
+          if (Array.isArray(data[key as keyof typeof data]) && (data[key as keyof typeof data] as any[]).length > 0) {
+            const firstItem = (data[key as keyof typeof data] as any[])[0];
+            // Try to detect and normalize table names
+            if (firstItem && firstItem.Username !== undefined && key !== 'User Accounts') {
+              data['User Accounts'] = data[key as keyof typeof data];
             }
           }
         }
