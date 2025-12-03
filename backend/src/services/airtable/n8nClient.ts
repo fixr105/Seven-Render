@@ -181,46 +181,6 @@ export class N8nClient {
     }
   }
 
-          if (retryResponse.ok) {
-            const retryData = await retryResponse.json();
-            
-            // Check if it's an array of User Accounts
-            if (Array.isArray(retryData) && retryData.length > 0 && retryData[0].Username) {
-              console.log(`✅ Found User Accounts on retry attempt ${attempt}`);
-              return retryData as UserAccount[];
-            }
-            
-            // Check if it has User Accounts key
-            if (retryData['User Accounts'] && Array.isArray(retryData['User Accounts'])) {
-              console.log(`✅ Found User Accounts in object on retry attempt ${attempt}`);
-              return retryData['User Accounts'];
-            }
-            
-            // Check if getAllData() would detect it as User Accounts
-            const detectedData = await this.getAllData();
-            if (detectedData['User Accounts'] && Array.isArray(detectedData['User Accounts'])) {
-              console.log(`✅ Found User Accounts after detection on retry attempt ${attempt}`);
-              return detectedData['User Accounts'];
-            }
-          }
-        } catch (retryError) {
-          console.warn(`Retry attempt ${attempt} failed:`, retryError);
-        }
-        
-        // Small delay between retries (except on last attempt)
-        if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      console.warn('User Accounts not found after multiple retry attempts. The GET webhook may need to be updated to return all tables.');
-      return [];
-    } catch (error) {
-      console.error('Error fetching User Accounts:', error);
-      return [];
-    }
-  }
-
   /**
    * POST data to n8n webhook
    */
