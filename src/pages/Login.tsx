@@ -178,29 +178,61 @@ export const Login: React.FC = () => {
           <div className="mt-6 pt-6 border-t border-neutral-200">
             <p className="text-xs font-semibold text-neutral-500 uppercase mb-3">Test Credentials</p>
             <div className="space-y-2">
-              <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('client@test.com');
+                  setPassword('password123');
+                  setError('');
+                }}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+              >
                 <p className="text-xs font-medium text-neutral-700 mb-1">👤 Client (DSA)</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono">client@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono">password123</span></p>
-              </div>
-              <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
+                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">client@test.com</span></p>
+                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('kam@test.com');
+                  setPassword('password123');
+                  setError('');
+                }}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+              >
                 <p className="text-xs font-medium text-neutral-700 mb-1">👔 Key Account Manager (KAM)</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono">kam@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono">password123</span></p>
-              </div>
-              <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
+                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">kam@test.com</span></p>
+                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('credit@test.com');
+                  setPassword('password123');
+                  setError('');
+                }}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+              >
                 <p className="text-xs font-medium text-neutral-700 mb-1">💼 Credit Team</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono">credit@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono">password123</span></p>
-              </div>
-              <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
+                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">credit@test.com</span></p>
+                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('nbfc@test.com');
+                  setPassword('password123');
+                  setError('');
+                }}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+              >
                 <p className="text-xs font-medium text-neutral-700 mb-1">🏦 NBFC Partner</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono">nbfc@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono">password123</span></p>
-              </div>
+                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">nbfc@test.com</span></p>
+                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+              </button>
             </div>
             <p className="mt-3 text-xs text-neutral-500 text-center">
-              Use these credentials to test different user roles
+              Click any credential card to auto-fill the form
             </p>
           </div>
         </div>
