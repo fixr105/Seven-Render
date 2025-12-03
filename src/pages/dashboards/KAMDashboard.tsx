@@ -6,7 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
 import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, TrendingUp } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
-import { supabase } from '../../lib/supabase';
+import { apiService } from '../../services/api';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { useState, useEffect } from 'react';
 
@@ -43,27 +43,33 @@ export const KAMDashboard: React.FC = () => {
     if (!userRoleId) return;
     try {
       setLoadingClients(true);
-      const { data } = await supabase
-        .from('dsa_clients')
-        .select('id, company_name')
-        .eq('kam_id', userRoleId)
-        .eq('is_active', true);
-
-      if (data) {
-        const clientStats = await Promise.all(
-          data.map(async (client) => {
-            const clientApps = applications.filter(a => a.client_id === client.id);
-            return {
-              id: client.id,
-              name: client.company_name,
-              totalFiles: clientApps.length,
-              pendingReview: clientApps.filter(a => a.status === 'pending_kam_review').length,
-              awaitingResponse: clientApps.filter(a => a.status === 'kam_query_raised').length,
-            };
-          })
-        );
+      // Use API service to fetch clients
+      const response = await apiService.listClients();
+      
+      if (response.success && response.data) {
+        const clientsData = response.data as any[];
+        const clientStats = clientsData.map((client: any) => {
+          const clientId = client.id || client['Client ID'];
+          const clientApps = applications.filter(a => {
+            const appClientId = a.client_id || (a as any).Client;
+            return appClientId === clientId;
+          });
+          return {
+            id: clientId,
+            name: client.name || client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
+            totalFiles: clientApps.length,
+            pendingReview: clientApps.filter(a => a.status === 'pending_kam_review' || a.status === 'under_kam_review').length,
+            awaitingResponse: clientApps.filter(a => a.status === 'kam_query_raised' || a.status === 'query_with_client').length,
+          };
+        });
         setClients(clientStats);
+      } else {
+        console.error('Error fetching clients:', response.error);
+        setClients([]);
       }
+    } catch (error) {
+      console.error('Exception in fetchClients:', error);
+      setClients([]);
     } finally {
       setLoadingClients(false);
     }

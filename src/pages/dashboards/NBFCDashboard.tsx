@@ -7,7 +7,7 @@ import { DataTable, Column } from '../../components/ui/DataTable';
 import { FileText, Clock, CheckCircle, XCircle, Download, AlertCircle } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
-import { supabase } from '../../lib/supabase';
+import { apiService } from '../../services/api';
 import { useState, useEffect } from 'react';
 
 interface ApplicationRow {
@@ -34,24 +34,29 @@ export const NBFCDashboard: React.FC = () => {
     if (!userRoleId) return;
     try {
       setLoading(true);
-      // Get NBFC partner ID
-      const { data: nbfcData } = await supabase
-        .from('nbfc_partners')
-        .select('id')
-        .eq('user_id', userRoleId)
-        .maybeSingle();
-
-      if (nbfcData) {
-        // Get applications assigned to this NBFC
-        const { data } = await supabase
-          .from('loan_applications')
-          .select('*, client:dsa_clients(company_name), loan_product:loan_products(name)')
-          .eq('assigned_nbfc_id', nbfcData.id)
-          .in('status', ['sent_to_nbfc', 'approved', 'rejected'])
-          .order('created_at', { ascending: false });
-
-        setAssignedApplications(data || []);
+      // Use API service to fetch NBFC applications
+      const response = await apiService.listNBFCApplications();
+      
+      if (response.success && response.data) {
+        // Transform API response to match expected format
+        const transformed = (response.data as any[]).map((app: any) => ({
+          id: app.id,
+          file_number: app.fileId || app['File ID'] || `SF${app.id.slice(0, 8)}`,
+          status: app.status || app.Status || 'sent_to_nbfc',
+          created_at: app.creationDate || app['Creation Date'] || app.createdAt || new Date().toISOString(),
+          client: app.client ? { company_name: app.client.name || app.client['Client Name'] } : undefined,
+          loan_product: app.loanProduct ? { name: app.loanProduct.name || app.loanProduct['Product Name'] } : undefined,
+          requested_loan_amount: app.requestedAmount || parseFloat(app['Requested Loan Amount'] || '0') || 0,
+        }));
+        
+        setAssignedApplications(transformed);
+      } else {
+        console.error('Error fetching NBFC applications:', response.error);
+        setAssignedApplications([]);
       }
+    } catch (error) {
+      console.error('Exception in fetchAssignedApplications:', error);
+      setAssignedApplications([]);
     } finally {
       setLoading(false);
     }

@@ -400,6 +400,13 @@ class ApiService {
   }
 
   /**
+   * List clients (KAM)
+   */
+  async listClients(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/kam/clients');
+  }
+
+  /**
    * Create new client
    */
   async createClient(data: {
@@ -702,10 +709,10 @@ class ApiService {
   /**
    * Create payout request
    */
-  async createPayoutRequest(amount: number): Promise<ApiResponse> {
+  async createPayoutRequest(data: { amount: number }): Promise<ApiResponse> {
     return this.request('/clients/me/payout-requests', {
       method: 'POST',
-      body: JSON.stringify({ amount }),
+      body: JSON.stringify(data),
     });
   }
 
