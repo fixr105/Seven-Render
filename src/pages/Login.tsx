@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { supabase } from '../lib/supabase';
 
 export const Login: React.FC = () => {
