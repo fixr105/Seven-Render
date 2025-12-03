@@ -8,7 +8,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Mod
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Clock, CheckCircle, XCircle, Send, Download, Edit } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { supabase } from '../lib/supabase';
@@ -67,7 +67,7 @@ interface StatusHistoryItem {
 export const ApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userRole, userRoleId } = useAuth();
+  const { userRole, userRoleId } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [application, setApplication] = useState<any>(null);

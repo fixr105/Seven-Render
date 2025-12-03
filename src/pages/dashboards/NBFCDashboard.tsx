@@ -6,7 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
 import { FileText, Clock, CheckCircle, XCircle, Download, AlertCircle } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { supabase } from '../../lib/supabase';
 import { useState, useEffect } from 'react';
 
@@ -22,7 +22,7 @@ interface ApplicationRow {
 
 export const NBFCDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { userRoleId } = useAuth();
+  const { userRoleId } = useAuthSafe();
   const [assignedApplications, setAssignedApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

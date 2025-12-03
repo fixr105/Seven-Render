@@ -6,13 +6,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings as SettingsIcon, Bell, Lock, Moon, Globe } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({

@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { user, signIn, signInAsTestUser } = useAuth();
+  const { user, signIn, signInAsTestUser } = useAuthSafe();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

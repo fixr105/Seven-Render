@@ -5,14 +5,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, User, Mail, Phone, Building } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { supabase } from '../lib/supabase';
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const { user, userRole, userRoleId } = useAuth();
+  const { user, userRole, userRoleId } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [profileData, setProfileData] = useState({

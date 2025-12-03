@@ -4,14 +4,14 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useLedger } from '../hooks/useLedger';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 
 export const Ledger: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole } = useAuthSafe();
   const { balance, loading } = useLedger();
   const { unreadCount } = useNotifications();
 

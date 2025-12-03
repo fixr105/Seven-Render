@@ -2,12 +2,12 @@ import React from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 
 export const Reports: React.FC = () => {
-  const { userRole } = useAuth();
+  const { userRole } = useAuthSafe();
   const { unreadCount } = useNotifications();
 
   const sidebarItems = [
