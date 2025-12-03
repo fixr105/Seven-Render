@@ -25,14 +25,8 @@ export class AuthService {
    * Login - validate credentials and return JWT
    */
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
-    // Get all user data from n8n
-    const allData = await n8nClient.getAllData();
-    let userAccounts = allData['User Accounts'] || [];
-
-    // If User Accounts not in main response, try getUserAccounts fallback
-    if (userAccounts.length === 0) {
-      userAccounts = await n8nClient.getUserAccounts();
-    }
+    // Use dedicated user account webhook for login (loads only once)
+    const userAccounts = await n8nClient.getUserAccounts();
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
@@ -66,7 +60,10 @@ export class AuthService {
       role,
     };
 
-    // Fetch role-specific data
+    // Fetch role-specific data from GET webhook (only after user account is validated)
+    // This is separate from login to keep login fast and use dedicated webhook
+    const allData = await n8nClient.getAllData();
+    
     switch (role) {
       case UserRole.CLIENT:
         // Client profile is in User Accounts with Associated Profile

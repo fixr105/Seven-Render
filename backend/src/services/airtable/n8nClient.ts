@@ -144,29 +144,42 @@ export class N8nClient {
   }
 
   /**
-   * GET User Accounts directly
-   * This is a fallback method if User Accounts are not in the main GET response
-   * The GET webhook returns different tables on different requests, so we retry multiple times
+   * GET User Accounts directly from dedicated webhook
+   * This is used specifically for login/authentication
+   * Loads only once and waits for response
    */
   async getUserAccounts(): Promise<UserAccount[]> {
     try {
-      // Try the main GET webhook first
-      const allData = await this.getAllData();
-      if (allData['User Accounts'] && Array.isArray(allData['User Accounts'])) {
-        return allData['User Accounts'];
+      const response = await fetch(n8nConfig.getUserAccountsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`User Accounts webhook failed: ${response.status} ${response.statusText}`);
       }
 
-      // If not found, the GET webhook might return User Accounts on a different request
-      // Retry multiple times to see if we get User Accounts
-      const maxAttempts = 5;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          const retryResponse = await fetch(n8nConfig.getUserAccountsUrl, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
+      const data = await response.json();
+      
+      // The webhook returns an array of user accounts directly
+      if (Array.isArray(data)) {
+        return data as UserAccount[];
+      }
+      
+      // If it's an object, try to extract User Accounts
+      if (typeof data === 'object' && data['User Accounts']) {
+        return data['User Accounts'] as UserAccount[];
+      }
+      
+      console.warn('Unexpected response format from User Accounts webhook');
+      return [];
+    } catch (error) {
+      console.error('Error fetching User Accounts from dedicated webhook:', error);
+      throw error;
+    }
+  }
 
           if (retryResponse.ok) {
             const retryData = await retryResponse.json();
