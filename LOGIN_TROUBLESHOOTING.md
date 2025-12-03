@@ -126,3 +126,4 @@ If backend API is not available, you can temporarily use Supabase:
 2. Ensure Supabase credentials are configured
 3. Create users in Supabase
 
+

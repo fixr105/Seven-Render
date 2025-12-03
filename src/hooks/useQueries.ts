@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { apiService } from '../services/api';
+import { useAuthSafe } from './useAuthSafe';
 
 export const useQueries = (applicationId?: string) => {
-  const { userRoleId } = useAuth();
+  const { userRoleId } = useAuthSafe();
   const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

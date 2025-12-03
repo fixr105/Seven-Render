@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-
-const WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52';
+import { useState, useEffect, useRef } from 'react';
+import { fetchTableData, fetchMultipleTables } from '../lib/webhookFetcher';
+import { getTableFields } from '../lib/webhookConfig';
 
 export interface AirtableRecord {
   id: string;
@@ -137,15 +137,97 @@ const transformAirtableRecord = (record: AirtableRecord): LoanApplicationFromWeb
 };
 
 /**
- * Hook to fetch loan applications from webhook
+ * Fetch Loan Applications from individual webhook
+ * Only fetches the Loan Application table
+ */
+const fetchLoanApplicationsFromWebhook = async (forceRefresh = false): Promise<LoanApplicationFromWebhook[]> => {
+  try {
+    // Fetch only Loan Application table
+    const records = await fetchTableData('Loan Application', forceRefresh);
+    
+    // Transform records to application format
+    const transformed = records
+      .map((record) => {
+        try {
+          // Convert flat record to Airtable format for transformation
+          const airtableRecord: AirtableRecord = {
+            id: record.id || record['id'] || `record_${Date.now()}_${Math.random()}`,
+            fields: record,
+            createdTime: record['Creation Date'] || record['Created Time'] || new Date().toISOString(),
+          };
+          return transformAirtableRecord(airtableRecord);
+        } catch (err) {
+          console.error('Error transforming record:', err, record);
+          return null;
+        }
+      })
+      .filter((app): app is LoanApplicationFromWebhook => app !== null);
+    
+    console.log(`Successfully transformed ${transformed.length} applications from Loan Application webhook`);
+    return transformed;
+  } catch (err: any) {
+    console.error('Error fetching Loan Applications from webhook:', err);
+    throw err;
+  }
+};
+
+/**
+ * Hook to fetch loan applications from individual webhook
+ * DOES NOT auto-execute - only fetches when explicitly requested via refetch()
+ * or on page reload/refresh (F5 or browser refresh button)
+ * 
+ * Now uses individual "Loan Application" table webhook instead of single GET webhook
  */
 export const useWebhookApplications = () => {
   const [applications, setApplications] = useState<LoanApplicationFromWebhook[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const hasCheckedReloadRef = useRef(false);
 
+  // Check for page reload on mount (only once)
   useEffect(() => {
-    fetchWebhookData();
+    mountedRef.current = true;
+    hasCheckedReloadRef.current = true;
+    
+    // Check if this is a page reload using multiple methods for browser compatibility
+    const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    const isPageReload = 
+      navEntry?.type === 'reload' ||
+      (performance.navigation && (performance.navigation as any).type === 1) ||
+      // Check if page was loaded via reload (not navigation)
+      (document.referrer === '' && window.history.length === 1);
+    
+    // Only fetch on actual page reload (F5 or browser refresh button)
+    // NOT on normal navigation or component mount
+    if (isPageReload) {
+      console.log('Page reload detected - fetching Loan Application data from individual webhook');
+      setLoading(true);
+      
+      fetchLoanApplicationsFromWebhook(false)
+        .then((data) => {
+          if (mountedRef.current) {
+            setApplications(data);
+            setLoading(false);
+            setError(null);
+          }
+        })
+        .catch((err) => {
+          if (mountedRef.current) {
+            setError(err.message || 'Failed to fetch webhook data');
+            setApplications([]);
+            setLoading(false);
+          }
+        });
+    } else {
+      // Normal navigation - use empty array, no webhook call
+      setApplications([]);
+      setLoading(false);
+    }
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const fetchWebhookData = async () => {
@@ -153,134 +235,20 @@ export const useWebhookApplications = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching webhook data from:', WEBHOOK_URL);
+      // Force refresh on manual refetch
+      const data = await fetchLoanApplicationsFromWebhook(true);
       
-      const response = await fetch(WEBHOOK_URL, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
-      }
-
-      const data: WebhookResponse = await response.json();
-      
-      console.log('Webhook response:', data);
-      
-      // Check for error responses from n8n
-      if (data.code !== undefined && data.code !== 200 && data.message) {
-        const errorMsg = data.message || 'Unknown error from webhook';
-        console.error('Webhook returned error:', errorMsg, data);
-        setError(`Webhook error: ${errorMsg}. Please check the n8n workflow configuration.`);
-        setApplications([]);
+      if (mountedRef.current) {
+        setApplications(data);
         setLoading(false);
-        return;
+        setError(null);
       }
-      
-      // Handle different response formats
-      let records: AirtableRecord[] = [];
-      
-      if (Array.isArray(data)) {
-        // Check if array contains records or table structures
-        if (data.length > 0 && data[0].fields && Array.isArray(data[0].fields)) {
-          // Array of table structures - extract records from each
-          data.forEach((table: any) => {
-            if (table.records && Array.isArray(table.records)) {
-              records.push(...table.records);
-            }
-          });
-        } else {
-          // Array of records - check if they have fields property or are flat
-          records = data.map((item: any) => {
-            if (item.fields) {
-              return item; // Already in Airtable format
-            } else {
-              // Flat format - wrap in fields
-              return {
-                id: item.id || `record_${Date.now()}_${Math.random()}`,
-                fields: item,
-                createdTime: item.createdTime,
-              };
-            }
-          });
-        }
-      } else if (data.records && Array.isArray(data.records)) {
-        records = data.records;
-      } else if (data.data && Array.isArray(data.data)) {
-        records = data.data;
-      } else if (data.fields && Array.isArray(data.fields)) {
-        // Table structure metadata - check if records are nested
-        if (data.records && Array.isArray(data.records)) {
-          records = data.records;
-        } else {
-          // This is just table structure metadata - log warning
-          console.warn('Webhook returned table structure metadata without records. Response:', data);
-          console.warn('Please configure n8n to return actual records from the table.');
-          setError('Webhook returned table structure but no records. Please configure n8n to return actual data.');
-          setApplications([]);
-          setLoading(false);
-          return;
-        }
-      } else if (data.fields && typeof data.fields === 'object' && !Array.isArray(data.fields)) {
-        // Single record with nested fields - Airtable format
-        records = [{
-          id: data.id || `record_${Date.now()}`,
-          fields: data.fields,
-          createdTime: data.createdTime,
-        }];
-      } else if (data.id && !data.fields) {
-        // Single record in flat format (fields directly on object) - current webhook format
-        // Extract id and createdTime, rest goes to fields
-        const { id, createdTime, ...fields } = data;
-        records = [{
-          id: id || `record_${Date.now()}`,
-          fields: fields, // All other properties become fields
-          createdTime: createdTime,
-        }];
-        console.log('Handled flat format record:', { id, createdTime, fieldCount: Object.keys(fields).length });
-      } else {
-        // Unknown format - log for debugging
-        console.warn('Unknown webhook response format:', data);
-        setError('Unknown webhook response format. Check console for details.');
-        setApplications([]);
-        setLoading(false);
-        return;
-      }
-      
-      console.log(`Found ${records.length} records from webhook`);
-      console.log('Sample record structure:', records[0]);
-      
-      // Transform records to application format
-      const transformed = records
-        .map((record, index) => {
-          try {
-            const app = transformAirtableRecord(record);
-            if (app) {
-              console.log(`Record ${index + 1} transformed:`, app);
-            }
-            return app;
-          } catch (err) {
-            console.error(`Error transforming record ${index + 1}:`, err, record);
-            return null;
-          }
-        })
-        .filter((app): app is LoanApplicationFromWebhook => app !== null);
-      
-      console.log(`Successfully transformed ${transformed.length} applications`);
-      if (transformed.length > 0) {
-        console.log('First transformed application:', transformed[0]);
-      }
-      
-      setApplications(transformed);
     } catch (err: any) {
-      console.error('Error fetching webhook data:', err);
-      setError(err.message || 'Failed to fetch webhook data');
-      setApplications([]);
-    } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setError(err.message || 'Failed to fetch webhook data');
+        setApplications([]);
+        setLoading(false);
+      }
     }
   };
 
@@ -293,60 +261,44 @@ export const useWebhookApplications = () => {
 };
 
 /**
- * Hook to fetch all webhook data (all tables)
+ * Hook to fetch multiple tables from individual webhooks
+ * Only fetches the tables specified in the tables array
  */
-export const useWebhookAllData = () => {
+export const useWebhookTables = (tables: string[]) => {
   const [data, setData] = useState<Record<string, any[]>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    fetchAllData();
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
-  const fetchAllData = async () => {
+  const fetchTables = async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(WEBHOOK_URL, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const result = await fetchMultipleTables({
+        tables,
+        forceRefresh,
       });
-
-      if (!response.ok) {
-        throw new Error(`Webhook returned status ${response.status}`);
+      
+      if (mountedRef.current) {
+        setData(result);
+        setLoading(false);
+        setError(null);
       }
-
-      const webhookData: any = await response.json();
-      
-      // Organize data by table name
-      const organizedData: Record<string, any[]> = {};
-      
-      if (Array.isArray(webhookData)) {
-        // Multiple tables
-        webhookData.forEach((table: any) => {
-          if (table.name && table.records) {
-            organizedData[table.name] = table.records;
-          }
-        });
-      } else if (webhookData.records) {
-        // Single table with records
-        organizedData[webhookData.name || 'default'] = webhookData.records;
-      } else if (webhookData.name) {
-        // Table structure only
-        organizedData[webhookData.name] = [];
-      }
-      
-      setData(organizedData);
     } catch (err: any) {
-      console.error('Error fetching webhook data:', err);
-      setError(err.message || 'Failed to fetch webhook data');
-      setData({});
-    } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        console.error('Error fetching webhook tables:', err);
+        setError(err.message || 'Failed to fetch webhook data');
+        setData({});
+        setLoading(false);
+      }
     }
   };
 
@@ -354,7 +306,16 @@ export const useWebhookAllData = () => {
     data, 
     loading, 
     error, 
-    refetch: fetchAllData 
+    refetch: () => fetchTables(true) 
   };
+};
+
+/**
+ * Hook to fetch all webhook data (all tables)
+ * @deprecated Use useWebhookTables with specific tables instead
+ */
+export const useWebhookAllData = () => {
+  const { TABLE_NAMES } = require('../lib/webhookConfig');
+  return useWebhookTables(TABLE_NAMES);
 };
 

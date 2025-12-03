@@ -40,9 +40,10 @@ export const Applications: React.FC = () => {
   const navigate = useNavigate();
   const { userRole } = useAuthSafe();
   const { unreadCount } = useNotifications();
+  // Webhooks only execute on explicit refresh or page reload - no auto-execution
   const { applications, loading, error, refetch, syncing, lastSyncTime, webhookCount, dbCount } = useUnifiedApplications({
-    autoSync: true,
-    syncOnMount: true,
+    autoSync: false,  // No auto-sync
+    syncOnMount: false,  // No auto-fetch on mount
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -420,14 +421,14 @@ export const Applications: React.FC = () => {
               </Button>
             </div>
           ) : (
-            <DataTable
-              columns={columns}
-              data={filteredData}
-              keyExtractor={(row) => row.id}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            keyExtractor={(row) => row.id}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+          />
           )}
         </CardContent>
       </Card>

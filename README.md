@@ -100,6 +100,7 @@ All components are built with accessibility in mind, featuring:
 - **Vite** - Build tool and dev server
 - **Lucide React** - Icon library
 - **Supabase** - Backend (database connection ready)
+- **n8n Webhooks** - Individual table webhooks for data synchronization
 
 ## Project Structure
 
@@ -122,10 +123,26 @@ src/
 │       ├── SearchBar.tsx      # Search input
 │       ├── Toast.tsx          # Notifications
 │       └── FileUpload.tsx     # File upload component
+├── hooks/
+│   ├── useApplications.ts     # Applications data hook
+│   ├── useWebhookData.ts      # Webhook data fetching hooks
+│   ├── useUnifiedApplications.ts # Unified webhook + DB data
+│   ├── useAuthSafe.ts         # Safe authentication hook
+│   ├── useLedger.ts           # Commission ledger hook
+│   └── useNotifications.ts    # Notifications hook
+├── lib/
+│   ├── webhookConfig.ts       # Individual webhook URLs & field mappings
+│   ├── webhookFetcher.ts      # Core webhook fetching logic
+│   ├── supabase.ts            # Supabase client
+│   └── storage.ts             # Storage utilities
 ├── pages/
 │   ├── Dashboard.tsx          # Main dashboard page
 │   ├── Applications.tsx       # Applications list page
-│   └── Login.tsx             # Login page
+│   ├── Login.tsx             # Login page
+│   └── dashboards/           # Role-specific dashboards
+├── contexts/
+│   ├── AuthContext.tsx        # Supabase auth context
+│   └── ApiAuthContext.tsx    # API auth context
 ├── App.tsx                   # Root component
 ├── main.tsx                  # Application entry point
 └── index.css                 # Global styles
@@ -194,7 +211,61 @@ The application is configured to work with Supabase:
 ```
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_anon_key
+VITE_API_BASE_URL=http://localhost:3000
+VITE_USE_API_AUTH=true
 ```
+
+## Webhook Integration
+
+The application uses **individual table webhooks** from n8n for efficient data synchronization. Each table has its own dedicated GET webhook, reducing unnecessary data fetching.
+
+### Webhook Architecture
+
+- **Individual Table Webhooks**: Each of the 15 tables has its own webhook URL
+- **Selective Fetching**: Functions only fetch the tables they need
+- **Caching**: Per-table caching (5 minutes) prevents duplicate calls
+- **No Auto-Execution**: Webhooks only execute on page reload or explicit refresh
+
+### Available Tables
+
+1. **Loan Application** - `/webhook/loanapplication`
+2. **Clients** - `/webhook/client`
+3. **Commission Ledger** - `/webhook/commisionledger`
+4. **Loan Products** - `/webhook/loanproducts`
+5. **User Accounts** - `/webhook/useraccount`
+6. **Notifications** - `/webhook/notifications`
+7. **KAM Users** - `/webhook/kamusers`
+8. **Credit Team Users** - `/webhook/creditteamuser`
+9. **NBFC Partners** - `/webhook/nbfcpartners`
+10. **Form Categories** - `/webhook/formcategories`
+11. **Form Fields** - `/webhook/formfields`
+12. **Client Form Mapping** - `/webhook/clientformmapping`
+13. **File Auditing Log** - `/webhook/fileauditinglog`
+14. **Admin Activity Log** - `/webhook/Adminactivity`
+15. **Daily Summary Report** - `/webhook/dailysummaryreport`
+
+### Usage
+
+```typescript
+// Fetch specific tables
+import { useWebhookTables } from '../hooks/useWebhookData';
+
+const { data, loading, error, refetch } = useWebhookTables([
+  'Loan Application',
+  'Clients',
+  'Loan Products'
+]);
+
+// Access data by table name
+const applications = data['Loan Application'] || [];
+const clients = data['Clients'] || [];
+```
+
+### Documentation
+
+- `WEBHOOK_TABLE_MAPPING.md` - Function-to-table mapping
+- `WEBHOOK_EXECUTION_GUIDE.md` - When and how webhooks execute
+- `INDIVIDUAL_WEBHOOKS_IMPLEMENTATION.md` - Implementation details
 
 ## Next Steps
 

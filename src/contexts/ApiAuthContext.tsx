@@ -16,7 +16,7 @@ interface ApiAuthContextType {
   signInAsTestUser: (role: UserRole, email: string) => void;
 }
 
-const ApiAuthContext = createContext<ApiAuthContextType | undefined>(undefined);
+export const ApiAuthContext = createContext<ApiAuthContextType | undefined>(undefined);
 
 export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserContext | null>(null);

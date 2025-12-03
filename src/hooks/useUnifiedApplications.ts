@@ -5,11 +5,28 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useWebhookApplications, LoanApplicationFromWebhook } from './useWebhookData';
+import { useWebhookTables } from './useWebhookData';
 import { useApplications, LoanApplication } from './useApplications';
 import { syncWebhookRecordsToDB } from '../lib/webhookSync';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from './useAuthSafe';
 import { supabase } from '../lib/supabase';
+import { getTableFields } from '../lib/webhookConfig';
+
+// Re-export type for compatibility
+export type LoanApplicationFromWebhook = {
+  id: string;
+  file_number: string;
+  client_id?: string;
+  applicant_name: string;
+  loan_product_id?: string | null;
+  requested_loan_amount: number | null;
+  status: string;
+  client?: { company_name: string };
+  loan_product?: { name: string; code: string };
+  created_at: string;
+  updated_at: string;
+  [key: string]: any;
+};
 
 export interface UnifiedApplication extends LoanApplication {
   source: 'database' | 'webhook' | 'synced';
@@ -20,8 +37,9 @@ export const useUnifiedApplications = (options: {
   autoSync?: boolean;
   syncOnMount?: boolean;
 } = {}) => {
-  const { autoSync = true, syncOnMount = true } = options;
-  const { userRole, userRoleId } = useAuth();
+  // Default to false - no auto-sync or auto-fetch
+  const { autoSync = false, syncOnMount = false } = options;
+  const { userRole, userRoleId } = useAuthSafe();
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientIds, setClientIds] = useState<string[]>([]);
 
@@ -86,8 +104,45 @@ export const useUnifiedApplications = (options: {
     fetchClientFilter();
   }, [userRole, userRoleId]);
 
-  // Fetch from both sources
-  const { applications: webhookApps, loading: webhookLoading, error: webhookError, refetch: refetchWebhook } = useWebhookApplications();
+  // Fetch only the tables we need: Loan Application, Clients, Loan Products
+  const requiredTables = ['Loan Application', 'Clients', 'Loan Products'];
+  const { data: webhookData, loading: webhookLoading, error: webhookError, refetch: refetchWebhook } = useWebhookTables(requiredTables);
+  
+  // Transform webhook data to LoanApplicationFromWebhook format
+  const webhookApps: LoanApplicationFromWebhook[] = useMemo(() => {
+    const loanApps = webhookData['Loan Application'] || [];
+    const clients = webhookData['Clients'] || [];
+    const loanProducts = webhookData['Loan Products'] || [];
+    
+    // Create lookup maps
+    const clientMap = new Map(clients.map((c: any) => [c['Client ID'] || c.id, c]));
+    const productMap = new Map(loanProducts.map((p: any) => [p['Product ID'] || p.id, p]));
+    
+    // Transform loan applications
+    return loanApps.map((app: any) => {
+      const clientId = app['Client'] || app['Client ID'];
+      const productId = app['Loan Product'] || app['Product ID'];
+      const client = clientId ? clientMap.get(clientId) : null;
+      const product = productId ? productMap.get(productId) : null;
+      
+      return {
+        id: app.id,
+        file_number: app['File ID'] || app.id,
+        client_id: clientId,
+        applicant_name: app['Applicant Name'] || 'N/A',
+        loan_product_id: productId || null,
+        requested_loan_amount: parseFloat(app['Requested Loan Amount']?.toString().replace(/[^0-9.]/g, '') || '0') || null,
+        status: app['Status'] || 'draft',
+        client: client ? { company_name: client['Client Name'] || client['Primary Contact Name'] || 'Unknown' } : undefined,
+        loan_product: product ? { name: product['Product Name'] || 'N/A', code: product['Product ID'] || '' } : undefined,
+        created_at: app['Creation Date'] || app['Created Time'] || new Date().toISOString(),
+        updated_at: app['Last Updated'] || app['Creation Date'] || new Date().toISOString(),
+        // Include all original fields
+        ...app,
+      } as LoanApplicationFromWebhook;
+    });
+  }, [webhookData]);
+  
   const { applications: dbApps, loading: dbLoading, refetch: refetchDB } = useApplications();
 
   const [syncing, setSyncing] = useState(false);
@@ -167,8 +222,8 @@ export const useUnifiedApplications = (options: {
     }
   }, [filteredWebhookApps, autoSync, refetchDB, userRoleId]);
 
-  // Auto-sync on mount if enabled
-  // Wait for both webhook and DB data to load before syncing to prevent race conditions
+  // Auto-sync on mount if explicitly enabled (default: false)
+  // Only syncs if syncOnMount is true AND webhook data is available
   useEffect(() => {
     if (syncOnMount && !webhookLoading && !dbLoading && filteredWebhookApps.length > 0 && !syncing) {
       syncToDatabase();
@@ -224,7 +279,9 @@ export const useUnifiedApplications = (options: {
   const error = webhookError || syncError;
 
   const refetch = useCallback(async () => {
-    await Promise.all([refetchWebhook(), refetchDB()]);
+    // Refetch webhook tables (force refresh)
+    await refetchWebhook();
+    await refetchDB();
     if (autoSync) {
       await syncToDatabase();
     }
