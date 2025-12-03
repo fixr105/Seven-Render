@@ -147,6 +147,12 @@ function AppRoutes() {
           </div>
         }
       />
+
+      {/* Catch-all route for 404 */}
+      <Route
+        path="*"
+        element={<Navigate to="/dashboard" replace />}
+      />
     </Routes>
   );
 }
