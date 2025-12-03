@@ -8,7 +8,7 @@ dotenv.config();
 
 export const n8nConfig = {
   getWebhookUrl: process.env.N8N_GET_WEBHOOK_URL || 'https://fixrrahul.app.n8n.cloud/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52',
-  getUserAccountsUrl: process.env.N8N_GET_USER_ACCOUNTS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52', // Same URL, but might need table parameter
+  getUserAccountsUrl: process.env.N8N_GET_USER_ACCOUNTS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/useraccount', // Dedicated webhook for user accounts
   postLogUrl: process.env.N8N_POST_LOG_URL || 'https://fixrrahul.app.n8n.cloud/webhook/POSTLOG',
   postClientFormMappingUrl: process.env.N8N_POST_CLIENT_FORM_MAPPING_URL || 'https://fixrrahul.app.n8n.cloud/webhook/POSTCLIENTFORMMAPPING',
   postCommissionLedgerUrl: process.env.N8N_POST_COMMISSION_LEDGER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/COMISSIONLEDGER',
