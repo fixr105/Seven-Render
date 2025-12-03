@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -38,7 +38,7 @@ const getStatusVariant = (status: string) => {
 
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const { applications, loading, error, refetch, syncing, lastSyncTime, webhookCount, dbCount } = useUnifiedApplications({
     autoSync: true,

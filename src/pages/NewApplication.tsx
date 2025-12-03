@@ -7,7 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { FileUpload } from '../components/ui/FileUpload';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, Send } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -29,7 +29,7 @@ interface FormData {
 
 export const NewApplication: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, userRoleId } = useAuth();
+  const { userRole, userRoleId } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(false);

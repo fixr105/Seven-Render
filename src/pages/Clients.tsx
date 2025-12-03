@@ -9,7 +9,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, UserPlus } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { supabase } from '../lib/supabase';
@@ -35,7 +35,7 @@ const formatDate = formatDateFull;
 
 export const Clients: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, userRoleId } = useAuth();
+  const { userRole, userRoleId } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);

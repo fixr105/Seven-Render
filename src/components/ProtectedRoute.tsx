@@ -1,7 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-// Support both API auth and Supabase auth
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSafe } from '../hooks/useAuthSafe';
 import { UserRole } from '../lib/supabase';
 
 interface ProtectedRouteProps {
@@ -10,35 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-  // Check which auth system is being used
-  const useApiAuth = import.meta.env.VITE_USE_API_AUTH !== 'false';
-  
-  let user: any = null;
-  let userRole: UserRole | null = null;
-  let loading = false;
-
-  if (useApiAuth) {
-    // Use API auth
-    try {
-      const { useApiAuth: useApiAuthHook } = require('../contexts/ApiAuthContext');
-      const apiAuth = useApiAuthHook();
-      user = apiAuth.user;
-      userRole = apiAuth.user?.role as UserRole;
-      loading = apiAuth.loading;
-    } catch (error) {
-      // API auth not available, fallback to Supabase
-      const auth = useAuth();
-      user = auth.user;
-      userRole = auth.userRole;
-      loading = auth.loading;
-    }
-  } else {
-    // Use Supabase auth
-    const auth = useAuth();
-    user = auth.user;
-    userRole = auth.userRole;
-    loading = auth.loading;
-  }
+  const { user, userRole, loading } = useAuthSafe();
 
   if (loading) {
     return (

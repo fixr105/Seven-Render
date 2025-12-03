@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Menu, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuthSafe } from '../../hooks/useAuthSafe';
 
 interface TopBarProps {
   title: string;
@@ -12,7 +12,7 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificationCount = 0, userName = 'User' }) => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut } = useAuthSafe();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
