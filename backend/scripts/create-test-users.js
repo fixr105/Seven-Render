@@ -3,7 +3,7 @@
  * Run this to create the test users needed for login
  */
 
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
 const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
