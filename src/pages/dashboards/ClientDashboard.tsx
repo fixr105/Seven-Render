@@ -71,7 +71,7 @@ export const ClientDashboard: React.FC = () => {
               <p className="text-2xl font-bold text-neutral-900 mt-1">{totalApplications}</p>
               <p className="text-xs text-neutral-500 mt-1">{drafts} drafts saved</p>
             </div>
-            <div className="w-12 h-12 bg-[#332f78]/20 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <FileText className="w-6 h-6 text-brand-primary" />
             </div>
           </CardContent>

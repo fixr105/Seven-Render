@@ -186,7 +186,7 @@ export const Login: React.FC = () => {
                   navigate('/dashboard');
                 }}
                 disabled={loading}
-                className="px-3 py-2 text-xs font-medium text-white bg-[#332f78] rounded hover:bg-[#2a2560] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-2 text-xs font-medium text-white bg-brand-primary rounded hover:bg-brand-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 👤 Client
               </button>

@@ -105,7 +105,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         className={`
           relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
           transition-colors duration-200
-          ${dragActive ? 'border-brand-primary bg-[#332f78]/10' : 'border-neutral-300 hover:border-brand-primary hover:bg-neutral-50'}
+          ${dragActive ? 'border-brand-primary bg-brand-primary/10' : 'border-neutral-300 hover:border-brand-primary hover:bg-neutral-50'}
         `}
         onClick={() => inputRef.current?.click()}
       >

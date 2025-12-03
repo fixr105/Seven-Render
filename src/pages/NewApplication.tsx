@@ -282,9 +282,9 @@ export const NewApplication: React.FC = () => {
             <CardTitle>Required Documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 p-4 bg-[#332f78]/10 border border-[#332f78]/30 rounded">
-              <p className="text-sm text-[#332f78] font-medium mb-2">Please upload the following documents:</p>
-              <ul className="text-sm text-[#332f78] space-y-1 ml-4 list-disc">
+            <div className="mb-4 p-4 bg-brand-primary/10 border border-brand-primary/30 rounded">
+              <p className="text-sm text-brand-primary font-medium mb-2">Please upload the following documents:</p>
+              <ul className="text-sm text-brand-primary space-y-1 ml-4 list-disc">
                 <li>PAN Card</li>
                 <li>Aadhaar Card</li>
                 <li>Last 3 months bank statements</li>

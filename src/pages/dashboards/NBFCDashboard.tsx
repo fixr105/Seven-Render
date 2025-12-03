@@ -199,7 +199,7 @@ export const NBFCDashboard: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="mb-4 p-3 bg-[#332f78]/10 border border-[#332f78]/30 rounded text-sm text-[#332f78]">
+              <div className="mb-4 p-3 bg-brand-primary/10 border border-brand-primary/30 rounded text-sm text-brand-primary">
                 <AlertCircle className="w-4 h-4 inline mr-2" />
                 You have {pendingDecision} application{pendingDecision !== 1 ? 's' : ''} pending your decision. 
                 Click "Review" to open and make a decision.

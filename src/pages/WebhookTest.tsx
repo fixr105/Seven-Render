@@ -59,8 +59,8 @@ export const WebhookTest: React.FC = () => {
                   </pre>
                 </div>
                 
-                <div className="mt-4 p-4 bg-[#332f78]/10 border border-[#332f78]/30 rounded">
-                  <p className="text-sm text-[#332f78]">
+                <div className="mt-4 p-4 bg-brand-primary/10 border border-brand-primary/30 rounded">
+                  <p className="text-sm text-brand-primary">
                     <strong>Note:</strong> Data has been fetched but not processed. 
                     Check the browser console for detailed structure analysis.
                   </p>

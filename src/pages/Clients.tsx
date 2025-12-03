@@ -28,13 +28,10 @@ interface Client {
   };
 }
 
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
-};
+import { formatDateFull } from '../utils/dateFormatter';
+
+// Use centralized date formatter
+const formatDate = formatDateFull;
 
 export const Clients: React.FC = () => {
   const navigate = useNavigate();

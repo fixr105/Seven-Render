@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        'brand-primary': '#332f78',
+        'brand-primary': '#080B53',
         'brand-secondary': '#20A070',
         'neutral': {
           0: '#FFFFFF',
@@ -21,7 +21,7 @@ export default {
         'info': '#17A2B8',
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Lato', 'sans-serif'],
       },
       fontSize: {
         'xs': '0.75rem',

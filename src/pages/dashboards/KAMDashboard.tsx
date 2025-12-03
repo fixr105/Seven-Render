@@ -116,7 +116,7 @@ export const KAMDashboard: React.FC = () => {
               <p className="text-2xl font-bold text-neutral-900 mt-1">{totalClients}</p>
               <p className="text-xs text-neutral-500 mt-1">Active accounts</p>
             </div>
-            <div className="w-12 h-12 bg-[#332f78]/20 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <Users className="w-6 h-6 text-brand-primary" />
             </div>
           </CardContent>
@@ -148,7 +148,7 @@ export const KAMDashboard: React.FC = () => {
                 Queries raised
               </p>
             </div>
-            <div className="w-12 h-12 bg-[#332f78]/20 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-info" />
             </div>
           </CardContent>
