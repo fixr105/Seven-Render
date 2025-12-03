@@ -5,7 +5,7 @@
 
 import fetch from 'node-fetch';
 import { n8nConfig } from '../../config/airtable.js';
-import { N8nGetResponse } from '../../types/entities.js';
+import { N8nGetResponse, UserAccount } from '../../types/entities.js';
 
 export class N8nClient {
   /**
@@ -25,10 +25,64 @@ export class N8nClient {
       }
 
       const data = await response.json();
+      
+      // Handle case where response might be an array (e.g., User Accounts array)
+      // or an object with table names as keys
+      if (Array.isArray(data)) {
+        // If it's an array, check if it looks like User Accounts
+        if (data.length > 0 && data[0].Username !== undefined) {
+          // This is a User Accounts array, wrap it in the expected format
+          return { 'User Accounts': data } as N8nGetResponse;
+        }
+        // Otherwise, it might be a different table, return as-is wrapped
+        return data as any;
+      }
+      
+      // If the response is an object but doesn't have 'User Accounts', 
+      // check if it has User Accounts data in a different format
+      if (typeof data === 'object' && !Array.isArray(data)) {
+        // Check if any key contains user account-like data
+        const keys = Object.keys(data);
+        for (const key of keys) {
+          if (Array.isArray(data[key]) && data[key].length > 0) {
+            const firstItem = data[key][0];
+            if (firstItem && firstItem.Username !== undefined) {
+              // Found User Accounts in a different key, normalize it
+              if (key !== 'User Accounts') {
+                data['User Accounts'] = data[key];
+              }
+              break;
+            }
+          }
+        }
+      }
+      
       return data as N8nGetResponse;
     } catch (error) {
       console.error('Error fetching data from n8n:', error);
       throw error;
+    }
+  }
+
+  /**
+   * GET User Accounts directly
+   * This is a fallback method if User Accounts are not in the main GET response
+   */
+  async getUserAccounts(): Promise<UserAccount[]> {
+    try {
+      // Try the main GET webhook first
+      const allData = await this.getAllData();
+      if (allData['User Accounts'] && Array.isArray(allData['User Accounts'])) {
+        return allData['User Accounts'];
+      }
+
+      // If not found, the GET webhook might return User Accounts as a direct array
+      // or we might need a separate endpoint
+      // For now, return empty array - the main GET should be updated to include User Accounts
+      return [];
+    } catch (error) {
+      console.error('Error fetching User Accounts:', error);
+      return [];
     }
   }
 

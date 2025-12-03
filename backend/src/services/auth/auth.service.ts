@@ -27,11 +27,16 @@ export class AuthService {
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
     // Get all user data from n8n
     const allData = await n8nClient.getAllData();
-    const userAccounts = allData['User Accounts'] || [];
+    let userAccounts = allData['User Accounts'] || [];
+
+    // If User Accounts not in main response, try getUserAccounts fallback
+    if (userAccounts.length === 0) {
+      userAccounts = await n8nClient.getUserAccounts();
+    }
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
-      (u) => u.Username.toLowerCase() === email.toLowerCase()
+      (u) => u.Username && u.Username.toLowerCase() === email.toLowerCase()
     );
 
     if (!userAccount) {
