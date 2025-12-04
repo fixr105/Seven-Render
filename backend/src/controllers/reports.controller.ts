@@ -141,6 +141,57 @@ ${metrics.pendingQueries > 0 ? `- ${metrics.pendingQueries} queries pending reso
       });
     }
   }
+
+  /**
+   * GET /reports/daily/latest
+   * Get latest daily summary report (Credit/Admin only)
+   */
+  async getLatestDailySummary(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { before } = req.query;
+
+      // Fetch only Daily Summary Report table
+      const reports = await n8nClient.fetchTable('Daily Summary Report');
+
+      // Filter by date if 'before' query param is provided
+      let filteredReports = reports;
+      if (before) {
+        filteredReports = reports.filter((r) => {
+          const reportDate = r['Report Date'] || '';
+          return reportDate < (before as string);
+        });
+      }
+
+      // Sort by date descending (newest first)
+      filteredReports.sort((a, b) => {
+        const dateA = a['Report Date'] || '';
+        const dateB = b['Report Date'] || '';
+        return dateB.localeCompare(dateA);
+      });
+
+      const latestReport = filteredReports[0];
+
+      if (!latestReport) {
+        res.status(404).json({ success: false, error: 'No report found' });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: latestReport,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch latest daily summary',
+      });
+    }
+  }
 }
 
 export const reportsController = new ReportsController();

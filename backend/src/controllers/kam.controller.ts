@@ -227,6 +227,63 @@ export class KAMController {
   }
 
   /**
+   * GET /kam/clients/:id
+   * Get client details including modules and settings (KAM only)
+   */
+  async getClient(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Verify this client is managed by this KAM
+      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!);
+      if (!managedClients.includes(id)) {
+        res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
+        return;
+      }
+
+      // Fetch only Clients table
+      const clients = await n8nClient.fetchTable('Clients');
+      const client = clients.find((c) => c.id === id);
+
+      if (!client) {
+        res.status(404).json({ success: false, error: 'Client not found' });
+        return;
+      }
+
+      // Parse enabled modules
+      const enabledModules = client['Enabled Modules']
+        ? client['Enabled Modules'].split(',').map((m: string) => m.trim()).filter(Boolean)
+        : [];
+
+      res.json({
+        success: true,
+        data: {
+          id: client.id,
+          clientId: client['Client ID'],
+          clientName: client['Client Name'],
+          primaryContactName: client['Primary Contact Name'],
+          contactEmailPhone: client['Contact Email / Phone'],
+          assignedKAM: client['Assigned KAM'],
+          enabledModules,
+          commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
+          status: client.Status,
+          formCategories: client['Form Categories'] ? client['Form Categories'].split(',').map((c: string) => c.trim()) : [],
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch client',
+      });
+    }
+  }
+
+  /**
    * GET /kam/clients/:id/form-mappings
    * Get form mappings for a client
    */

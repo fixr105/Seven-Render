@@ -218,10 +218,11 @@ export class N8nClient {
       }
       
       // If the response is an object, check if it has the expected structure
-      if (typeof data === 'object' && !Array.isArray(data)) {
+      if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
         // Check if it already has table keys (expected format)
-        const hasTableKeys = Object.keys(data).some(key => 
-          Array.isArray(data[key as keyof typeof data])
+        const dataObj = data as Record<string, any>;
+        const hasTableKeys = Object.keys(dataObj).some(key => 
+          Array.isArray(dataObj[key])
         );
         
         if (hasTableKeys) {
@@ -230,13 +231,16 @@ export class N8nClient {
         }
         
         // Check if any key contains table-like data
-        const keys = Object.keys(data);
-        for (const key of keys) {
-          if (Array.isArray(data[key as keyof typeof data]) && (data[key as keyof typeof data] as any[]).length > 0) {
-            const firstItem = (data[key as keyof typeof data] as any[])[0];
-            // Try to detect and normalize table names
-            if (firstItem && firstItem.Username !== undefined && key !== 'User Accounts') {
-              data['User Accounts'] = data[key as keyof typeof data];
+        if (data !== null && data !== undefined && typeof data === 'object') {
+          const dataObj = data as Record<string, any>;
+          const keys = Object.keys(dataObj);
+          for (const key of keys) {
+            if (Array.isArray(dataObj[key]) && dataObj[key].length > 0) {
+              const firstItem = dataObj[key][0];
+              // Try to detect and normalize table names
+              if (firstItem && firstItem.Username !== undefined && key !== 'User Accounts') {
+                dataObj['User Accounts'] = dataObj[key];
+              }
             }
           }
         }
@@ -275,8 +279,9 @@ export class N8nClient {
       }
       
       // If it's an object, try to extract User Accounts
-      if (typeof data === 'object' && data['User Accounts']) {
-        return data['User Accounts'] as UserAccount[];
+      if (typeof data === 'object' && data !== null && data !== undefined && 'User Accounts' in data) {
+        const userAccountsData = (data as Record<string, any>)['User Accounts'];
+        return Array.isArray(userAccountsData) ? userAccountsData as UserAccount[] : [];
       }
       
       console.warn('Unexpected response format from User Accounts webhook');

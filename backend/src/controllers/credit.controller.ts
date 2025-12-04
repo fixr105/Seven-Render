@@ -585,6 +585,79 @@ export class CreditController {
   }
 
   /**
+   * POST /credit/loan-applications/:id/close
+   * Close/archive loan application (Credit Team only)
+   * Typically called when status is DISBURSED or another appropriate final stage
+   */
+  async closeApplication(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'credit_team') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { id } = req.params;
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app) => app.id === id);
+
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      const previousStatus = application.Status;
+
+      // Update status to CLOSED
+      await n8nClient.postLoanApplication({
+        ...application,
+        Status: LoanStatus.CLOSED,
+        'Last Updated': new Date().toISOString(),
+      });
+
+      // Log to file audit
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: application['File ID'],
+        Timestamp: new Date().toISOString(),
+        Actor: req.user.email,
+        'Action/Event Type': 'credit_closed_file',
+        'Details/Message': `Application closed by credit team. Previous status: ${previousStatus}`,
+        'Target User/Role': 'client',
+        Resolved: 'False',
+      });
+
+      // Log admin activity
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user.email,
+        'Action Type': 'close_application',
+        'Description/Details': `Credit team closed loan application ${application['File ID']}. Previous status: ${previousStatus}`,
+        'Target Entity': 'loan_application',
+      });
+
+      res.json({
+        success: true,
+        message: 'Application closed successfully',
+        data: {
+          applicationId: application.id,
+          fileId: application['File ID'],
+          previousStatus,
+          newStatus: LoanStatus.CLOSED,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to close application',
+      });
+    }
+  }
+
+  /**
    * GET /credit/payout-requests
    */
   async getPayoutRequests(req: Request, res: Response): Promise<void> {

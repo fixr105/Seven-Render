@@ -33,7 +33,7 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
           >
             <Menu className="w-6 h-6 text-neutral-700" />
           </button>
-          <h1 className="text-lg font-semibold text-neutral-900">{title}</h1>
+          <h1 className="text-2xl font-bold text-neutral-900">{title}</h1>
         </div>
 
         {/* Right section */}

@@ -92,7 +92,7 @@ export const Dashboard: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Dashboard"
+      pageTitle="DASHBOARD"
       userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}

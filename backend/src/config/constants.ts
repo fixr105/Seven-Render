@@ -21,6 +21,7 @@ export enum LoanStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   DISBURSED = 'disbursed',
+  WITHDRAWN = 'withdrawn',
   CLOSED = 'closed',
 }
 

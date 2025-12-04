@@ -334,6 +334,94 @@ export class LoanController {
       });
     }
   }
+
+  /**
+   * POST /loan-applications/:id/withdraw
+   * Withdraw application (CLIENT only)
+   * Allowed statuses: DRAFT, UNDER_KAM_REVIEW, QUERY_WITH_CLIENT
+   */
+  async withdrawApplication(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { id } = req.params;
+      // Fetch only Loan Application table
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app) => app.id === id);
+
+      if (!application || application.Client !== req.user.clientId) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      // Allowed statuses for withdrawal
+      const allowedStatuses = [
+        LoanStatus.DRAFT,
+        LoanStatus.UNDER_KAM_REVIEW,
+        LoanStatus.QUERY_WITH_CLIENT,
+      ];
+
+      if (!allowedStatuses.includes(application.Status as LoanStatus)) {
+        res.status(400).json({
+          success: false,
+          error: 'Application cannot be withdrawn in current status',
+        });
+        return;
+      }
+
+      const previousStatus = application.Status;
+
+      // Update status to WITHDRAWN
+      await n8nClient.postLoanApplication({
+        ...application,
+        Status: LoanStatus.WITHDRAWN,
+        'Last Updated': new Date().toISOString(),
+      });
+
+      // Log to file audit
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: application['File ID'],
+        Timestamp: new Date().toISOString(),
+        Actor: req.user.email,
+        'Action/Event Type': 'client_withdrew_application',
+        'Details/Message': `Application withdrawn by client. Previous status: ${previousStatus}`,
+        'Target User/Role': 'kam',
+        Resolved: 'False',
+      });
+
+      // Log admin activity
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user.email,
+        'Action Type': 'withdraw_application',
+        'Description/Details': `Client withdrew loan application ${application['File ID']}. Previous status: ${previousStatus}`,
+        'Target Entity': 'loan_application',
+      });
+
+      res.json({
+        success: true,
+        message: 'Application withdrawn successfully',
+        data: {
+          applicationId: application.id,
+          fileId: application['File ID'],
+          previousStatus,
+          newStatus: LoanStatus.WITHDRAWN,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to withdraw application',
+      });
+    }
+  }
 }
 
 export const loanController = new LoanController();

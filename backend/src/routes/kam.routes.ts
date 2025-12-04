@@ -4,6 +4,7 @@
 
 import { Router } from 'express';
 import { kamController } from '../controllers/kam.controller.js';
+import { ledgerController } from '../controllers/ledger.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireKAM, requireCreditOrKAM } from '../middleware/rbac.middleware.js';
 
@@ -14,6 +15,7 @@ router.use(requireKAM);
 
 router.get('/dashboard', kamController.getDashboard.bind(kamController));
 router.post('/clients', kamController.createClient.bind(kamController));
+router.get('/clients/:id', kamController.getClient.bind(kamController));
 router.patch('/clients/:id/modules', kamController.updateClientModules.bind(kamController));
 router.get('/clients/:id/form-mappings', kamController.getFormMappings.bind(kamController));
 router.post('/clients/:id/form-mappings', kamController.createFormMapping.bind(kamController));
@@ -21,6 +23,7 @@ router.get('/loan-applications', kamController.listApplications.bind(kamControll
 router.post('/loan-applications/:id/edit', kamController.editApplication.bind(kamController));
 router.post('/loan-applications/:id/queries', kamController.raiseQuery.bind(kamController));
 router.post('/loan-applications/:id/forward-to-credit', kamController.forwardToCredit.bind(kamController));
+router.get('/ledger', ledgerController.getKAMLedger.bind(ledgerController));
 
 export default router;
 

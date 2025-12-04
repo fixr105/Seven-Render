@@ -114,6 +114,8 @@ export class AuthService {
     });
 
     // Generate JWT
+    const jwtSecret = authConfig.jwtSecret || 'default-secret';
+    const jwtExpiresIn: string = authConfig.jwtExpiresIn || '7d';
     const token = jwt.sign(
       {
         userId: authUser.id,
@@ -123,8 +125,8 @@ export class AuthService {
         kamId: authUser.kamId,
         nbfcId: authUser.nbfcId,
       },
-      authConfig.jwtSecret,
-      { expiresIn: authConfig.jwtExpiresIn }
+      jwtSecret,
+      { expiresIn: jwtExpiresIn } as jwt.SignOptions
     );
 
     return { user: authUser, token };

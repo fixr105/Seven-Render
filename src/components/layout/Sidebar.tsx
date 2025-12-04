@@ -16,9 +16,10 @@ interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   userRole: string;
+  userName?: string;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick, isOpen, onToggle, userRole }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick, isOpen, onToggle, userRole, userName }) => {
   return (
     <>
       {/* Mobile backdrop */}
@@ -92,11 +93,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
         {/* User info */}
         <div className="p-4 border-t border-brand-primary/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-primary/80 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium">U</span>
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center border border-white/30">
+              <span className="text-sm font-medium text-white">
+                {(userName || 'U').charAt(0).toUpperCase()}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">User Name</p>
+              <p className="text-sm font-medium text-white truncate">{userName || 'User Name'}</p>
               <p className="text-xs text-white/70 truncate">{userRole}</p>
             </div>
           </div>

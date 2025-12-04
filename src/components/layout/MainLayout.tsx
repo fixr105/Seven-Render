@@ -40,6 +40,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         userRole={userRole}
+        userName={userName}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
