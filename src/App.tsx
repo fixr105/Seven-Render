@@ -1,8 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-// Use API Auth Provider instead of Supabase Auth Provider
-import { ApiAuthProvider } from './contexts/ApiAuthContext';
-import { AuthProvider } from './contexts/AuthContext'; // Fallback for backward compatibility
+// Use unified auth provider that handles both API and Supabase auth
+import { UnifiedAuthProvider } from './contexts/UnifiedAuthProvider';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -16,29 +15,15 @@ import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { WebhookTest } from './pages/WebhookTest';
 
-// Wrapper component to ensure consistent component tree structure
-// This prevents React error #321 (hooks called conditionally)
-function AuthProviderWrapper({ children }: { children: React.ReactNode }) {
-  // Use API Auth Provider (backend API) instead of Supabase
-  // Set VITE_USE_API_AUTH=false to use Supabase (legacy)
-  const useApiAuth = import.meta.env.VITE_USE_API_AUTH !== 'false';
-  
-  if (useApiAuth) {
-    return <ApiAuthProvider>{children}</ApiAuthProvider>;
-  } else {
-    return <AuthProvider>{children}</AuthProvider>;
-  }
-}
-
 function App() {
-  // Always wrap with BrowserRouter first, then provider
+  // Always wrap with BrowserRouter first, then unified provider
   // This ensures routing context is available before auth context
-  // Using a wrapper component ensures consistent tree structure
+  // UnifiedAuthProvider ensures consistent component tree structure
   return (
     <BrowserRouter>
-      <AuthProviderWrapper>
+      <UnifiedAuthProvider>
         <AppRoutes />
-      </AuthProviderWrapper>
+      </UnifiedAuthProvider>
     </BrowserRouter>
   );
 }
