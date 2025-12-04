@@ -20,22 +20,20 @@ function App() {
   // Set VITE_USE_API_AUTH=false to use Supabase (legacy)
   const useApiAuth = import.meta.env.VITE_USE_API_AUTH !== 'false';
   
+  // Always wrap with BrowserRouter first, then provider
+  // This ensures routing context is available before auth context
   return (
-    <>
+    <BrowserRouter>
       {useApiAuth ? (
         <ApiAuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <AppRoutes />
         </ApiAuthProvider>
       ) : (
         <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <AppRoutes />
         </AuthProvider>
       )}
-    </>
+    </BrowserRouter>
   );
 }
 

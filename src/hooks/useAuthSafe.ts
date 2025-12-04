@@ -40,7 +40,10 @@ export const useAuthSafe = () => {
     };
   } else {
     // No provider available - return defaults
-    console.warn('No auth provider available, using defaults');
+    // Only warn in development to avoid console noise in production
+    if (import.meta.env.DEV) {
+      console.warn('No auth provider available, using defaults');
+    }
     return {
       user: null,
       userRole: null,
