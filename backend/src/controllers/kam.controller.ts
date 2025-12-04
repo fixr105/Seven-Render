@@ -105,6 +105,56 @@ export class KAMController {
   }
 
   /**
+   * GET /kam/clients
+   * List all clients managed by this KAM
+   */
+  async listClients(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      // Fetch Clients table
+      const clients = await n8nClient.fetchTable('Clients');
+      
+      // Filter clients managed by this KAM
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
+      const managedClientIds = await dataFilterService.getKAMManagedClients(req.user.kamId!, userAccounts);
+      
+      const managedClients = clients.filter((client: any) => {
+        // Check if client ID is in managed list OR if Assigned KAM matches
+        return managedClientIds.includes(client.id) || 
+               client['Assigned KAM'] === req.user.kamId ||
+               client['Assigned KAM'] === req.user.id;
+      });
+
+      // Transform to API response format
+      const clientList = managedClients.map((client: any) => ({
+        id: client.id,
+        clientId: client['Client ID'] || client.id,
+        clientName: client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
+        primaryContactName: client['Primary Contact Name'],
+        contactEmailPhone: client['Contact Email / Phone'],
+        assignedKAM: client['Assigned KAM'],
+        enabledModules: client['Enabled Modules'] ? client['Enabled Modules'].split(',').map((m: string) => m.trim()) : [],
+        commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
+        status: client.Status,
+      }));
+
+      res.json({
+        success: true,
+        data: clientList,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch clients',
+      });
+    }
+  }
+
+  /**
    * POST /kam/clients
    * Create new client
    */

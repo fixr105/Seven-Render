@@ -14,6 +14,7 @@ router.use(authenticate);
 router.use(requireKAM);
 
 router.get('/dashboard', kamController.getDashboard.bind(kamController));
+router.get('/clients', kamController.listClients.bind(kamController));
 router.post('/clients', kamController.createClient.bind(kamController));
 router.get('/clients/:id', kamController.getClient.bind(kamController));
 router.patch('/clients/:id/modules', kamController.updateClientModules.bind(kamController));
