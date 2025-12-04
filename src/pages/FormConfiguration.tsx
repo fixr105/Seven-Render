@@ -141,15 +141,49 @@ export const FormConfiguration: React.FC = () => {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Fetch clients and form mappings
-  const { data: webhookData, loading: webhookLoading } = useWebhookTables(['Clients', 'Client Form Mapping']);
-  const clients = webhookData['Clients'] || [];
+  // Fetch clients using API service (same as Clients page)
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(true);
+  
+  // Fetch form mappings from webhook
+  const { data: webhookData } = useWebhookTables(['Client Form Mapping']);
   const formMappings = webhookData['Client Form Mapping'] || [];
 
-  // Filter clients for KAM (only managed clients)
+  // Fetch clients for KAM
+  useEffect(() => {
+    const fetchClients = async () => {
+      if (userRole !== 'kam' || !userRoleId) {
+        setClients([]);
+        setClientsLoading(false);
+        return;
+      }
+
+      try {
+        setClientsLoading(true);
+        const response = await apiService.listClients();
+        if (response.success && response.data) {
+          setClients(response.data || []);
+        } else {
+          console.error('Error fetching clients:', response.error);
+          setClients([]);
+        }
+      } catch (error: any) {
+        console.error('Error fetching clients:', error);
+        setClients([]);
+      } finally {
+        setClientsLoading(false);
+      }
+    };
+
+    fetchClients();
+  }, [userRole, userRoleId]);
+
+  // Filter clients for KAM (only managed clients) - API already filters, but we use all returned clients
   const managedClients = React.useMemo(() => {
     if (userRole !== 'kam' || !userRoleId) return [];
-    return clients.filter((client: any) => client['Assigned KAM'] === userRoleId);
+    // API endpoint /kam/clients already returns only managed clients
+    // Return all clients from the API response
+    return clients;
   }, [clients, userRole, userRoleId]);
 
   // Get existing mappings for selected client
@@ -273,10 +307,11 @@ export const FormConfiguration: React.FC = () => {
                 options={[
                   { value: '', label: '-- Select a Client --' },
                   ...managedClients.map((client: any) => ({
-                    value: client.id,
-                    label: `${client['Client Name'] || client['Primary Contact Name'] || 'Unknown'} (${client['Client ID'] || client.id})`,
+                    value: client.id || client.clientId,
+                    label: `${client.clientName || client['Client Name'] || client.company_name || client['Primary Contact Name'] || 'Unknown'} (${client.clientId || client['Client ID'] || client.id || ''})`,
                   })),
                 ]}
+                disabled={clientsLoading}
               />
               {selectedClient && existingMappings.length > 0 && (
                 <p className="text-xs text-neutral-500 mt-2">
