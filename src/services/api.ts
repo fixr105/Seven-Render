@@ -828,6 +828,52 @@ class ApiService {
     });
   }
 
+  // ==================== NOTIFICATIONS ====================
+
+  /**
+   * Get notifications for current user
+   */
+  async getNotifications(options?: {
+    unreadOnly?: boolean;
+    limit?: number;
+  }): Promise<ApiResponse<any[]>> {
+    const params = new URLSearchParams();
+    if (options?.unreadOnly) {
+      params.append('unreadOnly', 'true');
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    const queryString = params.toString();
+    const url = queryString ? `/notifications?${queryString}` : '/notifications';
+    return this.request<any[]>(url);
+  }
+
+  /**
+   * Get unread notification count
+   */
+  async getUnreadNotificationCount(): Promise<ApiResponse<{ unreadCount: number }>> {
+    return this.request<{ unreadCount: number }>('/notifications/unread-count');
+  }
+
+  /**
+   * Mark notification as read
+   */
+  async markNotificationAsRead(notificationId: string): Promise<ApiResponse> {
+    return this.request(`/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Mark all notifications as read
+   */
+  async markAllNotificationsAsRead(): Promise<ApiResponse> {
+    return this.request('/notifications/mark-all-read', {
+      method: 'POST',
+    });
+  }
+
   // ==================== CREDIT TEAM USERS ====================
 
   /**
