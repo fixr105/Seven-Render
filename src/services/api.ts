@@ -719,7 +719,7 @@ class ApiService {
   /**
    * Get client payout requests
    */
-  async getPayoutRequests(): Promise<ApiResponse<PayoutRequest[]>> {
+  async getClientPayoutRequests(): Promise<ApiResponse<PayoutRequest[]>> {
     return this.request<PayoutRequest[]>('/clients/me/payout-requests');
   }
 

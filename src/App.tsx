@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // Use API Auth Provider instead of Supabase Auth Provider
 import { ApiAuthProvider } from './contexts/ApiAuthContext';
@@ -15,24 +16,29 @@ import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { WebhookTest } from './pages/WebhookTest';
 
-function App() {
+// Wrapper component to ensure consistent component tree structure
+// This prevents React error #321 (hooks called conditionally)
+function AuthProviderWrapper({ children }: { children: React.ReactNode }) {
   // Use API Auth Provider (backend API) instead of Supabase
   // Set VITE_USE_API_AUTH=false to use Supabase (legacy)
   const useApiAuth = import.meta.env.VITE_USE_API_AUTH !== 'false';
   
+  if (useApiAuth) {
+    return <ApiAuthProvider>{children}</ApiAuthProvider>;
+  } else {
+    return <AuthProvider>{children}</AuthProvider>;
+  }
+}
+
+function App() {
   // Always wrap with BrowserRouter first, then provider
   // This ensures routing context is available before auth context
+  // Using a wrapper component ensures consistent tree structure
   return (
     <BrowserRouter>
-      {useApiAuth ? (
-        <ApiAuthProvider>
-          <AppRoutes />
-        </ApiAuthProvider>
-      ) : (
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      )}
+      <AuthProviderWrapper>
+        <AppRoutes />
+      </AuthProviderWrapper>
     </BrowserRouter>
   );
 }

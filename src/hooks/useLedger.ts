@@ -45,7 +45,7 @@ export const useLedger = () => {
 
   const fetchPayoutRequests = async () => {
     try {
-      const response = await apiService.getPayoutRequests();
+      const response = await apiService.getClientPayoutRequests();
       
       if (response.success && response.data) {
         setPayoutRequests(response.data || []);
