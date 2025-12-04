@@ -150,7 +150,12 @@ export class QueriesController {
             resolved: q.Resolved === 'True',
           };
         })
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        .sort((a, b) => {
+          // Handle missing timestamps - treat as oldest (0)
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeA - timeB;
+        });
 
       // Build thread response
       const thread = {
