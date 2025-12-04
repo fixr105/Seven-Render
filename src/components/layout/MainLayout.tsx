@@ -43,12 +43,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar
-          title={pageTitle}
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          notificationCount={notificationCount}
-          userName={userName}
-        />
+        {/* TopBar extends from left edge to right edge */}
+        <div className="w-full relative">
+          <TopBar
+            title={pageTitle}
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            notificationCount={notificationCount}
+            userName={userName}
+          />
+        </div>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">

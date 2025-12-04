@@ -22,10 +22,10 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
   };
 
   return (
-    <header className="bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full">
+    <header className="bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full lg:ml-[-256px] lg:w-[calc(100%+256px)]">
       <div className="flex items-center justify-between h-16 w-full">
         {/* Left section - account for logo space on desktop */}
-        <div className="flex items-center gap-4 pl-4 lg:pl-64">
+        <div className="flex items-center gap-4 pl-4 lg:pl-64 flex-1 min-w-0">
           <button
             onClick={onMenuToggle}
             className="lg:hidden p-2 rounded hover:bg-neutral-100 transition-colors"
