@@ -23,9 +23,9 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
 
   return (
     <header className="bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30">
-      <div className="flex items-center justify-between h-16 px-4">
-        {/* Left section */}
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between h-16">
+        {/* Left section - account for logo space on desktop */}
+        <div className="flex items-center gap-4 pl-4 lg:pl-64">
           <button
             onClick={onMenuToggle}
             className="lg:hidden p-2 rounded hover:bg-neutral-100 transition-colors"

@@ -1,6 +1,5 @@
 import React from 'react';
 import { LucideIcon, Home, FileText, Users, DollarSign, BarChart3, Settings, Menu, X } from 'lucide-react';
-import logo from '../ui/logo.png';
 
 interface NavItem {
   id: string;
@@ -40,18 +39,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
           w-64 flex flex-col shadow-level-2
         `}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-brand-primary/30">
-          <div className="flex items-center gap-2">
-            <img src={logo} alt="Logo" className="h-10 w-auto" />
+        {/* Spacer for logo in corner - logo is positioned absolutely in MainLayout */}
+        <div className="h-16 flex-shrink-0 lg:hidden">
+          {/* Mobile: Show close button */}
+          <div className="flex items-center justify-end p-4">
+            <button
+              onClick={onToggle}
+              className="p-1 rounded hover:bg-brand-primary/20 transition-colors cursor-none-hover"
+              aria-label="Close menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onToggle}
-            className="lg:hidden p-1 rounded hover:bg-brand-primary/20 transition-colors cursor-none-hover"
-            aria-label="Close menu"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        </div>
+        <div className="h-16 flex-shrink-0 hidden lg:block">
+          {/* Desktop: Empty space for logo */}
         </div>
 
         {/* Navigation */}
