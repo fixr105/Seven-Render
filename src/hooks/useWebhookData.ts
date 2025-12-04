@@ -263,19 +263,66 @@ export const useWebhookApplications = () => {
 /**
  * Hook to fetch multiple tables from individual webhooks
  * Only fetches the tables specified in the tables array
+ * Fetches on page reload (F5 or browser refresh button), but NOT on normal navigation
  */
 export const useWebhookTables = (tables: string[]) => {
   const [data, setData] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const hasCheckedReloadRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
+    
+    // Only check for page reload once on mount
+    if (!hasCheckedReloadRef.current) {
+      hasCheckedReloadRef.current = true;
+      
+      // Check if this is a page reload using multiple methods for browser compatibility
+      const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      const isPageReload = 
+        navEntry?.type === 'reload' ||
+        (performance.navigation && (performance.navigation as any).type === 1) ||
+        // Check if page was loaded via reload (not navigation)
+        (document.referrer === '' && window.history.length === 1);
+      
+      // Only fetch on actual page reload (F5 or browser refresh button)
+      // NOT on normal navigation or component mount
+      if (isPageReload) {
+        console.log('Page reload detected - fetching webhook tables:', tables);
+        setLoading(true);
+        
+        fetchMultipleTables({
+          tables,
+          forceRefresh: false,
+        })
+          .then((result) => {
+            if (mountedRef.current) {
+              setData(result);
+              setLoading(false);
+              setError(null);
+            }
+          })
+          .catch((err) => {
+            if (mountedRef.current) {
+              console.error('Error fetching webhook tables:', err);
+              setError(err.message || 'Failed to fetch webhook data');
+              setData({});
+              setLoading(false);
+            }
+          });
+      } else {
+        // Normal navigation - use empty data, no webhook call
+        setData({});
+        setLoading(false);
+      }
+    }
+    
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [tables.join(',')]); // Re-run if tables change
 
   const fetchTables = async (forceRefresh = false) => {
     try {
