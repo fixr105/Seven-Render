@@ -12,7 +12,7 @@ import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, User
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
-import { supabase } from '../lib/supabase';
+import { apiService } from '../services/api';
 
 interface Client {
   id: string;
@@ -63,102 +63,63 @@ export const Clients: React.FC = () => {
 
   useEffect(() => {
     fetchClients();
-
-    const subscription = supabase
-      .channel('clients_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dsa_clients' }, () => {
-        fetchClients();
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, [userRole, userRoleId]);
 
   const fetchClients = async () => {
     try {
       setLoading(true);
-      let query = supabase
-        .from('dsa_clients')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (userRole === 'kam') {
-        query = query.eq('kam_id', userRoleId);
+      
+      // Use API service to fetch clients
+      const response = await apiService.listClients();
+      
+      if (response.success && response.data) {
+        // Map API response to Client interface
+        const mappedClients = response.data.map((client: any) => ({
+          id: client.id || client.clientId,
+          company_name: client.clientName || client['Client Name'] || '',
+          contact_person: client.primaryContactName || client['Primary Contact Name'] || '',
+          email: client.contactEmailPhone?.split(' / ')[0] || client.email || '',
+          phone: client.contactEmailPhone?.split(' / ')[1] || client.phone || '',
+          kam_id: client.assignedKAM || client['Assigned KAM'] || null,
+          is_active: client.status === 'Active' || client.Status === 'Active',
+          created_at: client.createdAt || client['Created At'] || new Date().toISOString(),
+          _count: { applications: 0 }, // TODO: Fetch application count if needed
+        }));
+        
+        setClients(mappedClients);
+      } else {
+        console.error('Error fetching clients:', response.error);
+        setClients([]);
       }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const clientsWithCount = await Promise.all(
-        (data || []).map(async (client) => {
-          const { count } = await supabase
-            .from('loan_applications')
-            .select('*', { count: 'exact', head: true })
-            .eq('client_id', client.id);
-
-          return {
-            ...client,
-            _count: { applications: count || 0 },
-          };
-        })
-      );
-
-      setClients(clientsWithCount);
     } catch (error) {
       console.error('Error fetching clients:', error);
+      setClients([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleOnboardClient = async () => {
-    if (!newClient.company_name || !newClient.contact_person || !newClient.email || !newClient.password) {
+    if (!newClient.company_name || !newClient.contact_person || !newClient.email) {
       alert('Please fill in all required fields');
       return;
     }
 
     setSubmitting(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Use API service to create client
+      const response = await apiService.createClient({
+        name: newClient.company_name,
+        contactPerson: newClient.contact_person,
         email: newClient.email,
-        password: newClient.password,
+        phone: newClient.phone || '',
+        commissionRate: newClient.commission_rate || '1.0',
+        enabledModules: newClient.enabled_modules.length > 0 ? newClient.enabled_modules : ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'],
       });
 
-      if (authError) throw authError;
-
-      if (!authData.user) {
-        throw new Error('User creation failed');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to onboard client');
       }
-
-      const { data: userRoleData, error: roleError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: authData.user.id,
-          role: 'client',
-        })
-        .select()
-        .single();
-
-      if (roleError) throw roleError;
-
-      const { error: clientError } = await supabase
-        .from('dsa_clients')
-        .insert({
-          user_id: userRoleData.id,
-          company_name: newClient.company_name,
-          contact_person: newClient.contact_person,
-          email: newClient.email,
-          phone: newClient.phone,
-          kam_id: userRole === 'kam' ? userRoleId : null,
-          is_active: true,
-          commission_rate: parseFloat(newClient.commission_rate) / 100 || 0.01,
-          modules_enabled: newClient.enabled_modules.length > 0 ? newClient.enabled_modules : ['M1', 'M2', 'M3', 'M4', 'M5'],
-        });
-
-      if (clientError) throw clientError;
 
       setShowOnboardModal(false);
       setNewClient({
@@ -168,13 +129,13 @@ export const Clients: React.FC = () => {
         phone: '',
         password: '',
         commission_rate: '1.0',
-        enabled_modules: [],
+        enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'],
       });
       fetchClients();
       alert('Client onboarded successfully!');
     } catch (error: any) {
       console.error('Error onboarding client:', error);
-      alert(`Failed to onboard client: ${error.message}`);
+      alert(`Failed to onboard client: ${error.message || 'Unknown error'}`);
     } finally {
       setSubmitting(false);
     }
@@ -381,15 +342,6 @@ export const Clients: React.FC = () => {
               placeholder="Enter phone number"
               value={newClient.phone}
               onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
-            />
-            <Input
-              type="password"
-              label="Initial Password"
-              placeholder="Set initial password"
-              value={newClient.password}
-              onChange={(e) => setNewClient({ ...newClient, password: e.target.value })}
-              required
-              helpText="The client will use this to log in for the first time"
             />
             <Input
               type="number"

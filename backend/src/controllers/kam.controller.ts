@@ -160,7 +160,7 @@ export class KAMController {
    */
   async createClient(req: Request, res: Response): Promise<void> {
     try {
-      const { name, email, phone, kamId, enabledModules, commissionRate } = req.body;
+      const { name, contactPerson, email, phone, kamId, enabledModules, commissionRate } = req.body;
 
       // Create user account with hashed password
       const { authService } = await import('../services/auth/auth.service.js');
@@ -183,7 +183,7 @@ export class KAMController {
         id: clientId,
         'Client ID': clientId,
         'Client Name': name,
-        'Primary Contact Name': name,
+        'Primary Contact Name': contactPerson || name,
         'Contact Email / Phone': `${email} / ${phone || ''}`,
         'Assigned KAM': kamId || req.user!.kamId || '',
         'Enabled Modules': Array.isArray(enabledModules) ? enabledModules.join(', ') : (enabledModules || ''),

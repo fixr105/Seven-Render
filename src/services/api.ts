@@ -411,14 +411,25 @@ class ApiService {
    */
   async createClient(data: {
     name: string;
+    contactPerson?: string;
     email: string;
     phone: string;
     commissionRate?: string;
+    enabledModules?: string[];
     modules?: string[];
   }): Promise<ApiResponse<{ clientId: string; userId: string }>> {
+    // Map modules to enabledModules for backend compatibility
+    const payload = {
+      name: data.name,
+      contactPerson: data.contactPerson || data.name,
+      email: data.email,
+      phone: data.phone,
+      commissionRate: data.commissionRate,
+      enabledModules: data.enabledModules || data.modules || [],
+    };
     return this.request('/kam/clients', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   }
 
