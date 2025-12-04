@@ -53,7 +53,8 @@ export class AuthController {
         if (kamUser) name = kamUser.Name;
       } else if (req.user.role === 'credit_team') {
         const creditUsers = await n8nClient.fetchTable('Credit Team Users');
-        const creditUser = creditUsers.find((c) => c.Email === req.user.email);
+        // Use case-insensitive comparison to match login flow behavior
+        const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === req.user.email?.toLowerCase());
         if (creditUser) name = creditUser.Name;
       }
 
