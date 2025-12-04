@@ -49,7 +49,7 @@ export const Clients: React.FC = () => {
     phone: '',
     password: '',
     commission_rate: '1.0',
-    enabled_modules: [] as string[],
+    enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'] as string[], // Preselect all M1-M7
   });
 
   const sidebarItems = [
@@ -343,7 +343,7 @@ export const Clients: React.FC = () => {
             phone: '',
             password: '',
             commission_rate: '1.0',
-            enabled_modules: [],
+            enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], // Reset to all selected
           });
         }}
         size="md"

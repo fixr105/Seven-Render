@@ -331,21 +331,168 @@ export class KAMController {
 
       // Support bulk creation via modules array
       if (modules && Array.isArray(modules)) {
+        const formStructure: any = {
+          clientId: id,
+          modules: [],
+          createdAt: new Date().toISOString(),
+        };
+
         const mappingPromises = modules.map(async (moduleId: string, index: number) => {
+          // Module definitions (matching frontend FORM_MODULES)
+          const moduleDefinitions: Record<string, any> = {
+            universal_checklist: {
+              name: 'Universal Checklist',
+              description: 'Housing Loan/LAP, Credit Line, Business Loan',
+              fields: [
+                { id: 'checklist_complete', label: 'Checklist Complete', type: 'checkbox', required: false },
+              ],
+            },
+            personal_kyc: {
+              name: 'Personal KYC (All Applicants/Co-Applicants)',
+              description: 'Personal identification and address documents',
+              fields: [
+                { id: 'pan_card', label: 'PAN Card – Applicant/Co-applicant', type: 'file', required: true },
+                { id: 'aadhaar_passport_voter', label: 'Aadhaar Card / Passport / Voter ID', type: 'file', required: true },
+                { id: 'passport_photo', label: 'Passport Size Photograph – 2 Copies', type: 'file', required: true },
+                { id: 'residence_proof', label: 'Residence Address Proof (Utility Bill / Rent Agreement)', type: 'file', required: true },
+                { id: 'bank_statement_personal', label: 'Latest 6 Months Bank Statement – Personal', type: 'file', required: true },
+                { id: 'itr_personal', label: 'ITR – Last 2 Years (if applicable)', type: 'file', required: false },
+              ],
+            },
+            company_kyc: {
+              name: 'Company/Business KYC (Proprietor / Partnership / Pvt Ltd / LLP)',
+              description: 'Business registration and company documents',
+              fields: [
+                { id: 'business_registration', label: 'Business Registration Proof (GST / Udyam / Trade License / Partnership Deed / MOA & AOA)', type: 'file', required: true },
+                { id: 'company_pan', label: 'Company PAN Card', type: 'file', required: true },
+                { id: 'gst_certificate', label: 'GST Certificate', type: 'file', required: true },
+                { id: 'business_address_proof', label: 'Business Address Proof', type: 'file', required: true },
+                { id: 'partners_directors', label: 'List of Partners/Directors with Shareholding (if applicable)', type: 'file', required: false },
+                { id: 'bank_statement_business', label: 'Latest 12 Months Bank Statement – Business', type: 'file', required: true },
+                { id: 'company_itr', label: 'Latest 2 Years Company ITR', type: 'file', required: true },
+                { id: 'audited_financials', label: 'Latest Audited Financials (if available)', type: 'file', required: false },
+                { id: 'gst_3b', label: 'GST 3B – Last 12 Months', type: 'file', required: true },
+              ],
+            },
+            income_banking: {
+              name: 'Income & Banking Documents',
+              description: 'Financial statements and banking documents',
+              fields: [
+                { id: 'itr_computation', label: 'Latest 2 Years ITR with Computation', type: 'file', required: true },
+                { id: 'balance_sheet', label: 'Balance Sheet & Profit/Loss Statement (if applicable)', type: 'file', required: false },
+                { id: 'bank_statement_main', label: '12 Months Bank Statement of Main Business Account', type: 'file', required: true },
+                { id: 'loan_sanction_letters', label: 'Existing Loan Sanction Letters (if any)', type: 'file', required: false },
+                { id: 'repayment_schedule', label: 'Repayment Schedule (for takeover cases)', type: 'file', required: false },
+              ],
+            },
+            asset_details: {
+              name: 'Asset Details (HL/LAP Specific)',
+              description: 'Property and asset documentation',
+              fields: [
+                { id: 'property_title', label: 'Property Title Deed / Sale Deed', type: 'file', required: true },
+                { id: 'mother_deed', label: 'Mother Deed / Chain of Documents', type: 'file', required: true },
+                { id: 'encumbrance_certificate', label: 'Encumbrance Certificate (EC)', type: 'file', required: true },
+                { id: 'property_tax', label: 'Property Tax Receipt', type: 'file', required: true },
+                { id: 'building_plan', label: 'Approved Building Plan (if applicable)', type: 'file', required: false },
+                { id: 'occupation_certificate', label: 'Occupation/Completion Certificate (if applicable)', type: 'file', required: false },
+                { id: 'utility_bill_property', label: 'Latest Electricity/Water Bill (Property Proof)', type: 'file', required: true },
+              ],
+            },
+            invoice_financial: {
+              name: 'Invoice / Financial Requirement Details (Credit Line / Business Loan Specific)',
+              description: 'Purchase orders and financial requirements',
+              fields: [
+                { id: 'purchase_order', label: 'Purchase Order (PO)', type: 'file', required: false },
+                { id: 'grn', label: 'Goods Received Note (GRN)', type: 'file', required: false },
+                { id: 'tax_invoice', label: 'Tax Invoice / Revised Proforma Invoice', type: 'file', required: false },
+                { id: 'quotation', label: 'Quotation (if applicable)', type: 'file', required: false },
+                { id: 'business_projections', label: 'Business Projections (if required)', type: 'file', required: false },
+              ],
+            },
+            security_documents: {
+              name: 'Security Documents',
+              description: 'Security and guarantee documents',
+              fields: [
+                { id: 'pdc', label: 'Post-dated Cheques (if applicable)', type: 'file', required: false },
+                { id: 'nach_mandate', label: 'NACH Mandate Form', type: 'file', required: false },
+                { id: 'hypothecation_agreement', label: 'Hypothecation Agreement (if applicable)', type: 'file', required: false },
+                { id: 'insurance_copy', label: 'Insurance Copy (if applicable)', type: 'file', required: false },
+              ],
+            },
+            additional_requirements: {
+              name: 'Additional Requirements (Common Across All Products)',
+              description: 'Credit checks and additional documentation',
+              fields: [
+                { id: 'cibil_report', label: 'CIBIL Report (Minimum score as per program)', type: 'file', required: true },
+                { id: 'no_dpd', label: 'No DPD in last 3 months / No 60+ in last 6 months', type: 'checkbox', required: true },
+                { id: 'financial_owners', label: 'All financial owners must be part of the loan structure', type: 'checkbox', required: true },
+              ],
+            },
+          };
+
+          const moduleDef = moduleDefinitions[moduleId];
+          if (!moduleDef) {
+            throw new Error(`Unknown module: ${moduleId}`);
+          }
+
+          // Create Form Category for this module
+          const categoryId = `CAT-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+          const categoryData = {
+            id: categoryId,
+            'Category ID': categoryId,
+            'Category Name': moduleDef.name,
+            'Description': moduleDef.description,
+            'Display Order': (index + 1).toString(),
+            'Active': 'True',
+          };
+          await n8nClient.postFormCategory(categoryData);
+
+          // Create Form Fields for each field in the module
+          const fieldPromises = moduleDef.fields.map(async (field: any, fieldIndex: number) => {
+            const fieldId = `FLD-${Date.now()}-${index}-${fieldIndex}-${Math.random().toString(36).substr(2, 9)}`;
+            const fieldData = {
+              id: fieldId,
+              'Field ID': fieldId,
+              'Category': categoryId,
+              'Field Label': field.label,
+              'Field Type': field.type,
+              'Field Placeholder': field.placeholder || '',
+              'Field Options': field.options ? JSON.stringify(field.options) : '',
+              'Is Mandatory': field.required ? 'True' : 'False',
+              'Display Order': (fieldIndex + 1).toString(),
+              'Active': 'True',
+            };
+            await n8nClient.postFormField(fieldData);
+            return fieldData;
+          });
+
+          await Promise.all(fieldPromises);
+
+          // Add to form structure JSON
+          formStructure.modules.push({
+            moduleId,
+            categoryId,
+            name: moduleDef.name,
+            fields: moduleDef.fields,
+          });
+
+          // Create Client Form Mapping
           const mappingData = {
             id: `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
             'Mapping ID': `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
             Client: id,
-            Category: moduleId,
+            Category: categoryId,
             'Is Required': 'True',
             'Display Order': (index + 1).toString(),
           };
-
           await n8nClient.postClientFormMapping(mappingData);
           return mappingData;
         });
 
         const createdMappings = await Promise.all(mappingPromises);
+
+        // Store form structure as JSON (can be stored in a field or logged)
+        const formJson = JSON.stringify(formStructure, null, 2);
 
         await n8nClient.postAdminActivityLog({
           id: `ACT-${Date.now()}`,
@@ -353,7 +500,7 @@ export class KAMController {
           Timestamp: new Date().toISOString(),
           'Performed By': req.user.email,
           'Action Type': 'create_form_mapping_bulk',
-          'Description/Details': `Created ${modules.length} form mapping(s) for client ${id}: ${modules.join(', ')}`,
+          'Description/Details': `Created ${modules.length} form mapping(s) for client ${id}: ${modules.join(', ')}. Form JSON: ${formJson.substring(0, 200)}...`,
           'Target Entity': 'form_mapping',
         });
 
@@ -362,6 +509,8 @@ export class KAMController {
           data: {
             mappings: createdMappings,
             count: createdMappings.length,
+            formStructure: formStructure,
+            formJson: formJson,
           },
         });
         return;

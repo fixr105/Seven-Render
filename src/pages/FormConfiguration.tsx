@@ -255,7 +255,7 @@ export const FormConfiguration: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-neutral-600 mb-4">
-              Create custom forms for clients by selecting modules and fields. Each form configuration generates a unique link that can be shared with clients.
+              Create custom forms for clients by selecting modules. All fields within selected modules will be automatically included. Each form configuration generates a unique link that can be shared with clients.
             </p>
 
             {/* Client Selection */}
@@ -313,15 +313,7 @@ export const FormConfiguration: React.FC = () => {
                         <p className="text-xs text-neutral-500 mt-1">{module.description}</p>
                         {selectedModules.has(module.id) && (
                           <div className="mt-2 text-xs text-neutral-600">
-                            <span className="font-medium">{module.fields.length} field(s):</span>
-                            <ul className="list-disc list-inside mt-1 space-y-1">
-                              {module.fields.slice(0, 3).map((field) => (
-                                <li key={field.id}>{field.label}</li>
-                              ))}
-                              {module.fields.length > 3 && (
-                                <li>+ {module.fields.length - 3} more...</li>
-                              )}
-                            </ul>
+                            <span className="font-medium">{module.fields.length} field(s) will be included automatically</span>
                           </div>
                         )}
                       </div>

@@ -41,15 +41,17 @@ export class N8nClient {
       if (Array.isArray(data)) {
         console.log(`✅ Fetched ${data.length} records from ${tableName}`);
         return data;
-      } else if (data.records && Array.isArray(data.records)) {
-        console.log(`✅ Fetched ${data.records.length} records from ${tableName}`);
-        return data.records;
-      } else if (data.data && Array.isArray(data.data)) {
-        console.log(`✅ Fetched ${data.data.length} records from ${tableName}`);
-        return data.data;
       } else if (typeof data === 'object' && data !== null) {
-        // Single record or object with table name as key
         const dataObj = data as Record<string, any>;
+        if (dataObj.records && Array.isArray(dataObj.records)) {
+          console.log(`✅ Fetched ${dataObj.records.length} records from ${tableName}`);
+          return dataObj.records;
+        } else if (dataObj.data && Array.isArray(dataObj.data)) {
+          console.log(`✅ Fetched ${dataObj.data.length} records from ${tableName}`);
+          return dataObj.data;
+        }
+        
+        // Single record or object with table name as key
         const tableKey = Object.keys(dataObj).find(key => 
           Array.isArray(dataObj[key]) || 
           (typeof dataObj[key] === 'object' && dataObj[key] !== null)
