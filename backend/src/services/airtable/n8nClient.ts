@@ -47,15 +47,16 @@ export class N8nClient {
       } else if (data.data && Array.isArray(data.data)) {
         console.log(`✅ Fetched ${data.data.length} records from ${tableName}`);
         return data.data;
-      } else if (typeof data === 'object') {
+      } else if (typeof data === 'object' && data !== null) {
         // Single record or object with table name as key
-        const tableKey = Object.keys(data).find(key => 
-          Array.isArray(data[key]) || 
-          (typeof data[key] === 'object' && data[key] !== null)
+        const dataObj = data as Record<string, any>;
+        const tableKey = Object.keys(dataObj).find(key => 
+          Array.isArray(dataObj[key]) || 
+          (typeof dataObj[key] === 'object' && dataObj[key] !== null)
         );
-        if (tableKey && Array.isArray(data[tableKey])) {
-          console.log(`✅ Fetched ${data[tableKey].length} records from ${tableName}`);
-          return data[tableKey];
+        if (tableKey && Array.isArray(dataObj[tableKey])) {
+          console.log(`✅ Fetched ${dataObj[tableKey].length} records from ${tableName}`);
+          return dataObj[tableKey];
         } else {
           // Single record
           console.log(`✅ Fetched 1 record from ${tableName}`);

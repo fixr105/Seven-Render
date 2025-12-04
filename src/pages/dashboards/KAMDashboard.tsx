@@ -201,7 +201,7 @@ export const KAMDashboard: React.FC = () => {
                 Files Awaiting Response ({awaitingResponse})
               </Button>
             )}
-            <Button variant="secondary" onClick={() => navigate('/clients')}>
+            <Button variant="secondary" onClick={() => navigate('/form-configuration')}>
               Configure Client Forms
             </Button>
           </div>

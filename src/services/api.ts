@@ -443,14 +443,15 @@ class ApiService {
   }
 
   /**
-   * Create form mapping
+   * Create form mapping (single or bulk)
    */
   async createFormMapping(
     clientId: string,
     data: {
-      category: string;
-      isRequired: boolean;
+      category?: string;
+      isRequired?: boolean;
       displayOrder?: number;
+      modules?: string[]; // For bulk creation
     }
   ): Promise<ApiResponse> {
     return this.request(`/kam/clients/${clientId}/form-mappings`, {

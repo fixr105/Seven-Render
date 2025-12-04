@@ -310,18 +310,70 @@ export class KAMController {
   /**
    * POST /kam/clients/:id/form-mappings
    * Create/update form mappings for a client
+   * Supports single mapping or bulk creation via modules array
    */
   async createFormMapping(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
-      const { productId, categoryId, fieldId, isRequired, displayOrder } = req.body;
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
 
+      const { id } = req.params;
+      const { category, isRequired, displayOrder, modules } = req.body;
+
+      // Verify this client is managed by this KAM
+      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!);
+      if (!managedClients.includes(id)) {
+        res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
+        return;
+      }
+
+      // Support bulk creation via modules array
+      if (modules && Array.isArray(modules)) {
+        const mappingPromises = modules.map(async (moduleId: string, index: number) => {
+          const mappingData = {
+            id: `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+            'Mapping ID': `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+            Client: id,
+            Category: moduleId,
+            'Is Required': 'True',
+            'Display Order': (index + 1).toString(),
+          };
+
+          await n8nClient.postClientFormMapping(mappingData);
+          return mappingData;
+        });
+
+        const createdMappings = await Promise.all(mappingPromises);
+
+        await n8nClient.postAdminActivityLog({
+          id: `ACT-${Date.now()}`,
+          'Activity ID': `ACT-${Date.now()}`,
+          Timestamp: new Date().toISOString(),
+          'Performed By': req.user.email,
+          'Action Type': 'create_form_mapping_bulk',
+          'Description/Details': `Created ${modules.length} form mapping(s) for client ${id}: ${modules.join(', ')}`,
+          'Target Entity': 'form_mapping',
+        });
+
+        res.json({
+          success: true,
+          data: {
+            mappings: createdMappings,
+            count: createdMappings.length,
+          },
+        });
+        return;
+      }
+
+      // Single mapping creation (backward compatibility)
       const mappingData = {
         id: `MAP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         'Mapping ID': `MAP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         Client: id,
-        Category: categoryId,
-        'Is Required': isRequired ? 'True' : 'False',
+        Category: category,
+        'Is Required': isRequired !== false ? 'True' : 'False',
         'Display Order': displayOrder?.toString() || '0',
       };
 
@@ -331,9 +383,9 @@ export class KAMController {
         id: `ACT-${Date.now()}`,
         'Activity ID': `ACT-${Date.now()}`,
         Timestamp: new Date().toISOString(),
-        'Performed By': req.user!.email,
+        'Performed By': req.user.email,
         'Action Type': 'create_form_mapping',
-        'Description/Details': `Created form mapping for client ${id}`,
+        'Description/Details': `Created form mapping for client ${id}: ${category}`,
         'Target Entity': 'form_mapping',
       });
 

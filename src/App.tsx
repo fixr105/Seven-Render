@@ -14,6 +14,7 @@ import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { WebhookTest } from './pages/WebhookTest';
+import { FormConfiguration } from './pages/FormConfiguration';
 
 function App() {
   // Always wrap with BrowserRouter first, then unified provider
@@ -119,6 +120,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['credit_team', 'kam']}>
             <WebhookTest />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/form-configuration"
+        element={
+          <ProtectedRoute allowedRoles={['kam']}>
+            <FormConfiguration />
           </ProtectedRoute>
         }
       />
