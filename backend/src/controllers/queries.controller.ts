@@ -60,29 +60,21 @@ export class QueriesController {
         status: 'open',
       });
 
-      // Create reply entry in File Auditing Log (or Queries table if it exists)
-      // For now, we'll use File Auditing Log since that's what exists
+      // Create reply entry in File Auditing Log
       const replyId = `QUERY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
-      // Try to post to Queries table if it exists, otherwise use File Auditing Log
-      try {
-        // If Queries table exists in n8n, we'd post there
-        // For now, we'll use File Auditing Log with query-specific action type
-        await n8nClient.postFileAuditLog({
-          id: replyId,
-          'Log Entry ID': replyId,
-          File: queryFileId,
-          Timestamp: new Date().toISOString(),
-          Actor: actor || req.user!.email,
-          'Action/Event Type': 'query_reply',
-          'Details/Message': replyContent, // Contains embedded metadata
-          'Target User/Role': targetUserRole || parentQuery['Target User/Role'] || '',
-          Resolved: 'False',
-        });
-      } catch (error) {
-        // Fallback: if Queries table doesn't exist, we'll document this
-        console.warn('Queries table may not exist, using File Auditing Log');
-      }
+      // Post to File Auditing Log - this is critical, so we must fail if it doesn't work
+      await n8nClient.postFileAuditLog({
+        id: replyId,
+        'Log Entry ID': replyId,
+        File: queryFileId,
+        Timestamp: new Date().toISOString(),
+        Actor: actor || req.user!.email,
+        'Action/Event Type': 'query_reply',
+        'Details/Message': replyContent, // Contains embedded metadata
+        'Target User/Role': targetUserRole || parentQuery['Target User/Role'] || '',
+        Resolved: 'False',
+      });
 
       res.json({
         success: true,

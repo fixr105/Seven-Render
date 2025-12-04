@@ -41,7 +41,12 @@ export class AuditController {
       fileAuditLog = dataFilterService.filterFileAuditLog(fileAuditLog, req.user!);
 
       // Sort by timestamp (newest first)
-      fileAuditLog.sort((a, b) => b.Timestamp.localeCompare(a.Timestamp));
+      // Handle missing timestamps by treating them as empty strings (oldest)
+      fileAuditLog.sort((a, b) => {
+        const timestampA = a.Timestamp || '';
+        const timestampB = b.Timestamp || '';
+        return timestampB.localeCompare(timestampA);
+      });
 
       res.json({
         success: true,
@@ -83,6 +88,8 @@ export class AuditController {
       // Apply filters
       if (dateFrom || dateTo) {
         activityLogs = activityLogs.filter((log) => {
+          // Handle missing timestamps - exclude from date filtering
+          if (!log.Timestamp) return false;
           const logDate = log.Timestamp.split('T')[0];
           if (dateFrom && logDate < dateFrom) return false;
           if (dateTo && logDate > dateTo) return false;
@@ -105,7 +112,12 @@ export class AuditController {
       }
 
       // Sort by timestamp (newest first)
-      activityLogs.sort((a, b) => b.Timestamp.localeCompare(a.Timestamp));
+      // Handle missing timestamps by treating them as empty strings (oldest)
+      activityLogs.sort((a, b) => {
+        const timestampA = a.Timestamp || '';
+        const timestampB = b.Timestamp || '';
+        return timestampB.localeCompare(timestampA);
+      });
 
       res.json({
         success: true,
