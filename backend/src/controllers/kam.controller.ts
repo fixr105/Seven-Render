@@ -240,7 +240,8 @@ export class KAMController {
       const { id } = req.params;
 
       // Verify this client is managed by this KAM
-      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!);
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
+      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!, userAccounts);
       if (!managedClients.includes(id)) {
         res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
         return;
@@ -323,7 +324,8 @@ export class KAMController {
       const { category, isRequired, displayOrder, modules } = req.body;
 
       // Verify this client is managed by this KAM
-      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!);
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
+      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!, userAccounts);
       if (!managedClients.includes(id)) {
         res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
         return;
