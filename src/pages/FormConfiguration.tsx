@@ -160,15 +160,18 @@ export const FormConfiguration: React.FC = () => {
 
       try {
         setClientsLoading(true);
+        console.log('FormConfiguration: Fetching clients for KAM:', userRoleId);
         const response = await apiService.listClients();
+        console.log('FormConfiguration: API response:', response);
         if (response.success && response.data) {
+          console.log('FormConfiguration: Clients received:', response.data.length);
           setClients(response.data || []);
         } else {
-          console.error('Error fetching clients:', response.error);
+          console.error('FormConfiguration: Error fetching clients:', response.error);
           setClients([]);
         }
       } catch (error: any) {
-        console.error('Error fetching clients:', error);
+        console.error('FormConfiguration: Exception fetching clients:', error);
         setClients([]);
       } finally {
         setClientsLoading(false);
@@ -180,9 +183,13 @@ export const FormConfiguration: React.FC = () => {
 
   // Filter clients for KAM (only managed clients) - API already filters, but we use all returned clients
   const managedClients = React.useMemo(() => {
-    if (userRole !== 'kam' || !userRoleId) return [];
+    if (userRole !== 'kam' || !userRoleId) {
+      console.log('FormConfiguration: Not KAM or no userRoleId', { userRole, userRoleId });
+      return [];
+    }
     // API endpoint /kam/clients already returns only managed clients
     // Return all clients from the API response
+    console.log('FormConfiguration: Managed clients count:', clients.length);
     return clients;
   }, [clients, userRole, userRoleId]);
 
@@ -297,22 +304,42 @@ export const FormConfiguration: React.FC = () => {
               <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Select Client *
               </label>
-              <Select
-                value={selectedClient}
-                onChange={(e) => {
-                  setSelectedClient(e.target.value);
-                  setSelectedModules(new Set());
-                  setFormLink(null);
-                }}
-                options={[
-                  { value: '', label: '-- Select a Client --' },
-                  ...managedClients.map((client: any) => ({
-                    value: client.id || client.clientId,
-                    label: `${client.clientName || client['Client Name'] || client.company_name || client['Primary Contact Name'] || 'Unknown'} (${client.clientId || client['Client ID'] || client.id || ''})`,
-                  })),
-                ]}
-                disabled={clientsLoading}
-              />
+              {clientsLoading ? (
+                <div className="text-sm text-neutral-500 py-2">Loading clients...</div>
+              ) : managedClients.length === 0 ? (
+                <div className="text-sm text-neutral-500 py-2">
+                  No clients found. Please onboard a client first from the <a href="/clients" className="text-brand-primary hover:underline">Clients page</a>.
+                  <br />
+                  <span className="text-xs">Debug: userRole={userRole}, userRoleId={userRoleId}, clients.length={clients.length}</span>
+                </div>
+              ) : (
+                <>
+                  <Select
+                    value={selectedClient}
+                    onChange={(e) => {
+                      setSelectedClient(e.target.value);
+                      setSelectedModules(new Set());
+                      setFormLink(null);
+                    }}
+                    options={[
+                      { value: '', label: '-- Select a Client --' },
+                      ...managedClients.map((client: any) => {
+                        // Handle different client data formats
+                        const clientId = client.id || client.clientId || client['Client ID'];
+                        const clientName = client.clientName || client['Client Name'] || client.company_name || client['Primary Contact Name'] || 'Unknown';
+                        return {
+                          value: clientId,
+                          label: `${clientName}${clientId ? ` (${clientId})` : ''}`,
+                        };
+                      }),
+                    ]}
+                    disabled={clientsLoading}
+                  />
+                  <p className="text-xs text-neutral-500 mt-2">
+                    {managedClients.length} client(s) available
+                  </p>
+                </>
+              )}
               {selectedClient && existingMappings.length > 0 && (
                 <p className="text-xs text-neutral-500 mt-2">
                   This client has {existingMappings.length} existing form mapping(s)
