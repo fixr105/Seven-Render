@@ -229,7 +229,30 @@ class ApiService {
         headers,
       });
 
-      const data = await response.json();
+      // Check if response has content
+      const contentType = response.headers.get('content-type');
+      const text = await response.text();
+      
+      // If response is empty, return error
+      if (!text || text.trim().length === 0) {
+        return {
+          success: false,
+          error: `Empty response from server (${response.status} ${response.statusText})`,
+        };
+      }
+
+      // Try to parse as JSON
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        // If not JSON, return the text as error
+        console.error('Failed to parse JSON response:', text.substring(0, 200));
+        return {
+          success: false,
+          error: `Invalid JSON response from server: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+        };
+      }
 
       if (!response.ok) {
         return {
@@ -249,6 +272,8 @@ class ApiService {
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
         errorMessage = `Cannot connect to backend API at ${this.baseUrl}. Please ensure the server is running.`;
+      } else if (error.message?.includes('JSON.parse')) {
+        errorMessage = `Invalid response from server. The API may not be responding correctly.`;
       } else if (error.message) {
         errorMessage = error.message;
       }
