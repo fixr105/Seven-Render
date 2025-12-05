@@ -9,5 +9,6 @@ process.env.VERCEL = '1';
 import app from '../backend/src/server.js';
 
 // Export as default handler for Vercel
+// Vercel will automatically handle Express apps
 export default app;
 
