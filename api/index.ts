@@ -36,7 +36,10 @@ export default async function handler(
   
   // Update the request URL for Express routing
   req.url = path;
-  req.originalUrl = path;
+  // originalUrl is optional, only set if it exists
+  if ('originalUrl' in req) {
+    (req as any).originalUrl = path;
+  }
   
   // Ensure method is set
   if (!req.method) {
