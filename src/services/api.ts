@@ -3,7 +3,18 @@
  * Wraps all backend endpoints, handles JWT auth, and provides role-based access
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+// Ensure API_BASE_URL includes /api prefix for Vercel deployment
+const getApiBaseUrl = () => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  // If baseUrl doesn't end with /api and is not localhost, add /api
+  if (!baseUrl.includes('localhost') && !baseUrl.endsWith('/api')) {
+    return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
+  }
+  // For localhost, the backend runs on port 3000 without /api prefix
+  return baseUrl;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Types
 export type UserRole = 'client' | 'kam' | 'credit_team' | 'nbfc' | 'admin';
