@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { Plus, FileText, Clock, CheckCircle, DollarSign } from 'lucide-react';
+import { Plus, FileText, Clock, CheckCircle, DollarSign, Package } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { useNotifications } from '../../hooks/useNotifications';
+import { apiService } from '../../services/api';
 
 interface ApplicationRow {
   id: string;
@@ -23,6 +24,36 @@ export const ClientDashboard: React.FC = () => {
   const { applications, loading } = useApplications();
   const { balance, loading: ledgerLoading } = useLedger();
   const { unreadCount } = useNotifications();
+  const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  useEffect(() => {
+    fetchLoanProducts();
+  }, []);
+
+  const fetchLoanProducts = async () => {
+    try {
+      setLoadingProducts(true);
+      const response = await apiService.listLoanProducts(true); // activeOnly = true
+      
+      if (response.success && response.data) {
+        const products = response.data.map((product: any) => ({
+          id: product.productId || product.id,
+          name: product.productName || product['Product Name'] || product.name,
+          description: product.description || product['Description'],
+        }));
+        setLoanProducts(products);
+      } else if (response.error) {
+        console.error('Error fetching loan products:', response.error);
+        // If 401/403, the API service already cleared the token
+        // The auth context will handle redirect
+      }
+    } catch (error) {
+      console.error('Exception fetching loan products:', error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
 
   // Calculate stats
   const totalApplications = applications.length;
@@ -83,8 +114,8 @@ export const ClientDashboard: React.FC = () => {
               <p className="text-sm text-neutral-500">Pending Review</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingReview}</p>
             </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-              <Clock className="w-6 h-6 text-yellow-600" />
+            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
+              <Clock className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
         </Card>
@@ -98,8 +129,8 @@ export const ClientDashboard: React.FC = () => {
                 {totalApplications > 0 ? Math.round((approved / totalApplications) * 100) : 0}% approval rate
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-success" />
             </div>
           </CardContent>
         </Card>
@@ -112,12 +143,43 @@ export const ClientDashboard: React.FC = () => {
                 ₹{ledgerLoading ? '0.0' : (balance / 1000).toFixed(1)}K
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-success" />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Available Loan Products */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-brand-primary" />
+            Available Loan Products
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingProducts ? (
+            <div className="text-center py-4 text-neutral-500">Loading loan products...</div>
+          ) : loanProducts.length === 0 ? (
+            <div className="text-center py-4 text-neutral-500">No loan products available</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {loanProducts.map((product) => (
+                <div
+                  key={product.id}
+                  className="p-4 border border-neutral-200 rounded-lg hover:border-brand-primary/50 hover:shadow-md transition-all"
+                >
+                  <h4 className="font-semibold text-neutral-900 mb-1">{product.name}</h4>
+                  {product.description && (
+                    <p className="text-sm text-neutral-600 line-clamp-2">{product.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Action Center */}
       <Card className="mb-6">

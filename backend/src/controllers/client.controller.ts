@@ -106,63 +106,138 @@ export class ClientController {
    */
   async getFormConfig(req: Request, res: Response): Promise<void> {
     try {
-      const { productId } = req.query;
-      if (!productId) {
-        res.status(400).json({ success: false, error: 'productId required' });
+      // Check if user is authenticated
+      if (!req.user || !req.user.clientId) {
+        res.status(401).json({
+          success: false,
+          error: 'Authentication required. Client ID not found.',
+        });
         return;
       }
 
+      // productId is optional - form config is linked to client, not product
+      const { productId } = req.query;
+
       // Fetch only the tables we need
-      const [mappings, categories] = await Promise.all([
-        n8nClient.fetchTable('Client Form Mapping'),
-        n8nClient.fetchTable('Form Categories'),
-      ]);
-      // Fetch only Form Fields table
-      const fields = await n8nClient.fetchTable('Form Fields');
+      let mappings, categories, fields;
+      try {
+        [mappings, categories] = await Promise.all([
+          n8nClient.fetchTable('Client Form Mapping'),
+          n8nClient.fetchTable('Form Categories'),
+        ]);
+        // Fetch only Form Fields table
+        fields = await n8nClient.fetchTable('Form Fields');
+      } catch (fetchError: any) {
+        console.error('[getFormConfig] Error fetching tables:', fetchError);
+        res.status(500).json({
+          success: false,
+          error: `Failed to fetch form data: ${fetchError.message || 'Unknown error'}`,
+        });
+        return;
+      }
 
-      // Get mappings for this client and product
-      const clientMappings = mappings.filter(
-        (m) => m.Client === req.user!.clientId
+      // Get mappings for this client
+      // Try multiple ID formats to match client
+      const clientId = req.user!.clientId;
+      console.log(`[getFormConfig] Client ID from user: ${clientId}`);
+      console.log(`[getFormConfig] Total mappings: ${mappings.length}`);
+      
+      const clientMappings = mappings.filter((m) => {
+        const mappingClientId = m.Client || m.client || m['Client ID'];
+        const matches = mappingClientId === clientId || 
+                       mappingClientId === clientId?.toString() ||
+                       clientId === mappingClientId?.toString();
+        if (matches) {
+          console.log(`[getFormConfig] Found mapping: Category=${m.Category}, Client=${mappingClientId}`);
+        }
+        return matches;
+      });
+
+      console.log(`[getFormConfig] Client mappings found: ${clientMappings.length}`);
+
+      // Get category IDs that have mappings for this client
+      const mappedCategoryIds = new Set(
+        clientMappings.map((m) => m.Category || m.category).filter(Boolean)
       );
+      
+      console.log(`[getFormConfig] Mapped category IDs:`, Array.from(mappedCategoryIds));
 
-      // Build form config
+      // Build form config - only include categories that have mappings for this client
       const config = categories
-        .filter((cat) => cat.Active === 'True')
+        .filter((cat) => {
+          const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
+          const isActive = cat.Active === 'True' || cat.active === true;
+          const hasMapping = mappedCategoryIds.has(categoryId);
+          // Only include categories that are active AND have mappings for this client
+          if (isActive && hasMapping) {
+            console.log(`[getFormConfig] Including category: ${cat['Category Name'] || cat.categoryName} (ID: ${categoryId})`);
+          } else {
+            console.log(`[getFormConfig] Excluding category: ${cat['Category Name'] || cat.categoryName} (ID: ${categoryId}) - Active: ${isActive}, HasMapping: ${hasMapping}`);
+          }
+          return isActive && hasMapping;
+        })
         .map((cat) => {
-          const categoryFields = fields
-            .filter((f) => f.Category === cat['Category ID'] && f.Active === 'True')
+          const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
+          
+          // Find all fields for this category
+          const allFieldsForCategory = fields.filter((f) => {
+            const fieldCategory = f.Category || f.category;
+            return fieldCategory === categoryId;
+          });
+          console.log(`[getFormConfig] Category "${cat['Category Name'] || cat.categoryName}" has ${allFieldsForCategory.length} total fields in database`);
+          
+          const categoryFields = allFieldsForCategory
+            .filter((f) => {
+              const fieldActive = f.Active === 'True' || f.active === true;
+              if (!fieldActive) {
+                console.log(`[getFormConfig] Field "${f['Field Label'] || f.fieldLabel}" is not active`);
+              }
+              return fieldActive;
+            })
             .map((f) => {
               const mapping = clientMappings.find(
-                (m) => m.Category === cat['Category ID'] && m.Client === req.user!.clientId
+                (m) => (m.Category || m.category) === categoryId && 
+                       ((m.Client || m.client) === clientId || (m.Client || m.client) === clientId?.toString())
               );
-              return {
-                fieldId: f['Field ID'],
-                label: f['Field Label'],
-                type: f['Field Type'],
-                placeholder: f['Field Placeholder'],
-                options: f['Field Options'],
-                isRequired: mapping?.['Is Required'] === 'True' || f['Is Mandatory'] === 'True',
-                displayOrder: parseInt(mapping?.['Display Order'] || f['Display Order'] || '0'),
+              const fieldData = {
+                fieldId: f['Field ID'] || f.fieldId || f.id,
+                label: f['Field Label'] || f.fieldLabel || f.label,
+                type: f['Field Type'] || f.fieldType || f.type,
+                placeholder: f['Field Placeholder'] || f.fieldPlaceholder || f.placeholder,
+                options: f['Field Options'] || f.fieldOptions || f.options,
+                isRequired: mapping?.['Is Required'] === 'True' || mapping?.isRequired === true || f['Is Mandatory'] === 'True' || f.isMandatory === true,
+                displayOrder: parseInt(mapping?.['Display Order'] || mapping?.displayOrder || f['Display Order'] || f.displayOrder || '0'),
               };
+              console.log(`[getFormConfig]   - Field: "${fieldData.label}" (Type: ${fieldData.type}, Required: ${fieldData.isRequired})`);
+              return fieldData;
             })
             .sort((a, b) => a.displayOrder - b.displayOrder);
 
+          console.log(`[getFormConfig] Category "${cat['Category Name'] || cat.categoryName}" has ${categoryFields.length} active fields`);
+
           return {
-            categoryId: cat['Category ID'],
-            categoryName: cat['Category Name'],
-            description: cat.Description,
-            displayOrder: parseInt(cat['Display Order'] || '0'),
+            categoryId: categoryId,
+            categoryName: cat['Category Name'] || cat.categoryName || cat.name,
+            description: cat.Description || cat.description,
+            displayOrder: parseInt(cat['Display Order'] || cat.displayOrder || '0'),
             fields: categoryFields,
           };
         })
         .sort((a, b) => a.displayOrder - b.displayOrder);
 
-      res.json({ success: true, data: config });
+      console.log(`[getFormConfig] Returning ${config.length} categories with form configuration`);
+      
+      // Ensure we always send a valid JSON response
+      const response = { success: true, data: config };
+      res.status(200).json(response);
     } catch (error: any) {
-      res.status(500).json({
+      console.error('[getFormConfig] Unexpected error:', error);
+      // Ensure error response is always valid JSON
+      const errorResponse = {
         success: false,
         error: error.message || 'Failed to fetch form config',
-      });
+      };
+      res.status(500).json(errorResponse);
     }
   }
 

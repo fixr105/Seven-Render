@@ -1,5 +1,5 @@
 import React from 'react';
-import { LucideIcon, Home, FileText, Users, DollarSign, BarChart3, Settings, Menu, X } from 'lucide-react';
+import { LucideIcon, X } from 'lucide-react';
 
 interface NavItem {
   id: string;

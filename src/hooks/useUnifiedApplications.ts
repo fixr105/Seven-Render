@@ -94,7 +94,7 @@ export const useUnifiedApplications = (options: {
           return;
         }
         
-        setClientIds(clients?.map(c => c.id) || []);
+        setClientIds(clients?.map((c: { id: string }) => c.id) || []);
         setClientId(null);
       } else {
         setClientId(null);
@@ -175,7 +175,9 @@ export const useUnifiedApplications = (options: {
   const syncToDatabase = useCallback(async () => {
     // Skip sync for test users
     if (isTestUser(userRoleId)) {
-      console.warn('Test user detected - skipping webhook sync. Please use real authentication for full functionality.');
+      if (import.meta.env.DEV) {
+        console.warn('Test user detected - skipping webhook sync. Please use real authentication for full functionality.');
+      }
       return;
     }
 
@@ -186,14 +188,18 @@ export const useUnifiedApplications = (options: {
     setSyncError(null);
 
     try {
-      console.log(`Syncing ${filteredWebhookApps.length} webhook records to database...`);
+      if (import.meta.env.DEV) {
+        console.log(`Syncing ${filteredWebhookApps.length} webhook records to database...`);
+      }
       
       const results = await syncWebhookRecordsToDB(filteredWebhookApps, {
         upsert: true,
         updateExisting: true,
       });
 
-      console.log(`Sync complete: ${results.success} succeeded, ${results.failed} failed`);
+      if (import.meta.env.DEV) {
+        console.log(`Sync complete: ${results.success} succeeded, ${results.failed} failed`);
+      }
       
       if (results.failed > 0) {
         console.error('Sync errors:', results.errors);

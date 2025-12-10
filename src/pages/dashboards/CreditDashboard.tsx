@@ -92,7 +92,7 @@ export const CreditDashboard: React.FC = () => {
                 Requires attention
               </p>
             </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
               <Clock className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
@@ -126,8 +126,8 @@ export const CreditDashboard: React.FC = () => {
                 </p>
               )}
             </div>
-            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-orange-600" />
+            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
         </Card>

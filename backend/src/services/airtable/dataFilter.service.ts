@@ -99,18 +99,40 @@ export class DataFilterService {
 
   /**
    * Get client IDs managed by a KAM
-   * @deprecated This method should be updated to use individual webhooks
-   * For now, it accepts userAccounts array directly
+   * Checks the Clients table for 'Assigned KAM' field
    */
   async getKAMManagedClients(
     kamId: string,
     userAccounts: any[]
   ): Promise<string[]> {
-    // Clients have Role='client' and Associated Profile might link to KAM
-    // This is a simplified version - adjust based on actual schema
-    return userAccounts
-      .filter((u) => u.Role === UserRole.CLIENT)
-      .map((u) => u.id);
+    // First, we need to fetch the Clients table to check 'Assigned KAM' field
+    // Import n8nClient here to avoid circular dependency
+    const { n8nClient } = await import('./n8nClient.js');
+    
+    try {
+      // Fetch Clients table
+      const clients = await n8nClient.fetchTable('Clients');
+      
+      // Filter clients where 'Assigned KAM' matches the KAM ID
+      // Also check variations: 'Assigned KAM', 'KAM ID', 'KAM', etc.
+      const managedClients = clients
+        .filter((client: any) => {
+          const assignedKAM = client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || client['Assigned KAM ID'] || '';
+          // Match by exact ID or by KAM ID field
+          return assignedKAM === kamId || 
+                 assignedKAM === client['KAM ID'] ||
+                 (typeof assignedKAM === 'string' && assignedKAM.includes(kamId));
+        })
+        .map((client: any) => client.id || client['Client ID'] || client['ID']);
+      
+      return managedClients;
+    } catch (error) {
+      console.error('Error fetching managed clients:', error);
+      // Fallback: return all clients from user accounts (old behavior)
+      return userAccounts
+        .filter((u) => u.Role === UserRole.CLIENT)
+        .map((u) => u.id);
+    }
   }
 }
 

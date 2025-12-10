@@ -4,6 +4,7 @@
 
 import { Router } from 'express';
 import { loanController } from '../controllers/loan.controller.js';
+import { clientController } from '../controllers/client.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireClient } from '../middleware/rbac.middleware.js';
 
@@ -20,6 +21,9 @@ router.post('/:id/withdraw', requireClient, loanController.withdrawApplication.b
 // List and get - all authenticated users (filtered by role)
 router.get('/', loanController.listApplications.bind(loanController));
 router.get('/:id', loanController.getApplication.bind(loanController));
+
+// Query reply - CLIENT only (for replying to KAM/Credit queries)
+router.post('/:id/queries/:queryId/reply', requireClient, clientController.respondToQuery.bind(clientController));
 
 export default router;
 

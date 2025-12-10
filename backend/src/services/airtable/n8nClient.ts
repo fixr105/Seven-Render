@@ -7,22 +7,46 @@ import fetch from 'node-fetch';
 import { n8nConfig } from '../../config/airtable.js';
 import { N8nGetResponse, UserAccount } from '../../types/entities.js';
 import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';
+import { cacheService } from './cache.service.js';
 
 export class N8nClient {
   /**
    * Fetch data from a single table webhook
+   * Uses caching to prevent excessive webhook executions
    * @param tableName - Name of the table to fetch
+   * @param useCache - Whether to use cache (default: true)
+   * @param cacheTTL - Cache TTL in milliseconds (default: 60 seconds)
    * @returns Array of records from the table
    */
-  async fetchTable(tableName: string): Promise<any[]> {
+  async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number): Promise<any[]> {
+    const cacheKey = `table:${tableName}`;
+    
+    // Check cache first
+    if (useCache) {
+      const cached = cacheService.get<any[]>(cacheKey);
+      if (cached !== null) {
+        // Only log cache hits if LOG_WEBHOOK_CALLS is enabled (reduces console noise)
+        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+          console.log(`📦 Using cached data for ${tableName} (${cached.length} records)`);
+        }
+        return cached;
+      }
+    }
+
     const url = getWebhookUrl(tableName);
     if (!url) {
-      console.warn(`No webhook URL configured for table: ${tableName}`);
+      // Only warn in development or when explicitly logging
+      if (process.env.LOG_WEBHOOK_CALLS === 'true' || process.env.NODE_ENV === 'development') {
+        console.warn(`No webhook URL configured for table: ${tableName}`);
+      }
       return [];
     }
 
     try {
-      console.log(`Fetching ${tableName} from: ${url}`);
+      // Only log webhook calls for debugging (can be disabled in production)
+      if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+        console.log(`🌐 Fetching ${tableName} from webhook: ${url}`);
+      }
       
       const response = await fetch(url, {
         method: 'GET',
@@ -38,38 +62,45 @@ export class N8nClient {
       const data = await response.json();
       
       // Handle different response formats
+      let records: any[] = [];
+      
       if (Array.isArray(data)) {
-        console.log(`✅ Fetched ${data.length} records from ${tableName}`);
-        return data;
+        records = data;
       } else if (typeof data === 'object' && data !== null) {
         const dataObj = data as Record<string, any>;
         if (dataObj.records && Array.isArray(dataObj.records)) {
-          console.log(`✅ Fetched ${dataObj.records.length} records from ${tableName}`);
-          return dataObj.records;
+          records = dataObj.records;
         } else if (dataObj.data && Array.isArray(dataObj.data)) {
-          console.log(`✅ Fetched ${dataObj.data.length} records from ${tableName}`);
-          return dataObj.data;
-        }
-        
-        // Single record or object with table name as key
-        const tableKey = Object.keys(dataObj).find(key => 
-          Array.isArray(dataObj[key]) || 
-          (typeof dataObj[key] === 'object' && dataObj[key] !== null)
-        );
-        if (tableKey && Array.isArray(dataObj[tableKey])) {
-          console.log(`✅ Fetched ${dataObj[tableKey].length} records from ${tableName}`);
-          return dataObj[tableKey];
+          records = dataObj.data;
         } else {
-          // Single record
-          console.log(`✅ Fetched 1 record from ${tableName}`);
-          return [data];
+          // Single record or object with table name as key
+          const tableKey = Object.keys(dataObj).find(key => 
+            Array.isArray(dataObj[key]) || 
+            (typeof dataObj[key] === 'object' && dataObj[key] !== null)
+          );
+          if (tableKey && Array.isArray(dataObj[tableKey])) {
+            records = dataObj[tableKey];
+          } else {
+            // Single record
+            records = [data];
+          }
         }
       }
       
-      console.warn(`Unexpected response format from ${tableName} webhook`);
-      return [];
+      // Only log successful fetches occasionally
+      if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+        console.log(`✅ Fetched ${records.length} records from ${tableName} webhook`);
+      }
+      
+      // Cache the result (persists until invalidated)
+      if (useCache) {
+        // Cache holds indefinitely until explicitly invalidated via POST operations
+        cacheService.set(cacheKey, records);
+      }
+      
+      return records;
     } catch (error) {
-      console.error(`Error fetching ${tableName}:`, error);
+      console.error(`❌ Error fetching ${tableName}:`, error);
       throw error;
     }
   }
@@ -296,10 +327,38 @@ export class N8nClient {
   }
 
   /**
+   * Invalidate cache for a specific table
+   * Only invalidates if the table name is valid and cache exists
+   */
+  invalidateCache(tableName: string): void {
+    if (!tableName || tableName.trim() === '') {
+      return; // Don't invalidate if table name is empty
+    }
+    const cacheKey = `table:${tableName}`;
+    const hadCache = cacheService.get(cacheKey) !== null;
+    cacheService.clear(cacheKey);
+    // Only log if cache actually existed
+    if (hadCache && process.env.LOG_CACHE_INVALIDATION === 'true') {
+      console.log(`🗑️  Cache invalidated for ${tableName}`);
+    }
+  }
+
+  /**
+   * Invalidate cache for multiple tables
+   */
+  invalidateCacheMultiple(tableNames: string[]): void {
+    tableNames.forEach(tableName => this.invalidateCache(tableName));
+  }
+
+  /**
    * POST data to n8n webhook
+   * This will invalidate relevant caches after successful POST
    */
   async postData(webhookUrl: string, data: Record<string, any>): Promise<any> {
     try {
+      console.log(`[postData] Posting to webhook: ${webhookUrl}`);
+      console.log(`[postData] Data:`, JSON.stringify(data, null, 2));
+      
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
@@ -308,26 +367,34 @@ export class N8nClient {
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`n8n POST webhook failed: ${response.status} ${response.statusText}. Response: ${errorText}`);
-      }
-
       const responseText = await response.text();
+      console.log(`[postData] Response status: ${response.status} ${response.statusText}`);
+      console.log(`[postData] Response body: ${responseText.substring(0, 500)}`);
+
+      if (!response.ok) {
+        const errorMessage = `n8n POST webhook failed: ${response.status} ${response.statusText}. Response: ${responseText}`;
+        console.error(`[postData] ${errorMessage}`);
+        throw new Error(errorMessage);
+      }
       
       // Handle empty response
       if (responseText.trim() === '') {
+        console.log('[postData] Empty response received, treating as success');
         return { success: true, message: 'Data posted successfully' };
       }
 
       // Try to parse JSON response
       try {
-        return JSON.parse(responseText);
-      } catch {
+        const parsed = JSON.parse(responseText);
+        console.log('[postData] Successfully parsed JSON response');
+        return parsed;
+      } catch (parseError) {
+        console.warn('[postData] Response is not JSON, returning as text');
         return { message: responseText, status: response.status };
       }
-    } catch (error) {
-      console.error('Error posting data to n8n:', error);
+    } catch (error: any) {
+      console.error('[postData] Error posting data to n8n:', error);
+      console.error('[postData] Error details:', error.message, error.stack);
       throw error;
     }
   }
@@ -338,11 +405,19 @@ export class N8nClient {
   }
 
   async postClientFormMapping(data: Record<string, any>) {
-    return this.postData(n8nConfig.postClientFormMappingUrl, data);
+    const result = await this.postData(n8nConfig.postClientFormMappingUrl, data);
+    // Invalidate cache for Client Form Mapping and related tables
+    this.invalidateCache('Client Form Mapping');
+    this.invalidateCache('Form Categories');
+    this.invalidateCache('Form Fields');
+    return result;
   }
 
   async postCommissionLedger(data: Record<string, any>) {
-    return this.postData(n8nConfig.postCommissionLedgerUrl, data);
+    const result = await this.postData(n8nConfig.postCommissionLedgerUrl, data);
+    // Invalidate cache for Commission Ledger
+    this.invalidateCache('Commission Ledger');
+    return result;
   }
 
   async postCreditTeamUser(data: Record<string, any>) {
@@ -356,7 +431,10 @@ export class N8nClient {
       'Role': data['Role'] || data.Role || 'credit_team',
       'Status': data['Status'] || data.Status || 'Active',
     };
-    return this.postData(n8nConfig.postCreditTeamUsersUrl, creditUserData);
+    const result = await this.postData(n8nConfig.postCreditTeamUsersUrl, creditUserData);
+    // Invalidate cache for Credit Team Users
+    this.invalidateCache('Credit Team Users');
+    return result;
   }
 
   async postDailySummary(data: Record<string, any>) {
@@ -376,7 +454,10 @@ export class N8nClient {
       'Generated Timestamp': data['Generated Timestamp'] || data.generatedTimestamp || new Date().toISOString(),
       'Delivered To': deliveredTo,
     };
-    return this.postData(n8nConfig.postDailySummaryUrl, dailySummaryData);
+    const result = await this.postData(n8nConfig.postDailySummaryUrl, dailySummaryData);
+    // Invalidate cache for Daily Summary Report
+    this.invalidateCache('Daily Summary Report');
+    return result;
   }
 
   async postFileAuditLog(data: Record<string, any>) {
@@ -393,7 +474,10 @@ export class N8nClient {
       'Target User/Role': data['Target User/Role'] || data.targetUserRole || '',
       'Resolved': data['Resolved'] || data.resolved || 'False',
     };
-    return this.postData(n8nConfig.postFileAuditLogUrl, fileAuditLogData);
+    const result = await this.postData(n8nConfig.postFileAuditLogUrl, fileAuditLogData);
+    // Invalidate cache for File Auditing Log
+    this.invalidateCache('File Auditing Log');
+    return result;
   }
 
   async postFormCategory(data: Record<string, any>) {
@@ -407,7 +491,11 @@ export class N8nClient {
       'Display Order': data['Display Order'] || data.displayOrder || '0',
       'Active': data['Active'] || data.active || 'True',
     };
-    return this.postData(n8nConfig.postFormCategoryUrl, formCategoryData);
+    const result = await this.postData(n8nConfig.postFormCategoryUrl, formCategoryData);
+    // Invalidate cache for Form Categories and related tables
+    this.invalidateCache('Form Categories');
+    this.invalidateCache('Client Form Mapping');
+    return result;
   }
 
   async postFormField(data: Record<string, any>) {
@@ -425,11 +513,18 @@ export class N8nClient {
       'Display Order': data['Display Order'] || data.displayOrder || '0',
       'Active': data['Active'] || data.active || 'True',
     };
-    return this.postData(n8nConfig.postFormFieldsUrl, formFieldData);
+    const result = await this.postData(n8nConfig.postFormFieldsUrl, formFieldData);
+    // Invalidate cache for Form Fields and related tables
+    this.invalidateCache('Form Fields');
+    this.invalidateCache('Form Categories');
+    return result;
   }
 
   async postKamUser(data: Record<string, any>) {
-    return this.postData(n8nConfig.postKamUsersUrl, data);
+    const result = await this.postData(n8nConfig.postKamUsersUrl, data);
+    // Invalidate cache for KAM Users
+    this.invalidateCache('KAM Users');
+    return result;
   }
 
   async postLoanApplication(data: Record<string, any>) {
@@ -466,7 +561,11 @@ export class N8nClient {
       'Submitted Date': data['Submitted Date'] || data.submittedDate || '',
       'Last Updated': data['Last Updated'] || data.lastUpdated || '',
     };
-    return this.postData(n8nConfig.postApplicationsUrl, loanApplicationData);
+    const result = await this.postData(n8nConfig.postApplicationsUrl, loanApplicationData);
+    // Invalidate cache for Loan Applications and related tables
+    this.invalidateCache('Loan Application');
+    this.invalidateCache('File Auditing Log');
+    return result;
   }
 
   async postLoanProduct(data: Record<string, any>) {
@@ -480,7 +579,10 @@ export class N8nClient {
       'Active': data['Active'] || data.active || 'True',
       'Required Documents/Fields': data['Required Documents/Fields'] || data.requiredDocumentsFields || '',
     };
-    return this.postData(n8nConfig.postLoanProductsUrl, loanProductData);
+    const result = await this.postData(n8nConfig.postLoanProductsUrl, loanProductData);
+    // Invalidate cache for Loan Products
+    this.invalidateCache('Loan Products');
+    return result;
   }
 
   async postNBFCPartner(data: Record<string, any>) {
@@ -495,7 +597,10 @@ export class N8nClient {
       'Address/Region': data['Address/Region'] || data.addressRegion || '',
       'Active': data['Active'] || data.active || 'True',
     };
-    return this.postData(n8nConfig.postNBFCPartnersUrl, nbfcPartnerData);
+    const result = await this.postData(n8nConfig.postNBFCPartnersUrl, nbfcPartnerData);
+    // Invalidate cache for NBFC Partners
+    this.invalidateCache('NBFC Partners');
+    return result;
   }
 
   async postUserAccount(data: Record<string, any>) {
@@ -511,7 +616,10 @@ export class N8nClient {
       'Last Login': data['Last Login'] || data.lastLogin || '',
       'Account Status': data['Account Status'] || data.accountStatus || 'Active',
     };
-    return this.postData(n8nConfig.postAddUserUrl, userAccountData);
+    const result = await this.postData(n8nConfig.postAddUserUrl, userAccountData);
+    // Invalidate cache for User Accounts
+    this.invalidateCache('User Accounts');
+    return result;
   }
 
   async postClient(data: Record<string, any>) {
@@ -529,7 +637,13 @@ export class N8nClient {
       'Status': data['Status'] || data.status || 'Active',
       'Form Categories': data['Form Categories'] || data.formCategories || '',
     };
-    return this.postData(n8nConfig.postClientUrl, clientData);
+    const result = await this.postData(n8nConfig.postClientUrl, clientData);
+    // Invalidate cache for Clients and related tables only after successful POST
+    if (result && !result.error) {
+      this.invalidateCache('Clients');
+      this.invalidateCache('User Accounts');
+    }
+    return result;
   }
 
   async postNotification(data: Record<string, any>) {
@@ -554,7 +668,10 @@ export class N8nClient {
       'Read At': data['Read At'] || data.readAt || '',
       'Action Link': data['Action Link'] || data.actionLink || '',
     };
-    return this.postData(n8nConfig.postNotificationUrl, notificationData);
+    const result = await this.postData(n8nConfig.postNotificationUrl, notificationData);
+    // Invalidate cache for Notifications
+    this.invalidateCache('Notifications');
+    return result;
   }
 }
 

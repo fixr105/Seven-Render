@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // Use unified auth provider that handles both API and Supabase auth
 import { UnifiedAuthProvider } from './contexts/UnifiedAuthProvider';
@@ -15,6 +14,7 @@ import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { WebhookTest } from './pages/WebhookTest';
 import { FormConfiguration } from './pages/FormConfiguration';
+import { ClientForm } from './pages/ClientForm';
 
 function App() {
   // Always wrap with BrowserRouter first, then unified provider
@@ -32,7 +32,10 @@ function App() {
 function AppRoutes() {
   return (
     <Routes>
+      {/* Login route - case insensitive, redirect uppercase to lowercase */}
       <Route path="/login" element={<Login />} />
+      <Route path="/LOGIN" element={<Navigate to="/login" replace />} />
+      <Route path="/Login" element={<Navigate to="/login" replace />} />
 
       <Route
         path="/dashboard"
@@ -131,6 +134,12 @@ function AppRoutes() {
             <FormConfiguration />
           </ProtectedRoute>
         }
+      />
+
+      {/* Client Form - accessible via link (may or may not require auth) */}
+      <Route
+        path="/form/:clientId"
+        element={<ClientForm />}
       />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

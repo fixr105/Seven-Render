@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
+import { supabase } from '../lib/supabase';
 
 export const useQueries = (applicationId?: string) => {
   const { userRoleId } = useAuthSafe();

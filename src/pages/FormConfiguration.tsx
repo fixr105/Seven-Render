@@ -6,8 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 // Checkbox is handled inline with native input
-import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, CheckCircle, Copy, ExternalLink } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, CheckCircle } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -137,9 +136,8 @@ export const FormConfiguration: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
-  const [formLink, setFormLink] = useState<string | null>(null);
-  const [showLinkModal, setShowLinkModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Fetch clients using API service (same as Clients page)
   const [clients, setClients] = useState<any[]>([]);
@@ -249,16 +247,21 @@ export const FormConfiguration: React.FC = () => {
         throw new Error(response.error || 'Failed to create form mappings');
       }
 
-      // Generate unique form link for this client-form configuration
-      // Link includes client ID and a hash of selected modules
-      const baseUrl = window.location.origin;
-      const modulesHash = btoa(modulesArray.sort().join(',')).replace(/[+/=]/g, '').substring(0, 8);
-      const formLink = `${baseUrl}/form/${selectedClient}?modules=${modulesHash}`;
-      setFormLink(formLink);
-      setShowLinkModal(true);
+      // Get client name for success message
+      const client = clients.find((c: any) => c.id === selectedClient || c.clientId === selectedClient);
+      const clientName = client?.clientName || client?.company_name || 'the client';
 
-      // Reset form
-      setSelectedModules(new Set());
+      // Show success message
+      setSuccessMessage(
+        `Form configuration saved successfully for ${clientName}. The client can now access this form when creating a new loan application from their dashboard.`
+      );
+
+      // Reset form after a delay
+      setTimeout(() => {
+        setSelectedModules(new Set());
+        setSelectedClient('');
+        setSuccessMessage(null);
+      }, 3000);
     } catch (error: any) {
       console.error('Error saving form configuration:', error);
       alert(`Failed to save form configuration: ${error.message}`);
@@ -267,12 +270,6 @@ export const FormConfiguration: React.FC = () => {
     }
   };
 
-  const handleCopyLink = () => {
-    if (formLink) {
-      navigator.clipboard.writeText(formLink);
-      alert('Link copied to clipboard!');
-    }
-  };
 
   const selectedModulesList = Array.from(selectedModules).map(id => 
     FORM_MODULES.find(m => m.id === id)
@@ -296,7 +293,7 @@ export const FormConfiguration: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-neutral-600 mb-4">
-              Create custom forms for clients by selecting modules. All fields within selected modules will be automatically included. Each form configuration generates a unique link that can be shared with clients.
+              Create custom forms for clients by selecting modules. All fields within selected modules will be automatically included. The configured form will be automatically available to the client when they create a new loan application from their dashboard.
             </p>
 
             {/* Client Selection */}
@@ -319,7 +316,6 @@ export const FormConfiguration: React.FC = () => {
                     onChange={(e) => {
                       setSelectedClient(e.target.value);
                       setSelectedModules(new Set());
-                      setFormLink(null);
                     }}
                     options={[
                       { value: '', label: '-- Select a Client --' },
@@ -419,55 +415,28 @@ export const FormConfiguration: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Form Link Modal */}
-        <Modal isOpen={showLinkModal} onClose={() => setShowLinkModal(false)} size="md">
-          <ModalHeader onClose={() => setShowLinkModal(false)}>
-            Form Configuration Saved
-          </ModalHeader>
-          <ModalBody>
-            <div className="space-y-4">
-              <p className="text-sm text-neutral-600">
-                Your form configuration has been saved successfully. Share this link with your client or use it to create the client in the system.
-              </p>
-              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <ExternalLink className="w-4 h-4 text-neutral-500" />
-                  <span className="text-xs font-medium text-neutral-700">Form Link:</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={formLink || ''}
-                    readOnly
-                    className="flex-1 font-mono text-sm"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={Copy}
-                    onClick={handleCopyLink}
+        {/* Success Message */}
+        {successMessage && (
+          <div className="fixed top-4 right-4 z-50 max-w-md">
+            <Card className="bg-success/10 border border-success/30">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-success mb-1">Configuration Saved</p>
+                    <p className="text-sm text-neutral-700">{successMessage}</p>
+                  </div>
+                  <button
+                    onClick={() => setSuccessMessage(null)}
+                    className="text-neutral-400 hover:text-neutral-600"
                   >
-                    Copy
-                  </Button>
+                    ×
+                  </button>
                 </div>
-              </div>
-              <p className="text-xs text-neutral-500">
-                This link can be used by the client to fill out the form, or by you to create the client in the system.
-              </p>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="secondary" onClick={() => setShowLinkModal(false)}>
-              Close
-            </Button>
-            <Button variant="primary" onClick={() => {
-              setShowLinkModal(false);
-              setSelectedClient('');
-              setSelectedModules(new Set());
-            }}>
-              Create Another Form
-            </Button>
-          </ModalFooter>
-        </Modal>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </MainLayout>
   );

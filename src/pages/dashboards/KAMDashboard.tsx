@@ -138,7 +138,7 @@ export const KAMDashboard: React.FC = () => {
                 Needs your attention
               </p>
             </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
               <Clock className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
@@ -170,7 +170,7 @@ export const KAMDashboard: React.FC = () => {
                 In credit review
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
               <ArrowRight className="w-6 h-6 text-success" />
             </div>
           </CardContent>

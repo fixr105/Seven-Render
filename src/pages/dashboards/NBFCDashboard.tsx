@@ -74,7 +74,7 @@ export const NBFCDashboard: React.FC = () => {
     clientName: app.client?.company_name || 'Unknown',
     loanType: app.loan_product?.name || 'N/A',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
-    status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    status: app.status.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
     sentDate: new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
   }));
 
@@ -126,7 +126,7 @@ export const NBFCDashboard: React.FC = () => {
                 Awaiting review
               </p>
             </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
               <Clock className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
@@ -142,7 +142,7 @@ export const NBFCDashboard: React.FC = () => {
                 Sanctioned
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
               <CheckCircle className="w-6 h-6 text-success" />
             </div>
           </CardContent>
@@ -155,7 +155,7 @@ export const NBFCDashboard: React.FC = () => {
               <p className="text-2xl font-bold text-neutral-900 mt-1">{rejected}</p>
               <p className="text-xs text-neutral-500 mt-1">Declined</p>
             </div>
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-error/10 rounded-full flex items-center justify-center">
               <XCircle className="w-6 h-6 text-error" />
             </div>
           </CardContent>

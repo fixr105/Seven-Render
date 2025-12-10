@@ -43,6 +43,10 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         // Token invalid, clear it
         apiService.clearToken();
         setUser(null);
+        // If error indicates auth failure, user needs to login again
+        if (response.error?.includes('401') || response.error?.includes('403') || response.error?.includes('Authentication')) {
+          console.warn('Authentication failed, user needs to login again');
+        }
       }
     } catch (error) {
       apiService.clearToken();
@@ -60,13 +64,13 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         setUser(response.data.user);
         return {};
       } else {
-        // Return error object with message property
+        // Return error string
         const errorMessage = response.error || 'Login failed';
-        return { error: { message: errorMessage } };
+        return { error: errorMessage };
       }
     } catch (error: any) {
       console.error('Login error in ApiAuthContext:', error);
-      return { error: { message: error.message || 'Login failed' } };
+      return { error: error.message || 'Login failed' };
     }
   };
 

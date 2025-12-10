@@ -606,7 +606,7 @@ export const ApplicationDetail: React.FC = () => {
                     )}
                     <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-brand-primary" />
                     <div>
-                      <Badge variant={getStatusVariant(item.to_status)} size="sm">
+                      <Badge variant={getStatusVariant(item.to_status)}>
                         {formatStatus(item.to_status)}
                       </Badge>
                       <p className="text-xs text-neutral-500 mt-1">{formatDate(item.created_at)}</p>

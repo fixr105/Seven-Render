@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { Footer } from './Footer';
 import logo from '../ui/logo.png';
 
 interface MainLayoutProps {
@@ -55,10 +56,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         </div>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-7xl mx-auto min-h-[calc(100vh-8rem)]">
             {children}
           </div>
         </main>
+        <Footer />
       </div>
     </div>
   );

@@ -109,25 +109,147 @@ export class KAMController {
    * List all clients managed by this KAM
    */
   async listClients(req: Request, res: Response): Promise<void> {
+    console.log('[listClients] ========== ENDPOINT CALLED ==========');
+    console.log('[listClients] Method:', req.method);
+    console.log('[listClients] URL:', req.url);
+    console.log('[listClients] Headers:', JSON.stringify(req.headers, null, 2));
+    
     try {
       if (!req.user || req.user.role !== 'kam') {
+        console.log('[listClients] ❌ Auth check failed - user:', req.user);
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
 
-      // Fetch Clients table
-      const clients = await n8nClient.fetchTable('Clients');
+      console.log('[listClients] ✅ Auth check passed');
+      console.log('[listClients] KAM ID:', req.user.kamId, 'User ID:', req.user.id);
+
+      // Fetch Clients table (cache will be used if available)
+      // Allow bypassing cache via query parameter for debugging
+      const bypassCache = req.query.forceRefresh === 'true';
+      const clients = await n8nClient.fetchTable('Clients', !bypassCache);
+      console.log('[listClients] Total clients in database:', clients.length);
+      
+      let kamId = req.user.kamId || '';
+      let userId = req.user.id || '';
+      
+      // If KAM ID is not set, try to get it from KAM Users table by email
+      if (!kamId && req.user.email) {
+        try {
+          const kamUsers = await n8nClient.fetchTable('KAM Users');
+          const kamUser = kamUsers.find((k: any) => k.Email?.toLowerCase() === req.user.email?.toLowerCase());
+          if (kamUser) {
+            kamId = kamUser.id || kamUser['KAM ID'] || '';
+            console.log('[listClients] Found KAM ID from KAM Users table:', kamId);
+          }
+        } catch (error) {
+          console.warn('[listClients] Could not fetch KAM Users table:', error);
+        }
+      }
+      
+      console.log('[listClients] Filtering with KAM ID:', kamId, 'User ID:', userId);
+      
+      // Log all clients and their Assigned KAM for debugging (always log for now)
+      console.log('[listClients] All clients in database:');
+      clients.forEach((client: any) => {
+        const assignedKAM = client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '';
+        console.log(`  - ${client['Client Name']} (ID: ${client.id}), Assigned KAM: "${assignedKAM}"`);
+      });
       
       // Filter clients managed by this KAM
-      const userAccounts = await n8nClient.fetchTable('User Accounts');
-      const managedClientIds = await dataFilterService.getKAMManagedClients(req.user.kamId!, userAccounts);
-      
+      // Directly filter by 'Assigned KAM' field in Clients table
       const managedClients = clients.filter((client: any) => {
-        // Check if client ID is in managed list OR if Assigned KAM matches
-        return managedClientIds.includes(client.id) || 
-               client['Assigned KAM'] === req.user.kamId ||
-               client['Assigned KAM'] === req.user.id;
+        // Handle different possible field names and formats
+        let assignedKAM = client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '';
+        
+        // If assignedKAM is an array (Airtable link field), get the first value
+        if (Array.isArray(assignedKAM)) {
+          assignedKAM = assignedKAM[0] || '';
+        }
+        
+        // Convert to string and normalize
+        const assignedKAMStr = String(assignedKAM || '').trim();
+        const kamIdStr = String(kamId || '').trim();
+        const userIdStr = String(userId || '').trim();
+        
+        // Try multiple matching strategies - be very flexible
+        const matches = 
+          assignedKAMStr === kamIdStr || 
+          assignedKAMStr === userIdStr ||
+          kamIdStr === assignedKAMStr ||
+          userIdStr === assignedKAMStr ||
+          (assignedKAMStr && kamIdStr && assignedKAMStr.toLowerCase() === kamIdStr.toLowerCase()) ||
+          (assignedKAMStr && userIdStr && assignedKAMStr.toLowerCase() === userIdStr.toLowerCase()) ||
+          (assignedKAMStr && kamIdStr && assignedKAMStr.includes(kamIdStr)) ||
+          (assignedKAMStr && userIdStr && assignedKAMStr.includes(userIdStr)) ||
+          (kamIdStr && assignedKAMStr.includes(kamIdStr)) ||
+          (userIdStr && assignedKAMStr.includes(userIdStr));
+        
+        if (matches) {
+          console.log(`[listClients] ✅ MATCHED: ${client['Client Name']} (ID: ${client.id}, Assigned KAM: "${assignedKAMStr}")`);
+        } else {
+          console.log(`[listClients] ❌ NOT MATCHED: ${client['Client Name']} (Assigned KAM: "${assignedKAMStr}" vs KAM ID: "${kamIdStr}" vs User ID: "${userIdStr}")`);
+        }
+        return matches;
       });
+
+      console.log(`[listClients] Managed clients found: ${managedClients.length}`);
+      
+      // DEBUG: Always log what we're returning vs what's in database
+      if (clients.length > managedClients.length) {
+        console.warn(`[listClients] ⚠️  Database has ${clients.length} clients, but only ${managedClients.length} matched the filter.`);
+        console.warn(`[listClients] Filtered out clients:`);
+        clients.forEach((c: any) => {
+          const assignedKAM = c['Assigned KAM'] || c['KAM ID'] || c['KAM'] || '';
+          const isMatched = managedClients.some(mc => mc.id === c.id);
+          if (!isMatched) {
+            console.warn(`  - ${c['Client Name']} (ID: ${c.id}): Assigned KAM = "${assignedKAM}" (type: ${typeof assignedKAM})`);
+            console.warn(`    Filter KAM ID: "${kamId}", Filter User ID: "${userId}"`);
+          }
+        });
+      }
+      
+      // TEMPORARY DEBUG: If no clients found, show all clients with debug info
+      if (managedClients.length === 0 && clients.length > 0) {
+        console.warn('[listClients] ⚠️  No clients matched filter, but database has clients. Showing all clients for debugging.');
+        console.warn('[listClients] KAM ID used for filtering:', kamId);
+        console.warn('[listClients] User ID used for filtering:', userId);
+        console.warn('[listClients] All clients in database with their Assigned KAM:');
+        clients.forEach((c: any) => {
+          const assignedKAM = c['Assigned KAM'] || c['KAM ID'] || c['KAM'] || '';
+          console.warn(`  - ${c['Client Name']}: Assigned KAM = "${assignedKAM}" (type: ${typeof assignedKAM})`);
+        });
+        
+        // TEMPORARY: Return all clients with a debug flag
+        const debugClientList = clients.map((client: any) => ({
+          id: client.id,
+          clientId: client['Client ID'] || client.id,
+          clientName: client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
+          primaryContactName: client['Primary Contact Name'],
+          contactEmailPhone: client['Contact Email / Phone'],
+          assignedKAM: client['Assigned KAM'],
+          status: client['Status'] || 'Active',
+          _debug: {
+            assignedKAM: client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '',
+            kamIdFilter: kamId,
+            userIdFilter: userId,
+            matched: false,
+          },
+        }));
+        
+        res.json({
+          success: true,
+          data: debugClientList,
+          _debug: {
+            message: 'No clients matched filter - showing all clients for debugging',
+            kamIdFilter: kamId,
+            userIdFilter: userId,
+            totalClients: clients.length,
+            matchedClients: 0,
+          },
+        });
+        return;
+      }
 
       // Transform to API response format
       const clientList = managedClients.map((client: any) => ({
@@ -140,13 +262,38 @@ export class KAMController {
         enabledModules: client['Enabled Modules'] ? client['Enabled Modules'].split(',').map((m: string) => m.trim()) : [],
         commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
         status: client.Status,
+        _debug: {
+          assignedKAM: client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '',
+          kamIdFilter: kamId,
+          userIdFilter: userId,
+          matched: true,
+        },
       }));
 
-      res.json({
+      // Add debug info if there are filtered clients
+      const responseData: any = {
         success: true,
         data: clientList,
-      });
+      };
+      
+      if (clients.length > managedClients.length) {
+        responseData._debug = {
+          message: `Found ${managedClients.length} matched clients out of ${clients.length} total clients`,
+          kamIdFilter: kamId,
+          userIdFilter: userId,
+          totalClients: clients.length,
+          matchedClients: managedClients.length,
+          filteredOutClients: clients.length - managedClients.length,
+        };
+      }
+
+      console.log('[listClients] ✅ Sending response with', clientList.length, 'clients');
+      console.log('[listClients] Response data:', JSON.stringify(responseData, null, 2).substring(0, 500));
+      res.json(responseData);
+      console.log('[listClients] ✅ Response sent successfully');
     } catch (error: any) {
+      console.error('[listClients] ❌ Error:', error);
+      console.error('[listClients] Error stack:', error.stack);
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to fetch clients',
@@ -162,57 +309,182 @@ export class KAMController {
     try {
       const { name, contactPerson, email, phone, kamId, enabledModules, commissionRate } = req.body;
 
-      // Create user account with hashed password
-      const { authService } = await import('../services/auth/auth.service.js');
-      const hashedPassword = await authService.hashPassword('TempPassword123!');
-      
-      const userAccountData = {
-        id: `USER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        Username: email,
-        Password: hashedPassword, // Hashed password
-        Role: 'client',
-        'Associated Profile': name,
-        'Account Status': 'Active',
-      };
+      // Validate required fields
+      if (!name || !email) {
+        res.status(400).json({
+          success: false,
+          error: 'Name and email are required',
+        });
+        return;
+      }
 
-      await n8nClient.postUserAccount(userAccountData);
+      // Check if email already exists in User Accounts
+      const existingUsers = await n8nClient.fetchTable('User Accounts');
+      const existingUser = existingUsers.find((u: any) => 
+        (u.Username || u.Email || '').toLowerCase() === email.toLowerCase()
+      );
+
+      let userAccountId: string;
+      let clientId: string;
+      let isNewUser = false;
+
+      if (existingUser) {
+        console.log('[createClient] User account already exists:', existingUser.id);
+        userAccountId = existingUser.id;
+        clientId = existingUser.id; // Use same ID for client record
+        
+        // Check if client record exists
+        const existingClients = await n8nClient.fetchTable('Clients');
+        const existingClient = existingClients.find((c: any) => 
+          c.id === userAccountId || c['Client ID'] === userAccountId
+        );
+
+        if (existingClient) {
+          console.log('[createClient] Client record already exists:', existingClient.id);
+          // Client already exists, return success with existing client info
+          res.json({
+            success: true,
+            data: {
+              id: existingClient.id,
+              clientId: existingClient.id,
+              userId: userAccountId,
+              message: 'Client already exists',
+              existing: true,
+            },
+          });
+          return;
+        } else {
+          console.log('[createClient] User exists but client record missing, creating client record');
+          // User exists but client record doesn't - create client record only
+        }
+      } else {
+        isNewUser = true;
+        // Create new user account
+        userAccountId = `USER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        clientId = userAccountId;
+      }
+
+      console.log('[createClient] Creating client:', { name, email, contactPerson, phone, isNewUser });
+
+      // Create user account only if it doesn't exist
+      if (isNewUser) {
+        const { authService } = await import('../services/auth/auth.service.js');
+        const hashedPassword = await authService.hashPassword('TempPassword123!');
+        
+        const userAccountData = {
+          id: userAccountId,
+          Username: email,
+          Password: hashedPassword, // Hashed password
+          Role: 'client',
+          'Associated Profile': name,
+          'Account Status': 'Active',
+        };
+
+        console.log('[createClient] Creating user account:', userAccountId);
+        try {
+          const userAccountResult = await n8nClient.postUserAccount(userAccountData);
+          console.log('[createClient] User account created successfully:', userAccountResult);
+        } catch (userError: any) {
+          console.error('[createClient] Failed to create user account:', userError);
+          throw new Error(`Failed to create user account: ${userError.message || 'Unknown error'}`);
+        }
+      } else {
+        console.log('[createClient] Skipping user account creation (already exists)');
+      }
 
       // Create client record with commission rate
-      const clientId = `CLIENT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Use the User Account ID as the Client ID to maintain consistency
+      // Get KAM ID - try multiple sources to ensure we have it
+      let assignedKAM = kamId || req.user!.kamId || req.user!.id || '';
+      
+      // If KAM ID is not set, try to get it from KAM Users table by email
+      if (!assignedKAM && req.user!.email) {
+        try {
+          const kamUsers = await n8nClient.fetchTable('KAM Users');
+          const kamUser = kamUsers.find((k: any) => k.Email?.toLowerCase() === req.user!.email?.toLowerCase());
+          if (kamUser) {
+            assignedKAM = kamUser.id || kamUser['KAM ID'] || '';
+            console.log('[createClient] Found KAM ID from KAM Users table:', assignedKAM);
+          }
+        } catch (error) {
+          console.warn('[createClient] Could not fetch KAM Users table:', error);
+        }
+      }
+      
+      // Fallback: use user ID if KAM ID still not found
+      if (!assignedKAM) {
+        assignedKAM = req.user!.id || '';
+        console.warn('[createClient] Using User ID as fallback for Assigned KAM:', assignedKAM);
+      }
+      
       const clientData = {
         id: clientId,
         'Client ID': clientId,
         'Client Name': name,
         'Primary Contact Name': contactPerson || name,
         'Contact Email / Phone': `${email} / ${phone || ''}`,
-        'Assigned KAM': kamId || req.user!.kamId || '',
+        'Assigned KAM': assignedKAM,
         'Enabled Modules': Array.isArray(enabledModules) ? enabledModules.join(', ') : (enabledModules || ''),
         'Commission Rate': commissionRate ? commissionRate.toString() : '1.5', // Default 1.5%
         'Status': 'Active',
         'Form Categories': '',
       };
 
-      await n8nClient.postClient(clientData);
+      console.log('[createClient] Creating client record:', clientId);
+      console.log('[createClient] Client data:', JSON.stringify(clientData, null, 2));
+      console.log('[createClient] Assigned KAM:', assignedKAM, 'KAM ID from user:', req.user!.kamId, 'User ID:', req.user!.id);
+      console.log('[createClient] Full user object:', JSON.stringify(req.user, null, 2));
+      
+      try {
+        const clientResult = await n8nClient.postClient(clientData);
+        console.log('[createClient] Client record created successfully:', clientResult);
+        
+        // Invalidate cache after successful creation (next GET will fetch fresh data)
+        // NO immediate GET webhook call - cache will be used until next actual request
+        n8nClient.invalidateCache('Clients');
+        n8nClient.invalidateCache('User Accounts');
+        
+        // Don't verify immediately - POST operation succeeded, cache invalidated
+        // Next GET request will fetch fresh data automatically
+        // This avoids 3 unnecessary webhook calls
+      } catch (clientError: any) {
+        console.error('[createClient] Failed to create client record:', clientError);
+        // Try to clean up user account if client creation fails
+        console.warn('[createClient] Client creation failed, but user account may have been created');
+        throw new Error(`Failed to create client record: ${clientError.message || 'Unknown error'}`);
+      }
 
-      // Log admin activity
-      await n8nClient.postAdminActivityLog({
-        id: `ACT-${Date.now()}`,
-        'Activity ID': `ACT-${Date.now()}`,
-        Timestamp: new Date().toISOString(),
-        'Performed By': req.user!.email,
-        'Action Type': 'create_client',
-        'Description/Details': `Created new client: ${name}`,
-        'Target Entity': 'client',
-      });
+      // Log admin activity (non-blocking - don't fail if this fails)
+      try {
+        await n8nClient.postAdminActivityLog({
+          id: `ACT-${Date.now()}`,
+          'Activity ID': `ACT-${Date.now()}`,
+          Timestamp: new Date().toISOString(),
+          'Performed By': req.user!.email,
+          'Action Type': 'create_client',
+          'Description/Details': `Created new client: ${name} (${email})`,
+          'Target Entity': 'client',
+        });
+        console.log('[createClient] Admin activity logged successfully');
+      } catch (logError: any) {
+        console.warn('[createClient] Failed to log admin activity (non-critical):', logError);
+      }
+
+      console.log('[createClient] Client created successfully:', clientId);
+      
+      // Cache is already invalidated in postClient method, no need to invalidate again
 
       res.json({
         success: true,
         data: {
-          clientId: userAccountData.id,
+          id: clientId,
+          clientId: clientId,
+          userId: userAccountId,
           message: 'Client created successfully',
         },
       });
     } catch (error: any) {
+      console.error('[createClient] Error creating client:', error);
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to create client',
@@ -290,21 +562,37 @@ export class KAMController {
       const { id } = req.params;
 
       // Verify this client is managed by this KAM
-      const userAccounts = await n8nClient.fetchTable('User Accounts');
-      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!, userAccounts);
-      if (!managedClients.includes(id)) {
-        res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
-        return;
-      }
-
-      // Fetch only Clients table
+      // Fetch Clients table to check 'Assigned KAM' field
       const clients = await n8nClient.fetchTable('Clients');
-      const client = clients.find((c) => c.id === id);
-
+      const client = clients.find((c: any) => (c.id === id || c['Client ID'] === id));
+      
       if (!client) {
         res.status(404).json({ success: false, error: 'Client not found' });
         return;
       }
+      
+      // Check if this client is assigned to the current KAM
+      const assignedKAM = client['Assigned KAM'] || '';
+      const kamId = req.user!.kamId || '';
+      
+      // Also check if KAM ID from KAM Users table matches
+      if (assignedKAM !== kamId) {
+        // Try to match by KAM Users table ID
+        const kamUsers = await n8nClient.fetchTable('KAM Users');
+        const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
+        const kamUserEmail = kamUser?.Email || '';
+        
+        // Check if assigned KAM matches KAM ID or email
+        if (assignedKAM !== kamId && assignedKAM !== kamUserEmail && !kamId.includes(assignedKAM) && !assignedKAM.includes(kamId)) {
+          res.status(403).json({ 
+            success: false, 
+            error: `Access denied: Client not managed by this KAM. Client assigned to: ${assignedKAM || 'No KAM'}, Your KAM ID: ${kamId}` 
+          });
+          return;
+        }
+      }
+
+      // Client is already fetched above, no need to fetch again
 
       // Parse enabled modules
       const enabledModules = client['Enabled Modules']
@@ -336,9 +624,33 @@ export class KAMController {
 
   /**
    * GET /kam/clients/:id/form-mappings
-   * Get form mappings for a client
+   * Get form mappings for a client (KAM only)
    */
   async getFormMappings(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      // Fetch only Client Form Mapping table
+      const mappings = await n8nClient.fetchTable('Client Form Mapping');
+
+      const clientMappings = mappings.filter((m) => m.Client === id);
+
+      res.json({
+        success: true,
+        data: clientMappings,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch form mappings',
+      });
+    }
+  }
+
+  /**
+   * GET /public/clients/:id/form-mappings
+   * Get form mappings for a client (Public - for form link access)
+   */
+  async getPublicFormMappings(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       // Fetch only Client Form Mapping table
@@ -374,11 +686,34 @@ export class KAMController {
       const { category, isRequired, displayOrder, modules } = req.body;
 
       // Verify this client is managed by this KAM
-      const userAccounts = await n8nClient.fetchTable('User Accounts');
-      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!, userAccounts);
-      if (!managedClients.includes(id)) {
-        res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
+      // Fetch Clients table to check 'Assigned KAM' field
+      const clients = await n8nClient.fetchTable('Clients');
+      const client = clients.find((c: any) => (c.id === id || c['Client ID'] === id));
+      
+      if (!client) {
+        res.status(404).json({ success: false, error: 'Client not found' });
         return;
+      }
+      
+      // Check if this client is assigned to the current KAM
+      const assignedKAM = client['Assigned KAM'] || '';
+      const kamId = req.user!.kamId || '';
+      
+      // Also check if KAM ID from KAM Users table matches
+      if (assignedKAM !== kamId) {
+        // Try to match by KAM Users table ID
+        const kamUsers = await n8nClient.fetchTable('KAM Users');
+        const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
+        const kamUserEmail = kamUser?.Email || '';
+        
+        // Check if assigned KAM matches KAM ID or email
+        if (assignedKAM !== kamId && assignedKAM !== kamUserEmail && !kamId.includes(assignedKAM) && !assignedKAM.includes(kamId)) {
+          res.status(403).json({ 
+            success: false, 
+            error: `Access denied: Client not managed by this KAM. Client assigned to: ${assignedKAM || 'No KAM'}, Your KAM ID: ${kamId}` 
+          });
+          return;
+        }
       }
 
       // Support bulk creation via modules array

@@ -66,7 +66,7 @@ function createMockSupabase() {
 
 export const supabase = supabaseClient;
 
-export type UserRole = 'client' | 'kam' | 'credit_team' | 'nbfc';
+export type UserRole = 'client' | 'kam' | 'credit_team' | 'nbfc' | 'admin';
 
 export type LoanStatus =
   | 'draft'

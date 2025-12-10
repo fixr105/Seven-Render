@@ -5,13 +5,16 @@
 
 // Ensure API_BASE_URL includes /api prefix for Vercel deployment
 const getApiBaseUrl = () => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  // If baseUrl doesn't end with /api and is not localhost, add /api
-  if (!baseUrl.includes('localhost') && !baseUrl.endsWith('/api')) {
-    return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  // If VITE_API_BASE_URL is set, use it
+  if (baseUrl) {
+    if (!baseUrl.endsWith('/api') && !baseUrl.includes('localhost')) {
+      return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
+    }
+    return baseUrl;
   }
-  // For localhost, the backend runs on port 3000 without /api prefix
-  return baseUrl;
+  // For development, use relative path which will be proxied to backend
+  return '/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -266,6 +269,15 @@ class ApiService {
       }
 
       if (!response.ok) {
+        // Handle 401/403 errors specially - token might be invalid or expired
+        if (response.status === 401 || response.status === 403) {
+          // Clear token if unauthorized/forbidden
+          this.clearToken();
+          return {
+            success: false,
+            error: data.error || `Authentication failed (${response.status}). Please login again.`,
+          };
+        }
         return {
           success: false,
           error: data.error || `HTTP ${response.status}: ${response.statusText}`,
@@ -340,8 +352,9 @@ class ApiService {
   /**
    * Get form configuration for client
    */
-  async getFormConfig(): Promise<ApiResponse<FormConfig>> {
-    return this.request<FormConfig>('/client/form-config');
+  async getFormConfig(productId?: string): Promise<ApiResponse<any[]>> {
+    const url = productId ? `/client/form-config?productId=${productId}` : '/client/form-config';
+    return this.request<any[]>(url);
   }
 
   /**
@@ -438,8 +451,9 @@ class ApiService {
   /**
    * List clients (KAM)
    */
-  async listClients(): Promise<ApiResponse<any[]>> {
-    return this.request<any[]>('/kam/clients');
+  async listClients(forceRefresh: boolean = false): Promise<ApiResponse<any[]>> {
+    const url = forceRefresh ? '/kam/clients?forceRefresh=true' : '/kam/clients';
+    return this.request<any[]>(url);
   }
 
   /**
@@ -483,10 +497,17 @@ class ApiService {
   }
 
   /**
-   * Get form mappings for client
+   * Get form mappings for client (KAM only)
    */
   async getFormMappings(clientId: string): Promise<ApiResponse> {
     return this.request(`/kam/clients/${clientId}/form-mappings`);
+  }
+
+  /**
+   * Get form mappings for client (Public - for form links)
+   */
+  async getPublicFormMappings(clientId: string): Promise<ApiResponse> {
+    return this.request(`/public/clients/${clientId}/form-mappings`);
   }
 
   /**
@@ -922,6 +943,37 @@ class ApiService {
     });
   }
 
+  // ==================== LOAN PRODUCTS ====================
+
+  /**
+   * List loan products
+   */
+  async listLoanProducts(activeOnly?: boolean): Promise<ApiResponse<Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    description?: string;
+    active: boolean;
+    requiredDocumentsFields?: string;
+  }>>> {
+    const query = activeOnly ? '?activeOnly=true' : '';
+    return this.request(`/loan-products${query}`);
+  }
+
+  /**
+   * Get single loan product
+   */
+  async getLoanProduct(productId: string): Promise<ApiResponse<{
+    id: string;
+    productId: string;
+    productName: string;
+    description?: string;
+    active: boolean;
+    requiredDocumentsFields?: string;
+  }>> {
+    return this.request(`/loan-products/${productId}`);
+  }
+
   // ==================== CREDIT TEAM USERS ====================
 
   /**
@@ -1009,19 +1061,5 @@ class ApiService {
 // Export singleton instance
 export const apiService = new ApiService();
 
-// Export types
-export type {
-  ApiResponse,
-  LoginRequest,
-  LoginResponse,
-  UserContext,
-  DashboardSummary,
-  LoanApplication,
-  FormConfig,
-  CommissionLedgerEntry,
-  PayoutRequest,
-  FormCategory,
-  CreditTeamUser,
-  AuditLogEntry,
-};
+// All types and interfaces are already exported above
 

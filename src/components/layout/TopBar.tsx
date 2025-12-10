@@ -31,9 +31,9 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
             className="lg:hidden p-2 rounded hover:bg-neutral-100 transition-colors"
             aria-label="Toggle menu"
           >
-            <Menu className="w-6 h-6 text-neutral-700" />
+            <Menu className="w-5 h-5 text-neutral-700" />
           </button>
-          <h1 className="text-2xl font-bold text-neutral-900">{title}</h1>
+          <h1 className="text-xl font-semibold text-neutral-900">{title}</h1>
         </div>
 
         {/* Right section */}
@@ -47,7 +47,7 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
             >
               <Bell className="w-5 h-5 text-neutral-700" />
               {notificationCount > 0 && (
-                <span className="absolute top-1 right-1 bg-error text-white text-xs font-medium w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute top-0.5 right-0.5 bg-error text-white text-xs font-semibold w-5 h-5 rounded-full flex items-center justify-center">
                   {notificationCount > 9 ? '9+' : notificationCount}
                 </span>
               )}
@@ -60,9 +60,9 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
                   className="fixed inset-0 z-40"
                   onClick={() => setShowNotifications(false)}
                 />
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded shadow-level-2 z-50 max-h-96 overflow-y-auto">
-                  <div className="p-3 border-b border-neutral-200">
-                    <h3 className="font-semibold text-neutral-900">Notifications</h3>
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-level-2 z-50 max-h-96 overflow-y-auto border border-neutral-200">
+                  <div className="p-4 border-b border-neutral-200">
+                    <h3 className="text-sm font-semibold text-neutral-900">Notifications</h3>
                   </div>
                   {notificationCount === 0 ? (
                     <div className="p-4 text-center text-neutral-500">
@@ -101,9 +101,9 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
                   className="fixed inset-0 z-40"
                   onClick={() => setShowProfileMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded shadow-level-2 z-50 py-1">
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-level-2 z-50 py-1 border border-neutral-200">
                   <div className="px-4 py-2 border-b border-neutral-200">
-                    <p className="text-sm font-medium text-neutral-900">{userName}</p>
+                    <p className="text-sm font-semibold text-neutral-900">{userName}</p>
                   </div>
                   <button 
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"

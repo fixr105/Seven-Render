@@ -36,22 +36,28 @@ export const Login: React.FC = () => {
       const { error: signInError } = await signIn(userEmail, userPassword);
 
       if (signInError) {
+        // Handle both string errors (from API auth) and Error objects (from Supabase auth)
+        const errorMessage = typeof signInError === 'string' 
+          ? signInError 
+          : signInError.message || 'Invalid email or password';
+        
         // Provide more helpful error messages
-        let errorMessage = signInError.message || 'Invalid email or password';
+        let displayMessage = errorMessage;
         
         // Check for network/connection errors
-        if (signInError.message?.includes('Failed to fetch') || 
-            signInError.message?.includes('Network error') ||
-            signInError.message?.includes('fetch')) {
+        if (errorMessage.includes('Failed to fetch') || 
+            errorMessage.includes('Network error') ||
+            errorMessage.includes('fetch') ||
+            errorMessage.includes('Cannot connect')) {
           const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-          errorMessage = `Cannot connect to backend API (${apiUrl}). Please ensure the backend server is running.`;
-        } else if (signInError.message?.includes('Invalid email or password')) {
-          errorMessage = 'Invalid email or password. The test user may not exist in the system. Please contact administrator to create test users.';
-        } else if (signInError.message?.includes('Email not confirmed')) {
-          errorMessage = 'Email not confirmed. Please check your email or contact administrator.';
+          displayMessage = `Cannot connect to backend API (${apiUrl}). Please ensure the backend server is running.`;
+        } else if (errorMessage.includes('Invalid email or password')) {
+          displayMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (errorMessage.includes('Email not confirmed')) {
+          displayMessage = 'Email not confirmed. Please check your email or contact administrator.';
         }
         
-        setError(errorMessage);
+        setError(displayMessage);
         setLoading(false);
       } else {
         navigate('/dashboard');

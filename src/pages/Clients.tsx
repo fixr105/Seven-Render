@@ -8,7 +8,7 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, UserPlus } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, UserPlus, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -42,6 +42,7 @@ export const Clients: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const [newClient, setNewClient] = useState({
     company_name: '',
     contact_person: '',
@@ -62,15 +63,31 @@ export const Clients: React.FC = () => {
   ];
 
   useEffect(() => {
+    console.log('[Clients] Component mounted/updated, fetching clients...');
+    console.log('[Clients] User role:', userRole, 'User role ID:', userRoleId);
     fetchClients();
   }, [userRole, userRoleId]);
 
-  const fetchClients = async () => {
+  const fetchClients = async (forceRefresh: boolean = false) => {
     try {
       setLoading(true);
+      console.log('[Clients] 📥 Fetching clients, forceRefresh:', forceRefresh);
       
-      // Use API service to fetch clients
-      const response = await apiService.listClients();
+      // Use API service to fetch clients with optional force refresh
+      const response = await apiService.listClients(forceRefresh);
+      
+      console.log('[Clients] 📦 API response received:', {
+        success: response.success,
+        dataLength: response.data?.length || 0,
+        error: response.error,
+        debug: (response as any)._debug
+      });
+      
+      // Show debug info if present
+      if ((response as any)._debug) {
+        const debug = (response as any)._debug;
+        setDebugInfo(`⚠️ DEBUG MODE: ${debug.message}. KAM ID filter: "${debug.kamIdFilter}", User ID filter: "${debug.userIdFilter}". Found ${debug.totalClients} total clients, ${debug.matchedClients} matched.`);
+      }
       
       if (response.success && response.data) {
         // Map API response to Client interface
@@ -86,13 +103,37 @@ export const Clients: React.FC = () => {
           _count: { applications: 0 }, // TODO: Fetch application count if needed
         }));
         
+        console.log('[Clients] ✅ Mapped clients:', mappedClients.length);
+        console.log('[Clients] Client list:', mappedClients.map(c => ({
+          name: c.company_name,
+          email: c.email,
+          kam_id: c.kam_id
+        })));
+        
+        // Set debug info for visual display
+        if ((response as any)._debug) {
+          const debug = (response as any)._debug;
+          setDebugInfo(`⚠️ ${debug.message}. Filtered out ${debug.filteredOutClients} clients. KAM ID filter: "${debug.kamIdFilter}", User ID filter: "${debug.userIdFilter}". Check backend logs for filtered clients.`);
+        } else {
+          setDebugInfo(`✅ Found ${mappedClients.length} clients. API returned ${response.data.length} clients.`);
+        }
+        
+        // Log debug info from clients if available
+        mappedClients.forEach((client: any) => {
+          if (client._debug && !client._debug.matched) {
+            console.warn(`[Clients] 🔍 Unmatched client: ${client.company_name}, Assigned KAM: "${client._debug.assignedKAM}"`);
+          }
+        });
+        
         setClients(mappedClients);
       } else {
-        console.error('Error fetching clients:', response.error);
+        console.error('[Clients] ❌ Error fetching clients:', response.error);
+        setDebugInfo(`❌ Error: ${response.error || 'Unknown error'}`);
         setClients([]);
       }
-    } catch (error) {
-      console.error('Error fetching clients:', error);
+    } catch (error: any) {
+      console.error('[Clients] ❌ Exception fetching clients:', error);
+      setDebugInfo(`❌ Exception: ${error.message || 'Unknown error'}`);
       setClients([]);
     } finally {
       setLoading(false);
@@ -100,13 +141,19 @@ export const Clients: React.FC = () => {
   };
 
   const handleOnboardClient = async () => {
+    console.log('[Clients] ========== ONBOARD CLIENT STARTED ==========');
+    console.log('[Clients] Form data:', newClient);
+    
     if (!newClient.company_name || !newClient.contact_person || !newClient.email) {
+      console.log('[Clients] ❌ Validation failed - missing required fields');
       alert('Please fill in all required fields');
       return;
     }
 
+    console.log('[Clients] ✅ Validation passed, submitting...');
     setSubmitting(true);
     try {
+      console.log('[Clients] 📤 Calling API to create client...');
       // Use API service to create client
       const response = await apiService.createClient({
         name: newClient.company_name,
@@ -116,6 +163,8 @@ export const Clients: React.FC = () => {
         commissionRate: newClient.commission_rate || '1.0',
         enabledModules: newClient.enabled_modules.length > 0 ? newClient.enabled_modules : ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'],
       });
+      
+      console.log('[Clients] 📥 API response received:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to onboard client');
@@ -131,8 +180,63 @@ export const Clients: React.FC = () => {
         commission_rate: '1.0',
         enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'],
       });
-      fetchClients();
-      alert('Client onboarded successfully!');
+      
+      // Log the created client info
+      console.log('[Clients] Client created successfully:', response.data);
+      console.log('[Clients] Created client email:', newClient.email);
+      console.log('[Clients] Created client ID:', response.data?.id || response.data?.clientId);
+      
+      // Force refresh with cache bypass - try multiple times to ensure we get the new client
+      let retryCount = 0;
+      const maxRetries = 5;
+      const createdClientEmail = newClient.email;
+      
+      const refreshWithRetry = async () => {
+        retryCount++;
+        const delay = 1000 * retryCount; // 1s, 2s, 3s, 4s, 5s
+        
+        setTimeout(async () => {
+          console.log(`[Clients] 🔄 Refreshing client list (attempt ${retryCount}/${maxRetries}) after ${delay}ms`);
+          await fetchClients(true);
+          
+          // Check if the new client is in the list
+          const updatedResponse = await apiService.listClients(true);
+          if (updatedResponse.success && updatedResponse.data) {
+            const foundClient = updatedResponse.data.find((c: any) => {
+              const clientEmail = c.email || c.contactEmailPhone?.split(' / ')[0] || '';
+              return clientEmail.toLowerCase() === createdClientEmail.toLowerCase();
+            });
+            
+            if (foundClient) {
+              console.log('[Clients] ✅ New client found in list:', foundClient);
+              setDebugInfo(`✅ New client found! Name: ${foundClient.clientName || foundClient['Client Name']}, Email: ${foundClient.email || foundClient.contactEmailPhone?.split(' / ')[0]}`);
+              // Update the local state
+              fetchClients(true);
+            } else {
+              console.log(`[Clients] ⚠️  New client not found yet (attempt ${retryCount}/${maxRetries})`);
+              const clientList = updatedResponse.data.map((c: any) => ({
+                name: c.clientName || c['Client Name'],
+                email: c.email || c.contactEmailPhone?.split(' / ')[0],
+                assignedKAM: c.assignedKAM || c['Assigned KAM']
+              }));
+              console.log('[Clients] Current clients in list:', clientList);
+              setDebugInfo(`⚠️ Client not found yet (attempt ${retryCount}/${maxRetries}). Looking for: ${createdClientEmail}. Found ${updatedResponse.data.length} clients total.`);
+              
+              if (retryCount < maxRetries) {
+                refreshWithRetry();
+              } else {
+                console.warn('[Clients] ❌ Client not found after all retries. Please click Refresh button manually.');
+                setDebugInfo(`❌ Client not found after ${maxRetries} attempts. Found ${updatedResponse.data.length} clients. Please check backend logs.`);
+              }
+            }
+          }
+        }, delay);
+      };
+      
+      // Start first refresh immediately
+      refreshWithRetry();
+      
+      alert(`Client onboarded successfully!\n\nEmail: ${newClient.email}\n\nThe list will refresh automatically. If the client doesn't appear after a few seconds, click the Refresh button.`);
     } catch (error: any) {
       console.error('Error onboarding client:', error);
       alert(`Failed to onboard client: ${error.message || 'Unknown error'}`);
@@ -220,6 +324,17 @@ export const Clients: React.FC = () => {
       userName="User"
       notificationCount={unreadCount}
     >
+      {/* Debug Info Panel */}
+      {debugInfo && (
+        <Card className="mb-4 border-2 border-brand-primary">
+          <CardContent className="p-3">
+            <div className="text-sm font-mono bg-neutral-50 p-2 rounded">
+              <strong>Debug Info:</strong> {debugInfo}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header Actions */}
       <Card className="mb-6">
         <CardContent>
@@ -231,11 +346,21 @@ export const Clients: React.FC = () => {
                 placeholder="Search clients by name, contact, or email..."
               />
             </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="secondary" 
+                icon={RefreshCw} 
+                onClick={() => fetchClients(true)}
+                disabled={loading}
+              >
+                Refresh
+              </Button>
             {userRole === 'kam' && (
               <Button variant="primary" icon={UserPlus} onClick={() => setShowOnboardModal(true)}>
                 Onboard Client
               </Button>
             )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -349,7 +474,7 @@ export const Clients: React.FC = () => {
               placeholder="1.0"
               value={newClient.commission_rate}
               onChange={(e) => setNewClient({ ...newClient, commission_rate: e.target.value })}
-              helpText="Default commission rate for this client (e.g., 1.0 for 1%)"
+              helperText="Default commission rate for this client (e.g., 1.0 for 1%)"
             />
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-2">

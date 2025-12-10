@@ -45,7 +45,8 @@ export const useApplications = () => {
       
       if (response.success && response.data) {
         // Transform API response to match expected format
-        const transformed = response.data.map((app: any) => ({
+        const appsArray = Array.isArray(response.data) ? response.data : [];
+        const transformed = appsArray.map((app: any) => ({
           id: app.id,
           file_number: app.fileId || app['File ID'] || `SF${app.id.slice(0, 8)}`,
           client_id: app.clientId || app.Client || '',
@@ -72,6 +73,11 @@ export const useApplications = () => {
       } else {
         console.error('Error fetching applications:', response.error);
         setApplications([]);
+        // If 401/403, token was cleared by API service, auth context will handle redirect
+        if (response.error?.includes('401') || response.error?.includes('403')) {
+          // Don't show error to user, auth context will redirect to login
+          return;
+        }
       }
     } catch (error) {
       console.error('Exception in fetchApplications:', error);

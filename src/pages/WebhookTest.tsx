@@ -45,7 +45,7 @@ export const WebhookTest: React.FC = () => {
             </Button>
 
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+              <div className="p-4 bg-error/10 border border-error/30 rounded text-sm text-error">
                 <strong>Error:</strong> {error}
               </div>
             )}

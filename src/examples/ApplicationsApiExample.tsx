@@ -81,6 +81,7 @@ export const ApplicationsApiExample: React.FC = () => {
         <DataTable
           data={data}
           columns={columns}
+          keyExtractor={(row) => row.id}
           onRowClick={(row) => {
             // Navigate to detail page
             console.log('View application:', row.id);

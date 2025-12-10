@@ -397,11 +397,11 @@ export const Applications: React.FC = () => {
             <div className="text-center py-8 text-neutral-500">Loading applications from webhook...</div>
           ) : error ? (
             <div className="text-center py-8">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded mb-4">
-                <p className="text-sm text-yellow-800 mb-2">
+              <div className="p-4 bg-warning/10 border border-warning/30 rounded mb-4">
+                <p className="text-sm text-warning mb-2">
                   <strong>Webhook Status:</strong> The webhook is currently returning table structure metadata, not actual data records.
                 </p>
-                <p className="text-xs text-yellow-700">
+                <p className="text-xs text-warning/80">
                   Please configure your n8n workflow to return actual Airtable records. The system is ready to display data once records are available.
                 </p>
               </div>

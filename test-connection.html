@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connection Test</title>
+</head>
+<body>
+    <h1>Server Connection Test</h1>
+    <div id="results"></div>
+    <script>
+        const results = document.getElementById('results');
+        
+        // Test frontend
+        fetch('http://localhost:5000')
+            .then(r => results.innerHTML += '<p>✅ Frontend (port 5000): OK</p>')
+            .catch(e => results.innerHTML += '<p>❌ Frontend (port 5000): ' + e.message + '</p>');
+        
+        // Test backend
+        fetch('http://localhost:3000/health')
+            .then(r => r.json())
+            .then(data => results.innerHTML += '<p>✅ Backend (port 3000): OK - ' + JSON.stringify(data) + '</p>')
+            .catch(e => results.innerHTML += '<p>❌ Backend (port 3000): ' + e.message + '</p>');
+    </script>
+</body>
+</html>

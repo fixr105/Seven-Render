@@ -30,7 +30,7 @@ const ALLOWED_FILE_TYPES = [
 
 export const ensureBucketExists = async (): Promise<void> => {
   const { data: buckets } = await supabase.storage.listBuckets();
-  const bucketExists = buckets?.some(bucket => bucket.name === BUCKET_NAME);
+  const bucketExists = buckets?.some((bucket: { name: string }) => bucket.name === BUCKET_NAME);
 
   if (!bucketExists) {
     const { error } = await supabase.storage.createBucket(BUCKET_NAME, {

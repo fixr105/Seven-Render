@@ -157,15 +157,21 @@ const fetchLoanApplicationsFromWebhook = async (forceRefresh = false): Promise<L
           };
           return transformAirtableRecord(airtableRecord);
         } catch (err) {
-          console.error('Error transforming record:', err, record);
+          // Only log transformation errors in development
+          if (import.meta.env.DEV) {
+            console.error('Error transforming record:', err, record);
+          }
           return null;
         }
       })
       .filter((app): app is LoanApplicationFromWebhook => app !== null);
     
-    console.log(`Successfully transformed ${transformed.length} applications from Loan Application webhook`);
+    if (import.meta.env.DEV) {
+      console.log(`Successfully transformed ${transformed.length} applications from Loan Application webhook`);
+    }
     return transformed;
   } catch (err: any) {
+    // Always log errors
     console.error('Error fetching Loan Applications from webhook:', err);
     throw err;
   }
@@ -174,7 +180,6 @@ const fetchLoanApplicationsFromWebhook = async (forceRefresh = false): Promise<L
 /**
  * Hook to fetch loan applications from individual webhook
  * DOES NOT auto-execute - only fetches when explicitly requested via refetch()
- * or on page reload/refresh (F5 or browser refresh button)
  * 
  * Now uses individual "Loan Application" table webhook instead of single GET webhook
  */
@@ -185,45 +190,15 @@ export const useWebhookApplications = () => {
   const mountedRef = useRef(true);
   const hasCheckedReloadRef = useRef(false);
 
-  // Check for page reload on mount (only once)
+  // Initialize on mount - NO auto-fetch
+  // Webhooks only execute when user explicitly calls refetch()
   useEffect(() => {
     mountedRef.current = true;
     hasCheckedReloadRef.current = true;
     
-    // Check if this is a page reload using multiple methods for browser compatibility
-    const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-    const isPageReload = 
-      navEntry?.type === 'reload' ||
-      (performance.navigation && (performance.navigation as any).type === 1) ||
-      // Check if page was loaded via reload (not navigation)
-      (document.referrer === '' && window.history.length === 1);
-    
-    // Only fetch on actual page reload (F5 or browser refresh button)
-    // NOT on normal navigation or component mount
-    if (isPageReload) {
-      console.log('Page reload detected - fetching Loan Application data from individual webhook');
-      setLoading(true);
-      
-      fetchLoanApplicationsFromWebhook(false)
-        .then((data) => {
-          if (mountedRef.current) {
-            setApplications(data);
-            setLoading(false);
-            setError(null);
-          }
-        })
-        .catch((err) => {
-          if (mountedRef.current) {
-            setError(err.message || 'Failed to fetch webhook data');
-            setApplications([]);
-            setLoading(false);
-          }
-        });
-    } else {
-      // Normal navigation - use empty array, no webhook call
-      setApplications([]);
-      setLoading(false);
-    }
+    // Initialize with empty data - no webhook call on mount
+    setApplications([]);
+    setLoading(false);
 
     return () => {
       mountedRef.current = false;
@@ -263,7 +238,7 @@ export const useWebhookApplications = () => {
 /**
  * Hook to fetch multiple tables from individual webhooks
  * Only fetches the tables specified in the tables array
- * Fetches on page reload (F5 or browser refresh button), but NOT on normal navigation
+ * DOES NOT auto-execute - only fetches when explicitly requested via refetch()
  */
 export const useWebhookTables = (tables: string[]) => {
   const [data, setData] = useState<Record<string, any[]>>({});
@@ -275,49 +250,10 @@ export const useWebhookTables = (tables: string[]) => {
   useEffect(() => {
     mountedRef.current = true;
     
-    // Only check for page reload once on mount
-    if (!hasCheckedReloadRef.current) {
-      hasCheckedReloadRef.current = true;
-      
-      // Check if this is a page reload using multiple methods for browser compatibility
-      const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-      const isPageReload = 
-        navEntry?.type === 'reload' ||
-        (performance.navigation && (performance.navigation as any).type === 1) ||
-        // Check if page was loaded via reload (not navigation)
-        (document.referrer === '' && window.history.length === 1);
-      
-      // Only fetch on actual page reload (F5 or browser refresh button)
-      // NOT on normal navigation or component mount
-      if (isPageReload) {
-        console.log('Page reload detected - fetching webhook tables:', tables);
-        setLoading(true);
-        
-        fetchMultipleTables({
-          tables,
-          forceRefresh: false,
-        })
-          .then((result) => {
-            if (mountedRef.current) {
-              setData(result);
-              setLoading(false);
-              setError(null);
-            }
-          })
-          .catch((err) => {
-            if (mountedRef.current) {
-              console.error('Error fetching webhook tables:', err);
-              setError(err.message || 'Failed to fetch webhook data');
-              setData({});
-              setLoading(false);
-            }
-          });
-      } else {
-        // Normal navigation - use empty data, no webhook call
-        setData({});
-        setLoading(false);
-      }
-    }
+    // Initialize with empty data - NO auto-fetch on mount
+    // Webhooks only execute when user explicitly calls refetch()
+    setData({});
+    setLoading(false);
     
     return () => {
       mountedRef.current = false;

@@ -15,7 +15,6 @@ router.use(requireClient);
 
 router.get('/dashboard', clientController.getDashboard.bind(clientController));
 router.get('/form-config', clientController.getFormConfig.bind(clientController));
-router.post('/loan-applications/:id/queries/:queryId/reply', clientController.respondToQuery.bind(clientController));
 
 export default router;
 

@@ -17,16 +17,18 @@ const tableCache: Record<string, {
   fetchPromise: Promise<any[]> | null;
 }> = {};
 
-// Cache duration: 5 minutes
-const CACHE_DURATION = 300000;
+// Cache duration: 30 minutes (reduced webhook executions)
+const CACHE_DURATION = 1800000;
 
 /**
  * Fetch data from a single table webhook
  */
 export const fetchTableData = async (tableName: string, forceRefresh = false): Promise<any[]> => {
-  const url = getWebhookUrl(tableName);
+      const url = getWebhookUrl(tableName);
   if (!url) {
-    console.warn(`No webhook URL configured for table: ${tableName}`);
+    if (import.meta.env.DEV) {
+      console.warn(`No webhook URL configured for table: ${tableName}`);
+    }
     return [];
   }
 
@@ -36,13 +38,18 @@ export const fetchTableData = async (tableName: string, forceRefresh = false): P
   // Check cache if not forcing refresh
   if (!forceRefresh && cache) {
     if (cache.data && cache.lastFetch && (now - cache.lastFetch < CACHE_DURATION)) {
-      console.log(`Using cached data for ${tableName} (age: ${Math.round((now - cache.lastFetch) / 1000)}s)`);
+      // Only log cache hits in development mode
+      if (import.meta.env.DEV) {
+        console.log(`Using cached data for ${tableName} (age: ${Math.round((now - cache.lastFetch) / 1000)}s)`);
+      }
       return cache.data;
     }
 
     // If fetch is in progress, wait for it
     if (cache.fetchPromise) {
-      console.log(`Waiting for existing fetch for ${tableName}...`);
+      if (import.meta.env.DEV) {
+        console.log(`Waiting for existing fetch for ${tableName}...`);
+      }
       return await cache.fetchPromise;
     }
   }
@@ -59,7 +66,10 @@ export const fetchTableData = async (tableName: string, forceRefresh = false): P
   // Start new fetch
   const fetchPromise = (async () => {
     try {
-      console.log(`Fetching ${tableName} from: ${url}`);
+      // Only log in development mode to reduce console noise
+      if (import.meta.env.DEV) {
+        console.log(`Fetching ${tableName} from: ${url}`);
+      }
       
       const response = await fetch(url, {
         method: 'GET',
@@ -97,7 +107,10 @@ export const fetchTableData = async (tableName: string, forceRefresh = false): P
         }
       }
 
-      console.log(`✅ Fetched ${records.length} records from ${tableName}`);
+      // Only log in development mode
+      if (import.meta.env.DEV) {
+        console.log(`✅ Fetched ${records.length} records from ${tableName}`);
+      }
       
       // Update cache
       tableCache[tableName].data = records;
@@ -125,7 +138,7 @@ export const fetchMultipleTables = async (options: WebhookFetchOptions): Promise
   
   // Validate table names
   const invalidTables = tables.filter(t => !TABLE_NAMES.includes(t));
-  if (invalidTables.length > 0) {
+  if (invalidTables.length > 0 && import.meta.env.DEV) {
     console.warn(`Invalid table names: ${invalidTables.join(', ')}`);
   }
 
@@ -136,24 +149,30 @@ export const fetchMultipleTables = async (options: WebhookFetchOptions): Promise
     try {
       const data = await fetchTableData(tableName, forceRefresh);
       return { tableName, data, error: null };
-    } catch (error: any) {
-      console.error(`Failed to fetch ${tableName}:`, error);
-      return { tableName, data: [], error: error.message };
-    }
+      } catch (error: any) {
+        // Always log errors, but reduce verbosity in production
+        if (import.meta.env.DEV) {
+          console.error(`Failed to fetch ${tableName}:`, error);
+        } else {
+          console.error(`Failed to fetch ${tableName}: ${error.message}`);
+        }
+        return { tableName, data: [], error: error.message };
+      }
   });
 
   const results = await Promise.all(fetchPromises);
   
   // Build result object
   const result: Record<string, any[]> = {};
-  results.forEach(({ tableName, data, error }) => {
-    if (error) {
-      console.error(`Error fetching ${tableName}: ${error}`);
-      result[tableName] = [];
-    } else {
-      result[tableName] = data;
-    }
-  });
+    results.forEach(({ tableName, data, error }) => {
+      if (error) {
+        // Always log errors
+        console.error(`Error fetching ${tableName}: ${error}`);
+        result[tableName] = [];
+      } else {
+        result[tableName] = data;
+      }
+    });
 
   return result;
 };

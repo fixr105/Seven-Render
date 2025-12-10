@@ -27,10 +27,10 @@ export const Button: React.FC<ButtonProps> = ({
   const baseClasses = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
   const variantClasses = {
-    primary: 'bg-brand-primary text-white hover:bg-[#2a2560] active:bg-[#1f1c4a] focus:ring-brand-primary',
-    secondary: 'bg-white text-brand-primary border border-brand-primary hover:bg-brand-primary/10 active:bg-brand-primary/20 focus:ring-brand-primary',
-    tertiary: 'bg-transparent text-brand-primary hover:bg-brand-primary/10 active:bg-brand-primary/20 focus:ring-brand-primary',
-    danger: 'bg-error text-white hover:bg-red-600 active:bg-red-700 focus:ring-error',
+    primary: 'bg-brand-primary text-white hover:bg-brand-primary/90 active:bg-brand-primary/80 focus:ring-brand-primary focus:ring-offset-2',
+    secondary: 'bg-white text-brand-primary border-2 border-brand-primary hover:bg-brand-primary/10 active:bg-brand-primary/20 focus:ring-brand-primary focus:ring-offset-2',
+    tertiary: 'bg-transparent text-brand-primary hover:bg-brand-primary/10 active:bg-brand-primary/20 focus:ring-brand-primary focus:ring-offset-2',
+    danger: 'bg-error text-white hover:bg-error/90 active:bg-error/80 focus:ring-error focus:ring-offset-2',
   };
 
   const sizeClasses = {
