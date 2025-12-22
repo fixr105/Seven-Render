@@ -288,23 +288,37 @@ export class CreditController {
         return;
       }
 
+      // Module 3: Validate status transition using state machine
+      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+      
+      const previousStatus = application.Status as LoanStatus;
+      const newStatus = LoanStatus.IN_NEGOTIATION;
+      
+      try {
+        validateTransition(previousStatus, newStatus, req.user!.role);
+      } catch (transitionError: any) {
+        res.status(400).json({
+          success: false,
+          error: transitionError.message || 'Invalid status transition',
+        });
+        return;
+      }
+
       await n8nClient.postLoanApplication({
         ...application,
-        Status: LoanStatus.IN_NEGOTIATION,
+        Status: newStatus,
         'Last Updated': new Date().toISOString(),
       });
 
-      await n8nClient.postFileAuditLog({
-        id: `AUDIT-${Date.now()}`,
-        'Log Entry ID': `AUDIT-${Date.now()}`,
-        File: application['File ID'],
-        Timestamp: new Date().toISOString(),
-        Actor: req.user!.email,
-        'Action/Event Type': 'status_change',
-        'Details/Message': 'Application marked as in negotiation',
-        'Target User/Role': 'client',
-        Resolved: 'False',
-      });
+      // Module 3: Record status change in history
+      await recordStatusChange(
+        req.user!,
+        application['File ID'],
+        previousStatus,
+        newStatus,
+        'Application marked as in negotiation'
+      );
 
       res.json({
         success: true,
@@ -334,23 +348,49 @@ export class CreditController {
         return;
       }
 
+      // Module 3: Validate status transition using state machine
+      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+      
+      const previousStatus = application.Status as LoanStatus;
+      const newStatus = LoanStatus.SENT_TO_NBFC;
+      
+      try {
+        validateTransition(previousStatus, newStatus, req.user!.role);
+      } catch (transitionError: any) {
+        res.status(400).json({
+          success: false,
+          error: transitionError.message || 'Invalid status transition',
+        });
+        return;
+      }
+
       // Update with assigned NBFCs (comma-separated if multiple)
       await n8nClient.postLoanApplication({
         ...application,
         'Assigned NBFC': Array.isArray(nbfcIds) ? nbfcIds.join(', ') : nbfcIds,
-        Status: LoanStatus.SENT_TO_NBFC,
+        Status: newStatus,
         'Last Updated': new Date().toISOString(),
       });
 
-      await n8nClient.postAdminActivityLog({
-        id: `ACT-${Date.now()}`,
-        'Activity ID': `ACT-${Date.now()}`,
-        Timestamp: new Date().toISOString(),
-        'Performed By': req.user!.email,
-        'Action Type': 'assign_nbfc',
-        'Description/Details': `Assigned NBFCs to application ${application['File ID']}: ${nbfcIds.join(', ')}`,
-        'Target Entity': 'loan_application',
-      });
+      // Module 3: Record status change in history
+      await recordStatusChange(
+        req.user!,
+        application['File ID'],
+        previousStatus,
+        newStatus,
+        `Assigned NBFCs: ${Array.isArray(nbfcIds) ? nbfcIds.join(', ') : nbfcIds}`
+      );
+
+      // Module 0: Use admin logger helper
+      const { logApplicationAction, AdminActionType } = await import('../utils/adminLogger.js');
+      await logApplicationAction(
+        req.user!,
+        AdminActionType.ASSIGN_NBFC,
+        application['File ID'],
+        `Assigned NBFCs to application`,
+        { nbfcIds: Array.isArray(nbfcIds) ? nbfcIds : [nbfcIds], statusChange: `${previousStatus} → ${newStatus}` }
+      );
 
       res.json({
         success: true,
@@ -391,15 +431,27 @@ export class CreditController {
       if (decision === LenderDecisionStatus.APPROVED) {
         updateData['Approved Loan Amount'] = approvedAmount?.toString() || '';
         updateData['Lender Decision Remarks'] = terms || '';
-        // If any NBFC approves, status can move to approved
+        // Module 3: If any NBFC approves, status can move to approved (validate transition)
         if (application.Status === LoanStatus.SENT_TO_NBFC) {
-          updateData.Status = LoanStatus.APPROVED;
+          const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+          try {
+            validateTransition(application.Status as LoanStatus, LoanStatus.APPROVED, req.user!.role);
+            updateData.Status = LoanStatus.APPROVED;
+          } catch (transitionError) {
+            // If transition invalid, keep current status but record decision
+            console.warn('[captureNBFCDecision] Invalid transition, keeping current status');
+          }
         }
       } else if (decision === LenderDecisionStatus.REJECTED) {
         updateData['Lender Decision Remarks'] = rejectionReason || '';
-        // Check if all NBFCs rejected
-        // For now, just update status
-        updateData.Status = LoanStatus.REJECTED;
+        // Module 3: Validate rejection transition
+        const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+        try {
+          validateTransition(application.Status as LoanStatus, LoanStatus.REJECTED, req.user!.role);
+          updateData.Status = LoanStatus.REJECTED;
+        } catch (transitionError) {
+          console.warn('[captureNBFCDecision] Invalid rejection transition, keeping current status');
+        }
       } else if (decision === LenderDecisionStatus.NEEDS_CLARIFICATION) {
         updateData['Lender Decision Remarks'] = clarificationMessage || '';
       }
@@ -479,13 +531,39 @@ export class CreditController {
       const payoutAmount = commission >= 0 ? commission : -Math.abs(commission);
       const entryType = commission >= 0 ? 'Payout' : 'Payin';
 
+      // Module 3: Validate status transition using state machine
+      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+      
+      const previousStatus = application.Status as LoanStatus;
+      const newStatus = LoanStatus.DISBURSED;
+      
+      try {
+        validateTransition(previousStatus, newStatus, req.user!.role);
+      } catch (transitionError: any) {
+        res.status(400).json({
+          success: false,
+          error: transitionError.message || 'Invalid status transition',
+        });
+        return;
+      }
+
       // Update application status
       await n8nClient.postLoanApplication({
         ...application,
-        Status: LoanStatus.DISBURSED,
+        Status: newStatus,
         'Approved Loan Amount': disbursedAmount.toString(),
         'Last Updated': new Date().toISOString(),
       });
+
+      // Module 3: Record status change in history
+      await recordStatusChange(
+        req.user!,
+        application['File ID'],
+        previousStatus,
+        newStatus,
+        `Loan disbursed. Amount: ${disbursedAmount}, Commission: ${commissionRate}%`
+      );
 
       // Create commission ledger entry
       const ledgerEntryId = `LEDGER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -837,6 +915,81 @@ export class CreditController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to reject payout',
+      });
+    }
+  }
+
+  /**
+   * GET /credit/clients
+   * List all clients (Credit Team only)
+   */
+  async listClients(req: Request, res: Response): Promise<void> {
+    try {
+      // Fetch only Clients table
+      const clients = await n8nClient.fetchTable('Clients');
+
+      // Transform to API response format
+      const clientsData = clients.map((client: any) => ({
+        id: client.id || client['Client ID'],
+        clientId: client['Client ID'] || client.id,
+        clientName: client['Client Name'] || client.clientName,
+        primaryContactName: client['Primary Contact Name'] || client.primaryContactName,
+        contactEmailPhone: client['Contact Email / Phone'] || client.contactEmailPhone,
+        assignedKAM: client['Assigned KAM'] || client.assignedKAM,
+        enabledModules: client['Enabled Modules'] || client.enabledModules,
+        commissionRate: client['Commission Rate'] || client.commissionRate,
+        status: client['Status'] || client.status || 'Active',
+      }));
+
+      res.json({
+        success: true,
+        data: clientsData,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch clients',
+      });
+    }
+  }
+
+  /**
+   * GET /credit/clients/:id
+   * Get client details (Credit Team only)
+   */
+  async getClient(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      
+      // Fetch only Clients table
+      const clients = await n8nClient.fetchTable('Clients');
+      const client = clients.find(
+        (c: any) => c.id === id || c['Client ID'] === id
+      );
+
+      if (!client) {
+        res.status(404).json({ success: false, error: 'Client not found' });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          id: client.id || client['Client ID'],
+          clientId: client['Client ID'] || client.id,
+          clientName: client['Client Name'] || client.clientName,
+          primaryContactName: client['Primary Contact Name'] || client.primaryContactName,
+          contactEmailPhone: client['Contact Email / Phone'] || client.contactEmailPhone,
+          assignedKAM: client['Assigned KAM'] || client.assignedKAM,
+          enabledModules: client['Enabled Modules'] || client.enabledModules,
+          commissionRate: client['Commission Rate'] || client.commissionRate,
+          status: client['Status'] || client.status || 'Active',
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch client',
       });
     }
   }

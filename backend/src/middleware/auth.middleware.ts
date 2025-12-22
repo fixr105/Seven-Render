@@ -34,6 +34,12 @@ export const authenticate = async (
     const token = authHeader.substring(7);
     const user = authService.verifyToken(token);
     req.user = user;
+    
+    // Debug logging for client role
+    if (user.role === 'client') {
+      console.log(`[AuthMiddleware] Authenticated client: ${user.email}, clientId: ${user.clientId}`);
+    }
+    
     next();
   } catch (error: any) {
     res.status(401).json({

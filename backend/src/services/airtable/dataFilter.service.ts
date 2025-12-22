@@ -23,7 +23,18 @@ export class DataFilterService {
     switch (user.role) {
       case UserRole.CLIENT:
         // Clients only see their own applications
-        return applications.filter((app) => app.Client === user.clientId);
+        // Match by Client ID (from Clients table, not User Account ID)
+        const filtered = applications.filter((app) => {
+          const matches = app.Client === user.clientId || 
+                         app.Client === user.clientId?.toString() ||
+                         user.clientId === app.Client?.toString();
+          if (!matches && user.clientId) {
+            console.log(`[DataFilter] Application ${app['File ID']} Client="${app.Client}" does not match user clientId="${user.clientId}"`);
+          }
+          return matches;
+        });
+        console.log(`[DataFilter] Client ${user.email} (clientId: ${user.clientId}): Filtered ${filtered.length} of ${applications.length} applications`);
+        return filtered;
 
       case UserRole.KAM:
         // KAMs see applications for their managed clients

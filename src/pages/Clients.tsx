@@ -72,9 +72,12 @@ export const Clients: React.FC = () => {
     try {
       setLoading(true);
       console.log('[Clients] 📥 Fetching clients, forceRefresh:', forceRefresh);
+      console.log('[Clients] User role:', userRole);
       
-      // Use API service to fetch clients with optional force refresh
-      const response = await apiService.listClients(forceRefresh);
+      // Use correct endpoint based on user role
+      const response = userRole === 'credit_team' 
+        ? await apiService.listCreditClients()
+        : await apiService.listClients(forceRefresh);
       
       console.log('[Clients] 📦 API response received:', {
         success: response.success,

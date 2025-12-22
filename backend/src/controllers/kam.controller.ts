@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { dataFilterService } from '../services/airtable/dataFilter.service.js';
 import { LoanStatus, Module } from '../config/constants.js';
+import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 
 export class KAMController {
   /**
@@ -683,7 +684,7 @@ export class KAMController {
       }
 
       const { id } = req.params;
-      const { category, isRequired, displayOrder, modules } = req.body;
+      const { category, isRequired, displayOrder, modules, productId } = req.body;
 
       // Verify this client is managed by this KAM
       // Fetch Clients table to check 'Assigned KAM' field
@@ -718,10 +719,15 @@ export class KAMController {
 
       // Support bulk creation via modules array
       if (modules && Array.isArray(modules)) {
+        // Module 1: Versioning - store version timestamp for form config
+        const versionTimestamp = new Date().toISOString();
+        
         const formStructure: any = {
           clientId: id,
+          productId: productId || null, // Optional: link to specific loan product
           modules: [],
-          createdAt: new Date().toISOString(),
+          createdAt: versionTimestamp,
+          version: versionTimestamp, // Version timestamp for form config
         };
 
         const mappingPromises = modules.map(async (moduleId: string, index: number) => {
@@ -863,7 +869,7 @@ export class KAMController {
             fields: moduleDef.fields,
           });
 
-          // Create Client Form Mapping
+          // Create Client Form Mapping with versioning
           const mappingData = {
             id: `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
             'Mapping ID': `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
@@ -871,6 +877,8 @@ export class KAMController {
             Category: categoryId,
             'Is Required': 'True',
             'Display Order': (index + 1).toString(),
+            'Version': versionTimestamp, // Module 1: Store version timestamp
+            'Product ID': productId || '', // Optional: link to loan product
           };
           await n8nClient.postClientFormMapping(mappingData);
           return mappingData;
@@ -881,15 +889,11 @@ export class KAMController {
         // Store form structure as JSON (can be stored in a field or logged)
         const formJson = JSON.stringify(formStructure, null, 2);
 
-        await n8nClient.postAdminActivityLog({
-          id: `ACT-${Date.now()}`,
-          'Activity ID': `ACT-${Date.now()}`,
-          Timestamp: new Date().toISOString(),
-          'Performed By': req.user.email,
-          'Action Type': 'create_form_mapping_bulk',
-          'Description/Details': `Created ${modules.length} form mapping(s) for client ${id}: ${modules.join(', ')}. Form JSON: ${formJson.substring(0, 200)}...`,
-          'Target Entity': 'form_mapping',
-        });
+        // Module 0: Use admin logger helper
+        await logClientAction(req.user!, AdminActionType.CONFIGURE_FORM, id, 
+          `Created ${modules.length} form mapping(s) for client: ${modules.join(', ')}${productId ? ` (Product: ${productId})` : ''}`, 
+          { modules, productId, version: versionTimestamp }
+        );
 
         res.json({
           success: true,
@@ -915,15 +919,11 @@ export class KAMController {
 
       await n8nClient.postClientFormMapping(mappingData);
 
-      await n8nClient.postAdminActivityLog({
-        id: `ACT-${Date.now()}`,
-        'Activity ID': `ACT-${Date.now()}`,
-        Timestamp: new Date().toISOString(),
-        'Performed By': req.user.email,
-        'Action Type': 'create_form_mapping',
-        'Description/Details': `Created form mapping for client ${id}: ${category}`,
-        'Target Entity': 'form_mapping',
-      });
+      // Module 0: Use admin logger helper
+      await logClientAction(req.user!, AdminActionType.CONFIGURE_FORM, id, 
+        `Created form mapping for client: ${category}`, 
+        { category, isRequired, displayOrder }
+      );
 
       res.json({
         success: true,
@@ -1154,14 +1154,19 @@ export class KAMController {
         return;
       }
 
-      // Check preconditions
-      if (
-        application.Status !== LoanStatus.UNDER_KAM_REVIEW &&
-        application.Status !== LoanStatus.QUERY_WITH_CLIENT
-      ) {
+      // Module 3: Validate status transition using state machine
+      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+      
+      const previousStatus = application.Status as LoanStatus;
+      const newStatus = LoanStatus.PENDING_CREDIT_REVIEW;
+      
+      try {
+        validateTransition(previousStatus, newStatus, req.user!.role);
+      } catch (transitionError: any) {
         res.status(400).json({
           success: false,
-          error: 'Application cannot be forwarded in current status',
+          error: transitionError.message || 'Invalid status transition',
         });
         return;
       }
@@ -1169,32 +1174,27 @@ export class KAMController {
       // Update status
       await n8nClient.postLoanApplication({
         ...application,
-        Status: LoanStatus.PENDING_CREDIT_REVIEW,
+        Status: newStatus,
         'Last Updated': new Date().toISOString(),
       });
 
-      // Log activities
-      await n8nClient.postFileAuditLog({
-        id: `AUDIT-${Date.now()}`,
-        'Log Entry ID': `AUDIT-${Date.now()}`,
-        File: application['File ID'],
-        Timestamp: new Date().toISOString(),
-        Actor: req.user!.email,
-        'Action/Event Type': 'forward_to_credit',
-        'Details/Message': 'Application forwarded to credit team for review',
-        'Target User/Role': 'credit_team',
-        Resolved: 'False',
-      });
+      // Module 3: Record status change in history
+      await recordStatusChange(
+        req.user!,
+        application['File ID'],
+        previousStatus,
+        newStatus,
+        'Application forwarded to credit team by KAM'
+      );
 
-      await n8nClient.postAdminActivityLog({
-        id: `ACT-${Date.now()}`,
-        'Activity ID': `ACT-${Date.now()}`,
-        Timestamp: new Date().toISOString(),
-        'Performed By': req.user!.email,
-        'Action Type': 'forward_to_credit',
-        'Description/Details': `Application ${application['File ID']} forwarded to credit`,
-        'Target Entity': 'loan_application',
-      });
+      // Module 0: Use admin logger helper
+      await logApplicationAction(
+        req.user!,
+        AdminActionType.FORWARD_TO_CREDIT,
+        application['File ID'],
+        'Application forwarded to credit team',
+        { statusChange: `${previousStatus} → ${newStatus}` }
+      );
 
       res.json({
         success: true,

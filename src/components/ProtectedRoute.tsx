@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthSafe } from '../hooks/useAuthSafe';
-import { UserRole } from '../lib/supabase';
+import { UserRole } from '../services/api';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

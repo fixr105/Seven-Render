@@ -1,6 +1,6 @@
 /**
  * Example: Login Page using API Service
- * This shows how to migrate from Supabase to backend API
+ * Example of using backend API for authentication
  */
 
 import React, { useState, useEffect } from 'react';

@@ -79,7 +79,15 @@ export const Dashboard: React.FC = () => {
       default:
         return (
           <div className="text-center py-12">
-            <p className="text-neutral-500">Unknown user role. Please contact administrator.</p>
+            <p className="text-neutral-500 mb-2">
+              Unknown user role: <span className="font-mono text-neutral-700">{userRole || 'null'}</span>
+            </p>
+            <p className="text-sm text-neutral-400">
+              Valid roles are: client, kam, credit_team, nbfc
+            </p>
+            <p className="text-sm text-neutral-400 mt-2">
+              Please contact administrator to update your role in the system.
+            </p>
           </div>
         );
     }

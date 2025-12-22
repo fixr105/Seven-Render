@@ -375,18 +375,98 @@ class ApiService {
 
   /**
    * Create new loan application
+   * Module 2: Supports documentUploads array with OneDrive links
    */
   async createApplication(data: {
     productId: string;
+    applicantName?: string;
+    requestedLoanAmount?: number;
+    formData?: Record<string, any>;
+    documentUploads?: Array<{ fieldId: string; fileUrl: string; fileName: string }>; // Module 2: OneDrive links
+    saveAsDraft?: boolean;
+    // Legacy format support
     borrowerIdentifiers?: {
       pan?: string;
       name?: string;
     };
-  }): Promise<ApiResponse<{ loanApplicationId: string; fileId: string }>> {
+  }): Promise<ApiResponse<{ 
+    loanApplicationId: string; 
+    fileId: string; 
+    status?: string;
+    warnings?: string[]; // Module 2: Validation warnings
+    duplicateFound?: { fileId: string; status: string } | null; // Module 2: Duplicate detection
+  }>> {
     return this.request('/loan-applications', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * Module 2: Upload document to OneDrive
+   * Returns OneDrive share link for storage in Airtable
+   */
+  async uploadDocument(
+    file: File,
+    fieldId: string,
+    fileName?: string
+  ): Promise<ApiResponse<{ shareLink: string; fileId: string; webUrl: string; fieldId: string; fileName: string }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('fieldId', fieldId);
+    if (fileName) {
+      formData.append('fileName', fileName);
+    }
+
+    const url = `${this.baseUrl}/documents/upload`;
+    const headers: HeadersInit = {};
+    
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const text = await response.text();
+      if (!text || text.trim().length === 0) {
+        return {
+          success: false,
+          error: `Empty response from server (${response.status})`,
+        };
+      }
+
+      const data = JSON.parse(text);
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          this.clearToken();
+          return {
+            success: false,
+            error: data.error || 'Authentication failed',
+          };
+        }
+        return {
+          success: false,
+          error: data.error || `HTTP ${response.status}`,
+        };
+      }
+
+      return {
+        success: true,
+        data: data.data || data,
+      };
+    } catch (error: any) {
+      console.error('Document upload error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to upload document',
+      };
+    }
   }
 
   /**
@@ -449,11 +529,28 @@ class ApiService {
   }
 
   /**
-   * List clients (KAM)
+   * List clients (KAM or Credit Team)
+   * Automatically uses the correct endpoint based on user role
    */
   async listClients(forceRefresh: boolean = false): Promise<ApiResponse<any[]>> {
+    // Try to get user role from token or use KAM endpoint as default
+    // The backend will handle role-based routing
     const url = forceRefresh ? '/kam/clients?forceRefresh=true' : '/kam/clients';
     return this.request<any[]>(url);
+  }
+
+  /**
+   * List clients (Credit Team only)
+   */
+  async listCreditClients(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/credit/clients');
+  }
+
+  /**
+   * Get client details (Credit Team only)
+   */
+  async getCreditClient(clientId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/credit/clients/${clientId}`);
   }
 
   /**
@@ -512,6 +609,7 @@ class ApiService {
 
   /**
    * Create form mapping (single or bulk)
+   * Module 1: Added productId support for linking form config to loan products
    */
   async createFormMapping(
     clientId: string,
@@ -520,6 +618,7 @@ class ApiService {
       isRequired?: boolean;
       displayOrder?: number;
       modules?: string[]; // For bulk creation
+      productId?: string; // Module 1: Optional loan product ID
     }
   ): Promise<ApiResponse> {
     return this.request(`/kam/clients/${clientId}/form-mappings`, {

@@ -5,7 +5,6 @@ import { Input } from '../components/ui/Input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
-import { supabase } from '../lib/supabase';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +35,7 @@ export const Login: React.FC = () => {
       const { error: signInError } = await signIn(userEmail, userPassword);
 
       if (signInError) {
-        // Handle both string errors (from API auth) and Error objects (from Supabase auth)
+        // Handle string errors from API auth
         const errorMessage = typeof signInError === 'string' 
           ? signInError 
           : signInError.message || 'Invalid email or password';
@@ -91,17 +90,9 @@ export const Login: React.FC = () => {
     setError('');
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      if (resetError) {
-        setError(resetError.message || 'Failed to send password reset email');
-        setResetLoading(false);
-      } else {
-        setResetSuccess(true);
-        setResetLoading(false);
-      }
+      // TODO: Implement password reset via backend API
+      setError('Password reset functionality is not yet implemented. Please contact your administrator.');
+      setResetLoading(false);
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       setResetLoading(false);

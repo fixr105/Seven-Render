@@ -99,8 +99,9 @@ All components are built with accessibility in mind, featuring:
 - **Tailwind CSS** - Utility-first styling
 - **Vite** - Build tool and dev server
 - **Lucide React** - Icon library
-- **Supabase** - Backend (database connection ready)
+- **Airtable** - Database (via n8n webhooks)
 - **n8n Webhooks** - Individual table webhooks for data synchronization
+- **Express.js Backend** - TypeScript API server
 
 ## Project Structure
 
@@ -133,7 +134,7 @@ src/
 ├── lib/
 │   ├── webhookConfig.ts       # Individual webhook URLs & field mappings
 │   ├── webhookFetcher.ts      # Core webhook fetching logic
-│   ├── supabase.ts            # Supabase client
+│   ├── webhookImporter.ts     # Webhook data importer
 │   └── storage.ts             # Storage utilities
 ├── pages/
 │   ├── Dashboard.tsx          # Main dashboard page
@@ -202,17 +203,14 @@ The application is fully responsive with breakpoints:
 
 ## Database Integration
 
-The application is configured to work with Supabase:
-- Environment variables set in `.env`
-- Supabase client ready for integration
-- Component structure prepared for data fetching hooks
+The application works with Airtable via n8n webhooks:
+- Data is fetched from Airtable through n8n webhook endpoints
+- Backend API handles all data operations
+- No direct database connection needed in frontend
 
 ### Environment Variables
 ```
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_API_BASE_URL=http://localhost:3000
-VITE_USE_API_AUTH=true
+VITE_API_BASE_URL=http://localhost:3001
 ```
 
 ## Webhook Integration

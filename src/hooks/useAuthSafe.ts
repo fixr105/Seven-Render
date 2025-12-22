@@ -7,15 +7,12 @@
  */
 
 import { useContext } from 'react';
-import { AuthContext } from '../contexts/AuthContext';
 import { ApiAuthContext } from '../contexts/ApiAuthContext';
 
 export const useAuthSafe = () => {
-  // Always call useContext unconditionally (this is safe - returns undefined if not in provider)
-  const authContext = useContext(AuthContext);
+  // Use API auth context (system works purely on Airtable via backend API)
   const apiAuthContext = useContext(ApiAuthContext);
   
-  // Check which provider is available and use the appropriate one
   if (apiAuthContext !== undefined) {
     // ApiAuthProvider is available
     return {
@@ -26,17 +23,6 @@ export const useAuthSafe = () => {
       signIn: apiAuthContext.login,
       signOut: apiAuthContext.logout,
       signInAsTestUser: apiAuthContext.signInAsTestUser,
-    };
-  } else if (authContext !== undefined) {
-    // AuthProvider is available
-    return {
-      user: authContext.user,
-      userRole: authContext.userRole,
-      userRoleId: authContext.userRoleId,
-      loading: authContext.loading,
-      signIn: authContext.signIn,
-      signOut: authContext.signOut,
-      signInAsTestUser: authContext.signInAsTestUser,
     };
   } else {
     // No provider available - return defaults

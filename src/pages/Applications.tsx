@@ -13,7 +13,7 @@ import { Select } from '../components/ui/Select';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, MessageSquare, RefreshCw } from 'lucide-react';
-import { useUnifiedApplications } from '../hooks/useUnifiedApplications';
+import { useApplications } from '../hooks/useApplications';
 
 // Placeholder data removed - now using real data from database via useApplications hook
 
@@ -40,11 +40,8 @@ export const Applications: React.FC = () => {
   const navigate = useNavigate();
   const { userRole } = useAuthSafe();
   const { unreadCount } = useNotifications();
-  // Webhooks only execute on explicit refresh or page reload - no auto-execution
-  const { applications, loading, error, refetch, syncing, lastSyncTime, webhookCount, dbCount } = useUnifiedApplications({
-    autoSync: false,  // No auto-sync
-    syncOnMount: false,  // No auto-fetch on mount
-  });
+  // Use backend API-driven applications hook (no webhook data)
+  const { applications, loading, refetch } = useApplications();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortColumn, setSortColumn] = useState('');
@@ -141,7 +138,7 @@ export const Applications: React.FC = () => {
   const handleRaiseQuery = async () => {
     if (!selectedApplication || !queryMessage.trim()) return;
     
-    // TODO: Implement actual query creation via Supabase
+    // TODO: Implement actual query creation via backend API
     console.log('Raising query for application:', selectedApplication?.id, queryMessage);
     setShowQueryModal(false);
     setQueryMessage('');
@@ -211,74 +208,22 @@ export const Applications: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="animate-spin w-5 h-5 border-2 border-brand-primary border-t-transparent rounded-full"></div>
               <div>
-                <p className="text-sm text-neutral-600">
-                  {syncing ? 'Syncing webhook data to database...' : 'Loading applications...'}
-                </p>
-                {syncing && (
-                  <p className="text-xs text-neutral-500 mt-1">
-                    Webhook: {webhookCount} | Database: {dbCount}
-                  </p>
-                )}
+                <p className="text-sm text-neutral-600">Loading applications...</p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Error Message */}
-      {error && (
-        <Card className="mb-6 border-error">
+      {/* No Data Message */}
+      {!loading && applications.length === 0 && (
+        <Card className="mb-6 border-warning">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-sm font-medium text-error mb-1">Error loading data from webhook</p>
-                <p className="text-xs text-neutral-600">{error}</p>
-                {error.includes('problem executing the workflow') && (
-                  <div className="mt-3 p-3 bg-error/10 border border-error/30 rounded">
-                    <p className="text-xs font-medium text-error mb-1">n8n Workflow Error</p>
-                    <p className="text-xs text-neutral-600">
-                      The n8n workflow is encountering an error. Please check:
-                    </p>
-                    <ul className="text-xs text-neutral-600 mt-2 ml-4 list-disc space-y-1">
-                      <li>Is the workflow activated in n8n?</li>
-                      <li>Are all nodes in the workflow properly connected?</li>
-                      <li>Is the "Respond to Webhook" node connected to the output?</li>
-                      <li>Check the n8n execution logs for detailed error information</li>
-                    </ul>
-                  </div>
-                )}
-                {!error.includes('problem executing the workflow') && (
-                  <p className="text-xs text-neutral-500 mt-2">
-                    The webhook may be returning table structure metadata instead of actual records. 
-                    Please configure n8n to return actual data records.
-                  </p>
-                )}
-              </div>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={refetch}
-                className="ml-4"
-              >
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Success Message with Data Count */}
-      {!loading && !error && applications.length > 0 && (
-        <Card className="mb-6 border-success">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-success mb-1">
-                  {applications.length} application{applications.length !== 1 ? 's' : ''} loaded
-                </p>
+                <p className="text-sm font-medium text-warning mb-1">No applications found</p>
                 <p className="text-xs text-neutral-600">
-                  Webhook: {webhookCount} | Database: {dbCount}
-                  {lastSyncTime && ` | Last synced: ${lastSyncTime.toLocaleTimeString()}`}
+                  There are no applications in the backend database.
                 </p>
               </div>
               <Button 
@@ -288,31 +233,6 @@ export const Applications: React.FC = () => {
                 className="ml-4"
               >
                 Refresh
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* No Data Message */}
-      {!loading && !error && applications.length === 0 && (
-        <Card className="mb-6 border-warning">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-warning mb-1">No applications found</p>
-                <p className="text-xs text-neutral-600">
-                  The webhook returned table structure metadata but no actual records. 
-                  Please configure n8n to return actual data records from the table.
-                </p>
-              </div>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={refetch}
-                className="ml-4"
-              >
-                Retry
               </Button>
             </div>
           </CardContent>
@@ -394,32 +314,20 @@ export const Applications: React.FC = () => {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-neutral-500">Loading applications from webhook...</div>
-          ) : error ? (
-            <div className="text-center py-8">
-              <div className="p-4 bg-warning/10 border border-warning/30 rounded mb-4">
-                <p className="text-sm text-warning mb-2">
-                  <strong>Webhook Status:</strong> The webhook is currently returning table structure metadata, not actual data records.
-                </p>
-                <p className="text-xs text-warning/80">
-                  Please configure your n8n workflow to return actual Airtable records. The system is ready to display data once records are available.
-                </p>
-              </div>
-              <p className="text-neutral-500">No applications available from webhook</p>
-            </div>
+            <div className="text-center py-8 text-neutral-500">Loading applications...</div>
           ) : filteredData.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-              <p className="text-neutral-500">No applications found in webhook data</p>
-              <Button 
-                variant="tertiary" 
-                size="sm" 
-                onClick={refetch}
-                className="mt-4"
-              >
-                Refresh Data
-              </Button>
-            </div>
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                <p className="text-neutral-500">No applications found</p>
+                <Button 
+                  variant="tertiary" 
+                  size="sm" 
+                  onClick={refetch}
+                  className="mt-4"
+                >
+                  Refresh Data
+                </Button>
+              </div>
           ) : (
           <DataTable
             columns={columns}

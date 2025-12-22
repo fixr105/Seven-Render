@@ -115,11 +115,12 @@ export class ClientController {
         return;
       }
 
-      // productId is optional - form config is linked to client, not product
-      const { productId } = req.query;
+      // productId is optional - form config can be linked to specific product
+      // applicationId is optional - if provided, use form config version from that application (for versioning)
+      const { productId, applicationId } = req.query;
 
       // Fetch only the tables we need
-      let mappings, categories, fields;
+      let mappings, categories, fields, applications;
       try {
         [mappings, categories] = await Promise.all([
           n8nClient.fetchTable('Client Form Mapping'),
@@ -127,6 +128,11 @@ export class ClientController {
         ]);
         // Fetch only Form Fields table
         fields = await n8nClient.fetchTable('Form Fields');
+        
+        // Module 1: Versioning - if applicationId provided, fetch application to get its form config version
+        if (applicationId) {
+          applications = await n8nClient.fetchTable('Loan Application');
+        }
       } catch (fetchError: any) {
         console.error('[getFormConfig] Error fetching tables:', fetchError);
         res.status(500).json({
@@ -136,22 +142,66 @@ export class ClientController {
         return;
       }
 
+      // Module 1: Versioning - determine which version of form config to use
+      let formConfigVersion: string | null = null;
+      if (applicationId && applications) {
+        const application = applications.find((app: any) => app.id === applicationId);
+        if (application && application.Client === req.user!.clientId) {
+          // Use the form config version stored in the application (if exists)
+          // This ensures submitted files use the frozen form config
+          formConfigVersion = application['Form Config Version'] || null;
+          console.log(`[getFormConfig] Using form config version from application: ${formConfigVersion || 'latest'}`);
+        }
+      }
+
       // Get mappings for this client
       // Try multiple ID formats to match client
       const clientId = req.user!.clientId;
       console.log(`[getFormConfig] Client ID from user: ${clientId}`);
       console.log(`[getFormConfig] Total mappings: ${mappings.length}`);
       
-      const clientMappings = mappings.filter((m) => {
+      // Module 1: Filter mappings by version if specified, otherwise use latest
+      let clientMappings = mappings.filter((m) => {
         const mappingClientId = m.Client || m.client || m['Client ID'];
         const matches = mappingClientId === clientId || 
                        mappingClientId === clientId?.toString() ||
                        clientId === mappingClientId?.toString();
-        if (matches) {
-          console.log(`[getFormConfig] Found mapping: Category=${m.Category}, Client=${mappingClientId}`);
-        }
         return matches;
       });
+
+      // If formConfigVersion is specified, filter to that version
+      // Otherwise, use the latest version (most recent timestamp)
+      if (formConfigVersion) {
+        clientMappings = clientMappings.filter((m) => {
+          const mappingVersion = m.Version || m.version;
+          return mappingVersion === formConfigVersion;
+        });
+        console.log(`[getFormConfig] Filtered to version ${formConfigVersion}: ${clientMappings.length} mappings`);
+      } else {
+        // Use latest version - get most recent version timestamp
+        const versions = clientMappings
+          .map((m) => m.Version || m.version)
+          .filter(Boolean)
+          .sort()
+          .reverse();
+        const latestVersion = versions[0];
+        if (latestVersion) {
+          clientMappings = clientMappings.filter((m) => {
+            const mappingVersion = m.Version || m.version;
+            return mappingVersion === latestVersion;
+          });
+          console.log(`[getFormConfig] Using latest version ${latestVersion}: ${clientMappings.length} mappings`);
+        }
+      }
+
+      // Filter by productId if specified
+      if (productId) {
+        clientMappings = clientMappings.filter((m) => {
+          const mappingProductId = m['Product ID'] || m.productId;
+          return !mappingProductId || mappingProductId === productId || mappingProductId === productId?.toString();
+        });
+        console.log(`[getFormConfig] Filtered by productId ${productId}: ${clientMappings.length} mappings`);
+      }
 
       console.log(`[getFormConfig] Client mappings found: ${clientMappings.length}`);
 

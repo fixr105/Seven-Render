@@ -52,8 +52,35 @@ export class AuthService {
       throw new Error('Invalid email or password');
     }
 
-    // Get role-specific profile
-    const role = userAccount.Role as UserRole;
+    // Validate and normalize role
+    const rawRole = userAccount.Role;
+    if (!rawRole || typeof rawRole !== 'string') {
+      throw new Error('User account has no role assigned. Please contact administrator to set a valid role.');
+    }
+
+    // Normalize role: trim whitespace, convert to lowercase
+    const normalizedRole = rawRole.trim().toLowerCase();
+    
+    // Map common variations to valid roles
+    const roleMap: Record<string, UserRole> = {
+      'client': UserRole.CLIENT,
+      'kam': UserRole.KAM,
+      'key account manager': UserRole.KAM,
+      'credit_team': UserRole.CREDIT,
+      'credit team': UserRole.CREDIT,
+      'credit': UserRole.CREDIT,
+      'nbfc': UserRole.NBFC,
+    };
+
+    const role = roleMap[normalizedRole];
+    
+    if (!role) {
+      throw new Error(
+        `Invalid user role: "${rawRole}". Valid roles are: client, kam, credit_team, nbfc. ` +
+        `Please contact administrator to update your role.`
+      );
+    }
+
     let authUser: AuthUser = {
       id: userAccount.id,
       email: userAccount.Username,
@@ -64,9 +91,26 @@ export class AuthService {
     // This is separate from login to keep login fast and use dedicated webhook
     switch (role) {
       case UserRole.CLIENT:
-        // Client profile is in User Accounts with Associated Profile
-        authUser.clientId = userAccount.id;
-        authUser.name = userAccount['Associated Profile'] || email.split('@')[0];
+        // For clients, find the Client record in Airtable via n8n webhook
+        try {
+          const clients = await n8nClient.fetchTable('Clients');
+          const client = clients.find((c: any) => {
+            const contactInfo = c['Contact Email / Phone'] || c['Contact Email/Phone'] || '';
+            return contactInfo.toLowerCase().includes(email.toLowerCase());
+          });
+          
+          if (client) {
+            authUser.clientId = client.id || client['Client ID'];
+            authUser.name = client['Client Name'] || email.split('@')[0];
+            console.log(`[AuthService] Client login: ${email} -> Airtable Client ID: ${authUser.clientId}, Client Name: ${authUser.name}`);
+          } else {
+            console.warn(`[AuthService] No Client record found in Airtable for ${email}`);
+            authUser.name = email.split('@')[0];
+          }
+        } catch (error: any) {
+          console.error(`[AuthService] Error looking up Airtable client for ${email}:`, error.message);
+          authUser.name = email.split('@')[0];
+        }
         break;
 
       case UserRole.KAM:
@@ -116,6 +160,12 @@ export class AuthService {
     // Generate JWT
     const jwtSecret = authConfig.jwtSecret || 'default-secret';
     const jwtExpiresIn: string = authConfig.jwtExpiresIn || '7d';
+    
+    // Log the clientId being set in JWT for debugging
+    if (authUser.role === 'client') {
+      console.log(`[AuthService] Generating JWT for ${authUser.email} with clientId: ${authUser.clientId}`);
+    }
+    
     const token = jwt.sign(
       {
         userId: authUser.id,

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-// Use unified auth provider that handles both API and Supabase auth
+// Use unified auth provider for API-based authentication
 import { UnifiedAuthProvider } from './contexts/UnifiedAuthProvider';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';

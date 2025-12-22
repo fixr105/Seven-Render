@@ -11,7 +11,7 @@ import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, Mess
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
-import { supabase } from '../lib/supabase';
+import { apiService } from '../services/api';
 
 const getStatusVariant = (status: string): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   const statusLower = status.toLowerCase();
@@ -96,53 +96,18 @@ export const ApplicationDetail: React.FC = () => {
       fetchApplicationDetails();
       fetchQueries();
       fetchStatusHistory();
-
-      const appSubscription = supabase
-        .channel(`application_${id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'loan_applications', filter: `id=eq.${id}` }, () => {
-          fetchApplicationDetails();
-        })
-        .subscribe();
-
-      const queriesSubscription = supabase
-        .channel(`queries_${id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'queries', filter: `application_id=eq.${id}` }, () => {
-          fetchQueries();
-        })
-        .subscribe();
-
-      const historySubscription = supabase
-        .channel(`history_${id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'status_history', filter: `application_id=eq.${id}` }, () => {
-          fetchStatusHistory();
-        })
-        .subscribe();
-
-      return () => {
-        appSubscription.unsubscribe();
-        queriesSubscription.unsubscribe();
-        historySubscription.unsubscribe();
-      };
     }
   }, [id]);
 
   const fetchApplicationDetails = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('loan_applications')
-        .select(`
-          *,
-          client:dsa_clients(company_name, contact_person, email, phone),
-          loan_product:loan_products(name, code, description),
-          assigned_nbfc:nbfc_partners(name, contact_person),
-          assigned_credit_analyst_user:user_roles!loan_applications_assigned_credit_analyst_fkey(id)
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      setApplication(data);
+      const response = await apiService.getApplication(id!);
+      if (response.success && response.data) {
+        setApplication(response.data);
+      } else {
+        console.error('Error fetching application:', response.error);
+      }
     } catch (error) {
       console.error('Error fetching application:', error);
     } finally {
@@ -152,17 +117,15 @@ export const ApplicationDetail: React.FC = () => {
 
   const fetchQueries = async () => {
     try {
-      const { data, error } = await supabase
-        .from('queries')
-        .select(`
-          *,
-          raised_by_user:user_roles!queries_raised_by_fkey(role)
-        `)
-        .eq('application_id', id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setQueries(data || []);
+      // TODO: Implement via backend API - GET /loan-applications/:id/queries
+      const response = await apiService.getFileAuditLog(id!);
+      if (response.success && response.data) {
+        // Filter audit log entries that are queries
+        const queryEntries = response.data.filter((entry: any) => 
+          entry.actionEventType?.toLowerCase().includes('query')
+        );
+        setQueries(queryEntries);
+      }
     } catch (error) {
       console.error('Error fetching queries:', error);
     }
@@ -170,91 +133,69 @@ export const ApplicationDetail: React.FC = () => {
 
   const fetchStatusHistory = async () => {
     try {
-      const { data, error } = await supabase
-        .from('status_history')
-        .select('*')
-        .eq('application_id', id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setStatusHistory(data || []);
+      // TODO: Implement via backend API - GET /loan-applications/:id/status-history
+      const response = await apiService.getFileAuditLog(id!);
+      if (response.success && response.data) {
+        // Filter audit log entries that are status changes
+        const statusEntries = response.data.filter((entry: any) => 
+          entry.actionEventType?.toLowerCase().includes('status')
+        );
+        setStatusHistory(statusEntries);
+      }
     } catch (error) {
       console.error('Error fetching status history:', error);
     }
   };
 
   const handleRaiseQuery = async () => {
-    if (!queryMessage.trim()) return;
+    if (!queryMessage.trim() || !id) return;
 
     setSubmitting(true);
     try {
-      const targetRole = userRole === 'client' ? 'kam' :
-                        userRole === 'kam' ? 'credit_team' :
-                        userRole === 'credit_team' ? 'kam' : 'credit_team';
+      // Use API service to raise query
+      let response;
+      if (userRole === 'kam') {
+        response = await apiService.raiseQueryToClient(id, queryMessage);
+      } else if (userRole === 'credit_team') {
+        response = await apiService.raiseQueryToKAM(id, queryMessage);
+      } else {
+        // Client raising query - use generic query endpoint
+        response = await apiService.replyToQuery(id, '', queryMessage);
+      }
 
-      const { error } = await supabase
-        .from('queries')
-        .insert({
-          application_id: id,
-          raised_by: userRoleId,
-          raised_to_role: targetRole,
-          query_text: queryMessage,
-          status: 'open',
-        });
-
-      if (error) throw error;
-
-      await supabase.from('audit_logs').insert({
-        application_id: id,
-        user_id: userRoleId,
-        action_type: 'query_raised',
-        message: `Query raised to ${targetRole}`,
-        metadata: { query_text: queryMessage },
-        visible_to_roles: [userRole!, targetRole],
-      });
-
-      setShowQueryModal(false);
-      setQueryMessage('');
-      fetchQueries();
-    } catch (error) {
+      if (response.success) {
+        setShowQueryModal(false);
+        setQueryMessage('');
+        fetchQueries();
+      } else {
+        throw new Error(response.error || 'Failed to raise query');
+      }
+    } catch (error: any) {
       console.error('Error raising query:', error);
-      alert('Failed to raise query');
+      alert(error.message || 'Failed to raise query');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleRespondToQuery = async () => {
-    if (!selectedQuery || !responseMessage.trim()) return;
+    if (!selectedQuery || !responseMessage.trim() || !id) return;
 
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('queries')
-        .update({
-          response_text: responseMessage,
-          responded_by: userRoleId,
-          responded_at: new Date().toISOString(),
-          status: 'responded',
-        })
-        .eq('id', selectedQuery.id);
-
-      if (error) throw error;
-
-      await supabase.from('audit_logs').insert({
-        application_id: id,
-        user_id: userRoleId,
-        action_type: 'query_responded',
-        message: 'Query response provided',
-        metadata: { query_id: selectedQuery.id, response_text: responseMessage },
-      });
-
-      setSelectedQuery(null);
-      setResponseMessage('');
-      fetchQueries();
-    } catch (error) {
+      // Use API service to reply to query
+      const response = await apiService.replyToQuery(id, selectedQuery.id, responseMessage);
+      
+      if (response.success) {
+        setSelectedQuery(null);
+        setResponseMessage('');
+        fetchQueries();
+      } else {
+        throw new Error(response.error || 'Failed to respond to query');
+      }
+    } catch (error: any) {
       console.error('Error responding to query:', error);
-      alert('Failed to respond to query');
+      alert(error.message || 'Failed to respond to query');
     } finally {
       setSubmitting(false);
     }
@@ -262,24 +203,8 @@ export const ApplicationDetail: React.FC = () => {
 
   const handleResolveQuery = async (queryId: string) => {
     try {
-      const { error } = await supabase
-        .from('queries')
-        .update({
-          status: 'resolved',
-          resolved_at: new Date().toISOString(),
-        })
-        .eq('id', queryId);
-
-      if (error) throw error;
-
-      await supabase.from('audit_logs').insert({
-        application_id: id,
-        user_id: userRoleId,
-        action_type: 'query_resolved',
-        message: 'Query marked as resolved',
-        metadata: { query_id: queryId },
-      });
-
+      // TODO: Implement via backend API - POST /queries/:id/resolve
+      console.warn('Query resolution not yet implemented via API');
       fetchQueries();
     } catch (error) {
       console.error('Error resolving query:', error);
@@ -287,57 +212,45 @@ export const ApplicationDetail: React.FC = () => {
   };
 
   const handleUpdateStatus = async () => {
-    if (!newStatus) return;
+    if (!newStatus || !id) return;
 
     setSubmitting(true);
     try {
-      const { error: historyError } = await supabase
-        .from('status_history')
-        .insert({
-          application_id: id,
-          from_status: application.status,
-          to_status: newStatus,
-          changed_by: userRoleId,
-          notes: statusNotes || null,
-        });
-
-      if (historyError) throw historyError;
-
-      const updates: any = { status: newStatus, updated_at: new Date().toISOString() };
-
-      if (newStatus === 'pending_kam_review') {
-        updates.submitted_at = new Date().toISOString();
-      } else if (newStatus === 'forwarded_to_credit') {
-        updates.forwarded_to_credit_at = new Date().toISOString();
-      } else if (newStatus === 'sent_to_nbfc') {
-        updates.sent_to_nbfc_at = new Date().toISOString();
-      } else if (['approved', 'rejected', 'disbursed'].includes(newStatus)) {
-        updates.decision_at = new Date().toISOString();
+      // Use API service based on role and status
+      let response;
+      
+      if (userRole === 'kam' && newStatus === 'forwarded_to_credit') {
+        response = await apiService.forwardToCredit(id);
+      } else if (userRole === 'credit_team') {
+        if (newStatus === 'in_negotiation') {
+          response = await apiService.markInNegotiation(id);
+        } else if (newStatus === 'disbursed') {
+          // TODO: Need disbursed amount and date
+          response = await apiService.markDisbursed(id, {
+            disbursedAmount: '0', // TODO: Get from form
+            disbursedDate: new Date().toISOString(),
+          });
+        } else {
+          // Generic status update via edit
+          response = await apiService.editApplication(id, { status: newStatus });
+        }
+      } else {
+        // Generic edit for other cases
+        response = await apiService.editApplication(id, { status: newStatus });
       }
 
-      const { error } = await supabase
-        .from('loan_applications')
-        .update(updates)
-        .eq('id', id);
-
-      if (error) throw error;
-
-      await supabase.from('audit_logs').insert({
-        application_id: id,
-        user_id: userRoleId,
-        action_type: 'status_change',
-        message: `Status changed to ${newStatus}`,
-        metadata: { from_status: application.status, to_status: newStatus, notes: statusNotes },
-      });
-
-      setShowStatusModal(false);
-      setNewStatus('');
-      setStatusNotes('');
-      fetchApplicationDetails();
-      fetchStatusHistory();
-    } catch (error) {
+      if (response.success) {
+        setShowStatusModal(false);
+        setNewStatus('');
+        setStatusNotes('');
+        fetchApplicationDetails();
+        fetchStatusHistory();
+      } else {
+        throw new Error(response.error || 'Failed to update status');
+      }
+    } catch (error: any) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      alert(error.message || 'Failed to update status');
     } finally {
       setSubmitting(false);
     }

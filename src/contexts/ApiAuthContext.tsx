@@ -1,6 +1,6 @@
 /**
  * API-based Authentication Context
- * Replaces Supabase auth with backend API auth
+ * Handles authentication via backend API (Airtable-based)
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';

@@ -135,9 +135,12 @@ export const FormConfiguration: React.FC = () => {
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string>('');
+  const [selectedProduct, setSelectedProduct] = useState<string>(''); // Module 1: Loan product selection
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   // Fetch clients using API service (same as Clients page)
   const [clients, setClients] = useState<any[]>([]);
@@ -178,6 +181,30 @@ export const FormConfiguration: React.FC = () => {
 
     fetchClients();
   }, [userRole, userRoleId]);
+
+  // Module 1: Fetch loan products
+  useEffect(() => {
+    const fetchLoanProducts = async () => {
+      try {
+        setLoadingProducts(true);
+        const response = await apiService.listLoanProducts(true); // activeOnly = true
+        
+        if (response.success && response.data) {
+          const products = response.data.map((product: any) => ({
+            id: product.productId || product.id,
+            name: product.productName || product['Product Name'] || product.name,
+          }));
+          setLoanProducts(products);
+        }
+      } catch (error) {
+        console.error('Error fetching loan products:', error);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    fetchLoanProducts();
+  }, []);
 
   // Filter clients for KAM (only managed clients) - API already filters, but we use all returned clients
   const managedClients = React.useMemo(() => {
@@ -241,6 +268,7 @@ export const FormConfiguration: React.FC = () => {
       const modulesArray = Array.from(selectedModules);
       const response = await apiService.createFormMapping(selectedClient, {
         modules: modulesArray,
+        productId: selectedProduct || undefined, // Module 1: Include productId if selected
       });
 
       if (!response.success) {
@@ -260,6 +288,7 @@ export const FormConfiguration: React.FC = () => {
       setTimeout(() => {
         setSelectedModules(new Set());
         setSelectedClient('');
+        setSelectedProduct(''); // Module 1: Reset product selection
         setSuccessMessage(null);
       }, 3000);
     } catch (error: any) {
@@ -293,7 +322,7 @@ export const FormConfiguration: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-neutral-600 mb-4">
-              Create custom forms for clients by selecting modules. All fields within selected modules will be automatically included. The configured form will be automatically available to the client when they create a new loan application from their dashboard.
+              Create custom forms for clients by selecting a loan product and modules. All fields within selected modules will be automatically included. The configured form will be automatically available to the client when they create a new loan application from their dashboard.
             </p>
 
             {/* Client Selection */}
@@ -342,6 +371,33 @@ export const FormConfiguration: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {/* Module 1: Loan Product Selection */}
+            {selectedClient && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-neutral-900 mb-2">
+                  Select Loan Product (Optional)
+                </label>
+                <p className="text-xs text-neutral-500 mb-2">
+                  If selected, this form configuration will only apply to applications for this specific loan product. Leave empty to apply to all products.
+                </p>
+                {loadingProducts ? (
+                  <div className="text-sm text-neutral-500 py-2">Loading loan products...</div>
+                ) : (
+                  <Select
+                    value={selectedProduct}
+                    onChange={(e) => setSelectedProduct(e.target.value)}
+                    options={[
+                      { value: '', label: '-- All Products (Default) --' },
+                      ...loanProducts.map((product) => ({
+                        value: product.id,
+                        label: product.name,
+                      })),
+                    ]}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Module Selection */}
             {selectedClient && (

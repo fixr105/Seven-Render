@@ -8,7 +8,7 @@ import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, User, Mai
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
-import { supabase } from '../lib/supabase';
+import { apiService } from '../services/api';
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -36,33 +36,16 @@ export const Profile: React.FC = () => {
   }, [userRoleId]);
 
   const fetchProfileData = async () => {
-    if (!userRoleId) return;
+    if (!user) return;
 
     try {
-      if (userRole === 'client') {
-        const { data } = await supabase
-          .from('dsa_clients')
-          .select('company_name, contact_person, email, phone')
-          .eq('user_id', userRoleId)
-          .maybeSingle();
-
-        if (data) {
-          setProfileData({
-            name: data.contact_person || '',
-            email: data.email || user?.email || '',
-            phone: data.phone || '',
-            company: data.company_name || '',
-          });
-        }
-      } else {
-        // For other roles, fetch from user metadata or other sources
-        setProfileData({
-          name: user?.user_metadata?.name || '',
-          email: user?.email || '',
-          phone: user?.user_metadata?.phone || '',
-          company: '',
-        });
-      }
+      // Profile data comes from the user context
+      setProfileData({
+        name: user.name || '',
+        email: user.email || '',
+        phone: '', // TODO: Fetch from backend API if available
+        company: '', // TODO: Fetch from backend API if available
+      });
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
@@ -71,30 +54,9 @@ export const Profile: React.FC = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
-      if (userRole === 'client' && userRoleId) {
-        const { error } = await supabase
-          .from('dsa_clients')
-          .update({
-            contact_person: profileData.name,
-            phone: profileData.phone,
-            company_name: profileData.company,
-          })
-          .eq('user_id', userRoleId);
-
-        if (error) throw error;
-      }
-
-      // Update user metadata
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          name: profileData.name,
-          phone: profileData.phone,
-        },
-      });
-
-      if (updateError) throw updateError;
-
-      alert('Profile updated successfully!');
+      // TODO: Implement profile update via backend API
+      // For now, just show a message
+      alert('Profile update functionality will be implemented via backend API');
     } catch (error: any) {
       console.error('Error updating profile:', error);
       alert(`Failed to update profile: ${error.message}`);

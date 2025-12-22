@@ -20,6 +20,7 @@ import notificationsRoutes from './notifications.routes.js';
 import productsRoutes from './products.routes.js';
 import usersRoutes from './users.routes.js';
 import publicRoutes from './public.routes.js';
+import documentsRoutes from './documents.routes.js';
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.use('/', usersRoutes); // Users routes (kam-users, user-accounts)
 router.use('/', auditRoutes); // Audit routes (mounted at root for /loan-applications/:id/audit-log)
 router.use('/', aiRoutes); // AI routes (mounted at root for /loan-applications/:id/summary)
 router.use('/public', publicRoutes); // Public routes (form links, etc.)
+router.use('/documents', documentsRoutes); // Module 2: Document upload routes (OneDrive)
 
 export default router;
 
