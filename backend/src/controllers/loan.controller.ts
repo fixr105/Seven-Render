@@ -302,12 +302,22 @@ export class LoanController {
       // Apply role-based filtering
       let filteredApplications = applications;
       
-      if (user.role === 'client' && user.clientId) {
-        // Clients only see their own applications
-        console.log(`[LoanController] Filtering applications for client: ${user.email}, clientId: ${user.clientId}`);
-        filteredApplications = filteredApplications.filter(
-          (app: any) => (app.Client === user.clientId || app['Client'] === user.clientId)
-        );
+      if (user.role === 'client') {
+        if (!user.clientId) {
+          console.warn(`[LoanController] Client ${user.email} has no clientId set. Cannot filter applications.`);
+          // Return empty array if clientId is missing
+          filteredApplications = [];
+        } else {
+          // Clients only see their own applications
+          console.log(`[LoanController] Filtering applications for client: ${user.email}, clientId: ${user.clientId}`);
+          // Try multiple field name variations and convert to string for comparison
+          const clientIdStr = String(user.clientId);
+          filteredApplications = filteredApplications.filter((app: any) => {
+            const appClient = app.Client || app['Client'] || app.clientId || app['Client ID'];
+            return appClient && (String(appClient) === clientIdStr || appClient === user.clientId);
+          });
+          console.log(`[LoanController] Found ${filteredApplications.length} applications for client ${user.clientId}`);
+        }
       } else if (user.role === 'kam' && user.kamId) {
         // KAMs see applications from their managed clients
         // Get all clients managed by this KAM
@@ -436,7 +446,11 @@ export class LoanController {
       // Check access permissions
       const filtered = dataFilterService.filterLoanApplications([application], req.user!);
       if (filtered.length === 0) {
-        res.status(403).json({ success: false, error: 'Access denied' });
+        console.log(`[LoanController] Access denied for application ${id}. User: ${req.user!.email}, Role: ${req.user!.role}, clientId: ${req.user!.clientId}, Application Client: ${application.Client || application['Client']}`);
+        res.status(403).json({ 
+          success: false, 
+          error: 'Access denied. You do not have permission to view this application.' 
+        });
         return;
       }
 
@@ -468,6 +482,7 @@ export class LoanController {
       const { id, queryId } = req.params;
       const { resolutionMessage } = req.body;
 
+      // Step 1: Fetch applications and find the specific one
       const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
@@ -476,7 +491,8 @@ export class LoanController {
         return;
       }
 
-      // Check access permissions - only KAM, Credit Team, or Client (for their own queries) can resolve
+      // Step 2: Check access permissions BEFORE fetching audit logs
+      // Only KAM, Credit Team, or Client (for their own queries) can resolve
       const filtered = dataFilterService.filterLoanApplications([application], req.user!);
       if (filtered.length === 0) {
         res.status(403).json({ success: false, error: 'Access denied' });
@@ -521,29 +537,60 @@ export class LoanController {
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Fetch only the tables we need
-      // All records are automatically parsed by fetchTable() using N8nResponseParser
-      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const [applications, auditLogs] = await Promise.all([
-        n8nClient.fetchTable('Loan Application'),
-        n8nClient.fetchTable('File Auditing Log'),
-      ]);
+      
+      // Step 1: Fetch only applications first (cached, so minimal cost)
+      const applications = await n8nClient.fetchTable('Loan Application');
 
+      // Step 2: Try to find application by multiple ID formats
+      // First try exact match on id (Airtable record ID)
       let application = applications.find((app) => app.id === id);
+      
+      // If not found, try File ID (in case frontend is using File ID instead of record ID)
+      if (!application) {
+        application = applications.find((app) => 
+          app['File ID'] === id || 
+          String(app['File ID']) === String(id)
+        );
+      }
+      
+      // If still not found, try case-insensitive match
+      if (!application) {
+        application = applications.find((app) => 
+          String(app.id).toLowerCase() === String(id).toLowerCase() ||
+          String(app['File ID'] || '').toLowerCase() === String(id).toLowerCase()
+        );
+      }
 
       if (!application) {
-        res.status(404).json({ success: false, error: 'Application not found' });
+        const sampleIds = applications.slice(0, 5).map(a => ({
+          id: a.id,
+          fileId: a['File ID']
+        }));
+        console.log(`[LoanController] Application not found with id: ${id}`);
+        console.log(`[LoanController] Sample application IDs:`, sampleIds);
+        res.status(404).json({ 
+          success: false, 
+          error: `Application not found with ID: ${id}. Please check the application ID and try again.` 
+        });
         return;
       }
+      
+      console.log(`[LoanController] Found application: id=${application.id}, File ID=${application['File ID']}, Client=${application.Client || application['Client']}`);
 
-      // Check access permissions
+      // Step 3: Check access permissions BEFORE fetching audit logs
       const filtered = dataFilterService.filterLoanApplications([application], req.user!);
       if (filtered.length === 0) {
-        res.status(403).json({ success: false, error: 'Access denied' });
+        console.log(`[LoanController] Access denied for application ${id}. User: ${req.user!.email}, Role: ${req.user!.role}, clientId: ${req.user!.clientId}, Application Client: ${application.Client || application['Client']}`);
+        res.status(403).json({ 
+          success: false, 
+          error: 'Access denied. You do not have permission to view this application.' 
+        });
         return;
       }
 
-      // Get audit log for this file
+      // Step 4: Only fetch audit logs if we found the application and have access
+      // Filter to only logs for this specific file ID to minimize data transfer
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
       const fileAuditLog = auditLogs
         .filter((log) => log.File === application!['File ID'])
         .map((log) => ({
@@ -577,9 +624,12 @@ export class LoanController {
         });
       }
 
+      // Ensure id is included in response (use Airtable record ID)
       res.json({
         success: true,
         data: {
+          id: application.id, // Airtable record ID (e.g., recCHVlPoZQYfeKlG)
+          fileId: application['File ID'] || application.id, // File ID for display
           ...application,
           formData: application['Form Data'] ? JSON.parse(application['Form Data']) : {},
           documents, // Parsed documents array

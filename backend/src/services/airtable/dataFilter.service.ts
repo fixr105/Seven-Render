@@ -24,12 +24,20 @@ export class DataFilterService {
       case UserRole.CLIENT:
         // Clients only see their own applications
         // Match by Client ID (from Clients table, not User Account ID)
+        if (!user.clientId) {
+          console.warn(`[DataFilter] Client ${user.email} has no clientId set. Cannot filter applications.`);
+          return [];
+        }
         const filtered = applications.filter((app) => {
-          const matches = app.Client === user.clientId || 
-                         app.Client === user.clientId?.toString() ||
-                         user.clientId === app.Client?.toString();
+          const appClient = app.Client || app['Client'] || app.clientId || app['Client ID'];
+          const clientIdStr = String(user.clientId);
+          const matches = appClient && (
+            String(appClient) === clientIdStr || 
+            appClient === user.clientId ||
+            String(appClient) === String(user.clientId)
+          );
           if (!matches && user.clientId) {
-            console.log(`[DataFilter] Application ${app['File ID']} Client="${app.Client}" does not match user clientId="${user.clientId}"`);
+            console.log(`[DataFilter] Application ${app['File ID'] || app.id} Client="${appClient}" does not match user clientId="${user.clientId}"`);
           }
           return matches;
         });

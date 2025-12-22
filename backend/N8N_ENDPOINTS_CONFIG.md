@@ -148,3 +148,4 @@ const tableId = AIRTABLE_TABLE_IDS.LOAN_APPLICATIONS; // 'tblN8oQ5sT0vX3yZ6'
 
 All paths in this configuration match exactly with SEVEN-DASHBOARD-2.json. Any changes to n8n webhook paths should be updated in `n8nEndpoints.ts` to maintain consistency across the codebase.
 
+

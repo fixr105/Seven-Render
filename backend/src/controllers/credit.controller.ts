@@ -168,14 +168,9 @@ export class CreditController {
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Fetch only the tables we need
-      // All records are automatically parsed by fetchTable() using N8nResponseParser
-      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const [applications, auditLogs] = await Promise.all([
-        n8nClient.fetchTable('Loan Application'),
-        n8nClient.fetchTable('File Auditing Log'),
-      ]);
-
+      
+      // Step 1: Fetch applications first and find the specific one
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -183,7 +178,9 @@ export class CreditController {
         return;
       }
 
-      // Get audit log
+      // Step 2: Only fetch audit logs if we found the application
+      // Filter to only logs for this specific file ID
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
       const fileAuditLog = auditLogs
         .filter((log) => log.File === application['File ID'])
         .map((log) => ({

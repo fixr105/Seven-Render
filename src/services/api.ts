@@ -226,6 +226,10 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
+    // Always reload token from localStorage before each request
+    // This ensures we have the latest token even if it was updated elsewhere
+    this.loadToken();
+    
     const url = `${this.baseUrl}${endpoint}`;
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -235,6 +239,13 @@ class ApiService {
     // Add auth token if available
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
+      // Debug logging in development
+      if (import.meta.env.DEV) {
+        console.log(`[ApiService] Sending request to ${endpoint} with token: ${this.token.substring(0, 20)}...`);
+      }
+    } else {
+      console.warn(`[ApiService] No token available for request to ${endpoint}. User may need to login.`);
+      console.warn(`[ApiService] localStorage.getItem('auth_token'):`, localStorage.getItem('auth_token'));
     }
 
     try {

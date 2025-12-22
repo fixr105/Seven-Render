@@ -389,9 +389,10 @@ export const FormConfiguration: React.FC = () => {
                     onChange={(e) => setSelectedProduct(e.target.value)}
                     options={[
                       { value: '', label: '-- All Products (Default) --' },
-                      ...loanProducts.map((product) => ({
-                        value: product.id,
-                        label: product.name,
+                      ...loanProducts.map((product, index) => ({
+                        value: product.id || `product-${index}`,
+                        label: product.name || 'Unnamed Product',
+                        key: product.id || `product-${index}`, // Ensure unique key
                       })),
                     ]}
                   />

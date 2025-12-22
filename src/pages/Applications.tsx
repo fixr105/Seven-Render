@@ -101,8 +101,8 @@ export const Applications: React.FC = () => {
         : 'N/A';
     
     return {
-      id: app.id, // Use database UUID for navigation
-      fileNumber: app.file_number || (app as any).file_number || app.id, // For display
+      id: app.id || (app as any).id, // Use Airtable record ID for navigation (e.g., recCHVlPoZQYfeKlG)
+      fileNumber: app.file_number || (app as any).file_number || (app as any).fileId || app.id, // For display
       clientName: String(clientName),
       applicantName: String(applicantName),
       loanType: String(loanType),
@@ -261,10 +261,10 @@ export const Applications: React.FC = () => {
               variant="secondary" 
               icon={RefreshCw} 
               onClick={refetch}
-              disabled={loading || syncing}
-              className={loading || syncing ? 'opacity-50 cursor-not-allowed' : ''}
+              disabled={loading}
+              className={loading ? 'opacity-50 cursor-not-allowed' : ''}
             >
-              {syncing ? 'Syncing...' : 'Refresh'}
+              {loading ? 'Loading...' : 'Refresh'}
             </Button>
             <Button variant="primary" icon={Plus} onClick={() => navigate('/applications/new')}>
               New Application
@@ -336,6 +336,7 @@ export const Applications: React.FC = () => {
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={handleSort}
+            onRowClick={(row) => navigate(`/applications/${row.id}`)}
           />
           )}
         </CardContent>

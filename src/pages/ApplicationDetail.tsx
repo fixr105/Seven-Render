@@ -13,7 +13,8 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
 
-const getStatusVariant = (status: string): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
+const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
+  if (!status) return 'neutral';
   const statusLower = status.toLowerCase();
   if (['approved', 'disbursed'].includes(statusLower)) return 'success';
   if (['kam_query_raised', 'pending_kam_review', 'credit_query_raised'].includes(statusLower)) return 'warning';
@@ -22,7 +23,8 @@ const getStatusVariant = (status: string): 'success' | 'warning' | 'error' | 'in
   return 'neutral';
 };
 
-const formatStatus = (status: string): string => {
+const formatStatus = (status: string | undefined | null): string => {
+  if (!status) return 'Unknown';
   return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
@@ -108,16 +110,49 @@ export const ApplicationDetail: React.FC = () => {
   const fetchApplicationDetails = async () => {
     try {
       setLoading(true);
+      console.log(`[ApplicationDetail] Fetching application with ID: ${id}`);
+      
+      // Check if user has a token
+      const token = apiService.getToken();
+      if (!token) {
+        console.error('[ApplicationDetail] No authentication token found. Redirecting to login...');
+        // Redirect to login if no token
+        navigate('/login');
+        return;
+      }
+      
       const response = await apiService.getApplication(id!);
+      console.log(`[ApplicationDetail] Response:`, { success: response.success, hasData: !!response.data, error: response.error });
+      
       if (response.success && response.data) {
+        console.log(`[ApplicationDetail] Application found:`, { id: response.data.id, fileId: response.data.fileId });
         setApplication(response.data);
         // Set AI summary if available
         setAiSummary(response.data.aiFileSummary || response.data['AI File Summary'] || null);
       } else {
-        console.error('Error fetching application:', response.error);
+        console.error(`[ApplicationDetail] Error fetching application ${id}:`, response.error);
+        // Check if it's an authentication error
+        if (response.error?.includes('No token') || response.error?.includes('401') || response.error?.includes('Authentication')) {
+          console.error('[ApplicationDetail] Authentication failed. Redirecting to login...');
+          navigate('/login');
+          return;
+        }
+        // Check if it's an access denied error
+        if (response.error?.includes('Access denied') || response.error?.includes('403')) {
+          console.error('[ApplicationDetail] Access denied - you may not have permission to view this application');
+        }
+        // Set application to null to show "not found" message
+        setApplication(null);
       }
-    } catch (error) {
-      console.error('Error fetching application:', error);
+    } catch (error: any) {
+      console.error(`[ApplicationDetail] Exception fetching application ${id}:`, error);
+      // Check if it's an authentication error
+      if (error.message?.includes('No token') || error.message?.includes('401')) {
+        navigate('/login');
+        return;
+      }
+      // Set application to null to show "not found" message
+      setApplication(null);
     } finally {
       setLoading(false);
     }
@@ -340,7 +375,7 @@ export const ApplicationDetail: React.FC = () => {
     );
   }
 
-  if (!application) {
+  if (!application && !loading) {
     return (
       <MainLayout
         sidebarItems={sidebarItems}
@@ -353,7 +388,58 @@ export const ApplicationDetail: React.FC = () => {
       >
         <Card>
           <CardContent>
-            <p className="text-center text-neutral-600">Application not found</p>
+            <div className="text-center py-8">
+              <p className="text-neutral-600 mb-2">Application not found or access denied</p>
+              <p className="text-sm text-neutral-500 mb-4">
+                The application may not exist, or you may not have permission to view it.
+              </p>
+              <Button variant="secondary" onClick={() => navigate('/applications')}>
+                Back to Applications
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </MainLayout>
+    );
+  }
+
+  // Show loading state
+  if (loading) {
+    return (
+      <MainLayout
+        sidebarItems={sidebarItems}
+        activeItem={activeItem}
+        onItemClick={handleNavigation}
+        pageTitle="Loading Application..."
+        userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+        userName="User"
+        notificationCount={unreadCount}
+      >
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full"></div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Show not found state
+  if (!application) {
+    return (
+      <MainLayout
+        sidebarItems={sidebarItems}
+        activeItem={activeItem}
+        onItemClick={handleNavigation}
+        pageTitle="Application Not Found"
+        userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+        userName="User"
+        notificationCount={unreadCount}
+      >
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-neutral-500 mb-4">Application not found or access denied.</p>
+            <Button variant="secondary" onClick={() => navigate('/applications')}>
+              Back to Applications
+            </Button>
           </CardContent>
         </Card>
       </MainLayout>
@@ -365,7 +451,7 @@ export const ApplicationDetail: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle={`Application ${application.file_number}`}
+      pageTitle={`Application ${application.file_number || application.fileId || id}`}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName="User"
       notificationCount={unreadCount}
@@ -395,8 +481,8 @@ export const ApplicationDetail: React.FC = () => {
             <CardHeader className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle>Application Details</CardTitle>
-                <Badge variant={getStatusVariant(application.status)}>
-                  {formatStatus(application.status)}
+                <Badge variant={getStatusVariant(application?.status)}>
+                  {formatStatus(application?.status)}
                 </Badge>
               </div>
             </CardHeader>
@@ -709,7 +795,7 @@ export const ApplicationDetail: React.FC = () => {
           </Card>
 
           {/* NBFC Decision Section */}
-          {userRole === 'nbfc' && (application.status === 'sent_to_nbfc' || application.status === 'Sent to NBFC') && (
+          {userRole === 'nbfc' && (application?.status === 'sent_to_nbfc' || application?.status === 'Sent to NBFC') && (
             <Card>
               <CardHeader>
                 <CardTitle>Record Decision</CardTitle>
@@ -984,8 +1070,8 @@ export const ApplicationDetail: React.FC = () => {
             <div className="bg-neutral-50 p-3 rounded">
               <p className="text-sm text-neutral-700">
                 <span className="font-medium">Current Status:</span>{' '}
-                <Badge variant={getStatusVariant(application.status)}>
-                  {formatStatus(application.status)}
+                <Badge variant={getStatusVariant(application?.status)}>
+                  {formatStatus(application?.status)}
                 </Badge>
               </p>
             </div>

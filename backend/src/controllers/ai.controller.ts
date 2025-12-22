@@ -30,12 +30,8 @@ export class AIController {
     try {
       const { id } = req.params;
       
-      // Fetch application and related data
-      const [applications, clients] = await Promise.all([
-        n8nClient.fetchTable('Loan Application'),
-        n8nClient.fetchTable('Clients'),
-      ]);
-
+      // Step 1: Fetch applications first and find the specific one
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -43,12 +39,15 @@ export class AIController {
         return;
       }
 
-      // Check access
+      // Step 2: Check access BEFORE fetching clients
       const filtered = dataFilterService.filterLoanApplications([application], req.user!);
       if (filtered.length === 0) {
         res.status(403).json({ success: false, error: 'Access denied' });
         return;
       }
+
+      // Step 3: Only fetch clients if we have access and need them for the summary
+      const clients = await n8nClient.fetchTable('Clients');
 
       // Parse form data
       const formData = application['Form Data'] 
