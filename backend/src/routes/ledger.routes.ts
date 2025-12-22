@@ -15,6 +15,7 @@ router.use(requireClient);
 router.get('/me/ledger', ledgerController.getClientLedger.bind(ledgerController));
 router.get('/me/ledger/:ledgerEntryId', ledgerController.getLedgerEntry.bind(ledgerController));
 router.post('/me/ledger/:ledgerEntryId/query', ledgerController.createLedgerQuery.bind(ledgerController));
+router.post('/me/ledger/:ledgerEntryId/flag-payout', ledgerController.flagLedgerPayout.bind(ledgerController));
 router.post('/me/payout-requests', ledgerController.createPayoutRequest.bind(ledgerController));
 router.get('/me/payout-requests', ledgerController.getPayoutRequests.bind(ledgerController));
 

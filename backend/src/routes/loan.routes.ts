@@ -22,6 +22,10 @@ router.post('/:id/withdraw', requireClient, loanController.withdrawApplication.b
 router.get('/', loanController.listApplications.bind(loanController));
 router.get('/:id', loanController.getApplication.bind(loanController));
 
+// Queries - all authenticated users (filtered by role)
+router.get('/:id/queries', loanController.getQueries.bind(loanController));
+router.post('/:id/queries/:queryId/resolve', loanController.resolveQuery.bind(loanController));
+
 // Query reply - CLIENT only (for replying to KAM/Credit queries)
 router.post('/:id/queries/:queryId/reply', requireClient, clientController.respondToQuery.bind(clientController));
 

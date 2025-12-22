@@ -1,7 +1,18 @@
 /**
  * Individual Webhook Configuration for Backend
  * Each table has its own dedicated GET webhook URL
+ * 
+ * These GET webhooks map to n8n workflow paths from SEVEN-DASHBOARD-2.json
+ * POST webhooks are configured in airtable.ts
+ * 
+ * @deprecated This file is maintained for backward compatibility.
+ * New code should use n8nEndpoints from backend/src/services/airtable/n8nEndpoints.ts
+ * 
+ * See WEBHOOK_MAPPING_TABLE.md for complete frontend → backend → webhook → Airtable mapping
+ * See n8nEndpoints.ts for centralized endpoint configuration
  */
+
+import { n8nEndpoints, AIRTABLE_TABLE_NAMES } from '../services/airtable/n8nEndpoints.js';
 
 export interface WebhookTableConfig {
   url: string;
@@ -9,65 +20,65 @@ export interface WebhookTableConfig {
 }
 
 export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
-  'Admin Activity Log': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/Adminactivity',
-    tableName: 'Admin Activity Log',
+  [AIRTABLE_TABLE_NAMES.ADMIN_ACTIVITY_LOG]: {
+    url: n8nEndpoints.get.adminActivity,
+    tableName: AIRTABLE_TABLE_NAMES.ADMIN_ACTIVITY_LOG,
   },
-  'Client Form Mapping': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/clientformmapping',
-    tableName: 'Client Form Mapping',
+  [AIRTABLE_TABLE_NAMES.CLIENT_FORM_MAPPING]: {
+    url: n8nEndpoints.get.clientFormMapping,
+    tableName: AIRTABLE_TABLE_NAMES.CLIENT_FORM_MAPPING,
   },
-  'Clients': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/client',
-    tableName: 'Clients',
+  [AIRTABLE_TABLE_NAMES.CLIENTS]: {
+    url: n8nEndpoints.get.client,
+    tableName: AIRTABLE_TABLE_NAMES.CLIENTS,
   },
-  'Commission Ledger': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/commisionledger',
-    tableName: 'Commission Ledger',
+  [AIRTABLE_TABLE_NAMES.COMMISSION_LEDGER]: {
+    url: n8nEndpoints.get.commissionLedger,
+    tableName: AIRTABLE_TABLE_NAMES.COMMISSION_LEDGER,
   },
-  'Credit Team Users': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/creditteamuser',
-    tableName: 'Credit Team Users',
+  [AIRTABLE_TABLE_NAMES.CREDIT_TEAM_USERS]: {
+    url: n8nEndpoints.get.creditTeamUser,
+    tableName: AIRTABLE_TABLE_NAMES.CREDIT_TEAM_USERS,
   },
-  'Daily Summary Report': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/dailysummaryreport',
-    tableName: 'Daily Summary Report',
+  [AIRTABLE_TABLE_NAMES.DAILY_SUMMARY_REPORTS]: {
+    url: n8nEndpoints.get.dailySummaryReport,
+    tableName: AIRTABLE_TABLE_NAMES.DAILY_SUMMARY_REPORTS,
   },
-  'File Auditing Log': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/fileauditinglog',
-    tableName: 'File Auditing Log',
+  [AIRTABLE_TABLE_NAMES.FILE_AUDITING_LOG]: {
+    url: n8nEndpoints.get.fileAuditingLog,
+    tableName: AIRTABLE_TABLE_NAMES.FILE_AUDITING_LOG,
   },
-  'Form Categories': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/formcategories',
-    tableName: 'Form Categories',
+  [AIRTABLE_TABLE_NAMES.FORM_CATEGORIES]: {
+    url: n8nEndpoints.get.formCategories,
+    tableName: AIRTABLE_TABLE_NAMES.FORM_CATEGORIES,
   },
-  'Form Fields': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/formfields',
-    tableName: 'Form Fields',
+  [AIRTABLE_TABLE_NAMES.FORM_FIELDS]: {
+    url: n8nEndpoints.get.formFields,
+    tableName: AIRTABLE_TABLE_NAMES.FORM_FIELDS,
   },
-  'KAM Users': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/kamusers',
-    tableName: 'KAM Users',
+  [AIRTABLE_TABLE_NAMES.KAM_USERS]: {
+    url: n8nEndpoints.get.kamUsers,
+    tableName: AIRTABLE_TABLE_NAMES.KAM_USERS,
   },
-  'Loan Application': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/loanapplication',
-    tableName: 'Loan Application',
+  [AIRTABLE_TABLE_NAMES.LOAN_APPLICATIONS]: {
+    url: n8nEndpoints.get.loanApplication,
+    tableName: AIRTABLE_TABLE_NAMES.LOAN_APPLICATIONS,
   },
-  'Loan Products': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/loanproducts',
-    tableName: 'Loan Products',
+  [AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS]: {
+    url: n8nEndpoints.get.loanProducts,
+    tableName: AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS,
   },
-  'NBFC Partners': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/nbfcpartners',
-    tableName: 'NBFC Partners',
+  [AIRTABLE_TABLE_NAMES.NBFC_PARTNERS]: {
+    url: n8nEndpoints.get.nbfcPartners,
+    tableName: AIRTABLE_TABLE_NAMES.NBFC_PARTNERS,
   },
-  'Notifications': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/notifications',
-    tableName: 'Notifications',
+  [AIRTABLE_TABLE_NAMES.NOTIFICATIONS]: {
+    url: n8nEndpoints.get.notifications,
+    tableName: AIRTABLE_TABLE_NAMES.NOTIFICATIONS,
   },
-  'User Accounts': {
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/useraccount',
-    tableName: 'User Accounts',
+  [AIRTABLE_TABLE_NAMES.USER_ACCOUNTS]: {
+    url: n8nEndpoints.get.userAccount,
+    tableName: AIRTABLE_TABLE_NAMES.USER_ACCOUNTS,
   },
 };
 

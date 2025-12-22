@@ -1,6 +1,9 @@
 /**
  * n8n Webhook Client
  * Handles GET and POST requests to n8n webhooks
+ * 
+ * GET webhooks use "Search records" nodes in n8n workflow
+ * These return Airtable records in various formats that need parsing
  */
 
 import fetch from 'node-fetch';
@@ -8,22 +11,256 @@ import { n8nConfig } from '../../config/airtable.js';
 import { N8nGetResponse, UserAccount } from '../../types/entities.js';
 import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';
 import { cacheService } from './cache.service.js';
+import { n8nEndpoints, getTableToGetWebhookPath } from './n8nEndpoints.js';
+
+/**
+ * Type definitions for n8n webhook responses
+ */
+
+/**
+ * Airtable record format (with fields property)
+ * Format: { id, createdTime, fields: { Field1: value1, ... } }
+ */
+interface AirtableRecordFormat {
+  id: string;
+  createdTime?: string;
+  fields: Record<string, any>;
+}
+
+/**
+ * Flattened record format (fields directly on object)
+ * Format: { id, createdTime, Field1: value1, Field2: value2, ... }
+ */
+interface FlattenedRecordFormat {
+  id: string;
+  createdTime?: string;
+  [key: string]: any;
+}
+
+/**
+ * n8n webhook response can be:
+ * - Array of records (Airtable or flattened format)
+ * - Single record object
+ * - Object with nested arrays
+ */
+type N8nWebhookResponse = 
+  | AirtableRecordFormat[]
+  | FlattenedRecordFormat[]
+  | AirtableRecordFormat
+  | FlattenedRecordFormat
+  | { records?: AirtableRecordFormat[] | FlattenedRecordFormat[] }
+  | { data?: AirtableRecordFormat[] | FlattenedRecordFormat[] }
+  | Record<string, AirtableRecordFormat[] | FlattenedRecordFormat[]>;
+
+/**
+ * Parsed record - normalized to flattened format with clean field names
+ * 
+ * All records from n8n GET webhooks are normalized to this format:
+ * - Fields are directly on the object (not nested in 'fields' property)
+ * - Field names match Airtable column names exactly
+ * - id and createdTime are always present
+ * 
+ * Example:
+ * {
+ *   id: "rec123",
+ *   createdTime: "2025-01-01T00:00:00.000Z",
+ *   "File ID": "SF20250101001",
+ *   "Client": "CL001",
+ *   "Status": "pending_kam_review",
+ *   ...
+ * }
+ */
+export interface ParsedRecord {
+  id: string;
+  createdTime?: string;
+  [key: string]: any;
+}
+
+/**
+ * Type-safe parser for n8n GET webhook responses
+ * Handles both Airtable format (with fields property) and flattened format
+ */
+class N8nResponseParser {
+  /**
+   * Check if record is in Airtable format (has fields property)
+   */
+  private isAirtableFormat(record: any): record is AirtableRecordFormat {
+    return (
+      typeof record === 'object' &&
+      record !== null &&
+      'id' in record &&
+      'fields' in record &&
+      typeof record.fields === 'object' &&
+      record.fields !== null
+    );
+  }
+
+  /**
+   * Check if record is in flattened format (fields directly on object)
+   */
+  private isFlattenedFormat(record: any): record is FlattenedRecordFormat {
+    return (
+      typeof record === 'object' &&
+      record !== null &&
+      'id' in record &&
+      !('fields' in record) &&
+      Object.keys(record).length > 1 // Has more than just id
+    );
+  }
+
+  /**
+   * Normalize a record to flattened format
+   * Converts Airtable format to flattened format
+   */
+  private normalizeRecord(record: any): ParsedRecord | null {
+    if (!record || typeof record !== 'object' || !('id' in record)) {
+      return null;
+    }
+
+    // Skip records with only id and createdTime (empty records)
+    const keys = Object.keys(record).filter(k => k !== 'id' && k !== 'createdTime');
+    if (keys.length === 0) {
+      return null;
+    }
+
+    // Handle Airtable format: { id, createdTime, fields: {...} }
+    if (this.isAirtableFormat(record)) {
+      return {
+        id: record.id,
+        createdTime: record.createdTime,
+        ...record.fields, // Spread fields to flatten
+      };
+    }
+
+    // Handle flattened format: { id, createdTime, Field1: value1, ... }
+    if (this.isFlattenedFormat(record)) {
+      return {
+        id: record.id,
+        createdTime: record.createdTime,
+        ...Object.fromEntries(
+          Object.entries(record).filter(([key]) => key !== 'id' && key !== 'createdTime')
+        ),
+      };
+    }
+
+    // Unknown format, try to return as-is
+    return record as ParsedRecord;
+  }
+
+  /**
+   * Parse n8n webhook response and return array of normalized records
+   * 
+   * @param response - Raw response from n8n webhook
+   * @returns Array of parsed records in flattened format
+   */
+  parse(response: N8nWebhookResponse): ParsedRecord[] {
+    // Handle array of records
+    if (Array.isArray(response)) {
+      const parsed = response
+        .map(record => this.normalizeRecord(record))
+        .filter((record): record is ParsedRecord => record !== null);
+      
+      if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+        console.log(`[N8nResponseParser] Parsed ${parsed.length} records from array response`);
+      }
+      return parsed;
+    }
+
+    // Handle object with records/data property
+    if (typeof response === 'object' && response !== null) {
+      const responseObj = response as Record<string, any>;
+      
+      // Check for records property
+      if ('records' in responseObj && Array.isArray(responseObj.records)) {
+        const parsed = responseObj.records
+          .map(record => this.normalizeRecord(record))
+          .filter((record): record is ParsedRecord => record !== null);
+        
+        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+          console.log(`[N8nResponseParser] Parsed ${parsed.length} records from records property`);
+        }
+        return parsed;
+      }
+
+      // Check for data property
+      if ('data' in responseObj && Array.isArray(responseObj.data)) {
+        const parsed = responseObj.data
+          .map(record => this.normalizeRecord(record))
+          .filter((record): record is ParsedRecord => record !== null);
+        
+        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+          console.log(`[N8nResponseParser] Parsed ${parsed.length} records from data property`);
+        }
+        return parsed;
+      }
+
+      // Check if object has table-like structure (keys are table names with arrays)
+      const arrayKeys = Object.keys(responseObj).filter(key => 
+        Array.isArray(responseObj[key]) && responseObj[key].length > 0
+      );
+      
+      if (arrayKeys.length > 0) {
+        // This is likely a multi-table response, extract first array
+        // (For single table webhooks, there should only be one array)
+        const firstArray = responseObj[arrayKeys[0]];
+        const parsed = firstArray
+          .map(record => this.normalizeRecord(record))
+          .filter((record): record is ParsedRecord => record !== null);
+        
+        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+          console.log(`[N8nResponseParser] Parsed ${parsed.length} records from table key: ${arrayKeys[0]}`);
+        }
+        return parsed;
+      }
+
+      // Handle single record object
+      const normalized = this.normalizeRecord(responseObj);
+      if (normalized) {
+        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+          console.log(`[N8nResponseParser] Parsed single record`);
+        }
+        return [normalized];
+      }
+    }
+
+    // Unknown format, return empty array
+    if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+      console.warn(`[N8nResponseParser] Unknown response format, returning empty array`);
+    }
+    return [];
+  }
+}
+
+// Singleton parser instance
+const responseParser = new N8nResponseParser();
 
 export class N8nClient {
   /**
    * Fetch data from a single table webhook
    * Uses caching to prevent excessive webhook executions
-   * @param tableName - Name of the table to fetch
+   * 
+   * This method calls n8n "Search records" webhooks which return Airtable records.
+   * The response is parsed using N8nResponseParser to handle different formats:
+   * - Airtable format: { id, createdTime, fields: {...} }
+   * - Flattened format: { id, createdTime, Field1: value1, ... }
+   * - Array of records
+   * - Single record object
+   * 
+   * @param tableName - Name of the table to fetch (must match webhookConfig.ts)
    * @param useCache - Whether to use cache (default: true)
    * @param cacheTTL - Cache TTL in milliseconds (default: 60 seconds)
-   * @returns Array of records from the table
+   * @returns Array of parsed records in flattened format with clean field names
+   * 
+   * Webhook Mapping:
+   * - GET → /webhook/{tablePath} → Airtable: {tableName}
+   * - See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
-  async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number): Promise<any[]> {
+  async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number): Promise<ParsedRecord[]> {
     const cacheKey = `table:${tableName}`;
     
     // Check cache first
     if (useCache) {
-      const cached = cacheService.get<any[]>(cacheKey);
+      const cached = cacheService.get<ParsedRecord[]>(cacheKey);
       if (cached !== null) {
         // Only log cache hits if LOG_WEBHOOK_CALLS is enabled (reduces console noise)
         if (process.env.LOG_WEBHOOK_CALLS === 'true') {
@@ -37,7 +274,7 @@ export class N8nClient {
     if (!url) {
       // Only warn in development or when explicitly logging
       if (process.env.LOG_WEBHOOK_CALLS === 'true' || process.env.NODE_ENV === 'development') {
-        console.warn(`No webhook URL configured for table: ${tableName}`);
+        console.warn(`[fetchTable] No webhook URL configured for table: ${tableName}`);
       }
       return [];
     }
@@ -59,40 +296,18 @@ export class N8nClient {
         throw new Error(`Webhook failed for ${tableName}: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const rawData = await response.json();
       
-      // Handle different response formats
-      let records: any[] = [];
-      
-      if (Array.isArray(data)) {
-        records = data;
-      } else if (typeof data === 'object' && data !== null) {
-        const dataObj = data as Record<string, any>;
-        if (dataObj.records && Array.isArray(dataObj.records)) {
-          records = dataObj.records;
-        } else if (dataObj.data && Array.isArray(dataObj.data)) {
-          records = dataObj.data;
-        } else {
-          // Single record or object with table name as key
-          const tableKey = Object.keys(dataObj).find(key => 
-            Array.isArray(dataObj[key]) || 
-            (typeof dataObj[key] === 'object' && dataObj[key] !== null)
-          );
-          if (tableKey && Array.isArray(dataObj[tableKey])) {
-            records = dataObj[tableKey];
-          } else {
-            // Single record
-            records = [data];
-          }
-        }
-      }
+      // Use type-safe parser to handle n8n response format
+      // Parser handles: Airtable format, flattened format, arrays, single records
+      const records = responseParser.parse(rawData);
       
       // Only log successful fetches occasionally
       if (process.env.LOG_WEBHOOK_CALLS === 'true') {
-        console.log(`✅ Fetched ${records.length} records from ${tableName} webhook`);
+        console.log(`✅ Fetched and parsed ${records.length} records from ${tableName} webhook`);
       }
       
-      // Cache the result (persists until invalidated)
+      // Cache the parsed result (persists until invalidated)
       if (useCache) {
         // Cache holds indefinitely until explicitly invalidated via POST operations
         cacheService.set(cacheKey, records);
@@ -107,36 +322,38 @@ export class N8nClient {
 
   /**
    * Fetch multiple tables in parallel
-   * @param tableNames - Array of table names to fetch
-   * @returns Object with table names as keys and arrays of records as values
+   * All tables are parsed using the standardized parser
+   * 
+   * @param tableNames - Array of table names to fetch (must match webhookConfig.ts)
+   * @returns Object with table names as keys and arrays of parsed records as values
    */
-  async fetchMultipleTables(tableNames: string[]): Promise<Record<string, any[]>> {
+  async fetchMultipleTables(tableNames: string[]): Promise<Record<string, ParsedRecord[]>> {
     // Validate table names
     const invalidTables = tableNames.filter(t => !TABLE_NAMES.includes(t));
     if (invalidTables.length > 0) {
-      console.warn(`Invalid table names: ${invalidTables.join(', ')}`);
+      console.warn(`[fetchMultipleTables] Invalid table names: ${invalidTables.join(', ')}`);
     }
 
     const validTables = tableNames.filter(t => TABLE_NAMES.includes(t));
     
-    // Fetch all tables in parallel
+    // Fetch all tables in parallel using standardized parser
     const fetchPromises = validTables.map(async (tableName) => {
       try {
         const data = await this.fetchTable(tableName);
         return { tableName, data, error: null };
       } catch (error: any) {
-        console.error(`Failed to fetch ${tableName}:`, error);
-        return { tableName, data: [], error: error.message };
+        console.error(`[fetchMultipleTables] Failed to fetch ${tableName}:`, error);
+        return { tableName, data: [] as ParsedRecord[], error: error.message };
       }
     });
 
     const results = await Promise.all(fetchPromises);
     
-    // Build result object
-    const result: Record<string, any[]> = {};
+    // Build result object with type-safe parsed records
+    const result: Record<string, ParsedRecord[]> = {};
     results.forEach(({ tableName, data, error }) => {
       if (error) {
-        console.error(`Error fetching ${tableName}: ${error}`);
+        console.error(`[fetchMultipleTables] Error fetching ${tableName}: ${error}`);
         result[tableName] = [];
       } else {
         result[tableName] = data;
@@ -460,6 +677,39 @@ export class N8nClient {
     return result;
   }
 
+  /**
+   * POST Email via n8n webhook (Outlook Send a message)
+   * 
+   * Webhook Path: /webhook/email
+   * Used for sending daily summary reports to management
+   * 
+   * Expected payload format:
+   * {
+   *   to: string | string[], // Email recipient(s)
+   *   subject: string,
+   *   body: string, // HTML or plain text
+   *   cc?: string | string[],
+   *   bcc?: string | string[],
+   * }
+   */
+  async postEmail(data: {
+    to: string | string[];
+    subject: string;
+    body: string;
+    cc?: string | string[];
+    bcc?: string | string[];
+  }): Promise<any> {
+    const emailData = {
+      to: Array.isArray(data.to) ? data.to.join(', ') : data.to,
+      subject: data.subject,
+      body: data.body,
+      cc: data.cc ? (Array.isArray(data.cc) ? data.cc.join(', ') : data.cc) : '',
+      bcc: data.bcc ? (Array.isArray(data.bcc) ? data.bcc.join(', ') : data.bcc) : '',
+    };
+    
+    return this.postData(n8nConfig.postEmailUrl, emailData);
+  }
+
   async postFileAuditLog(data: Record<string, any>) {
     // Ensure only exact fields are sent to Fileauditinglog webhook
     // Only send: id, Log Entry ID, File, Timestamp, Actor, Action/Event Type, Details/Message, Target User/Role, Resolved
@@ -527,6 +777,28 @@ export class N8nClient {
     return result;
   }
 
+  /**
+   * POST Loan Application to n8n webhook
+   * 
+   * Webhook Path: /webhook/loanapplications (plural) - POST create/update operations
+   * Airtable Table: Loan Applications
+   * 
+   * Note: GET operations use /webhook/loanapplication (singular) via fetchTable('Loan Application')
+   * 
+   * Called from:
+   * - LoanController.createApplication() - Create new application
+   * - LoanController.updateApplicationForm() - Update form data
+   * - LoanController.submitApplication() - Submit draft
+   * - KAMController.editApplication() - KAM edits application
+   * - KAMController.forwardToCredit() - Forward to credit
+   * - CreditController.markInNegotiation() - Mark in negotiation
+   * - CreditController.assignNBFCs() - Assign to NBFC
+   * - CreditController.captureNBFCDecision() - Record NBFC decision
+   * - CreditController.markDisbursed() - Mark as disbursed
+   * - NBFController.recordDecision() - NBFC records decision
+   * 
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
+   */
   async postLoanApplication(data: Record<string, any>) {
     // Ensure only exact fields are sent to applications webhook
     // Only send: id, File ID, Client, Applicant Name, Loan Product, Requested Loan Amount,

@@ -675,6 +675,14 @@ export class KAMController {
    * POST /kam/clients/:id/form-mappings
    * Create/update form mappings for a client
    * Supports single mapping or bulk creation via modules array
+   * 
+   * Webhook Mapping:
+   * - POST → n8nClient.postFormCategory() → /webhook/FormCategory → Airtable: Form Categories
+   * - POST → n8nClient.postFormField() → /webhook/FormFields → Airtable: Form Fields
+   * - POST → n8nClient.postClientFormMapping() → /webhook/POSTCLIENTFORMMAPPING → Airtable: Client Form Mapping
+   * 
+   * Frontend: src/pages/FormConfiguration.tsx (line 269)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async createFormMapping(req: Request, res: Response): Promise<void> {
     try {
@@ -940,23 +948,34 @@ export class KAMController {
   /**
    * GET /kam/loan-applications
    * List loan applications for KAM's managed clients
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('User Accounts') → /webhook/useraccount → Airtable: User Accounts
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/Applications.tsx (KAM view)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, clientId } = req.query;
       // Fetch only the tables we need
-      const [userAccounts, applications] = await Promise.all([
+      // All records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
+      const [userAccounts, allApplications] = await Promise.all([
         n8nClient.fetchTable('User Accounts'),
         n8nClient.fetchTable('Loan Application'),
       ]);
-      let apps = applications;
 
       // Get managed clients
       const managedClients = userAccounts.filter((u) => u.Role === 'client');
       const managedClientIds = managedClients.map((c) => c.id);
 
       // Filter by managed clients
-      applications = applications.filter((app) =>
+      let applications = allApplications.filter((app) =>
         managedClientIds.includes(app.Client)
       );
 
@@ -1074,7 +1093,7 @@ export class KAMController {
         'Last Updated': new Date().toISOString(),
       });
 
-      // Log query
+      // Build query message
       const queryMessage = [
         message,
         fieldsRequested?.length ? `Fields requested: ${fieldsRequested.join(', ')}` : '',
@@ -1083,18 +1102,19 @@ export class KAMController {
         .filter(Boolean)
         .join('. ');
 
-      await n8nClient.postFileAuditLog({
-        id: `AUDIT-${Date.now()}`,
-        'Log Entry ID': `AUDIT-${Date.now()}`,
-        File: application['File ID'],
-        Timestamp: new Date().toISOString(),
-        Actor: req.user!.email,
-        'Action/Event Type': 'query_raised',
-        'Details/Message': queryMessage,
-        'Target User/Role': 'client',
-        Resolved: 'False',
-      });
+      // Use query service to create query with proper File Auditing Log and Notification
+      const { queryService } = await import('../services/queries/query.service.js');
+      const queryId = await queryService.createQuery(
+        application['File ID'],
+        application.Client,
+        req.user!.email,
+        'kam',
+        queryMessage,
+        'client',
+        'query_raised'
+      );
 
+      // Log admin activity
       await n8nClient.postAdminActivityLog({
         id: `ACT-${Date.now()}`,
         'Activity ID': `ACT-${Date.now()}`,
@@ -1104,27 +1124,6 @@ export class KAMController {
         'Description/Details': `Query raised for application ${application['File ID']}`,
         'Target Entity': 'loan_application',
       });
-
-      // Send notification
-      try {
-        const { notificationService } = await import('../services/notifications/notification.service.js');
-        const clients = await n8nClient.fetchTable('Clients');
-        const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
-        const clientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
-        
-        if (clientEmail) {
-          await notificationService.notifyQueryCreated(
-            application['File ID'],
-            application.Client,
-            queryMessage,
-            clientEmail,
-            'client',
-            req.user!.email
-          );
-        }
-      } catch (notifError) {
-        console.error('Failed to send notification:', notifError);
-      }
 
       res.json({
         success: true,

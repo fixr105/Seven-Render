@@ -49,11 +49,23 @@ export class NBFController {
 
   /**
    * GET /nbfc/loan-applications
+   * List loan applications assigned to this NBFC
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/dashboards/NBFCDashboard.tsx
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, dateFrom, dateTo, amountMin, amountMax } = req.query;
       // Fetch only Loan Application table
+      // Records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       let applications = await n8nClient.fetchTable('Loan Application');
 
       // Filter by assigned NBFC
@@ -106,11 +118,23 @@ export class NBFController {
 
   /**
    * GET /nbfc/loan-applications/:id
+   * Get single application assigned to this NBFC
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/ApplicationDetail.tsx (NBFC view)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       // Fetch only Loan Application table
+      // Records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
@@ -125,7 +149,29 @@ export class NBFController {
         return;
       }
 
-      // Return minimal info for underwriting
+      // Parse Documents field (format: fieldId:url|fileName,fieldId:url|fileName)
+      const documents: Array<{ fieldId: string; url: string; fileName: string }> = [];
+      if (application.Documents) {
+        const documentsStr = application.Documents;
+        const documentEntries = documentsStr.split(',').filter(Boolean);
+        
+        documentEntries.forEach((entry: string) => {
+          // Parse format: fieldId:url|fileName
+          const [fieldIdPart, rest] = entry.split(':');
+          if (rest) {
+            const [url, fileName] = rest.split('|');
+            if (fieldIdPart && url) {
+              documents.push({
+                fieldId: fieldIdPart.trim(),
+                url: url.trim(),
+                fileName: fileName ? fileName.trim() : url.split('/').pop() || 'document',
+              });
+            }
+          }
+        });
+      }
+
+      // Return complete application info including lender decision fields
       res.json({
         success: true,
         data: {
@@ -135,10 +181,22 @@ export class NBFController {
           applicantName: application['Applicant Name'],
           product: application['Loan Product'],
           requestedAmount: application['Requested Loan Amount'],
-          formData: application['Form Data'] ? JSON.parse(application['Form Data']) : {},
-          documents: application.Documents,
+          approvedLoanAmount: application['Approved Loan Amount'],
+          formData: application['Form Data'] 
+            ? (typeof application['Form Data'] === 'string' 
+                ? JSON.parse(application['Form Data']) 
+                : application['Form Data'])
+            : {},
+          documents, // Parsed documents array
           aiFileSummary: application['AI File Summary'],
           status: application.Status,
+          assignedNBFC: application['Assigned NBFC'],
+          lenderDecisionStatus: application['Lender Decision Status'],
+          lenderDecisionDate: application['Lender Decision Date'],
+          lenderDecisionRemarks: application['Lender Decision Remarks'],
+          creationDate: application['Creation Date'],
+          submittedDate: application['Submitted Date'],
+          lastUpdated: application['Last Updated'],
         },
       });
     } catch (error: any) {
@@ -152,12 +210,65 @@ export class NBFController {
   /**
    * POST /nbfc/loan-applications/:id/decision
    * Record NBFC decision
+   * 
+   * Enforces:
+   * - Only applications assigned to logged-in NBFC can be updated
+   * - Lender Decision Remarks is mandatory when decision is "Rejected"
+   * - Updates Lender Decision Status, Lender Decision Date, and Lender Decision Remarks
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * - POST → n8nClient.postLoanApplication() → /webhook/loanapplications → Airtable: Loan Applications
+   * - POST → n8nClient.postFileAuditLog() → /webhook/Fileauditinglog → Airtable: File Auditing Log
+   * 
+   * Frontend: src/pages/ApplicationDetail.tsx (NBFC view)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async recordDecision(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { decision, approvedAmount, terms, rejectionReason, clarificationMessage } = req.body;
-      // Fetch only Loan Application table
+      const { 
+        lenderDecisionStatus, 
+        lenderDecisionRemarks,
+        approvedAmount, // Optional: for approved decisions
+      } = req.body;
+
+      // Validate required fields
+      if (!lenderDecisionStatus) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Lender Decision Status is required' 
+        });
+        return;
+      }
+
+      // Validate decision status is one of the allowed values
+      const validStatuses = [
+        LenderDecisionStatus.APPROVED,
+        LenderDecisionStatus.REJECTED,
+        LenderDecisionStatus.NEEDS_CLARIFICATION,
+      ];
+      
+      if (!validStatuses.includes(lenderDecisionStatus)) {
+        res.status(400).json({ 
+          success: false, 
+          error: `Invalid decision status. Must be one of: ${validStatuses.join(', ')}` 
+        });
+        return;
+      }
+
+      // Enforce mandatory remarks on Reject
+      if (lenderDecisionStatus === LenderDecisionStatus.REJECTED) {
+        if (!lenderDecisionRemarks || lenderDecisionRemarks.trim() === '') {
+          res.status(400).json({ 
+            success: false, 
+            error: 'Lender Decision Remarks is mandatory when decision is Rejected' 
+          });
+          return;
+        }
+      }
+
+      // Fetch application
       const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
@@ -167,28 +278,50 @@ export class NBFController {
       }
 
       // Check if assigned to this NBFC
-      if (application['Assigned NBFC'] !== req.user!.nbfcId) {
-        res.status(403).json({ success: false, error: 'Access denied' });
+      // Support both exact match and ID match (in case Assigned NBFC contains ID or name)
+      const assignedNBFC = application['Assigned NBFC'];
+      const isAssigned = assignedNBFC === req.user!.nbfcId || 
+                        assignedNBFC?.includes(req.user!.nbfcId || '') ||
+                        assignedNBFC === req.user!.name; // Fallback: match by name
+
+      if (!isAssigned) {
+        res.status(403).json({ 
+          success: false, 
+          error: 'Access denied. This application is not assigned to your NBFC.' 
+        });
         return;
       }
 
+      // Build update data with exact field names from SEVEN-DASHBOARD-2.json
       const updateData: any = {
         ...application,
-        'Lender Decision Status': decision,
-        'Lender Decision Date': new Date().toISOString().split('T')[0],
+        'Lender Decision Status': lenderDecisionStatus,
+        'Lender Decision Date': new Date().toISOString().split('T')[0], // Format: YYYY-MM-DD
         'Last Updated': new Date().toISOString(),
       };
 
-      if (decision === LenderDecisionStatus.APPROVED) {
-        updateData['Approved Loan Amount'] = approvedAmount?.toString() || '';
-        updateData['Lender Decision Remarks'] = terms || '';
-      } else if (decision === LenderDecisionStatus.REJECTED) {
-        updateData['Lender Decision Remarks'] = rejectionReason || '';
-      } else if (decision === LenderDecisionStatus.NEEDS_CLARIFICATION) {
-        updateData['Lender Decision Remarks'] = clarificationMessage || '';
+      // Set Lender Decision Remarks (required for Reject, optional for others)
+      if (lenderDecisionRemarks && lenderDecisionRemarks.trim() !== '') {
+        updateData['Lender Decision Remarks'] = lenderDecisionRemarks.trim();
+      } else if (lenderDecisionStatus !== LenderDecisionStatus.REJECTED) {
+        // Optional for non-reject decisions, but set empty string if not provided
+        updateData['Lender Decision Remarks'] = '';
       }
 
+      // For approved decisions, optionally update Approved Loan Amount
+      if (lenderDecisionStatus === LenderDecisionStatus.APPROVED && approvedAmount) {
+        updateData['Approved Loan Amount'] = approvedAmount.toString();
+      }
+
+      // Update application via loanapplications POST webhook
       await n8nClient.postLoanApplication(updateData);
+
+      // Log decision in File Auditing Log
+      const decisionMessage = lenderDecisionStatus === LenderDecisionStatus.APPROVED
+        ? `NBFC decision: Approved${approvedAmount ? ` - Amount: ₹${approvedAmount.toLocaleString('en-IN')}` : ''}`
+        : lenderDecisionStatus === LenderDecisionStatus.REJECTED
+        ? `NBFC decision: Rejected - ${lenderDecisionRemarks?.substring(0, 100)}`
+        : `NBFC decision: Needs Clarification - ${lenderDecisionRemarks?.substring(0, 100)}`;
 
       await n8nClient.postFileAuditLog({
         id: `AUDIT-${Date.now()}`,
@@ -197,7 +330,7 @@ export class NBFController {
         Timestamp: new Date().toISOString(),
         Actor: req.user!.email,
         'Action/Event Type': 'nbfc_decision',
-        'Details/Message': `NBFC decision: ${decision}${approvedAmount ? ` - Amount: ${approvedAmount}` : ''}`,
+        'Details/Message': decisionMessage,
         'Target User/Role': 'credit_team',
         Resolved: 'False',
       });
@@ -205,8 +338,14 @@ export class NBFController {
       res.json({
         success: true,
         message: 'Decision recorded successfully',
+        data: {
+          lenderDecisionStatus,
+          lenderDecisionDate: updateData['Lender Decision Date'],
+          lenderDecisionRemarks: updateData['Lender Decision Remarks'],
+        },
       });
     } catch (error: any) {
+      console.error('[NBFController] Error recording decision:', error);
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to record decision',

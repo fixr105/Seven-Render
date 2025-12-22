@@ -103,6 +103,14 @@ export class ClientController {
 
   /**
    * GET /client/form-config
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Client Form Mapping') → /webhook/clientformmapping → Airtable: Client Form Mapping
+   * - GET → n8nClient.fetchTable('Form Categories') → /webhook/formcategories → Airtable: Form Categories
+   * - GET → n8nClient.fetchTable('Form Fields') → /webhook/formfields → Airtable: Form Fields
+   * 
+   * Frontend: src/pages/NewApplication.tsx (line 100)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async getFormConfig(req: Request, res: Response): Promise<void> {
     try {
@@ -160,6 +168,24 @@ export class ClientController {
       console.log(`[getFormConfig] Client ID from user: ${clientId}`);
       console.log(`[getFormConfig] Total mappings: ${mappings.length}`);
       
+      // Fetch client record to get Enabled Modules and Form Categories
+      const clients = await n8nClient.fetchTable('Clients');
+      const client = clients.find((c: any) => 
+        (c.id === clientId || c['Client ID'] === clientId || 
+         c.id === clientId?.toString() || c['Client ID'] === clientId?.toString())
+      );
+      
+      // Extract Enabled Modules and Form Categories from client record
+      const enabledModules = client?.['Enabled Modules'] 
+        ? client['Enabled Modules'].split(',').map((m: string) => m.trim()).filter(Boolean)
+        : [];
+      const formCategoriesFromClient = client?.['Form Categories']
+        ? client['Form Categories'].split(',').map((c: string) => c.trim()).filter(Boolean)
+        : [];
+      
+      console.log(`[getFormConfig] Client Enabled Modules:`, enabledModules);
+      console.log(`[getFormConfig] Client Form Categories:`, formCategoriesFromClient);
+      
       // Module 1: Filter mappings by version if specified, otherwise use latest
       let clientMappings = mappings.filter((m) => {
         const mappingClientId = m.Client || m.client || m['Client ID'];
@@ -212,19 +238,67 @@ export class ClientController {
       
       console.log(`[getFormConfig] Mapped category IDs:`, Array.from(mappedCategoryIds));
 
-      // Build form config - only include categories that have mappings for this client
+      // Build form config - filter by:
+      // 1. Categories that have mappings for this client
+      // 2. Categories that match client's Enabled Modules (if specified)
+      // 3. Categories that match client's Form Categories (if specified)
+      // 4. Only active categories
       const config = categories
         .filter((cat) => {
           const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
+          const categoryName = cat['Category Name'] || cat.categoryName || cat.name || '';
           const isActive = cat.Active === 'True' || cat.active === true;
           const hasMapping = mappedCategoryIds.has(categoryId);
-          // Only include categories that are active AND have mappings for this client
-          if (isActive && hasMapping) {
-            console.log(`[getFormConfig] Including category: ${cat['Category Name'] || cat.categoryName} (ID: ${categoryId})`);
-          } else {
-            console.log(`[getFormConfig] Excluding category: ${cat['Category Name'] || cat.categoryName} (ID: ${categoryId}) - Active: ${isActive}, HasMapping: ${hasMapping}`);
+          
+          // Filter by Enabled Modules if specified
+          // Enabled Modules are module IDs like "personal_kyc", "company_kyc", etc.
+          // Map module IDs to category name patterns
+          const moduleToCategoryMap: Record<string, string[]> = {
+            'personal_kyc': ['Personal KYC', 'Personal KYC (All Applicants/Co-Applicants)'],
+            'company_kyc': ['Company KYC', 'Company/Business KYC', 'Business KYC'],
+            'income_banking': ['Income & Banking', 'Income & Banking Documents'],
+            'asset_details': ['Asset Details', 'Asset Details (HL/LAP Specific)'],
+            'invoice_financial': ['Invoice', 'Financial Requirement', 'Credit Line', 'Business Loan'],
+            'security_documents': ['Security Documents'],
+            'additional_requirements': ['Additional Requirements', 'Common Across All Products'],
+            'universal_checklist': ['Universal Checklist', 'Checklist'],
+          };
+          
+          let matchesEnabledModules = true;
+          if (enabledModules.length > 0) {
+            matchesEnabledModules = enabledModules.some((module: string) => {
+              const moduleKey = module.toLowerCase().trim();
+              const categoryPatterns = moduleToCategoryMap[moduleKey] || [module];
+              return categoryPatterns.some((pattern: string) =>
+                categoryName.toLowerCase().includes(pattern.toLowerCase()) ||
+                pattern.toLowerCase().includes(categoryName.toLowerCase())
+              );
+            });
           }
-          return isActive && hasMapping;
+          
+          // Filter by Form Categories if specified
+          // Form Categories can be category IDs or category names
+          let matchesFormCategories = true;
+          if (formCategoriesFromClient.length > 0) {
+            matchesFormCategories = formCategoriesFromClient.some((fc: string) => {
+              const fcTrimmed = fc.trim();
+              return categoryId === fcTrimmed || 
+                     categoryName === fcTrimmed ||
+                     categoryName.toLowerCase() === fcTrimmed.toLowerCase() ||
+                     categoryName.toLowerCase().includes(fcTrimmed.toLowerCase()) ||
+                     fcTrimmed.toLowerCase().includes(categoryName.toLowerCase());
+            });
+          }
+          
+          // Include if: active AND has mapping AND (matches enabled modules OR no modules specified) AND (matches form categories OR no categories specified)
+          const shouldInclude = isActive && hasMapping && matchesEnabledModules && matchesFormCategories;
+          
+          if (shouldInclude) {
+            console.log(`[getFormConfig] Including category: ${categoryName} (ID: ${categoryId})`);
+          } else {
+            console.log(`[getFormConfig] Excluding category: ${categoryName} (ID: ${categoryId}) - Active: ${isActive}, HasMapping: ${hasMapping}, MatchesModules: ${matchesEnabledModules}, MatchesCategories: ${matchesFormCategories}`);
+          }
+          return shouldInclude;
         })
         .map((cat) => {
           const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
@@ -265,15 +339,30 @@ export class ClientController {
 
           console.log(`[getFormConfig] Category "${cat['Category Name'] || cat.categoryName}" has ${categoryFields.length} active fields`);
 
+          // Get display order from mapping if available, otherwise use category's display order
+          const mappingForCategory = clientMappings.find(
+            (m) => (m.Category || m.category) === categoryId
+          );
+          const categoryDisplayOrder = mappingForCategory
+            ? parseInt(mappingForCategory['Display Order'] || mappingForCategory.displayOrder || '0')
+            : parseInt(cat['Display Order'] || cat.displayOrder || '0');
+
           return {
             categoryId: categoryId,
             categoryName: cat['Category Name'] || cat.categoryName || cat.name,
             description: cat.Description || cat.description,
-            displayOrder: parseInt(cat['Display Order'] || cat.displayOrder || '0'),
+            displayOrder: categoryDisplayOrder,
             fields: categoryFields,
           };
         })
-        .sort((a, b) => a.displayOrder - b.displayOrder);
+        .sort((a, b) => {
+          // Sort by Display Order from mapping first
+          if (a.displayOrder !== b.displayOrder) {
+            return a.displayOrder - b.displayOrder;
+          }
+          // If display orders are equal, sort by category name
+          return (a.categoryName || '').localeCompare(b.categoryName || '');
+        });
 
       console.log(`[getFormConfig] Returning ${config.length} categories with form configuration`);
       
@@ -352,18 +441,25 @@ export class ClientController {
         });
       }
 
-      // Log response
-      await n8nClient.postFileAuditLog({
-        id: `AUDIT-${Date.now()}`,
-        'Log Entry ID': `AUDIT-${Date.now()}`,
-        File: application['File ID'],
-        Timestamp: new Date().toISOString(),
-        Actor: req.user.email,
-        'Action/Event Type': 'query_response',
-        'Details/Message': `Response to query: ${message}`,
-        'Target User/Role': query.Actor,
-        Resolved: 'False',
-      });
+      // Use query service to create reply
+      const { queryService } = await import('../services/queries/query.service.js');
+      const replyMessage = [
+        message,
+        answers ? `Answers provided: ${Object.keys(answers).join(', ')}` : '',
+        newDocs?.length ? `New documents uploaded: ${newDocs.length}` : '',
+      ]
+        .filter(Boolean)
+        .join('. ');
+
+      await queryService.createQueryReply(
+        queryId,
+        application['File ID'],
+        application.Client,
+        req.user.email,
+        'client',
+        replyMessage,
+        query['Target User/Role'] || query.Actor || 'kam'
+      );
 
       // If status was QUERY_WITH_CLIENT, it can transition back to UNDER_KAM_REVIEW
       // (KAM will need to acknowledge)

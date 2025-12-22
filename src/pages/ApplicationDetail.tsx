@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Clock, CheckCircle, XCircle, Send, Download, Edit } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Clock, CheckCircle, XCircle, Send, Download, Edit, Sparkles, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -81,6 +81,12 @@ export const ApplicationDetail: React.FC = () => {
   const [newStatus, setNewStatus] = useState('');
   const [statusNotes, setStatusNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [decisionStatus, setDecisionStatus] = useState<string>('');
+  const [decisionRemarks, setDecisionRemarks] = useState('');
+  const [approvedAmount, setApprovedAmount] = useState<string>('');
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
@@ -105,6 +111,8 @@ export const ApplicationDetail: React.FC = () => {
       const response = await apiService.getApplication(id!);
       if (response.success && response.data) {
         setApplication(response.data);
+        // Set AI summary if available
+        setAiSummary(response.data.aiFileSummary || response.data['AI File Summary'] || null);
       } else {
         console.error('Error fetching application:', response.error);
       }
@@ -115,19 +123,51 @@ export const ApplicationDetail: React.FC = () => {
     }
   };
 
+  const handleGenerateAISummary = async () => {
+    if (!id) return;
+
+    setGeneratingSummary(true);
+    try {
+      const response = await apiService.generateAISummary(id);
+      if (response.success && response.data) {
+        // Handle both structured and plain summary formats
+        const summary = response.data.summary || response.data.structured?.fullSummary || '';
+        setAiSummary(summary);
+        // Refresh application details to get updated summary from backend
+        await fetchApplicationDetails();
+        if (summary) {
+          alert('AI summary generated successfully!');
+        } else {
+          alert('AI summary generation completed, but no summary was returned.');
+        }
+      } else {
+        throw new Error(response.error || 'Failed to generate AI summary');
+      }
+    } catch (error: any) {
+      console.error('Error generating AI summary:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to generate AI summary';
+      if (error.response?.status === 403) {
+        alert('You do not have permission to generate AI summaries. Only KAM and Credit Team members can generate summaries.');
+      } else {
+        alert(errorMessage);
+      }
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
   const fetchQueries = async () => {
     try {
-      // TODO: Implement via backend API - GET /loan-applications/:id/queries
-      const response = await apiService.getFileAuditLog(id!);
+      const response = await apiService.getQueries(id!);
       if (response.success && response.data) {
-        // Filter audit log entries that are queries
-        const queryEntries = response.data.filter((entry: any) => 
-          entry.actionEventType?.toLowerCase().includes('query')
-        );
-        setQueries(queryEntries);
+        // response.data is an array of query threads
+        setQueries(response.data);
+      } else {
+        setQueries([]);
       }
     } catch (error) {
       console.error('Error fetching queries:', error);
+      setQueries([]);
     }
   };
 
@@ -202,12 +242,22 @@ export const ApplicationDetail: React.FC = () => {
   };
 
   const handleResolveQuery = async (queryId: string) => {
+    if (!id) return;
+    
+    setSubmitting(true);
     try {
-      // TODO: Implement via backend API - POST /queries/:id/resolve
-      console.warn('Query resolution not yet implemented via API');
-      fetchQueries();
-    } catch (error) {
+      const response = await apiService.resolveQuery(id, queryId);
+      if (response.success) {
+        await fetchQueries();
+        alert('Query resolved successfully');
+      } else {
+        throw new Error(response.error || 'Failed to resolve query');
+      }
+    } catch (error: any) {
       console.error('Error resolving query:', error);
+      alert(error.message || 'Failed to resolve query');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -394,13 +444,28 @@ export const ApplicationDetail: React.FC = () => {
                     <p className="font-semibold text-neutral-900">{application.assigned_nbfc.name}</p>
                   </div>
                 )}
-                {application.lender_decision_status && (
+                {(application.lender_decision_status || application.lenderDecisionStatus) && (
                   <div>
                     <p className="text-sm text-neutral-500">Lender Decision</p>
-                    <p className="font-semibold text-neutral-900">{application.lender_decision_status}</p>
-                    {application.lender_decision_date && (
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={
+                          (application.lender_decision_status || application.lenderDecisionStatus) === 'Approved' ? 'success' :
+                          (application.lender_decision_status || application.lenderDecisionStatus) === 'Rejected' ? 'error' :
+                          'warning'
+                        }
+                      >
+                        {application.lender_decision_status || application.lenderDecisionStatus}
+                      </Badge>
+                    </div>
+                    {(application.lender_decision_date || application.lenderDecisionDate) && (
                       <p className="text-xs text-neutral-500 mt-1">
-                        {formatDate(application.lender_decision_date)}
+                        {formatDate(application.lender_decision_date || application.lenderDecisionDate)}
+                      </p>
+                    )}
+                    {(application.lender_decision_remarks || application.lenderDecisionRemarks) && (
+                      <p className="text-xs text-neutral-600 mt-1 italic">
+                        {application.lender_decision_remarks || application.lenderDecisionRemarks}
                       </p>
                     )}
                   </div>
@@ -416,6 +481,44 @@ export const ApplicationDetail: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Documents Section */}
+          {application.documents && application.documents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Documents ({application.documents.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {application.documents.map((doc: any, index: number) => (
+                    <div key={index} className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-neutral-900">{doc.fileName || doc.fieldId}</p>
+                        <p className="text-xs text-neutral-500 mt-1">{doc.fieldId}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={Download}
+                          onClick={() => window.open(doc.url, '_blank')}
+                        >
+                          Download
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => window.open(doc.url, '_blank')}
+                        >
+                          Preview
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Application Form Data */}
           <Card>
@@ -437,64 +540,87 @@ export const ApplicationDetail: React.FC = () => {
           {/* Queries Section */}
           <Card>
             <CardHeader className="flex items-center justify-between">
-              <CardTitle>Queries & Communication ({queries.length})</CardTitle>
+              <CardTitle>
+                Queries & Communication ({queries.length} {queries.length === 1 ? 'thread' : 'threads'})
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {queries.length === 0 ? (
                 <p className="text-center text-neutral-500 py-8">No queries yet</p>
               ) : (
-                <div className="space-y-4">
-                  {queries.map((query) => (
-                    <div key={query.id} className="border border-neutral-200 rounded p-4">
+                <div className="space-y-6">
+                  {queries.map((thread: any, threadIndex: number) => (
+                    <div key={thread.rootQuery.id} className="border border-neutral-200 rounded-lg p-4">
+                      {/* Root Query */}
+                      <div className="mb-4 pb-4 border-b border-neutral-200">
                       <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="neutral">{query.raised_by_user?.role?.toUpperCase()}</Badge>
-                          <span className="text-xs text-neutral-500">{formatDate(query.created_at)}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-neutral-900">
+                                {thread.rootQuery.actor}
+                              </span>
+                              <span className="text-xs text-neutral-500">
+                                {formatDate(thread.rootQuery.timestamp)}
+                              </span>
+                              {thread.rootQuery.resolved ? (
+                                <Badge variant="success" className="text-xs">Resolved</Badge>
+                              ) : (
+                                <Badge variant="warning" className="text-xs">Open</Badge>
+                              )}
                         </div>
-                        <Badge variant={
-                          query.status === 'resolved' ? 'success' :
-                          query.status === 'responded' ? 'info' : 'warning'
-                        }>
-                          {query.status.toUpperCase()}
-                        </Badge>
+                            <p className="text-sm text-neutral-700 mb-2">{thread.rootQuery.message}</p>
+                            <p className="text-xs text-neutral-500">
+                              To: {thread.rootQuery.targetUserRole}
+                            </p>
                       </div>
-                      <p className="text-sm text-neutral-900 mb-3">{query.query_text}</p>
-
-                      {query.response_text && (
-                        <div className="bg-neutral-50 rounded p-3 mb-2">
-                          <p className="text-xs text-neutral-500 mb-1">Response:</p>
-                          <p className="text-sm text-neutral-900">{query.response_text}</p>
-                          {query.responded_at && (
-                            <p className="text-xs text-neutral-500 mt-1">{formatDate(query.responded_at)}</p>
+                          {!thread.isResolved && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleResolveQuery(thread.rootQuery.id)}
+                              disabled={submitting}
+                            >
+                              Mark Resolved
+                            </Button>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Replies */}
+                      {thread.replies && thread.replies.length > 0 && (
+                        <div className="ml-4 space-y-3 border-l-2 border-neutral-200 pl-4">
+                          {thread.replies.map((reply: any) => (
+                            <div key={reply.id} className="bg-neutral-50 rounded p-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-neutral-900">
+                                  {reply.actor}
+                                </span>
+                                <span className="text-xs text-neutral-500">
+                                  {formatDate(reply.timestamp)}
+                                </span>
+                              </div>
+                              <p className="text-sm text-neutral-700">{reply.message}</p>
+                            </div>
+                          ))}
                         </div>
                       )}
 
-                      <div className="flex gap-2 mt-2">
-                        {!query.response_text && query.raised_to_role === userRole && (
+                      {/* Reply Button */}
+                      {!thread.isResolved && (
+                        <div className="mt-4">
                           <Button
-                            size="sm"
                             variant="secondary"
-                            icon={Send}
+                            size="sm"
+                            icon={MessageSquare}
                             onClick={() => {
-                              setSelectedQuery(query);
-                              setResponseMessage('');
+                              setSelectedQuery(thread.rootQuery);
+                              setShowQueryModal(true);
                             }}
                           >
-                            Respond
+                            Reply
                           </Button>
-                        )}
-                        {query.status !== 'resolved' && (userRole === 'kam' || userRole === 'credit_team') && (
-                          <Button
-                            size="sm"
-                            variant="tertiary"
-                            icon={CheckCircle}
-                            onClick={() => handleResolveQuery(query.id)}
-                          >
-                            Mark Resolved
-                          </Button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -533,26 +659,230 @@ export const ApplicationDetail: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* AI Summary (if available) */}
-          {application.ai_summary && Object.keys(application.ai_summary).length > 0 && (
+          {/* AI File Summary */}
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-brand-primary" />
+                AI File Summary
+              </CardTitle>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={generatingSummary ? undefined : aiSummary ? RefreshCw : Sparkles}
+                onClick={handleGenerateAISummary}
+                loading={generatingSummary}
+                disabled={generatingSummary}
+              >
+                {aiSummary ? 'Refresh Summary' : 'Generate Summary'}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {generatingSummary ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                  <p className="text-sm text-neutral-600">Generating AI summary...</p>
+                  <p className="text-xs text-neutral-500 mt-1">This may take a few moments</p>
+                </div>
+              ) : aiSummary ? (
+                <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                  <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-sans">
+                    {aiSummary}
+                  </pre>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Sparkles className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                  <p className="text-sm text-neutral-600 mb-4">
+                    No AI summary available yet. Generate one to get insights about this application.
+                  </p>
+                  <Button
+                    variant="primary"
+                    icon={Sparkles}
+                    onClick={handleGenerateAISummary}
+                  >
+                    Generate AI Summary
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* NBFC Decision Section */}
+          {userRole === 'nbfc' && (application.status === 'sent_to_nbfc' || application.status === 'Sent to NBFC') && (
             <Card>
               <CardHeader>
-                <CardTitle>AI Insights</CardTitle>
+                <CardTitle>Record Decision</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  {Object.entries(application.ai_summary).map(([key, value]) => (
-                    <div key={key}>
-                      <p className="text-xs font-medium text-neutral-700 capitalize">{key.replace(/_/g, ' ')}</p>
-                      <p className="text-sm text-neutral-600">{String(value)}</p>
+                {(application.lenderDecisionStatus || application.lender_decision_status) ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={
+                          (application.lenderDecisionStatus || application.lender_decision_status) === 'Approved' ? 'success' :
+                          (application.lenderDecisionStatus || application.lender_decision_status) === 'Rejected' ? 'error' :
+                          'warning'
+                        }
+                      >
+                        {application.lenderDecisionStatus || application.lender_decision_status}
+                      </Badge>
+                      {(application.lenderDecisionDate || application.lender_decision_date) && (
+                        <span className="text-sm text-neutral-500">
+                          on {formatDate(application.lenderDecisionDate || application.lender_decision_date)}
+                        </span>
+                      )}
                     </div>
-                  ))}
+                    {(application.lenderDecisionRemarks || application.lender_decision_remarks) && (
+                      <div className="bg-neutral-50 p-3 rounded">
+                        <p className="text-sm font-medium text-neutral-700 mb-1">Remarks:</p>
+                        <p className="text-sm text-neutral-900">{application.lenderDecisionRemarks || application.lender_decision_remarks}</p>
                 </div>
+                    )}
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowDecisionModal(true)}
+                    >
+                      Update Decision
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-neutral-600">
+                      Review the application and record your decision below.
+                    </p>
+                    <Button
+                      variant="primary"
+                      onClick={() => setShowDecisionModal(true)}
+                    >
+                      Record Decision
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
       </div>
+
+      {/* NBFC Decision Modal */}
+      {userRole === 'nbfc' && (
+        <Modal
+          isOpen={showDecisionModal}
+          onClose={() => {
+            setShowDecisionModal(false);
+            setDecisionStatus('');
+            setDecisionRemarks('');
+            setApprovedAmount('');
+          }}
+          size="md"
+        >
+          <ModalHeader onClose={() => setShowDecisionModal(false)}>
+            Record NBFC Decision
+          </ModalHeader>
+          <ModalBody>
+            <div className="space-y-4">
+              <Select
+                label="Decision Status"
+                value={decisionStatus}
+                onChange={(e) => setDecisionStatus(e.target.value)}
+                required
+              >
+                <option value="">Select decision...</option>
+                <option value="Approved">Approve</option>
+                <option value="Rejected">Reject</option>
+                <option value="Needs Clarification">Needs Clarification</option>
+              </Select>
+
+              {decisionStatus === 'Approved' && (
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Approved Amount (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    placeholder="Enter approved amount"
+                    value={approvedAmount}
+                    onChange={(e) => setApprovedAmount(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <TextArea
+                label={`Decision Remarks${decisionStatus === 'Rejected' ? ' (Required)' : ''}`}
+                placeholder={
+                  decisionStatus === 'Approved' 
+                    ? 'Enter approval terms and conditions...'
+                    : decisionStatus === 'Rejected'
+                    ? 'Enter rejection reason (required)...'
+                    : 'Enter clarification request...'
+                }
+                value={decisionRemarks}
+                onChange={(e) => setDecisionRemarks(e.target.value)}
+                required={decisionStatus === 'Rejected'}
+                rows={6}
+              />
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button 
+              variant="secondary" 
+              onClick={() => {
+                setShowDecisionModal(false);
+                setDecisionStatus('');
+                setDecisionRemarks('');
+                setApprovedAmount('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={async () => {
+                if (!decisionStatus) {
+                  alert('Please select a decision status');
+                  return;
+                }
+                if (decisionStatus === 'Rejected' && !decisionRemarks.trim()) {
+                  alert('Remarks are required when rejecting an application');
+                  return;
+                }
+                if (!id) return;
+
+                setSubmitting(true);
+                try {
+                  const response = await apiService.recordNBFCDecision(id, {
+                    lenderDecisionStatus: decisionStatus,
+                    lenderDecisionRemarks: decisionRemarks.trim(),
+                    approvedAmount: approvedAmount ? parseFloat(approvedAmount) : undefined,
+                  });
+
+                  if (response.success) {
+                    setShowDecisionModal(false);
+                    setDecisionStatus('');
+                    setDecisionRemarks('');
+                    setApprovedAmount('');
+                    await fetchApplicationDetails();
+                    alert('Decision recorded successfully!');
+                  } else {
+                    throw new Error(response.error || 'Failed to record decision');
+                  }
+                } catch (error: any) {
+                  console.error('Error recording decision:', error);
+                  alert(error.message || 'Failed to record decision');
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              disabled={!decisionStatus || (decisionStatus === 'Rejected' && !decisionRemarks.trim()) || submitting}
+              loading={submitting}
+            >
+              Record Decision
+            </Button>
+          </ModalFooter>
+        </Modal>
+      )}
 
       {/* Raise Query Modal */}
       <Modal

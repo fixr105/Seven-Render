@@ -83,11 +83,23 @@ export class CreditController {
 
   /**
    * GET /credit/loan-applications
+   * List all loan applications (Credit Team sees all)
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/Applications.tsx (Credit Team view)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, kamId, clientId, nbfcId, productId, dateFrom, dateTo } = req.query;
       // Fetch only Loan Application table
+      // Records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       let applications = await n8nClient.fetchTable('Loan Application');
 
       // Apply filters
@@ -141,11 +153,24 @@ export class CreditController {
 
   /**
    * GET /credit/loan-applications/:id
+   * Get single application for Credit Team
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * - GET → n8nClient.fetchTable('File Auditing Log') → /webhook/fileauditinglog → Airtable: File Auditing Log
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/ApplicationDetail.tsx (Credit Team view)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       // Fetch only the tables we need
+      // All records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       const [applications, auditLogs] = await Promise.all([
         n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('File Auditing Log'),
@@ -170,11 +195,34 @@ export class CreditController {
           resolved: log.Resolved === 'True',
         }));
 
+      // Parse Documents field - format: fieldId:url|fileName,fieldId:url|fileName
+      const documents: Array<{ fieldId: string; url: string; fileName: string }> = [];
+      if (application.Documents) {
+        const documentsStr = application.Documents;
+        const documentEntries = documentsStr.split(',').filter(Boolean);
+        
+        documentEntries.forEach((entry: string) => {
+          // Parse format: fieldId:url|fileName
+          const [fieldIdPart, rest] = entry.split(':');
+          if (rest) {
+            const [url, fileName] = rest.split('|');
+            if (fieldIdPart && url) {
+              documents.push({
+                fieldId: fieldIdPart.trim(),
+                url: url.trim(),
+                fileName: fileName ? fileName.trim() : url.split('/').pop() || 'document',
+              });
+            }
+          }
+        });
+      }
+
       res.json({
         success: true,
         data: {
           ...application,
           formData: application['Form Data'] ? JSON.parse(application['Form Data']) : {},
+          documents, // Parsed documents array
           aiFileSummary: application['AI File Summary'],
           auditLog: fileAuditLog,
         },
@@ -211,7 +259,7 @@ export class CreditController {
         'Last Updated': new Date().toISOString(),
       });
 
-      // Log query
+      // Build query message
       const queryMessage = [
         message,
         requestedDocs?.length ? `Documents requested: ${requestedDocs.join(', ')}` : '',
@@ -220,46 +268,17 @@ export class CreditController {
         .filter(Boolean)
         .join('. ');
 
-      await n8nClient.postFileAuditLog({
-        id: `AUDIT-${Date.now()}`,
-        'Log Entry ID': `AUDIT-${Date.now()}`,
-        File: application['File ID'],
-        Timestamp: new Date().toISOString(),
-        Actor: req.user!.email,
-        'Action/Event Type': 'credit_query',
-        'Details/Message': queryMessage,
-        'Target User/Role': 'kam',
-        Resolved: 'False',
-      });
-
-      // Send notification to KAM
-      try {
-        const { notificationService } = await import('../services/notifications/notification.service.js');
-        const kamUsers = await n8nClient.fetchTable('KAM Users');
-        
-        // Find KAM assigned to this client
-        const clients = await n8nClient.fetchTable('Clients');
-        const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
-        const kamId = client?.['Assigned KAM'] || '';
-        
-        if (kamId) {
-          const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
-          const kamEmail = kamUser?.Email || '';
-          
-          if (kamEmail) {
-            await notificationService.notifyQueryCreated(
-              application['File ID'],
-              application.Client,
-              queryMessage,
-              kamEmail,
-              'kam',
-              req.user!.email
-            );
-          }
-        }
-      } catch (notifError) {
-        console.error('Failed to send notification:', notifError);
-      }
+      // Use query service to create query with proper File Auditing Log and Notification
+      const { queryService } = await import('../services/queries/query.service.js');
+      const queryId = await queryService.createQuery(
+        application['File ID'],
+        application.Client,
+        req.user!.email,
+        'credit_team',
+        queryMessage,
+        'kam',
+        'credit_query'
+      );
 
       res.json({
         success: true,
@@ -845,11 +864,154 @@ export class CreditController {
       res.json({
         success: true,
         message: 'Payout approved',
+        data: payoutEntry,
       });
     } catch (error: any) {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to approve payout',
+      });
+    }
+  }
+
+  /**
+   * POST /credit/ledger/entries
+   * Create a new ledger entry (Credit Team only)
+   * 
+   * Webhook Mapping:
+   * - POST → n8nClient.postCommissionLedger() → /webhook/COMISSIONLEDGER → Airtable: Commission Ledger
+   * 
+   * Used for manual ledger entries or corrections
+   */
+  async createLedgerEntry(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'credit_team') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const {
+        clientId,
+        loanFile,
+        date,
+        disbursedAmount,
+        commissionRate,
+        payoutAmount,
+        description,
+      } = req.body;
+
+      // Validate required fields
+      if (!clientId) {
+        res.status(400).json({ success: false, error: 'Client ID is required' });
+        return;
+      }
+
+      if (!payoutAmount) {
+        res.status(400).json({ success: false, error: 'Payout Amount is required' });
+        return;
+      }
+
+      // Create ledger entry
+      const ledgerEntryId = `LEDGER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const entryDate = date || new Date().toISOString().split('T')[0];
+
+      const ledgerEntry = {
+        id: ledgerEntryId,
+        'Ledger Entry ID': ledgerEntryId,
+        Client: clientId,
+        'Loan File': loanFile || '',
+        Date: entryDate,
+        'Disbursed Amount': disbursedAmount ? disbursedAmount.toString() : '',
+        'Commission Rate': commissionRate ? commissionRate.toString() : '',
+        'Payout Amount': payoutAmount.toString(),
+        Description: description || 'Manual ledger entry',
+        'Dispute Status': DisputeStatus.NONE,
+        'Payout Request': 'False',
+      };
+
+      await n8nClient.postCommissionLedger(ledgerEntry);
+
+      // Log activity
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: loanFile || '',
+        Timestamp: new Date().toISOString(),
+        Actor: req.user!.email,
+        'Action/Event Type': 'ledger_entry_created',
+        'Details/Message': `Ledger entry created: ${description || 'Manual entry'}. Amount: ${payoutAmount}`,
+        'Target User/Role': 'client',
+        Resolved: 'False',
+      });
+
+      res.json({
+        success: true,
+        message: 'Ledger entry created successfully',
+        data: ledgerEntry,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create ledger entry',
+      });
+    }
+  }
+
+  /**
+   * POST /credit/ledger/:ledgerEntryId/flag-dispute
+   * Flag a ledger entry for dispute (Credit Team can also flag on behalf of client)
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Commission Ledger') → /webhook/commisionledger → Airtable: Commission Ledger
+   * - POST → n8nClient.postCommissionLedger() → /webhook/COMISSIONLEDGER → Airtable: Commission Ledger
+   * - POST → n8nClient.postFileAuditLog() → /webhook/Fileauditinglog → Airtable: File Auditing Log
+   */
+  async flagLedgerDispute(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'credit_team') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { ledgerEntryId } = req.params;
+      const { reason } = req.body;
+
+      // Fetch ledger entry
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
+
+      if (!entry) {
+        res.status(404).json({ success: false, error: 'Ledger entry not found' });
+        return;
+      }
+
+      // Update dispute status
+      await n8nClient.postCommissionLedger({
+        ...entry,
+        'Dispute Status': DisputeStatus.UNDER_QUERY,
+      });
+
+      // Log to file audit
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: entry['Loan File'] || '',
+        Timestamp: new Date().toISOString(),
+        Actor: req.user!.email,
+        'Action/Event Type': 'ledger_dispute_flagged',
+        'Details/Message': `Ledger dispute flagged by credit team: ${reason || 'Dispute raised'}`,
+        'Target User/Role': 'client',
+        Resolved: 'False',
+      });
+
+      res.json({
+        success: true,
+        message: 'Ledger entry flagged for dispute',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to flag dispute',
       });
     }
   }

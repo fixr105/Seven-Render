@@ -26,6 +26,8 @@ router.get('/payout-requests', creditController.getPayoutRequests.bind(creditCon
 router.post('/payout-requests/:id/approve', creditController.approvePayout.bind(creditController));
 router.post('/payout-requests/:id/reject', creditController.rejectPayout.bind(creditController));
 router.get('/ledger', ledgerController.getCreditLedger.bind(ledgerController));
+router.post('/ledger/entries', creditController.createLedgerEntry.bind(creditController));
+router.post('/ledger/:ledgerEntryId/flag-dispute', creditController.flagLedgerDispute.bind(creditController));
 router.get('/clients', creditController.listClients.bind(creditController));
 router.get('/clients/:id', creditController.getClient.bind(creditController));
 

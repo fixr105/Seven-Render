@@ -43,6 +43,7 @@ export const NewApplication: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0); // Module 2: Stepper current step
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]); // Module 2: Soft validation warnings
   const [duplicateWarning, setDuplicateWarning] = useState<{ fileId: string; status: string } | null>(null); // Module 2: Duplicate detection
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}); // Strict validation: field-level errors
   const [formData, setFormData] = useState<FormData>({
     applicant_name: '',
     loan_product_id: '',
@@ -205,15 +206,65 @@ export const NewApplication: React.FC = () => {
     }));
   };
 
-  // Module 2: Enhanced submit with soft validation and duplicate detection
+  // Validate mandatory fields before submission (strict validation)
+  const validateMandatoryFields = (saveAsDraft: boolean): { isValid: boolean; errors: Record<string, string> } => {
+    const errors: Record<string, string> = {};
+
+    // Skip validation for drafts
+    if (saveAsDraft) {
+      return { isValid: true, errors: {} };
+    }
+
+    // Validate core required fields
+    if (!formData.applicant_name?.trim()) {
+      errors.applicant_name = 'Applicant Name is required';
+    }
+    if (!formData.loan_product_id) {
+      errors.loan_product_id = 'Loan Product is required';
+    }
+    if (!formData.requested_loan_amount?.trim()) {
+      errors.requested_loan_amount = 'Requested Loan Amount is required';
+    }
+
+    // Validate mandatory form fields from configuration
+    formConfig.forEach((category: any) => {
+      (category.fields || []).forEach((field: any) => {
+        const fieldId = field.fieldId || field['Field ID'] || field.id;
+        const fieldLabel = field.label || field['Field Label'] || field.fieldLabel;
+        const fieldType = field.type || field['Field Type'] || field.fieldType;
+        const isRequired = field.isRequired || field['Is Required'] === 'True' || field['Is Mandatory'] === 'True' || field.isMandatory === true;
+
+        if (isRequired) {
+          const value = formData.form_data[fieldId];
+          const hasDocument = documentLinks[fieldId] && documentLinks[fieldId].trim().length > 0;
+
+          let isEmpty = false;
+          if (fieldType === 'file') {
+            isEmpty = !hasDocument && (!value || (typeof value === 'string' && value.trim().length === 0));
+          } else if (fieldType === 'checkbox') {
+            isEmpty = value !== true && value !== 'true';
+          } else {
+            isEmpty = !value || (typeof value === 'string' && value.trim().length === 0);
+          }
+
+          if (isEmpty) {
+            errors[fieldId] = `${fieldLabel} is required`;
+          }
+        }
+      });
+    });
+
+    return { isValid: Object.keys(errors).length === 0, errors };
+  };
+
+  // Module 2: Enhanced submit with strict mandatory field validation
   const handleSubmit = async (e: React.FormEvent, saveAsDraft = false) => {
     e.preventDefault();
     
-    // Basic required field check
-    if (!formData.applicant_name || !formData.loan_product_id || !formData.requested_loan_amount) {
-      alert('Please fill in all required fields: Applicant Name, Loan Product, and Requested Loan Amount');
-      return;
-    }
+    // Clear previous errors
+    setFieldErrors({});
+    setValidationWarnings([]);
+    setDuplicateWarning(null);
 
     if (!clientId) {
       alert('Client information not found. Please contact support.');
@@ -227,9 +278,24 @@ export const NewApplication: React.FC = () => {
       return;
     }
 
+    // Strict validation for non-draft submissions
+    if (!saveAsDraft) {
+      const validation = validateMandatoryFields(saveAsDraft);
+      if (!validation.isValid) {
+        setFieldErrors(validation.errors);
+        // Scroll to first error
+        const firstErrorField = Object.keys(validation.errors)[0];
+        const errorElement = document.getElementById(firstErrorField) || 
+                           document.querySelector(`[data-field-id="${firstErrorField}"]`);
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        alert(`Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`);
+        return;
+      }
+    }
+
     setLoading(true);
-    setValidationWarnings([]);
-    setDuplicateWarning(null);
 
     try {
       // Module 2: Prepare document uploads array with OneDrive links
@@ -257,6 +323,25 @@ export const NewApplication: React.FC = () => {
       });
 
       if (!response.success) {
+        // Handle backend validation errors (400 with missingFields)
+        if (response.data?.missingFields && Array.isArray(response.data.missingFields)) {
+          const missingFieldsErrors: Record<string, string> = {};
+          response.data.missingFields.forEach((field: any) => {
+            missingFieldsErrors[field.fieldId] = `${field.label} is required`;
+          });
+          setFieldErrors(missingFieldsErrors);
+          
+          // Scroll to first error
+          const firstErrorField = Object.keys(missingFieldsErrors)[0];
+          const errorElement = document.getElementById(firstErrorField) || 
+                             document.querySelector(`[data-field-id="${firstErrorField}"]`);
+          if (errorElement) {
+            errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          
+          alert(`Missing required fields:\n\n${response.data.missingFields.map((f: any) => f.label).join('\n')}`);
+          return;
+        }
         throw new Error(response.error || 'Failed to create application');
       }
 
@@ -380,11 +465,23 @@ export const NewApplication: React.FC = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
+                id="applicant_name"
                 label="Applicant Name *"
                 placeholder="Enter applicant's full name"
                 value={formData.applicant_name}
-                onChange={(e) => setFormData({ ...formData, applicant_name: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, applicant_name: e.target.value });
+                  // Clear error when field is changed
+                  if (fieldErrors.applicant_name) {
+                    setFieldErrors(prev => {
+                      const next = { ...prev };
+                      delete next.applicant_name;
+                      return next;
+                    });
+                  }
+                }}
                 required
+                error={fieldErrors.applicant_name}
               />
               <Select
                 label="Loan Product *"
@@ -393,17 +490,40 @@ export const NewApplication: React.FC = () => {
                   ...loanProducts.map(p => ({ value: p.id, label: p.name }))
                 ]}
                 value={formData.loan_product_id}
-                onChange={(e) => setFormData({ ...formData, loan_product_id: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, loan_product_id: e.target.value });
+                  // Clear error when field is changed
+                  if (fieldErrors.loan_product_id) {
+                    setFieldErrors(prev => {
+                      const next = { ...prev };
+                      delete next.loan_product_id;
+                      return next;
+                    });
+                  }
+                }}
                 required
+                error={fieldErrors.loan_product_id}
               />
               <Input
+                id="requested_loan_amount"
                 label="Requested Loan Amount *"
                 type="text"
                 placeholder="₹ 50,00,000"
                 value={formData.requested_loan_amount}
-                onChange={(e) => setFormData({ ...formData, requested_loan_amount: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, requested_loan_amount: e.target.value });
+                  // Clear error when field is changed
+                  if (fieldErrors.requested_loan_amount) {
+                    setFieldErrors(prev => {
+                      const next = { ...prev };
+                      delete next.requested_loan_amount;
+                      return next;
+                    });
+                  }
+                }}
                 required
                 helperText="Enter amount in Indian Rupees"
+                error={fieldErrors.requested_loan_amount}
               />
             </div>
           </CardContent>
@@ -420,7 +540,9 @@ export const NewApplication: React.FC = () => {
             </CardContent>
           </Card>
         ) : formConfig.length > 0 ? (
-          formConfig.map((category: any, categoryIndex: number) => (
+          formConfig
+            .filter((category: any) => category.fields && category.fields.length > 0)
+            .map((category: any, categoryIndex: number) => (
             <Card 
               key={category.categoryId || category.id} 
               id={`category-${categoryIndex}`}
@@ -459,7 +581,17 @@ export const NewApplication: React.FC = () => {
                               acceptedTypes={['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']}
                               maxSizeInMB={10}
                               maxFiles={5}
-                              onFilesSelected={(files) => handleFileUpload(fieldId, files)}
+                              onFilesSelected={(files) => {
+                                handleFileUpload(fieldId, files);
+                                // Clear error when files are uploaded
+                                if (fieldErrors[fieldId]) {
+                                  setFieldErrors(prev => {
+                                    const next = { ...prev };
+                                    delete next[fieldId];
+                                    return next;
+                                  });
+                                }
+                              }}
                               uploadedFiles={(uploadedFiles[fieldId] || []).map((file, idx) => ({
                                 id: `${fieldId}-${idx}`,
                                 name: file.name,
@@ -479,6 +611,13 @@ export const NewApplication: React.FC = () => {
                                   ...prev,
                                   [fieldId]: newLinks.join(', '),
                                 }));
+                                // Check if field becomes empty and is required
+                                if (newFiles.length === 0 && isRequired) {
+                                  setFieldErrors(prev => ({
+                                    ...prev,
+                                    [fieldId]: `${fieldLabel} is required`,
+                                  }));
+                                }
                               }}
                             />
                             {uploadingFiles[fieldId] && (
@@ -489,27 +628,55 @@ export const NewApplication: React.FC = () => {
                             )}
                           </div>
                         ) : fieldType === 'checkbox' ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              id={fieldId}
-                              checked={formData.form_data[fieldId] || false}
-                              onChange={(e) => handleFieldChange(fieldId, e.target.checked)}
-                              className="w-4 h-4 text-brand-primary border-neutral-300 rounded focus:ring-brand-primary"
-                            />
-                            <label htmlFor={fieldId} className="text-sm font-medium text-neutral-700">
-                              {fieldLabel}
-                              {isRequired && <span className="text-error ml-1">*</span>}
-                            </label>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={fieldId}
+                                checked={formData.form_data[fieldId] || false}
+                                onChange={(e) => {
+                                  handleFieldChange(fieldId, e.target.checked);
+                                  // Clear error when field is changed
+                                  if (fieldErrors[fieldId]) {
+                                    setFieldErrors(prev => {
+                                      const next = { ...prev };
+                                      delete next[fieldId];
+                                      return next;
+                                    });
+                                  }
+                                }}
+                                className={`w-4 h-4 text-brand-primary border-neutral-300 rounded focus:ring-brand-primary ${hasError ? 'border-error' : ''}`}
+                              />
+                              <label htmlFor={fieldId} className="text-sm font-medium text-neutral-700">
+                                {fieldLabel}
+                                {isRequired && <span className="text-error ml-1">*</span>}
+                              </label>
+                            </div>
+                            {hasError && (
+                              <p className="text-sm text-error mt-1">{fieldError}</p>
+                            )}
                           </div>
                         ) : fieldType === 'select' ? (
-                          <Select
-                            label={fieldLabel}
-                            required={isRequired}
-                            value={formData.form_data[fieldId] || ''}
-                            onChange={(value) => handleFieldChange(fieldId, value)}
-                            options={Array.isArray(options) ? options : []}
-                          />
+                          <div>
+                            <Select
+                              label={fieldLabel}
+                              required={isRequired}
+                              value={formData.form_data[fieldId] || ''}
+                              onChange={(value) => {
+                                handleFieldChange(fieldId, value);
+                                // Clear error when field is changed
+                                if (fieldErrors[fieldId]) {
+                                  setFieldErrors(prev => {
+                                    const next = { ...prev };
+                                    delete next[fieldId];
+                                    return next;
+                                  });
+                                }
+                              }}
+                              options={Array.isArray(options) ? options : []}
+                              error={hasError ? fieldError : undefined}
+                            />
+                          </div>
                         ) : fieldType === 'textarea' ? (
                           <div>
                             <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -517,22 +684,48 @@ export const NewApplication: React.FC = () => {
                               {isRequired && <span className="text-error ml-1">*</span>}
                             </label>
                             <textarea
+                              id={fieldId}
                               value={formData.form_data[fieldId] || ''}
-                              onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+                              onChange={(e) => {
+                                handleFieldChange(fieldId, e.target.value);
+                                // Clear error when field is changed
+                                if (fieldErrors[fieldId]) {
+                                  setFieldErrors(prev => {
+                                    const next = { ...prev };
+                                    delete next[fieldId];
+                                    return next;
+                                  });
+                                }
+                              }}
                               placeholder={placeholder}
                               required={isRequired}
                               rows={4}
-                              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent ${hasError ? 'border-error' : 'border-neutral-300'}`}
                             />
+                            {hasError && (
+                              <p className="text-sm text-error mt-1">{fieldError}</p>
+                            )}
                           </div>
                         ) : (
                           <Input
+                            id={fieldId}
                             type={fieldType === 'date' ? 'date' : fieldType === 'number' ? 'number' : 'text'}
                             label={fieldLabel}
                             required={isRequired}
                             placeholder={placeholder}
                             value={formData.form_data[fieldId] || ''}
-                            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+                            onChange={(e) => {
+                              handleFieldChange(fieldId, e.target.value);
+                              // Clear error when field is changed
+                              if (fieldErrors[fieldId]) {
+                                setFieldErrors(prev => {
+                                  const next = { ...prev };
+                                  delete next[fieldId];
+                                  return next;
+                                });
+                              }
+                            }}
+                            error={hasError ? fieldError : undefined}
                           />
                         )}
                       </div>
@@ -545,26 +738,14 @@ export const NewApplication: React.FC = () => {
         ) : (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Additional Information (Optional)</CardTitle>
+              <CardTitle>Form Configuration</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-neutral-600 mb-4">
-                No custom form configuration found. Please contact your KAM to configure your form.
+                {formConfigLoading 
+                  ? 'Loading form configuration...'
+                  : 'No form configuration found. Please contact your KAM to configure your form.'}
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Email Address"
-                  type="email"
-                  placeholder="applicant@example.com"
-                  onChange={(e) => handleFieldChange('email', e.target.value)}
-                />
-                <Input
-                  label="Mobile Number"
-                  type="tel"
-                  placeholder="+91 98765 43210"
-                  onChange={(e) => handleFieldChange('phone', e.target.value)}
-                />
-              </div>
             </CardContent>
           </Card>
         )}

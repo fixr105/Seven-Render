@@ -840,10 +840,9 @@ class ApiService {
   async recordNBFCDecision(
     applicationId: string,
     data: {
-      decision: string;
-      decisionDate: string;
-      remarks?: string;
-      approvedAmount?: string;
+      lenderDecisionStatus: string; // 'Approved' | 'Rejected' | 'Needs Clarification'
+      lenderDecisionRemarks: string; // Required for Rejected, optional for others
+      approvedAmount?: number; // Optional: for approved decisions
     }
   ): Promise<ApiResponse> {
     return this.request(`/nbfc/loan-applications/${applicationId}/decision`, {
@@ -862,22 +861,31 @@ class ApiService {
   }
 
   /**
-   * Create ledger query
+   * Create ledger query/dispute
    */
   async createLedgerQuery(
     ledgerEntryId: string,
-    query: string
+    message: string
   ): Promise<ApiResponse> {
     return this.request(`/clients/me/ledger/${ledgerEntryId}/query`, {
       method: 'POST',
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  /**
+   * Flag ledger entry for payout request
+   */
+  async flagLedgerPayout(ledgerEntryId: string): Promise<ApiResponse> {
+    return this.request(`/clients/me/ledger/${ledgerEntryId}/flag-payout`, {
+      method: 'POST',
     });
   }
 
   /**
    * Create payout request
    */
-  async createPayoutRequest(data: { amount: number }): Promise<ApiResponse> {
+  async createPayoutRequest(data: { amount?: number; full?: boolean }): Promise<ApiResponse> {
     return this.request('/clients/me/payout-requests', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -896,9 +904,10 @@ class ApiService {
   /**
    * Generate daily summary report
    */
-  async generateDailySummary(): Promise<ApiResponse> {
+  async generateDailySummary(date?: string, emailRecipients?: string[]): Promise<ApiResponse> {
     return this.request('/reports/daily/generate', {
       method: 'POST',
+      body: JSON.stringify({ date, emailRecipients }),
     });
   }
 
@@ -909,6 +918,14 @@ class ApiService {
     return this.request(`/reports/daily/${date}`);
   }
 
+  /**
+   * List daily summary reports (last N reports)
+   */
+  async listDailySummaries(limit?: number): Promise<ApiResponse<any[]>> {
+    const query = limit ? `?limit=${limit}` : '';
+    return this.request<any[]>(`/reports/daily/list${query}`);
+  }
+
   // ==================== AUDIT LOGS ====================
 
   /**
@@ -916,6 +933,23 @@ class ApiService {
    */
   async getFileAuditLog(applicationId: string): Promise<ApiResponse<AuditLogEntry[]>> {
     return this.request<AuditLogEntry[]>(`/loan-applications/${applicationId}/audit-log`);
+  }
+
+  /**
+   * Get queries for an application (grouped into threads)
+   */
+  async getQueries(applicationId: string): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>(`/loan-applications/${applicationId}/queries`);
+  }
+
+  /**
+   * Resolve a query
+   */
+  async resolveQuery(applicationId: string, queryId: string, resolutionMessage?: string): Promise<ApiResponse> {
+    return this.request(`/loan-applications/${applicationId}/queries/${queryId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ resolutionMessage }),
+    });
   }
 
   /**

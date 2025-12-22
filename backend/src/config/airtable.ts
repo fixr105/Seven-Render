@@ -1,28 +1,96 @@
 /**
  * Airtable/n8n Webhook Configuration
+ * 
+ * @deprecated This file is maintained for backward compatibility.
+ * New code should use n8nEndpoints from backend/src/services/airtable/n8nEndpoints.ts
+ * 
+ * This file now re-exports from the centralized n8nEndpoints configuration
+ * to ensure all paths match SEVEN-DASHBOARD-2.json exactly.
  */
 
-import dotenv from 'dotenv';
+import { n8nEndpoints } from '../services/airtable/n8nEndpoints.js';
 
-dotenv.config();
-
+/**
+ * n8n Webhook Configuration
+ * Maps to SEVEN-DASHBOARD-2.json webhook paths
+ * 
+ * GET Webhooks: Individual paths defined in webhookConfig.ts
+ * POST Webhooks: Defined here, match n8n workflow POST webhook nodes
+ * 
+ * See WEBHOOK_MAPPING_TABLE.md for complete frontend → backend → webhook → Airtable mapping
+ * See n8nEndpoints.ts for centralized endpoint configuration
+ */
 export const n8nConfig = {
+  // GET: Generic webhook for all tables (deprecated - use individual webhooks from webhookConfig.ts)
   getWebhookUrl: process.env.N8N_GET_WEBHOOK_URL || 'https://fixrrahul.app.n8n.cloud/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52',
-  getUserAccountsUrl: process.env.N8N_GET_USER_ACCOUNTS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/useraccount', // Dedicated webhook for user accounts
-  postLogUrl: process.env.N8N_POST_LOG_URL || 'https://fixrrahul.app.n8n.cloud/webhook/POSTLOG',
-  postClientFormMappingUrl: process.env.N8N_POST_CLIENT_FORM_MAPPING_URL || 'https://fixrrahul.app.n8n.cloud/webhook/POSTCLIENTFORMMAPPING',
-  postCommissionLedgerUrl: process.env.N8N_POST_COMMISSION_LEDGER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/COMISSIONLEDGER',
-  postCreditTeamUsersUrl: process.env.N8N_POST_CREDIT_TEAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS',
-  postDailySummaryUrl: process.env.N8N_POST_DAILY_SUMMARY_URL || 'https://fixrrahul.app.n8n.cloud/webhook/DAILYSUMMARY',
-  postFileAuditLogUrl: process.env.N8N_POST_FILE_AUDIT_LOG_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Fileauditinglog',
-  postFormCategoryUrl: process.env.N8N_POST_FORM_CATEGORY_URL || 'https://fixrrahul.app.n8n.cloud/webhook/FormCategory',
-  postFormFieldsUrl: process.env.N8N_POST_FORM_FIELDS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/FormFields',
-  postKamUsersUrl: process.env.N8N_POST_KAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/KAMusers',
-  postApplicationsUrl: process.env.N8N_POST_APPLICATIONS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/applications',
-  postLoanProductsUrl: process.env.N8N_POST_LOAN_PRODUCTS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/loanproducts',
-  postNBFCPartnersUrl: process.env.N8N_POST_NBFC_PARTNERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners',
-  postAddUserUrl: process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser',
-  postClientUrl: process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client',
-  postNotificationUrl: process.env.N8N_POST_NOTIFICATION_URL || 'https://fixrrahul.app.n8n.cloud/webhook/notification',
+  
+  // GET: Dedicated webhook for user accounts (used for authentication)
+  // n8n path: /useraccount → Airtable: User Accounts
+  getUserAccountsUrl: n8nEndpoints.get.userAccount,
+  
+  // POST: Admin Activity Log
+  // n8n path: /POSTLOG → Airtable: Admin Activity log
+  postLogUrl: n8nEndpoints.post.log,
+  
+  // POST: Client Form Mapping
+  // n8n path: /POSTCLIENTFORMMAPPING → Airtable: Client Form Mapping
+  postClientFormMappingUrl: n8nEndpoints.post.clientFormMapping,
+  
+  // POST: Commission Ledger
+  // n8n path: /COMISSIONLEDGER → Airtable: Commission Ledger
+  postCommissionLedgerUrl: n8nEndpoints.post.commissionLedger,
+  
+  // POST: Credit Team Users
+  // n8n path: /CREDITTEAMUSERS → Airtable: Credit Team Users
+  postCreditTeamUsersUrl: n8nEndpoints.post.creditTeamUsers,
+  
+  // POST: Daily Summary Reports
+  // n8n path: /DAILYSUMMARY → Airtable: Daily summary Reports
+  postDailySummaryUrl: n8nEndpoints.post.dailySummary,
+  
+  // POST: File Audit Log
+  // n8n path: /Fileauditinglog → Airtable: File Auditing Log
+  postFileAuditLogUrl: n8nEndpoints.post.fileAuditLog,
+  
+  // POST: Form Categories
+  // n8n path: /FormCategory → Airtable: Form Categories
+  postFormCategoryUrl: n8nEndpoints.post.formCategory,
+  
+  // POST: Form Fields
+  // n8n path: /FormFields → Airtable: Form Fields
+  postFormFieldsUrl: n8nEndpoints.post.formFields,
+  
+  // POST: KAM Users
+  // n8n path: /KAMusers → Airtable: KAM Users
+  postKamUsersUrl: n8nEndpoints.post.kamUsers,
+  
+  // POST: Loan Applications
+  // n8n path: /loanapplications (Webhook11) → Airtable: Loan Applications
+  // POST create/update operations use /loanapplications (plural)
+  postApplicationsUrl: n8nEndpoints.post.loanApplications,
+  
+  // POST: Loan Products
+  // n8n path: /loanproducts → Airtable: Loan Products
+  postLoanProductsUrl: n8nEndpoints.post.loanProducts,
+  
+  // POST: NBFC Partners
+  // n8n path: /NBFCPartners → Airtable: NBFC Partners
+  postNBFCPartnersUrl: n8nEndpoints.post.nbfcPartners,
+  
+  // POST: User Accounts (Add User)
+  // n8n path: /adduser → Airtable: User Accounts
+  postAddUserUrl: n8nEndpoints.post.addUser,
+  
+  // POST: Clients
+  // n8n path: /Client → Airtable: Clients
+  postClientUrl: n8nEndpoints.post.client,
+  
+  // POST: Notifications
+  // n8n path: /notification → Airtable: Notifications
+  postNotificationUrl: n8nEndpoints.post.notification,
+  
+  // POST: Email (Outlook Send a message)
+  // n8n path: /email → Outlook email sending
+  postEmailUrl: n8nEndpoints.post.email,
 } as const;
 

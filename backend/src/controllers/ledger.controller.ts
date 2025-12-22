@@ -27,25 +27,29 @@ export class LedgerController {
         (entry) => entry.Client === req.user!.clientId
       );
 
-      // Sort by date (newest first)
-      ledgerEntries.sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
+      // Sort by date (oldest first for running balance calculation)
+      ledgerEntries.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));
 
-      // Calculate running balance
-      let balance = 0;
+      // Calculate running balance (oldest to newest)
+      let runningBalance = 0;
       const entriesWithBalance = ledgerEntries.map((entry) => {
         const amount = parseFloat(entry['Payout Amount'] || '0');
-        balance += amount;
+        runningBalance += amount;
         return {
           ...entry,
-          balance,
+          balance: runningBalance,
+          runningBalance, // Alias for frontend compatibility
         };
       });
+
+      // Reverse to show newest first in response
+      entriesWithBalance.reverse();
 
       res.json({
         success: true,
         data: {
           entries: entriesWithBalance,
-          currentBalance: balance,
+          currentBalance: runningBalance,
         },
       });
     } catch (error: any) {
@@ -59,6 +63,11 @@ export class LedgerController {
   /**
    * POST /clients/me/ledger/:ledgerEntryId/query
    * Create query/dispute on ledger entry (CLIENT only)
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Commission Ledger') → /webhook/commisionledger → Airtable: Commission Ledger
+   * - POST → n8nClient.postCommissionLedger() → /webhook/COMISSIONLEDGER → Airtable: Commission Ledger
+   * - POST → n8nClient.postFileAuditLog() → /webhook/Fileauditinglog → Airtable: File Auditing Log
    */
   async createLedgerQuery(req: Request, res: Response): Promise<void> {
     try {
@@ -69,6 +78,12 @@ export class LedgerController {
 
       const { ledgerEntryId } = req.params;
       const { message } = req.body;
+
+      if (!message || message.trim().length === 0) {
+        res.status(400).json({ success: false, error: 'Query message is required' });
+        return;
+      }
+
       // Fetch only Commission Ledger table
       const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
       const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
@@ -92,7 +107,7 @@ export class LedgerController {
         Timestamp: new Date().toISOString(),
         Actor: req.user!.email,
         'Action/Event Type': 'ledger_dispute',
-        'Details/Message': `Ledger dispute: ${message}`,
+        'Details/Message': `Ledger dispute raised: ${message}`,
         'Target User/Role': 'credit_team',
         Resolved: 'False',
       });
@@ -110,6 +125,70 @@ export class LedgerController {
   }
 
   /**
+   * POST /clients/me/ledger/:ledgerEntryId/flag-payout
+   * Flag a ledger entry for payout request (CLIENT only)
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Commission Ledger') → /webhook/commisionledger → Airtable: Commission Ledger
+   * - POST → n8nClient.postCommissionLedger() → /webhook/COMISSIONLEDGER → Airtable: Commission Ledger
+   */
+  async flagLedgerPayout(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { ledgerEntryId } = req.params;
+
+      // Fetch only Commission Ledger table
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
+
+      if (!entry || entry.Client !== req.user!.clientId) {
+        res.status(404).json({ success: false, error: 'Ledger entry not found' });
+        return;
+      }
+
+      // Check if entry has positive payout amount
+      const payoutAmount = parseFloat(entry['Payout Amount'] || '0');
+      if (payoutAmount <= 0) {
+        res.status(400).json({ success: false, error: 'Only entries with positive payout amounts can be flagged for payout' });
+        return;
+      }
+
+      // Update payout request flag
+      await n8nClient.postCommissionLedger({
+        ...entry,
+        'Payout Request': 'Requested',
+      });
+
+      // Log to file audit
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: entry['Loan File'] || '',
+        Timestamp: new Date().toISOString(),
+        Actor: req.user!.email,
+        'Action/Event Type': 'payout_request_flagged',
+        'Details/Message': `Payout request flagged for ledger entry: ${entry['Ledger Entry ID']}`,
+        'Target User/Role': 'credit_team',
+        Resolved: 'False',
+      });
+
+      res.json({
+        success: true,
+        message: 'Ledger entry flagged for payout request',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to flag payout',
+      });
+    }
+  }
+
+  /**
    * POST /clients/me/payout-requests
    * Create payout request (CLIENT only)
    */
@@ -120,7 +199,8 @@ export class LedgerController {
         return;
       }
 
-      const { amountRequested, full } = req.body;
+      const { amount, full, amountRequested } = req.body; // Support both 'amount' and 'amountRequested' for compatibility
+      const requestedAmountValue = amount || amountRequested;
       // Fetch only Commission Ledger table
       let ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
@@ -143,7 +223,7 @@ export class LedgerController {
         return;
       }
 
-      const requestedAmount = full ? currentBalance : (amountRequested || currentBalance);
+      const requestedAmount = full ? currentBalance : (requestedAmountValue || currentBalance);
 
       if (requestedAmount > currentBalance) {
         res.status(400).json({

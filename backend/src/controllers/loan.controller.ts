@@ -15,6 +15,14 @@ export class LoanController {
    * Create draft application (CLIENT only)
    * Accepts: productId, applicantName, requestedLoanAmount, formData (optional)
    * OR: productId, borrowerIdentifiers (legacy format)
+   * 
+   * Webhook Mapping:
+   * - POST → n8nClient.postLoanApplication() → /webhook/loanapplications (plural) → Airtable: Loan Applications
+   * - POST → n8nClient.postFileAuditLog() → /webhook/Fileauditinglog → Airtable: File Auditing Log
+   * - POST → adminLogger.logApplicationAction() → /webhook/POSTLOG → Airtable: Admin Activity log
+   * 
+   * Frontend: src/pages/NewApplication.tsx (line 250)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async createApplication(req: Request, res: Response): Promise<void> {
     try {
@@ -99,17 +107,61 @@ export class LoanController {
       // Determine status - if saveAsDraft is false, set to UNDER_KAM_REVIEW, otherwise DRAFT
       const status = saveAsDraft ? LoanStatus.DRAFT : LoanStatus.UNDER_KAM_REVIEW;
 
+      // Strict mandatory field validation for non-draft submissions
+      if (!saveAsDraft) {
+        const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
+        
+        // Extract document links from documentUploads
+        const documentLinks: Record<string, string> = {};
+        if (documentUploads && Array.isArray(documentUploads)) {
+          documentUploads.forEach((upload: any) => {
+            if (upload.fieldId && upload.fileUrl) {
+              documentLinks[upload.fieldId] = upload.fileUrl;
+            }
+          });
+        }
+
+        // Validate mandatory fields
+        const validationResult = await validateMandatoryFields(
+          finalFormData,
+          req.user!.clientId!,
+          productId,
+          documentLinks
+        );
+
+        if (!validationResult.isValid) {
+          res.status(400).json({
+            success: false,
+            error: validationResult.errorMessage || 'Missing required fields',
+            missingFields: validationResult.missingFields.map((f) => ({
+              fieldId: f.fieldId,
+              label: f.label,
+              type: f.type,
+            })),
+          });
+          return;
+        }
+      }
+
       // Module 1: Get current form config version for this client (for versioning)
       const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
       const formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!);
 
-      // Module 2: Process document uploads - store OneDrive links
+      // Module 2: Process document uploads - store OneDrive links in Documents field
+      // Format: fieldId:url|fileName,fieldId:url|fileName
+      const documentsArray: string[] = [];
       const documentLinks: Record<string, string> = {};
+      
       if (documentUploads && Array.isArray(documentUploads)) {
         documentUploads.forEach((upload: any) => {
           if (upload.fieldId && upload.fileUrl) {
-            // Store as fieldId:fileUrl format
+            // Store as fieldId:url|fileName format for Documents field
+            const fileName = upload.fileName || upload.fileUrl.split('/').pop() || 'document';
+            documentsArray.push(`${upload.fieldId}:${upload.fileUrl}|${fileName}`);
+            
+            // Also store in documentLinks for validation
             documentLinks[upload.fieldId] = upload.fileUrl;
+            
             // Also add to form data
             finalFormData[upload.fieldId] = upload.fileUrl;
             if (upload.fileName) {
@@ -139,9 +191,7 @@ export class LoanController {
         'Last Updated': new Date().toISOString(),
         'Form Data': JSON.stringify(finalFormData),
         'Form Config Version': formConfigVersion || '', // Module 1: Store form config version
-        'Document Uploads': Object.keys(documentLinks).length > 0 
-          ? JSON.stringify(documentLinks) 
-          : '', // Module 2: Store OneDrive document links
+        Documents: documentsArray.length > 0 ? documentsArray.join(',') : '', // Module 2: Store documents in format: fieldId:url|fileName
         'Needs Attention': needsAttention ? 'True' : 'False', // Module 2: Flag for KAM attention
         'Validation Warnings': validationWarnings.length > 0 
           ? JSON.stringify(validationWarnings) 
@@ -219,6 +269,17 @@ export class LoanController {
    * GET /loan-applications
    * List applications (filtered by role)
    * Fetches from Airtable via n8n webhooks
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * - GET → n8nClient.fetchTable('Clients') → /webhook/client → Airtable: Clients
+   * - GET → n8nClient.fetchTable('Loan Products') → /webhook/loanproducts → Airtable: Loan Products
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/Applications.tsx, src/hooks/useApplications.ts
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
@@ -226,6 +287,8 @@ export class LoanController {
       const user = req.user!;
 
       // Fetch applications and related data from n8n webhooks
+      // All records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       const [applications, clients, loanProducts] = await Promise.all([
         n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('Clients'),
@@ -351,13 +414,116 @@ export class LoanController {
   }
 
   /**
+   * GET /loan-applications/:id/queries
+   * Get all queries for an application, grouped into threads
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('File Auditing Log') → /webhook/fileauditinglog → Airtable: File Auditing Log
+   * 
+   * Frontend: src/pages/ApplicationDetail.tsx
+   */
+  async getQueries(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app) => app.id === id);
+
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      // Check access permissions
+      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({ success: false, error: 'Access denied' });
+        return;
+      }
+
+      const { queryService } = await import('../services/queries/query.service.js');
+      const threads = await queryService.getQueriesForFile(application['File ID']);
+
+      res.json({
+        success: true,
+        data: threads,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch queries',
+      });
+    }
+  }
+
+  /**
+   * POST /loan-applications/:id/queries/:queryId/resolve
+   * Resolve a query
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('File Auditing Log') → /webhook/fileauditinglog → Airtable: File Auditing Log
+   * - POST → n8nClient.postFileAuditLog() → /webhook/Fileauditinglog → Airtable: File Auditing Log
+   */
+  async resolveQuery(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, queryId } = req.params;
+      const { resolutionMessage } = req.body;
+
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app) => app.id === id);
+
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      // Check access permissions - only KAM, Credit Team, or Client (for their own queries) can resolve
+      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({ success: false, error: 'Access denied' });
+        return;
+      }
+
+      const { queryService } = await import('../services/queries/query.service.js');
+      await queryService.resolveQuery(
+        queryId,
+        application['File ID'],
+        application.Client,
+        req.user!.email,
+        resolutionMessage
+      );
+
+      res.json({
+        success: true,
+        message: 'Query resolved successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to resolve query',
+      });
+    }
+  }
+
+  /**
    * GET /loan-applications/:id
    * Get single application
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * - GET → n8nClient.fetchTable('File Auditing Log') → /webhook/fileauditinglog → Airtable: File Auditing Log
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/ApplicationDetail.tsx (line 105)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async getApplication(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       // Fetch only the tables we need
+      // All records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       const [applications, auditLogs] = await Promise.all([
         n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('File Auditing Log'),
@@ -389,12 +555,36 @@ export class LoanController {
           resolved: log.Resolved === 'True',
         }));
 
+      // Parse Documents field - format: fieldId:url|fileName,fieldId:url|fileName
+      const documents: Array<{ fieldId: string; url: string; fileName: string }> = [];
+      if (application.Documents) {
+        const documentsStr = application.Documents;
+        const documentEntries = documentsStr.split(',').filter(Boolean);
+        
+        documentEntries.forEach((entry: string) => {
+          // Parse format: fieldId:url|fileName
+          const [fieldIdPart, rest] = entry.split(':');
+          if (rest) {
+            const [url, fileName] = rest.split('|');
+            if (fieldIdPart && url) {
+              documents.push({
+                fieldId: fieldIdPart.trim(),
+                url: url.trim(),
+                fileName: fileName ? fileName.trim() : url.split('/').pop() || 'document',
+              });
+            }
+          }
+        });
+      }
+
       res.json({
         success: true,
         data: {
           ...application,
           formData: application['Form Data'] ? JSON.parse(application['Form Data']) : {},
+          documents, // Parsed documents array
           auditLog: fileAuditLog,
+          aiFileSummary: application['AI File Summary'] || null, // AI File Summary field
         },
       });
     } catch (error: any) {
@@ -456,15 +646,26 @@ export class LoanController {
         'Form Config Version': formConfigVersion || '', // Module 1: Preserve or update version
       };
 
-      // Handle document uploads
+      // Handle document uploads - append to Documents field
+      // Format: fieldId:url|fileName,fieldId:url|fileName
       if (documentUploads && documentUploads.length > 0) {
-        const documents = application.Documents
+        const existingDocuments = application.Documents
           ? application.Documents.split(',').filter(Boolean)
           : [];
+        
         documentUploads.forEach((doc: any) => {
-          documents.push(`${doc.fieldId}:${doc.fileUrl}`);
+          if (doc.fieldId && doc.fileUrl) {
+            const fileName = doc.fileName || doc.fileUrl.split('/').pop() || 'document';
+            const documentEntry = `${doc.fieldId}:${doc.fileUrl}|${fileName}`;
+            
+            // Check if this fieldId already has documents, replace or append
+            const fieldIdPrefix = `${doc.fieldId}:`;
+            const filtered = existingDocuments.filter((d: string) => !d.startsWith(fieldIdPrefix));
+            filtered.push(documentEntry);
+            
+            updatedData.Documents = filtered.join(',');
+          }
         });
-        updatedData.Documents = documents.join(',');
       }
 
       await n8nClient.postLoanApplication(updatedData);
@@ -506,6 +707,16 @@ export class LoanController {
   /**
    * POST /loan-applications/:id/submit
    * Submit application (CLIENT only)
+   * 
+   * Webhook Mapping:
+   * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication (singular) → Airtable: Loan Applications
+   * - POST → n8nClient.postLoanApplication() → /webhook/loanapplications (plural) → Airtable: Loan Applications
+   * 
+   * All records are parsed using standardized N8nResponseParser
+   * Returns ParsedRecord[] with clean field names (fields directly on object)
+   * 
+   * Frontend: src/pages/NewApplication.tsx (submit button)
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async submitApplication(req: Request, res: Response): Promise<void> {
     try {
@@ -516,6 +727,8 @@ export class LoanController {
 
       const { id } = req.params;
       // Fetch only Loan Application table
+      // Records are automatically parsed by fetchTable() using N8nResponseParser
+      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
 
@@ -535,7 +748,51 @@ export class LoanController {
         return;
       }
 
-      // TODO: Validate required fields and documents based on form-config
+      // Strict mandatory field validation
+      // Load form fields configuration and validate all mandatory fields
+      const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
+      
+      // Parse form data from application
+      let formData: Record<string, any> = {};
+      try {
+        const formDataStr = application['Form Data'] || application.formData || '{}';
+        formData = typeof formDataStr === 'string' ? JSON.parse(formDataStr) : formDataStr;
+      } catch (e) {
+        console.error('[submitApplication] Error parsing form data:', e);
+        formData = {};
+      }
+
+      // Extract document links from form data (for file fields)
+      const documentLinks: Record<string, string> = {};
+      Object.keys(formData).forEach((key) => {
+        // Check if this field might be a document link
+        if (formData[key] && typeof formData[key] === 'string' && 
+            (formData[key].includes('onedrive') || formData[key].includes('sharepoint') || formData[key].startsWith('http'))) {
+          documentLinks[key] = formData[key];
+        }
+      });
+
+      // Validate mandatory fields
+      const productId = application['Loan Product'] || application.loanProduct;
+      const validationResult = await validateMandatoryFields(
+        formData,
+        req.user!.clientId!,
+        productId,
+        documentLinks
+      );
+
+      if (!validationResult.isValid) {
+        res.status(400).json({
+          success: false,
+          error: validationResult.errorMessage || 'Missing required fields',
+          missingFields: validationResult.missingFields.map((f) => ({
+            fieldId: f.fieldId,
+            label: f.label,
+            type: f.type,
+          })),
+        });
+        return;
+      }
 
       // Module 1: Ensure form config version is set before submission (freeze it)
       let formConfigVersion = application['Form Config Version'] || application.formConfigVersion;
