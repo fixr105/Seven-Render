@@ -9,14 +9,24 @@ process.env.VERCEL = '1';
 import serverless from 'serverless-http';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Import the Express app directly
-// Vercel will compile TypeScript automatically
-import expressApp from '../backend/src/server.js';
+// Lazy load the Express app to avoid blocking initialization
+let expressApp: any = null;
+let handler: any = null;
 
-// Create serverless handler once (reused across invocations)
-const handler = serverless(expressApp, {
-  binary: ['image/*', 'application/pdf'],
-});
+async function getHandler() {
+  if (!handler) {
+    if (!expressApp) {
+      // Dynamic import to avoid blocking
+      const serverModule = await import('../backend/src/server.js');
+      expressApp = serverModule.default;
+    }
+    // Create serverless handler once (reused across invocations)
+    handler = serverless(expressApp, {
+      binary: ['image/*', 'application/pdf'],
+    });
+  }
+  return handler;
+}
 
 /**
  * Vercel serverless function handler
@@ -41,8 +51,11 @@ export default async function handlerWrapper(
       (req as any).originalUrl = path;
     }
     
+    // Get handler (lazy loaded)
+    const serverlessHandler = await getHandler();
+    
     // Call the serverless handler
-    return handler(req, res);
+    return serverlessHandler(req, res);
   } catch (error: any) {
     console.error('Serverless function error:', error);
     if (!res.headersSent) {

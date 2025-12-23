@@ -16,7 +16,8 @@
   ],
   "functions": {
     "api/index.ts": {
-      "includeFiles": "backend/**"
+      "includeFiles": "backend/**",
+      "maxDuration": 30
     }
   }
 }
