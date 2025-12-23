@@ -26,34 +26,64 @@ app.get('/health', (req, res) => {
 
 // Lazy load routes only when needed
 let routesLoaded = false;
+let routesLoading = false;
+let routesLoadPromise: Promise<void> | null = null;
 
-async function loadRoutes() {
+async function loadRoutes(): Promise<void> {
   if (routesLoaded) return;
-  
-  try {
-    // Dynamically import routes to avoid blocking initialization
-    const routesModule = await import('../backend/src/routes/index.js');
-    const routes = routesModule.default;
-    app.use('/', routes);
-    routesLoaded = true;
-    console.log('[MinimalServer] Routes loaded successfully');
-  } catch (error: any) {
-    console.error('[MinimalServer] Error loading routes:', error);
-    throw error;
+  if (routesLoading && routesLoadPromise) {
+    return routesLoadPromise;
   }
+  
+  routesLoading = true;
+  const startTime = Date.now();
+  
+  routesLoadPromise = (async () => {
+    try {
+      console.log('[MinimalServer] Starting to load routes...');
+      
+      // Dynamically import routes to avoid blocking initialization
+      // Use .ts extension - Vercel will compile
+      const routesModule = await import('../backend/src/routes/index.ts');
+      const routes = routesModule.default;
+      
+      app.use('/', routes);
+      routesLoaded = true;
+      routesLoading = false;
+      
+      const loadTime = Date.now() - startTime;
+      console.log(`[MinimalServer] Routes loaded successfully in ${loadTime}ms`);
+    } catch (error: any) {
+      routesLoading = false;
+      console.error('[MinimalServer] Error loading routes:', error);
+      throw error;
+    }
+  })();
+  
+  return routesLoadPromise;
 }
 
-// Middleware to load routes on first request
+// Middleware to load routes on first request (with timeout)
 app.use(async (req, res, next) => {
   if (!routesLoaded) {
     try {
-      await loadRoutes();
+      // Load routes with timeout protection
+      await Promise.race([
+        loadRoutes(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Route loading timeout')), 50000)
+        )
+      ]);
     } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to load routes',
-        message: error.message,
-      });
+      console.error('[MinimalServer] Failed to load routes:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to load routes',
+          message: error.message || 'Route loading timed out',
+        });
+      }
+      return;
     }
   }
   next();
