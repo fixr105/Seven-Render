@@ -49,19 +49,41 @@ async function initializeHandler(): Promise<any> {
   initializationPromise = (async () => {
     try {
       console.log('[Serverless] Starting Express app initialization...');
+      const importStart = Date.now();
       
-      // Dynamic import to avoid blocking module load
-      // Use minimal server that loads routes lazily
-      const serverModule = await import('./server-minimal.js');
+      // Try importing the minimal server
+      // This should be fast since it doesn't load routes immediately
+      let serverModule;
+      try {
+        serverModule = await Promise.race([
+          import('./server-minimal.js'),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Import timeout after 20s')), 20000)
+          )
+        ]);
+      } catch (importError: any) {
+        console.error('[Serverless] Failed to import server-minimal:', importError);
+        // Fallback: try importing the full server directly
+        console.log('[Serverless] Trying full server import as fallback...');
+        serverModule = await Promise.race([
+          import('../backend/src/server.js'),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Full server import timeout')), 40000)
+          )
+        ]);
+      }
+      
       const expressApp = serverModule.default;
-      
-      const initTime = Date.now() - initializationStartTime;
-      console.log(`[Serverless] Express app loaded in ${initTime}ms`);
+      const importTime = Date.now() - importStart;
+      console.log(`[Serverless] Express app imported in ${importTime}ms`);
       
       // Create serverless handler
+      const handlerStart = Date.now();
       const handler = serverless(expressApp, {
         binary: ['image/*', 'application/pdf'],
       });
+      const handlerTime = Date.now() - handlerStart;
+      console.log(`[Serverless] Handler created in ${handlerTime}ms`);
       
       cachedHandler = handler;
       const totalTime = Date.now() - initializationStartTime;
