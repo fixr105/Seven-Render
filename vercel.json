@@ -21,7 +21,11 @@
   "functions": {
     "api/index.ts": {
       "includeFiles": "backend/**",
-      "maxDuration": 30
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/health.ts": {
+      "maxDuration": 10
     }
   }
 }
