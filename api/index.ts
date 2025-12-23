@@ -52,14 +52,7 @@ async function initializeHandler(): Promise<any> {
       
       // Dynamic import to avoid blocking module load
       // Use minimal server that loads routes lazily
-      // Try server-minimal first, fallback to auth-only for testing
-      let serverModule;
-      try {
-        serverModule = await import('./server-minimal.ts');
-      } catch {
-        // Fallback to auth-only server
-        serverModule = await import('./auth-only.ts');
-      }
+      const serverModule = await import('./server-minimal.js');
       const expressApp = serverModule.default;
       
       const initTime = Date.now() - initializationStartTime;

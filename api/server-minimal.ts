@@ -43,8 +43,8 @@ async function loadRoutes(): Promise<void> {
       console.log('[MinimalServer] Starting to load routes...');
       
       // Dynamically import routes to avoid blocking initialization
-      // Use .ts extension - Vercel will compile
-      const routesModule = await import('../backend/src/routes/index.ts');
+      // Use .js extension - Vercel compiles TypeScript automatically
+      const routesModule = await import('../backend/src/routes/index.js');
       const routes = routesModule.default;
       
       app.use('/', routes);
