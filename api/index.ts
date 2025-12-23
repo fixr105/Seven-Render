@@ -52,7 +52,8 @@ async function initializeHandler(): Promise<any> {
       
       // Dynamic import to avoid blocking module load
       // This import loads all routes and controllers, which might take time
-      const serverModule = await import('../backend/src/server.js');
+      // Use .ts extension - Vercel will compile TypeScript automatically
+      const serverModule = await import('../backend/src/server.ts');
       const expressApp = serverModule.default;
       
       const initTime = Date.now() - initializationStartTime;
