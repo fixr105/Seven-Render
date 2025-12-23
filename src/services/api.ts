@@ -5,15 +5,25 @@
 
 // Ensure API_BASE_URL includes /api prefix for Vercel deployment
 const getApiBaseUrl = () => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
-  // If VITE_API_BASE_URL is set, use it
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  
+  // If VITE_API_BASE_URL is explicitly set, use it
   if (baseUrl) {
-    if (!baseUrl.endsWith('/api') && !baseUrl.includes('localhost')) {
-      return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
+    // If it's a full URL (not localhost), ensure it has /api
+    if (!baseUrl.includes('localhost') && !baseUrl.startsWith('/')) {
+      // It's a production URL - ensure /api is appended
+      if (!baseUrl.endsWith('/api')) {
+        return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
+      }
+      return baseUrl;
     }
+    // For localhost or relative paths, return as-is
     return baseUrl;
   }
-  // For development, use relative path which will be proxied to backend
+  
+  // Default: use relative path (works for both dev proxy and Vercel production)
+  // In development, Vite proxy handles /api -> localhost:3001
+  // In production, Vercel rewrites handle /api -> serverless function
   return '/api';
 };
 
