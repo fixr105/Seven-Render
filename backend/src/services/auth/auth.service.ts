@@ -26,8 +26,9 @@ export class AuthService {
    */
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
     // Use dedicated user account webhook for login (loads only once)
-    // Webhook responds in ~1 second, so use 5 second timeout for safety
-    const userAccounts = await n8nClient.getUserAccounts(5000); // 5 seconds - webhook responds in ~1s
+    // Use 10 second timeout to handle slow webhook responses
+    // If webhook is consistently slow, consider caching user accounts
+    const userAccounts = await n8nClient.getUserAccounts(10000); // 10 seconds
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
