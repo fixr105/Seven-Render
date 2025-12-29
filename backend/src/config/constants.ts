@@ -62,22 +62,6 @@ export enum PayoutRequestStatus {
   PAID = 'Paid',
 }
 
-// Airtable Table IDs (from n8n flow)
-export const AIRTABLE_BASE_ID = 'appzbyi8q7pJRl1cd';
-
-export const AIRTABLE_TABLES = {
-  ADMIN_ACTIVITY_LOG: 'tblz0e59ULgBcUvrY',
-  CLIENT_FORM_MAPPING: 'tbl70C8uPKmoLkOQJ',
-  COMMISSION_LEDGER: 'tblrBWFuPYBI4WWtn',
-  CREDIT_TEAM_USERS: 'tbl1a1TmMUj918Byj',
-  DAILY_SUMMARY_REPORTS: 'tbla3urDb8kCsO0Et',
-  FILE_AUDITING_LOG: 'tblL1XJnqW3Q15ueZ',
-  FORM_CATEGORIES: 'tblqCqXV0Hds0t0bH',
-  FORM_FIELDS: 'tbl5oZ6zI0dc5eutw',
-  KAM_USERS: 'tblpZFUQEJAvPsdOJ',
-  LOAN_APPLICATIONS: 'tbl85RSGR1op38O3G',
-  LOAN_PRODUCTS: 'tblNxvQVlzCfcj4e2',
-  NBFC_PARTNERS: 'tblGvEp8Z1QvahwI0',
-  USER_ACCOUNTS: 'tbl7RRcehD5xLiPv7',
-} as const;
+// Note: Airtable table IDs are now managed in n8nEndpoints.ts
+// All database operations go through n8n webhooks, not direct Airtable API calls
 

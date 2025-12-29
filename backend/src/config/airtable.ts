@@ -21,9 +21,6 @@ import { n8nEndpoints } from '../services/airtable/n8nEndpoints.js';
  * See n8nEndpoints.ts for centralized endpoint configuration
  */
 export const n8nConfig = {
-  // GET: Generic webhook for all tables (deprecated - use individual webhooks from webhookConfig.ts)
-  getWebhookUrl: process.env.N8N_GET_WEBHOOK_URL || 'https://fixrrahul.app.n8n.cloud/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52',
-  
   // GET: Dedicated webhook for user accounts (used for authentication)
   // n8n path: /useraccount → Airtable: User Accounts
   getUserAccountsUrl: n8nEndpoints.get.userAccount,
