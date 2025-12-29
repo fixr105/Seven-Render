@@ -614,49 +614,86 @@ export class N8nClient {
    * POST data to n8n webhook
    * This will invalidate relevant caches after successful POST
    */
-  async postData(webhookUrl: string, data: Record<string, any>): Promise<any> {
-    try {
-      console.log(`[postData] Posting to webhook: ${webhookUrl}`);
-      console.log(`[postData] Data:`, JSON.stringify(data, null, 2));
-      
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      const responseText = await response.text();
-      console.log(`[postData] Response status: ${response.status} ${response.statusText}`);
-      console.log(`[postData] Response body: ${responseText.substring(0, 500)}`);
-
-      if (!response.ok) {
-        const errorMessage = `n8n POST webhook failed: ${response.status} ${response.statusText}. Response: ${responseText}`;
-        console.error(`[postData] ${errorMessage}`);
-        throw new Error(errorMessage);
-      }
-      
-      // Handle empty response
-      if (responseText.trim() === '') {
-        console.log('[postData] Empty response received, treating as success');
-        return { success: true, message: 'Data posted successfully' };
-      }
-
-      // Try to parse JSON response
+  async postData(webhookUrl: string, data: Record<string, any>, retries: number = 3): Promise<any> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        const parsed = JSON.parse(responseText);
-        console.log('[postData] Successfully parsed JSON response');
-        return parsed;
-      } catch (parseError) {
-        console.warn('[postData] Response is not JSON, returning as text');
-        return { message: responseText, status: response.status };
+        console.log(`[postData] Posting to webhook: ${webhookUrl} (attempt ${attempt}/${retries})`);
+        console.log(`[postData] Data:`, JSON.stringify(data, null, 2));
+        
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        try {
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+          const responseText = await response.text();
+          console.log(`[postData] Response status: ${response.status} ${response.statusText}`);
+          console.log(`[postData] Response body: ${responseText.substring(0, 500)}`);
+
+          if (!response.ok) {
+            const errorMessage = `n8n POST webhook failed: ${response.status} ${response.statusText}. Response: ${responseText}`;
+            console.error(`[postData] ${errorMessage}`);
+            
+            // Retry on 5xx errors or network issues
+            if (response.status >= 500 || response.status === 0) {
+              throw new Error(errorMessage);
+            }
+            // Don't retry on 4xx errors (client errors)
+            throw new Error(errorMessage);
+          }
+          
+          // Handle empty response
+          if (responseText.trim() === '') {
+            console.log('[postData] Empty response received, treating as success');
+            return { success: true, message: 'Data posted successfully' };
+          }
+
+          // Try to parse JSON response
+          try {
+            const parsed = JSON.parse(responseText);
+            console.log('[postData] Successfully parsed JSON response');
+            return parsed;
+          } catch (parseError) {
+            console.warn('[postData] Response is not JSON, returning as text');
+            return { message: responseText, status: response.status };
+          }
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          if (fetchError.name === 'AbortError') {
+            throw new Error(`Webhook request timed out after 30 seconds`);
+          }
+          throw fetchError;
+        }
+      } catch (error: any) {
+        lastError = error;
+        console.error(`[postData] Attempt ${attempt} failed:`, error.message);
+        
+        // If this is the last attempt, throw the error
+        if (attempt === retries) {
+          console.error(`[postData] All ${retries} attempts failed for ${webhookUrl}`);
+          throw error;
+        }
+        
+        // Wait before retrying (exponential backoff)
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Max 5 seconds
+        console.log(`[postData] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-    } catch (error: any) {
-      console.error('[postData] Error posting data to n8n:', error);
-      console.error('[postData] Error details:', error.message, error.stack);
-      throw error;
     }
+    
+    // Should never reach here, but just in case
+    throw lastError || new Error('Failed to post data after all retries');
   }
 
   // Specific POST methods for each webhook
