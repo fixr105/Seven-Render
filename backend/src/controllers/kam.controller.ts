@@ -342,6 +342,7 @@ export class KAMController {
 
         if (existingClient) {
           console.log('[createClient] Client record already exists:', existingClient.id);
+          console.log('[createClient] EARLY RETURN - postClient will NOT be called');
           // Client already exists, return success with existing client info
           res.json({
             success: true,
@@ -356,6 +357,7 @@ export class KAMController {
           return;
         } else {
           console.log('[createClient] User exists but client record missing, creating client record');
+          console.log('[createClient] Will proceed to call postClient');
           // User exists but client record doesn't - create client record only
         }
       } else {

@@ -977,6 +977,9 @@ export class N8nClient {
   async postClient(data: Record<string, any>) {
     // Ensure only exact fields are sent to Client webhook
     // Only send: id, Client ID, Client Name, Primary Contact Name, Contact Email / Phone, Assigned KAM, Enabled Modules, Commission Rate, Status, Form Categories
+    console.log('[postClient] Starting postClient with data:', JSON.stringify(data, null, 2));
+    console.log('[postClient] Webhook URL:', n8nConfig.postClientUrl);
+    
     const clientData = {
       id: data.id, // for matching
       'Client ID': data['Client ID'] || data.clientId || data.id,
@@ -989,13 +992,28 @@ export class N8nClient {
       'Status': data['Status'] || data.status || 'Active',
       'Form Categories': data['Form Categories'] || data.formCategories || '',
     };
-    const result = await this.postData(n8nConfig.postClientUrl, clientData);
-    // Invalidate cache for Clients and related tables only after successful POST
-    if (result && !result.error) {
-      this.invalidateCache('Clients');
-      this.invalidateCache('User Accounts');
+    
+    console.log('[postClient] Prepared clientData:', JSON.stringify(clientData, null, 2));
+    console.log('[postClient] Calling postData with URL:', n8nConfig.postClientUrl);
+    
+    try {
+      const result = await this.postData(n8nConfig.postClientUrl, clientData);
+      console.log('[postClient] postData completed successfully:', JSON.stringify(result, null, 2));
+      
+      // Invalidate cache for Clients and related tables only after successful POST
+      if (result && !result.error) {
+        this.invalidateCache('Clients');
+        this.invalidateCache('User Accounts');
+        console.log('[postClient] Cache invalidated for Clients and User Accounts');
+      } else {
+        console.warn('[postClient] Result contains error, not invalidating cache:', result);
+      }
+      return result;
+    } catch (error: any) {
+      console.error('[postClient] Error in postData:', error.message);
+      console.error('[postClient] Error stack:', error.stack);
+      throw error;
     }
-    return result;
   }
 
   async postNotification(data: Record<string, any>) {
