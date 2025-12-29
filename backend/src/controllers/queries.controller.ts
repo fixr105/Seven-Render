@@ -106,7 +106,11 @@ export class QueriesController {
     try {
       const { id } = req.params;
       // Fetch File Auditing Log table
-      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
+      const allAuditLogs = await n8nClient.fetchTable('File Auditing Log');
+      
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
       
       // Filter for query-related entries
       const queryEntries = auditLogs.filter(
@@ -198,7 +202,11 @@ export class QueriesController {
     try {
       const { id } = req.params;
       // Fetch only File Auditing Log table
-      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
+      const allAuditLogs = await n8nClient.fetchTable('File Auditing Log');
+      
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
       
       // Find query entry
       const queryEntry = auditLogs.find((q: any) => q.id === id);
@@ -245,7 +253,11 @@ export class QueriesController {
     try {
       const { id } = req.params;
       // Fetch only File Auditing Log table
-      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
+      const allAuditLogs = await n8nClient.fetchTable('File Auditing Log');
+      
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
       
       // Find query entry
       const queryEntry = auditLogs.find((q: any) => q.id === id);
