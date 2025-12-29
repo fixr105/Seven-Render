@@ -626,6 +626,68 @@ export class KAMController {
   }
 
   /**
+   * POST /kam/clients/:id/configure-modules
+   * Configure client modules and form fields (KAM only)
+   * 
+   * Allows a KAM to configure which modules and form fields are enabled for a client.
+   * Creates ClientFormMapping entries for the specified configuration.
+   */
+  async configureClientModules(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { id: clientId } = req.params;
+      const { enabledModules, categories, productId } = req.body;
+
+      if (!enabledModules || !Array.isArray(enabledModules)) {
+        res.status(400).json({
+          success: false,
+          error: 'enabledModules is required and must be an array',
+        });
+        return;
+      }
+
+      // Use centralized form config service
+      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
+
+      const kamUserId = req.user!.kamId || req.user!.id;
+      const mappings = await formConfigService.configureClientModules(kamUserId, {
+        clientId,
+        enabledModules,
+        categories,
+        productId,
+      });
+
+      // Log admin activity
+      await logClientAction(
+        req.user!,
+        AdminActionType.CONFIGURE_FORM,
+        clientId,
+        `Configured modules for client: ${enabledModules.join(', ')}`,
+        { enabledModules, categories, productId }
+      );
+
+      res.json({
+        success: true,
+        data: {
+          clientId,
+          enabledModules,
+          mappings,
+        },
+      });
+    } catch (error: any) {
+      console.error('[configureClientModules] Error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to configure client modules',
+      });
+    }
+  }
+
+  /**
    * GET /kam/clients/:id/form-mappings
    * Get form mappings for a client (KAM only)
    */

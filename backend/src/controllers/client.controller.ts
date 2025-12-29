@@ -123,252 +123,59 @@ export class ClientController {
         return;
       }
 
+      // Use centralized form config service
+      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
+
       // productId is optional - form config can be linked to specific product
       // applicationId is optional - if provided, use form config version from that application (for versioning)
       const { productId, applicationId } = req.query;
-
-      // Fetch only the tables we need
-      let mappings, categories, fields, applications;
-      try {
-        [mappings, categories] = await Promise.all([
-          n8nClient.fetchTable('Client Form Mapping'),
-          n8nClient.fetchTable('Form Categories'),
-        ]);
-        // Fetch only Form Fields table
-        fields = await n8nClient.fetchTable('Form Fields');
-        
-        // Module 1: Versioning - if applicationId provided, fetch application to get its form config version
-        if (applicationId) {
-          applications = await n8nClient.fetchTable('Loan Application');
-        }
-      } catch (fetchError: any) {
-        console.error('[getFormConfig] Error fetching tables:', fetchError);
-        res.status(500).json({
-          success: false,
-          error: `Failed to fetch form data: ${fetchError.message || 'Unknown error'}`,
-        });
-        return;
-      }
-
-      // Module 1: Versioning - determine which version of form config to use
-      let formConfigVersion: string | null = null;
-      if (applicationId && applications) {
+      
+      // Get version from application if provided
+      let version: string | undefined;
+      if (applicationId) {
+        const applications = await n8nClient.fetchTable('Loan Application');
         const application = applications.find((app: any) => app.id === applicationId);
         if (application && application.Client === req.user!.clientId) {
-          // Use the form config version stored in the application (if exists)
-          // This ensures submitted files use the frozen form config
-          formConfigVersion = application['Form Config Version'] || null;
-          console.log(`[getFormConfig] Using form config version from application: ${formConfigVersion || 'latest'}`);
+          version = application['Form Config Version'] || undefined;
         }
       }
 
-      // Get mappings for this client
-      // Try multiple ID formats to match client
-      const clientId = req.user!.clientId;
-      console.log(`[getFormConfig] Client ID from user: ${clientId}`);
-      console.log(`[getFormConfig] Total mappings: ${mappings.length}`);
-      
-      // Fetch client record to get Enabled Modules and Form Categories
-      const clients = await n8nClient.fetchTable('Clients');
-      const client = clients.find((c: any) => 
-        (c.id === clientId || c['Client ID'] === clientId || 
-         c.id === clientId?.toString() || c['Client ID'] === clientId?.toString())
+      // Get client dashboard configuration (only enabled modules)
+      const config = await formConfigService.getClientDashboardConfig(
+        req.user!.clientId!,
+        productId as string | undefined,
+        version
       );
-      
-      // Extract Enabled Modules and Form Categories from client record
-      const enabledModules = client?.['Enabled Modules'] 
-        ? client['Enabled Modules'].split(',').map((m: string) => m.trim()).filter(Boolean)
-        : [];
-      const formCategoriesFromClient = client?.['Form Categories']
-        ? client['Form Categories'].split(',').map((c: string) => c.trim()).filter(Boolean)
-        : [];
-      
-      console.log(`[getFormConfig] Client Enabled Modules:`, enabledModules);
-      console.log(`[getFormConfig] Client Form Categories:`, formCategoriesFromClient);
-      
-      // Module 1: Filter mappings by version if specified, otherwise use latest
-      let clientMappings = mappings.filter((m) => {
-        const mappingClientId = m.Client || m.client || m['Client ID'];
-        const matches = mappingClientId === clientId || 
-                       mappingClientId === clientId?.toString() ||
-                       clientId === mappingClientId?.toString();
-        return matches;
+
+      console.log(`[getFormConfig] Returning configuration for client ${req.user!.clientId} with ${config.modules.length} enabled modules`);
+
+      // Transform to match expected frontend format
+      const responseData = {
+        clientId: config.clientId,
+        clientName: config.clientName,
+        enabledModules: config.enabledModules,
+        modules: config.modules.map((module) => ({
+          moduleId: module.moduleId,
+          moduleName: module.moduleName,
+          description: module.description,
+          enabled: module.enabled,
+          categories: module.categories.map((cat) => ({
+            categoryId: cat.categoryId,
+            categoryName: cat.categoryName,
+            description: cat.description,
+            isRequired: cat.isRequired,
+            displayOrder: cat.displayOrder,
+            fields: cat.fields,
+          })),
+        })),
+        version: config.version,
+        productId: config.productId,
+      };
+
+      res.json({
+        success: true,
+        data: responseData,
       });
-
-      // If formConfigVersion is specified, filter to that version
-      // Otherwise, use the latest version (most recent timestamp)
-      if (formConfigVersion) {
-        clientMappings = clientMappings.filter((m) => {
-          const mappingVersion = m.Version || m.version;
-          return mappingVersion === formConfigVersion;
-        });
-        console.log(`[getFormConfig] Filtered to version ${formConfigVersion}: ${clientMappings.length} mappings`);
-      } else {
-        // Use latest version - get most recent version timestamp
-        const versions = clientMappings
-          .map((m) => m.Version || m.version)
-          .filter(Boolean)
-          .sort()
-          .reverse();
-        const latestVersion = versions[0];
-        if (latestVersion) {
-          clientMappings = clientMappings.filter((m) => {
-            const mappingVersion = m.Version || m.version;
-            return mappingVersion === latestVersion;
-          });
-          console.log(`[getFormConfig] Using latest version ${latestVersion}: ${clientMappings.length} mappings`);
-        }
-      }
-
-      // Filter by productId if specified
-      if (productId) {
-        clientMappings = clientMappings.filter((m) => {
-          const mappingProductId = m['Product ID'] || m.productId;
-          return !mappingProductId || mappingProductId === productId || mappingProductId === productId?.toString();
-        });
-        console.log(`[getFormConfig] Filtered by productId ${productId}: ${clientMappings.length} mappings`);
-      }
-
-      console.log(`[getFormConfig] Client mappings found: ${clientMappings.length}`);
-
-      // Get category IDs that have mappings for this client
-      const mappedCategoryIds = new Set(
-        clientMappings.map((m) => m.Category || m.category).filter(Boolean)
-      );
-      
-      console.log(`[getFormConfig] Mapped category IDs:`, Array.from(mappedCategoryIds));
-
-      // Build form config - filter by:
-      // 1. Categories that have mappings for this client
-      // 2. Categories that match client's Enabled Modules (if specified)
-      // 3. Categories that match client's Form Categories (if specified)
-      // 4. Only active categories
-      const config = categories
-        .filter((cat) => {
-          const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
-          const categoryName = cat['Category Name'] || cat.categoryName || cat.name || '';
-          const isActive = cat.Active === 'True' || cat.active === true;
-          const hasMapping = mappedCategoryIds.has(categoryId);
-          
-          // Filter by Enabled Modules if specified
-          // Enabled Modules are module IDs like "personal_kyc", "company_kyc", etc.
-          // Map module IDs to category name patterns
-          const moduleToCategoryMap: Record<string, string[]> = {
-            'personal_kyc': ['Personal KYC', 'Personal KYC (All Applicants/Co-Applicants)'],
-            'company_kyc': ['Company KYC', 'Company/Business KYC', 'Business KYC'],
-            'income_banking': ['Income & Banking', 'Income & Banking Documents'],
-            'asset_details': ['Asset Details', 'Asset Details (HL/LAP Specific)'],
-            'invoice_financial': ['Invoice', 'Financial Requirement', 'Credit Line', 'Business Loan'],
-            'security_documents': ['Security Documents'],
-            'additional_requirements': ['Additional Requirements', 'Common Across All Products'],
-            'universal_checklist': ['Universal Checklist', 'Checklist'],
-          };
-          
-          let matchesEnabledModules = true;
-          if (enabledModules.length > 0) {
-            matchesEnabledModules = enabledModules.some((module: string) => {
-              const moduleKey = module.toLowerCase().trim();
-              const categoryPatterns = moduleToCategoryMap[moduleKey] || [module];
-              return categoryPatterns.some((pattern: string) =>
-                categoryName.toLowerCase().includes(pattern.toLowerCase()) ||
-                pattern.toLowerCase().includes(categoryName.toLowerCase())
-              );
-            });
-          }
-          
-          // Filter by Form Categories if specified
-          // Form Categories can be category IDs or category names
-          let matchesFormCategories = true;
-          if (formCategoriesFromClient.length > 0) {
-            matchesFormCategories = formCategoriesFromClient.some((fc: string) => {
-              const fcTrimmed = fc.trim();
-              return categoryId === fcTrimmed || 
-                     categoryName === fcTrimmed ||
-                     categoryName.toLowerCase() === fcTrimmed.toLowerCase() ||
-                     categoryName.toLowerCase().includes(fcTrimmed.toLowerCase()) ||
-                     fcTrimmed.toLowerCase().includes(categoryName.toLowerCase());
-            });
-          }
-          
-          // Include if: active AND has mapping AND (matches enabled modules OR no modules specified) AND (matches form categories OR no categories specified)
-          const shouldInclude = isActive && hasMapping && matchesEnabledModules && matchesFormCategories;
-          
-          if (shouldInclude) {
-            console.log(`[getFormConfig] Including category: ${categoryName} (ID: ${categoryId})`);
-          } else {
-            console.log(`[getFormConfig] Excluding category: ${categoryName} (ID: ${categoryId}) - Active: ${isActive}, HasMapping: ${hasMapping}, MatchesModules: ${matchesEnabledModules}, MatchesCategories: ${matchesFormCategories}`);
-          }
-          return shouldInclude;
-        })
-        .map((cat) => {
-          const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
-          
-          // Find all fields for this category
-          const allFieldsForCategory = fields.filter((f) => {
-            const fieldCategory = f.Category || f.category;
-            return fieldCategory === categoryId;
-          });
-          console.log(`[getFormConfig] Category "${cat['Category Name'] || cat.categoryName}" has ${allFieldsForCategory.length} total fields in database`);
-          
-          const categoryFields = allFieldsForCategory
-            .filter((f) => {
-              const fieldActive = f.Active === 'True' || f.active === true;
-              if (!fieldActive) {
-                console.log(`[getFormConfig] Field "${f['Field Label'] || f.fieldLabel}" is not active`);
-              }
-              return fieldActive;
-            })
-            .map((f) => {
-              const mapping = clientMappings.find(
-                (m) => (m.Category || m.category) === categoryId && 
-                       ((m.Client || m.client) === clientId || (m.Client || m.client) === clientId?.toString())
-              );
-              const fieldData = {
-                fieldId: f['Field ID'] || f.fieldId || f.id,
-                label: f['Field Label'] || f.fieldLabel || f.label,
-                type: f['Field Type'] || f.fieldType || f.type,
-                placeholder: f['Field Placeholder'] || f.fieldPlaceholder || f.placeholder,
-                options: f['Field Options'] || f.fieldOptions || f.options,
-                isRequired: mapping?.['Is Required'] === 'True' || mapping?.isRequired === true || f['Is Mandatory'] === 'True' || f.isMandatory === true,
-                displayOrder: parseInt(mapping?.['Display Order'] || mapping?.displayOrder || f['Display Order'] || f.displayOrder || '0'),
-              };
-              console.log(`[getFormConfig]   - Field: "${fieldData.label}" (Type: ${fieldData.type}, Required: ${fieldData.isRequired})`);
-              return fieldData;
-            })
-            .sort((a, b) => a.displayOrder - b.displayOrder);
-
-          console.log(`[getFormConfig] Category "${cat['Category Name'] || cat.categoryName}" has ${categoryFields.length} active fields`);
-
-          // Get display order from mapping if available, otherwise use category's display order
-          const mappingForCategory = clientMappings.find(
-            (m) => (m.Category || m.category) === categoryId
-          );
-          const categoryDisplayOrder = mappingForCategory
-            ? parseInt(mappingForCategory['Display Order'] || mappingForCategory.displayOrder || '0')
-            : parseInt(cat['Display Order'] || cat.displayOrder || '0');
-
-          return {
-            categoryId: categoryId,
-            categoryName: cat['Category Name'] || cat.categoryName || cat.name,
-            description: cat.Description || cat.description,
-            displayOrder: categoryDisplayOrder,
-            fields: categoryFields,
-          };
-        })
-        .sort((a, b) => {
-          // Sort by Display Order from mapping first
-          if (a.displayOrder !== b.displayOrder) {
-            return a.displayOrder - b.displayOrder;
-          }
-          // If display orders are equal, sort by category name
-          return (a.categoryName || '').localeCompare(b.categoryName || '');
-        });
-
-      console.log(`[getFormConfig] Returning ${config.length} categories with form configuration`);
-      
-      // Ensure we always send a valid JSON response
-      const response = { success: true, data: config };
-      res.status(200).json(response);
     } catch (error: any) {
       console.error('[getFormConfig] Unexpected error:', error);
       // Ensure error response is always valid JSON
