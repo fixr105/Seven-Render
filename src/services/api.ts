@@ -273,10 +273,28 @@ class ApiService {
     }
 
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      // Add timeout for fetch requests (60 seconds for login, 30 seconds for others)
+      const isLoginRequest = endpoint.includes('/auth/login');
+      const timeoutMs = isLoginRequest ? 60000 : 30000; // 60s for login, 30s for others
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error(`Request timed out after ${timeoutMs / 1000} seconds. The server may be experiencing high load.`);
+        }
+        throw fetchError;
+      }
 
       // Check if response has content
       const contentType = response.headers.get('content-type');
