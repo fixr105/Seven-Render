@@ -526,11 +526,12 @@ export class N8nClient {
    * Includes timeout to prevent Vercel function timeouts
    */
   async getUserAccounts(timeoutMs: number = 8000): Promise<UserAccount[]> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      try {
+    try {
+      // Wrap entire fetch + JSON parsing in Promise.race to ensure timeout works
+      const fetchPromise = (async () => {
         const response = await fetch(n8nConfig.getUserAccountsUrl, {
           method: 'GET',
           headers: {
@@ -539,35 +540,47 @@ export class N8nClient {
           signal: controller.signal,
         });
 
-        clearTimeout(timeoutId);
-
         if (!response.ok) {
           throw new Error(`User Accounts webhook failed: ${response.status} ${response.statusText}`);
         }
 
-        const data = await response.json();
+        // Also timeout the JSON parsing in case response body is large
+        const jsonPromise = response.json();
+        const jsonTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('JSON parsing timeout')), timeoutMs - 1000)
+        );
         
-        // The webhook returns an array of user accounts directly
-        if (Array.isArray(data)) {
-          return data as UserAccount[];
-        }
-        
-        // If it's an object, try to extract User Accounts
-        if (typeof data === 'object' && data !== null && data !== undefined && 'User Accounts' in data) {
-          const userAccountsData = (data as Record<string, any>)['User Accounts'];
-          return Array.isArray(userAccountsData) ? userAccountsData as UserAccount[] : [];
-        }
-        
-        console.warn('Unexpected response format from User Accounts webhook');
-        return [];
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        if (fetchError.name === 'AbortError') {
-          throw new Error(`User Accounts webhook timed out after ${timeoutMs}ms. Please try again.`);
-        }
-        throw fetchError;
+        return await Promise.race([jsonPromise, jsonTimeout]);
+      })();
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => {
+          controller.abort();
+          reject(new Error('User Accounts webhook timed out'));
+        }, timeoutMs)
+      );
+
+      const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
+      clearTimeout(timeoutId);
+      
+      // The webhook returns an array of user accounts directly
+      if (Array.isArray(data)) {
+        return data as UserAccount[];
       }
-    } catch (error) {
+      
+      // If it's an object, try to extract User Accounts
+      if (typeof data === 'object' && data !== null && data !== undefined && 'User Accounts' in data) {
+        const userAccountsData = (data as Record<string, any>)['User Accounts'];
+        return Array.isArray(userAccountsData) ? userAccountsData as UserAccount[] : [];
+      }
+      
+      console.warn('Unexpected response format from User Accounts webhook');
+      return [];
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError' || error.message?.includes('timed out') || error.message?.includes('timeout')) {
+        throw new Error(`User Accounts webhook timed out after ${timeoutMs}ms. Please try again.`);
+      }
       console.error('Error fetching User Accounts from dedicated webhook:', error);
       throw error;
     }
