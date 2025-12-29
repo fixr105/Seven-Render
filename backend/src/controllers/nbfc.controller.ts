@@ -18,12 +18,11 @@ export class NBFController {
       }
 
       // Fetch only Loan Application table
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const allApplications = await n8nClient.fetchTable('Loan Application');
 
-      // Get applications assigned to this NBFC
-      const assignedApplications = applications.filter(
-        (app) => app['Assigned NBFC'] === req.user!.nbfcId
-      );
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const assignedApplications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
 
       res.json({
         success: true,
@@ -66,12 +65,11 @@ export class NBFController {
       // Fetch only Loan Application table
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      let applications = await n8nClient.fetchTable('Loan Application');
+      const allApplications = await n8nClient.fetchTable('Loan Application');
 
-      // Filter by assigned NBFC
-      applications = applications.filter(
-        (app) => app['Assigned NBFC'] === req.user!.nbfcId
-      );
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      let applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
 
       if (status) {
         applications = applications.filter((app) => app.Status === status);
@@ -135,17 +133,15 @@ export class NBFController {
       // Fetch only Loan Application table
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const allApplications = await n8nClient.fetchTable('Loan Application');
+      
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
-        return;
-      }
-
-      // Check if assigned to this NBFC
-      if (application['Assigned NBFC'] !== req.user!.nbfcId) {
-        res.status(403).json({ success: false, error: 'Access denied' });
         return;
       }
 
@@ -269,26 +265,15 @@ export class NBFController {
       }
 
       // Fetch application
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const allApplications = await n8nClient.fetchTable('Loan Application');
+      
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
-        return;
-      }
-
-      // Check if assigned to this NBFC
-      // Support both exact match and ID match (in case Assigned NBFC contains ID or name)
-      const assignedNBFC = application['Assigned NBFC'];
-      const isAssigned = assignedNBFC === req.user!.nbfcId || 
-                        assignedNBFC?.includes(req.user!.nbfcId || '') ||
-                        assignedNBFC === req.user!.name; // Fallback: match by name
-
-      if (!isAssigned) {
-        res.status(403).json({ 
-          success: false, 
-          error: 'Access denied. This application is not assigned to your NBFC.' 
-        });
         return;
       }
 

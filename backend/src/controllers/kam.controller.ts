@@ -20,14 +20,20 @@ export class KAMController {
       }
 
       // Fetch only the tables we need
-      const [userAccounts, applications] = await Promise.all([
+      const [userAccounts, allApplications] = await Promise.all([
         n8nClient.fetchTable('User Accounts'),
         n8nClient.fetchTable('Loan Application'),
       ]);
-      const [ledgerEntries, auditLogs] = await Promise.all([
+      const [allLedgerEntries, allAuditLogs] = await Promise.all([
         n8nClient.fetchTable('Commission Ledger'),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
+
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
+      const ledgerEntries = await rbacFilterService.filterCommissionLedger(allLedgerEntries, req.user!);
+      const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
 
       // Get managed clients (clients with this KAM)
       const managedClients = userAccounts.filter(

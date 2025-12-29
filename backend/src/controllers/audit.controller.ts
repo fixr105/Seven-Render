@@ -15,11 +15,14 @@ export class AuditController {
     try {
       const { id } = req.params;
       // Fetch only the tables we need
-      const [applications, auditLogs] = await Promise.all([
+      const [allApplications, allAuditLogs] = await Promise.all([
         n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
 
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
       const application = applications.find((app) => app.id === id);
 
       if (!application) {
@@ -27,18 +30,9 @@ export class AuditController {
         return;
       }
 
-      // Check access permissions
-      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
-      if (filtered.length === 0) {
-        res.status(403).json({ success: false, error: 'Access denied' });
-        return;
-      }
-
-      // Get audit logs for this file
-      let fileAuditLog = auditLogs.filter((log) => log.File === application['File ID']);
-
-      // Filter by role if needed
-      fileAuditLog = dataFilterService.filterFileAuditLog(fileAuditLog, req.user!);
+      // Get audit logs for this file and apply RBAC filtering
+      const fileAuditLogs = allAuditLogs.filter((log) => log.File === application['File ID']);
+      const fileAuditLog = await rbacFilterService.filterFileAuditLog(fileAuditLogs, req.user!);
 
       // Sort by timestamp (newest first)
       // Handle missing timestamps by treating them as empty strings (oldest)
@@ -83,7 +77,11 @@ export class AuditController {
 
       const { dateFrom, dateTo, performedBy, actionType, targetEntity } = req.query;
       // Fetch only Admin Activity Log table
-      let activityLogs = await n8nClient.fetchTable('Admin Activity Log');
+      const allActivityLogs = await n8nClient.fetchTable('Admin Activity Log');
+      
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      let activityLogs = await rbacFilterService.filterAdminActivityLog(allActivityLogs, req.user!);
 
       // Apply filters
       if (dateFrom || dateTo) {

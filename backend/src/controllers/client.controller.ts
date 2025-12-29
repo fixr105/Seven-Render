@@ -19,19 +19,17 @@ export class ClientController {
       }
 
       // Fetch only the tables we need
-      const [applications, ledgerEntries, auditLogs] = await Promise.all([
+      const [allApplications, allLedgerEntries, allAuditLogs] = await Promise.all([
         n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('Commission Ledger'),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
 
-      // Filter by client
-      const clientApplications = applications.filter(
-        (app) => app.Client === req.user!.clientId
-      );
-      const clientLedger = ledgerEntries.filter(
-        (entry) => entry.Client === req.user!.clientId
-      );
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const clientApplications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
+      const clientLedger = await rbacFilterService.filterCommissionLedger(allLedgerEntries, req.user!);
+      const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
 
       // Calculate ledger summary
       const totalEarned = clientLedger

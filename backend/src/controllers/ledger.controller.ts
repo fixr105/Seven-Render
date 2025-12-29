@@ -20,12 +20,11 @@ export class LedgerController {
       }
 
       // Fetch only Commission Ledger table
-      let ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      const allLedgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
-      // Filter by client
-      ledgerEntries = ledgerEntries.filter(
-        (entry) => entry.Client === req.user!.clientId
-      );
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const ledgerEntries = await rbacFilterService.filterCommissionLedger(allLedgerEntries, req.user!);
 
       // Sort by date (oldest first for running balance calculation)
       ledgerEntries.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));

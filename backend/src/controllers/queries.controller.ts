@@ -33,7 +33,11 @@ export class QueriesController {
       // Get all data to verify parent exists
       // Note: Queries are stored in File Auditing Log, not a separate table
       // Fetch File Auditing Log and filter for query action types
-      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
+      const allAuditLogs = await n8nClient.fetchTable('File Auditing Log');
+      
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
       const queries = auditLogs.filter((log: any) => 
         log['Action/Event Type']?.toLowerCase().includes('query')
       );

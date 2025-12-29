@@ -335,47 +335,9 @@ export class LoanController {
       const clientsMap = new Map(clients.map((c: any) => [c['Client ID'] || c.id, c]));
       const productsMap = new Map(loanProducts.map((p: any) => [p['Product ID'] || p.id, p]));
 
-      // Apply role-based filtering
-      let filteredApplications = applications;
-      
-      if (user.role === 'client') {
-        if (!user.clientId) {
-          console.warn(`[LoanController] Client ${user.email} has no clientId set. Cannot filter applications.`);
-          // Return empty array if clientId is missing
-          filteredApplications = [];
-        } else {
-          // Clients only see their own applications
-          console.log(`[LoanController] Filtering applications for client: ${user.email}, clientId: ${user.clientId}`);
-          // Try multiple field name variations and convert to string for comparison
-          const clientIdStr = String(user.clientId);
-          filteredApplications = filteredApplications.filter((app: any) => {
-            const appClient = app.Client || app['Client'] || app.clientId || app['Client ID'];
-            return appClient && (String(appClient) === clientIdStr || appClient === user.clientId);
-          });
-          console.log(`[LoanController] Found ${filteredApplications.length} applications for client ${user.clientId}`);
-        }
-      } else if (user.role === 'kam' && user.kamId) {
-        // KAMs see applications from their managed clients
-        // Get all clients managed by this KAM
-        const managedClientIds = clients
-          .filter((c: any) => (c['Assigned KAM'] === user.kamId || c['KAM ID'] === user.kamId))
-          .map((c: any) => c['Client ID'] || c.id);
-        
-        if (managedClientIds.length > 0) {
-          filteredApplications = filteredApplications.filter(
-            (app: any) => managedClientIds.includes(app.Client || app['Client'])
-          );
-        } else {
-          // No managed clients, return empty
-          filteredApplications = [];
-        }
-      } else if (user.role === 'nbfc' && user.nbfcId) {
-        // NBFCs see only assigned applications
-        filteredApplications = filteredApplications.filter(
-          (app: any) => (app['Assigned NBFC'] === user.nbfcId || app['Assigned NBFC ID'] === user.nbfcId)
-        );
-      }
-      // Credit team sees all (no additional filter)
+      // Apply RBAC filtering using centralized service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      let filteredApplications = await rbacFilterService.filterLoanApplications(applications, user);
 
       // Apply status filter
       if (status) {
