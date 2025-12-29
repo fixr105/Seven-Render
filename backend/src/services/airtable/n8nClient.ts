@@ -390,12 +390,16 @@ export class N8nClient {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      console.log(`[getUserAccounts] Fetching user accounts with ${timeoutMs}ms timeout from ${n8nConfig.getUserAccountsUrl}`);
+      const webhookUrl = n8nConfig.getUserAccountsUrl;
+      console.log(`[getUserAccounts] Fetching user accounts with ${timeoutMs}ms timeout`);
+      console.log(`[getUserAccounts] Webhook URL: ${webhookUrl}`);
+      console.log(`[getUserAccounts] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud'}`);
       const startTime = Date.now();
       
       // Wrap entire fetch + JSON parsing in Promise.race to ensure timeout works
       const fetchPromise = (async () => {
-        const response = await fetch(n8nConfig.getUserAccountsUrl, {
+        console.log(`[getUserAccounts] Making GET request to: ${webhookUrl}`);
+        const response = await fetch(webhookUrl, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
