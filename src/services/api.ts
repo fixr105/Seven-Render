@@ -316,6 +316,10 @@ class ApiService {
       };
     } catch (error: any) {
       console.error('API request error:', error);
+      console.error('Request URL:', url);
+      console.error('Base URL:', this.baseUrl);
+      console.error('Endpoint:', endpoint);
+      
       // Provide more specific error messages
       let errorMessage = 'Network error';
       
@@ -324,7 +328,7 @@ class ApiService {
         if (isLocalhost) {
           errorMessage = `Cannot connect to backend API. Please ensure the backend server is running on port 3001.\n\nTo start the server:\n  cd backend\n  npm run dev`;
         } else {
-          errorMessage = `Cannot connect to backend API at ${this.baseUrl}. Please check your network connection and ensure the server is accessible.`;
+          errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration\n- Server is down or unreachable\n\nPlease check your network connection and try again.`;
         }
       } else if (error.message?.includes('JSON.parse')) {
         errorMessage = `Invalid response from server. The API may not be responding correctly.`;
