@@ -1204,66 +1204,50 @@ export class KAMController {
   /**
    * POST /kam/loan-applications/:id/forward-to-credit
    * Forward application to credit team
+   * 
+   * Updates status from 'Under KAM Review' to 'Pending Credit Review'
+   * Notifies all active Credit Team members
+   * Mirrors workflow logic from PRD Section 3.2
    */
   async forwardToCredit(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Fetch only Loan Application table
+      const { notes, assignedCreditAnalystId } = req.body;
+
+      // Use loan workflow service for forwarding
+      const { loanWorkflowService } = await import('../services/workflow/loanWorkflow.service.js');
+
+      // Find application by ID or File ID
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = applications.find((app) => 
+        app.id === id || 
+        app['File ID'] === id
+      );
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
 
-      // Module 3: Validate status transition using state machine
-      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
-      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
-      
-      const previousStatus = application.Status as LoanStatus;
-      const newStatus = LoanStatus.PENDING_CREDIT_REVIEW;
-      
-      try {
-        validateTransition(previousStatus, newStatus, req.user!.role);
-      } catch (transitionError: any) {
-        res.status(400).json({
-          success: false,
-          error: transitionError.message || 'Invalid status transition',
-        });
-        return;
-      }
+      const fileId = application['File ID'] || application.id;
 
-      // Update status
-      await n8nClient.postLoanApplication({
-        ...application,
-        Status: newStatus,
-        'Last Updated': new Date().toISOString(),
+      // Forward to credit team using workflow service
+      await loanWorkflowService.forwardToCreditTeam(req.user!, {
+        fileId,
+        notes,
+        assignedCreditAnalystId,
       });
-
-      // Module 3: Record status change in history
-      await recordStatusChange(
-        req.user!,
-        application['File ID'],
-        previousStatus,
-        newStatus,
-        'Application forwarded to credit team by KAM'
-      );
-
-      // Module 0: Use admin logger helper
-      await logApplicationAction(
-        req.user!,
-        AdminActionType.FORWARD_TO_CREDIT,
-        application['File ID'],
-        'Application forwarded to credit team',
-        { statusChange: `${previousStatus} → ${newStatus}` }
-      );
 
       res.json({
         success: true,
         message: 'Application forwarded to credit team',
+        data: {
+          fileId,
+          status: 'pending_credit_review',
+        },
       });
     } catch (error: any) {
+      console.error('[forwardToCredit] Error:', error);
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to forward application',

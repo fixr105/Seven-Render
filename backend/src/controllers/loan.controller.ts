@@ -104,6 +104,42 @@ export class LoanController {
       const fileId = `SF${timestamp.slice(-8)}`;
       const applicationId = `APP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+      // Use loan workflow service for creating application
+      // This ensures proper status setting and notifications
+      const { loanWorkflowService } = await import('../services/workflow/loanWorkflow.service.js');
+      
+      try {
+        const result = await loanWorkflowService.createLoanApplication(req.user!, {
+          clientId: req.user!.clientId!,
+          productId,
+          applicantName: finalApplicantName,
+          requestedLoanAmount: finalRequestedAmount,
+          formData: finalFormData,
+          documents: documentsArray.join(','),
+          saveAsDraft,
+        });
+
+        // Return success response
+        res.json({
+          success: true,
+          data: {
+            loanApplicationId: result.applicationId,
+            fileId: result.fileId,
+            status: result.status,
+            warnings: validationWarnings,
+            duplicateFound: duplicateCheck ? {
+              fileId: duplicateCheck.fileId,
+              status: duplicateCheck.status,
+            } : null,
+          },
+        });
+        return;
+      } catch (workflowError: any) {
+        // If workflow service fails, fall back to original implementation
+        console.warn('[createApplication] Workflow service failed, using fallback:', workflowError);
+      }
+
+      // Fallback: Original implementation
       // Determine status - if saveAsDraft is false, set to UNDER_KAM_REVIEW, otherwise DRAFT
       const status = saveAsDraft ? LoanStatus.DRAFT : LoanStatus.UNDER_KAM_REVIEW;
 
