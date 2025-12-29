@@ -28,7 +28,7 @@ export class DataFilterService {
           console.warn(`[DataFilter] Client ${user.email} has no clientId set. Cannot filter applications.`);
           return [];
         }
-        const filtered = applications.filter((app) => {
+        const filtered = applications.filter((app: any) => {
           const appClient = app.Client || app['Client'] || app['Client ID'];
           const clientIdStr = String(user.clientId);
           const matches = appClient && (

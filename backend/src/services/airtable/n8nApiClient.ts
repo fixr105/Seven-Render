@@ -178,18 +178,18 @@ export class N8nApiClient {
           );
         }
 
-        const data = await response.json();
+        const data: any = await response.json();
 
         // Handle different response formats
         let records: T[] = [];
         if (Array.isArray(data)) {
-          records = data;
+          records = data as T[];
         } else if (typeof data === 'object' && data !== null) {
           const dataObj = data as Record<string, any>;
           if (dataObj.records && Array.isArray(dataObj.records)) {
-            records = dataObj.records;
+            records = dataObj.records as T[];
           } else if (dataObj.data && Array.isArray(dataObj.data)) {
-            records = dataObj.data;
+            records = dataObj.data as T[];
           } else {
             // Single record
             records = [data as T];

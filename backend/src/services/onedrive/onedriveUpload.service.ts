@@ -69,13 +69,18 @@ export async function uploadToOneDrive(
       throw new Error(`OneDrive upload failed: ${response.status} ${response.statusText}. ${errorText}`);
     }
 
-    const result = await response.json() as any;
+    const result: any = await response.json();
     
     // Expected response format: { shareLink, fileId, webUrl }
+    // Handle various response formats from OneDrive API
+    const shareLink = result?.shareLink || result?.share_link || result?.url || '';
+    const fileId = result?.fileId || result?.file_id || result?.id || '';
+    const webUrl = result?.webUrl || result?.web_url || result?.shareLink || result?.url || '';
+    
     return {
-      shareLink: result?.shareLink || result?.share_link || result?.url || '',
-      fileId: result?.fileId || result?.file_id || result?.id || '',
-      webUrl: result?.webUrl || result?.web_url || result?.shareLink || result?.url || '',
+      shareLink,
+      fileId,
+      webUrl,
     };
   } catch (error: any) {
     console.error('[OneDriveUpload] Error uploading file:', error);
