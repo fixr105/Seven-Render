@@ -255,7 +255,7 @@ export class N8nClient {
    * - GET → /webhook/{tablePath} → Airtable: {tableName}
    * - See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
-  async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number): Promise<ParsedRecord[]> {
+  async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number, timeoutMs: number = 5000): Promise<ParsedRecord[]> {
     const cacheKey = `table:${tableName}`;
     
     // Check cache first
@@ -285,35 +285,50 @@ export class N8nClient {
         console.log(`🌐 Fetching ${tableName} from webhook: ${url}`);
       }
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Add timeout support to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`Webhook failed for ${tableName}: ${response.status} ${response.statusText}`);
-      }
+        if (!response.ok) {
+          throw new Error(`Webhook failed for ${tableName}: ${response.status} ${response.statusText}`);
+        }
 
-      const rawData = await response.json();
-      
-      // Use type-safe parser to handle n8n response format
-      // Parser handles: Airtable format, flattened format, arrays, single records
-      const records = responseParser.parse(rawData);
-      
-      // Only log successful fetches occasionally
-      if (process.env.LOG_WEBHOOK_CALLS === 'true') {
-        console.log(`✅ Fetched and parsed ${records.length} records from ${tableName} webhook`);
+        const rawData = await response.json();
+        
+        // Use type-safe parser to handle n8n response format
+        // Parser handles: Airtable format, flattened format, arrays, single records
+        const records = responseParser.parse(rawData);
+        
+        // Only log successful fetches occasionally
+        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
+          console.log(`✅ Fetched and parsed ${records.length} records from ${tableName} webhook`);
+        }
+        
+        // Cache the parsed result (persists until invalidated)
+        if (useCache) {
+          // Cache holds indefinitely until explicitly invalidated via POST operations
+          cacheService.set(cacheKey, records);
+        }
+        
+        return records;
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error(`Webhook timeout for ${tableName} after ${timeoutMs}ms`);
+        }
+        throw fetchError;
       }
-      
-      // Cache the parsed result (persists until invalidated)
-      if (useCache) {
-        // Cache holds indefinitely until explicitly invalidated via POST operations
-        cacheService.set(cacheKey, records);
-      }
-      
-      return records;
     } catch (error) {
       console.error(`❌ Error fetching ${tableName}:`, error);
       throw error;

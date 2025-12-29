@@ -26,7 +26,8 @@ export class AuthService {
    */
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
     // Use dedicated user account webhook for login (loads only once)
-    const userAccounts = await n8nClient.getUserAccounts();
+    // Use shorter timeout for production (5 seconds instead of 8)
+    const userAccounts = await n8nClient.getUserAccounts(5000);
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
@@ -95,12 +96,7 @@ export class AuthService {
         case UserRole.CLIENT:
           // For clients, find the Client record in Airtable via n8n webhook
           try {
-            const clients = await Promise.race([
-              n8nClient.fetchTable('Clients'),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout')), 5000)
-              )
-            ]) as any[];
+            const clients = await n8nClient.fetchTable('Clients', true, undefined, 3000) as any[];
             
             const client = clients.find((c: any) => {
               const contactInfo = c['Contact Email / Phone'] || c['Contact Email/Phone'] || '';
@@ -124,12 +120,7 @@ export class AuthService {
         case UserRole.KAM:
           // Fetch only KAM Users table
           try {
-            const kamUsers = await Promise.race([
-              n8nClient.fetchTable('KAM Users'),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout')), 5000)
-              )
-            ]) as any[];
+            const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 3000) as any[];
             
             const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
             if (kamUser) {
@@ -144,12 +135,7 @@ export class AuthService {
         case UserRole.CREDIT:
           // Fetch only Credit Team Users table
           try {
-            const creditUsers = await Promise.race([
-              n8nClient.fetchTable('Credit Team Users'),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout')), 5000)
-              )
-            ]) as any[];
+            const creditUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 3000) as any[];
             
             const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
             if (creditUser) {
@@ -163,12 +149,7 @@ export class AuthService {
         case UserRole.NBFC:
           // Fetch only NBFC Partners table
           try {
-            const nbfcPartners = await Promise.race([
-              n8nClient.fetchTable('NBFC Partners'),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout')), 5000)
-              )
-            ]) as any[];
+            const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 3000) as any[];
             
             // NBFC users might have email in Contact Email/Phone
             const nbfcPartner = nbfcPartners.find((n) => 
@@ -185,17 +166,22 @@ export class AuthService {
       }
     })();
 
-    // Wait for role data with overall timeout (don't block login if it's slow)
+    // Wait for role data with very short timeout (3 seconds max)
+    // This ensures login completes quickly even if webhooks are slow
+    // If it times out, we continue with default values (name from email, no clientId)
     try {
       await Promise.race([
         roleDataPromise,
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Role data fetch timeout')), 6000)
+          setTimeout(() => reject(new Error('Role data fetch timeout')), 3000)
         )
       ]);
     } catch (error: any) {
-      console.warn(`[AuthService] Role data fetch timed out or failed for ${email}, continuing with login`);
-      // Continue with login even if role data fetch fails
+      console.warn(`[AuthService] Role data fetch timed out or failed for ${email}, using defaults`);
+      // Set default name if not already set
+      if (!authUser.name) {
+        authUser.name = email.split('@')[0];
+      }
     }
 
     // Update last login (non-blocking - don't wait for it)

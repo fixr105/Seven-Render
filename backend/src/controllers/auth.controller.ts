@@ -17,9 +17,10 @@ export class AuthController {
       const { email, password } = loginSchema.parse(req.body);
 
       // Wrap login in a timeout to prevent Vercel function timeout
+      // Reduced to 10 seconds to stay well under Vercel's 60s limit (with buffer)
       const loginPromise = authService.login(email, password);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Login request timed out. The server may be experiencing high load. Please try again in a moment.')), 8000)
+        setTimeout(() => reject(new Error('Login request timed out. The server may be experiencing high load. Please try again in a moment.')), 10000)
       );
 
       const result = await Promise.race([loginPromise, timeoutPromise]);
