@@ -385,11 +385,14 @@ export class N8nClient {
    * Loads only once and waits for response
    * Includes timeout to prevent Vercel function timeouts
    */
-  async getUserAccounts(timeoutMs: number = 5000): Promise<UserAccount[]> {
+  async getUserAccounts(timeoutMs: number = 10000): Promise<UserAccount[]> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+      console.log(`[getUserAccounts] Fetching user accounts with ${timeoutMs}ms timeout from ${n8nConfig.getUserAccountsUrl}`);
+      const startTime = Date.now();
+      
       // Wrap entire fetch + JSON parsing in Promise.race to ensure timeout works
       const fetchPromise = (async () => {
         const response = await fetch(n8nConfig.getUserAccountsUrl, {
@@ -400,28 +403,37 @@ export class N8nClient {
           signal: controller.signal,
         });
 
+        const fetchDuration = Date.now() - startTime;
+        console.log(`[getUserAccounts] Fetch completed in ${fetchDuration}ms, status: ${response.status}`);
+
         if (!response.ok) {
           throw new Error(`User Accounts webhook failed: ${response.status} ${response.statusText}`);
         }
 
         // Also timeout the JSON parsing in case response body is large
+        const jsonStartTime = Date.now();
         const jsonPromise = response.json();
         const jsonTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('JSON parsing timeout')), Math.max(timeoutMs - 500, 1000))
+          setTimeout(() => reject(new Error('JSON parsing timeout')), Math.max(timeoutMs - 2000, 2000))
         );
         
-        return await Promise.race([jsonPromise, jsonTimeout]);
+        const jsonData = await Promise.race([jsonPromise, jsonTimeout]);
+        const jsonDuration = Date.now() - jsonStartTime;
+        console.log(`[getUserAccounts] JSON parsing completed in ${jsonDuration}ms`);
+        return jsonData;
       })();
 
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => {
           controller.abort();
-          reject(new Error('User Accounts webhook timed out'));
+          reject(new Error(`User Accounts webhook timed out after ${timeoutMs}ms`));
         }, timeoutMs)
       );
 
       const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
       clearTimeout(timeoutId);
+      const totalDuration = Date.now() - startTime;
+      console.log(`[getUserAccounts] Total duration: ${totalDuration}ms, returned ${Array.isArray(data) ? data.length : 'non-array'} records`);
       
       // The webhook returns an array of user accounts directly
       if (Array.isArray(data)) {
