@@ -1,0 +1,449 @@
+// Prisma Schema for Seven Fincorp Loan Management & Credit Dashboard
+// Generated based on SEVEN-DASHBOARD(2).json and PRD requirements
+// Database: PostgreSQL (recommended) or SQLite (development)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Change to "sqlite" for local development
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER MANAGEMENT TABLES
+// ============================================================================
+
+/// User Accounts - Authentication and basic user info
+model UserAccount {
+  id                String   @id @default(uuid())
+  username          String   @unique // Email address
+  password          String   // Hashed password
+  role              UserRole
+  associatedProfile String?  // Display name
+  lastLogin         DateTime?
+  accountStatus     AccountStatus @default(ACTIVE)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  clientProfile     Client?
+  kamProfile        KAMUser?
+  creditProfile     CreditTeamUser?
+  nbfcProfile       NBFCPartner?
+  adminActivities   AdminActivityLog[]
+  auditLogEntries   FileAuditLog[]
+  notifications     Notification[]
+
+  @@index([username])
+  @@index([role])
+  @@index([accountStatus])
+  @@map("user_accounts")
+}
+
+/// KAM Users - Key Account Managers
+model KAMUser {
+  id            String   @id @default(uuid())
+  kamId         String   @unique // Business ID
+  name          String
+  email         String   @unique
+  phone         String?
+  status        AccountStatus @default(ACTIVE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  userAccountId String?  @unique
+  userAccount   UserAccount? @relation(fields: [userAccountId], references: [id], onDelete: Cascade)
+  managedClients Client[]
+  loanFiles     LoanFile[] // Files assigned to this KAM
+
+  @@index([email])
+  @@index([status])
+  @@map("kam_users")
+}
+
+/// Credit Team Users
+model CreditTeamUser {
+  id            String   @id @default(uuid())
+  creditUserId  String   @unique // Business ID
+  name          String
+  email         String   @unique
+  phone         String?
+  status        AccountStatus @default(ACTIVE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  userAccountId String?  @unique
+  userAccount   UserAccount? @relation(fields: [userAccountId], references: [id], onDelete: Cascade)
+  assignedFiles LoanFile[] // Files assigned to this credit analyst
+
+  @@index([email])
+  @@index([status])
+  @@map("credit_team_users")
+}
+
+/// NBFC Partners - Lenders
+model NBFCPartner {
+  id              String   @id @default(uuid())
+  lenderId       String   @unique // Business ID
+  lenderName     String
+  contactPerson  String?
+  contactEmail   String?
+  contactPhone   String?
+  addressRegion  String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  userAccountId  String?  @unique
+  userAccount   UserAccount? @relation(fields: [userAccountId], references: [id], onDelete: Cascade)
+  loanFiles     LoanFile[] // Files sent to this NBFC
+
+  @@index([lenderId])
+  @@index([active])
+  @@map("nbfc_partners")
+}
+
+// ============================================================================
+// CLIENT MANAGEMENT
+// ============================================================================
+
+/// Clients (DSA Partners)
+model Client {
+  id                String   @id @default(uuid())
+  clientId          String   @unique // Business ID (e.g., CL001)
+  clientName        String
+  primaryContactName String?
+  contactEmail      String?
+  contactPhone      String?
+  assignedKamId    String?
+  assignedKam      KAMUser? @relation(fields: [assignedKamId], references: [id], onDelete: SetNull)
+  enabledModules    String[] // Array of module IDs: M1, M2, M3, etc.
+  commissionRate    Decimal  @default(1.5) // Percentage (e.g., 1.5 for 1.5%)
+  status            String   @default("Active") // Active, Inactive, Suspended
+  formCategories    String?  // JSON or comma-separated
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  userAccountId     String?  @unique
+  userAccount       UserAccount? @relation(fields: [userAccountId], references: [id], onDelete: Cascade)
+  loanFiles         LoanFile[]
+  commissionLedger  CommissionLedger[]
+  formMappings      ClientFormMapping[]
+  notifications     Notification[]
+
+  @@index([clientId])
+  @@index([assignedKamId])
+  @@index([status])
+  @@map("clients")
+}
+
+// ============================================================================
+// LOAN MANAGEMENT
+// ============================================================================
+
+/// Loan Files (Loan Applications)
+model LoanFile {
+  id                    String   @id @default(uuid())
+  fileId                String   @unique // Business ID (e.g., FILE001)
+  clientId              String
+  client                Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  applicantName         String?
+  loanProductId         String?
+  loanProduct           LoanProduct? @relation(fields: [loanProductId], references: [id], onDelete: SetNull)
+  requestedLoanAmount   Decimal?
+  documents             String?  // JSON string or comma-separated URLs
+  status                LoanStatus @default(DRAFT)
+  assignedCreditAnalystId String?
+  assignedCreditAnalyst CreditTeamUser? @relation(fields: [assignedCreditAnalystId], references: [id], onDelete: SetNull)
+  assignedNbfcId        String?
+  assignedNbfc          NBFCPartner? @relation(fields: [assignedNbfcId], references: [id], onDelete: SetNull)
+  lenderDecisionStatus  LenderDecisionStatus?
+  lenderDecisionDate    DateTime?
+  lenderDecisionRemarks String?
+  approvedLoanAmount    Decimal?
+  aiFileSummary         String?  // AI-generated summary
+  formData              String?  // JSON string of form field values
+  creationDate          DateTime @default(now())
+  submittedDate         DateTime?
+  lastUpdated           DateTime @updatedAt
+
+  // Relations
+  // KAM is derived from Client.assignedKam
+  commissionLedger      CommissionLedger[]
+  auditLog              FileAuditLog[]
+  queries               FileAuditLog[] @relation("LoanFileQueries")
+  notifications         Notification[]
+
+  @@index([fileId])
+  @@index([clientId])
+  @@index([status])
+  @@index([assignedCreditAnalystId])
+  @@index([assignedNbfcId])
+  @@index([loanProductId])
+  @@map("loan_files")
+}
+
+/// Loan Products
+model LoanProduct {
+  id                    String   @id @default(uuid())
+  productId             String   @unique // Business ID
+  productName           String
+  description           String?
+  active                Boolean  @default(true)
+  requiredDocuments     String?  // JSON or comma-separated
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  loanFiles             LoanFile[]
+
+  @@index([productId])
+  @@index([active])
+  @@map("loan_products")
+}
+
+// ============================================================================
+// COMMISSION & LEDGER
+// ============================================================================
+
+/// Commission Ledger - Pay In/Out tracking
+model CommissionLedger {
+  id              String   @id @default(uuid())
+  ledgerEntryId   String   @unique // Business ID (e.g., LED001)
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  loanFileId      String?
+  loanFile        LoanFile? @relation(fields: [loanFileId], references: [id], onDelete: SetNull)
+  date            DateTime @default(now())
+  disbursedAmount Decimal?
+  commissionRate  Decimal?
+  payoutAmount    Decimal  // Can be negative for payouts
+  description     String?
+  disputeStatus   DisputeStatus @default(NONE)
+  payoutRequest   PayoutRequestStatus?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  notifications   Notification[]
+
+  @@index([ledgerEntryId])
+  @@index([clientId])
+  @@index([loanFileId])
+  @@index([date])
+  @@index([disputeStatus])
+  @@map("commission_ledger")
+}
+
+// ============================================================================
+// AUDIT & ACTIVITY LOGS
+// ============================================================================
+
+/// Admin Activity Log
+model AdminActivityLog {
+  id              String   @id @default(uuid())
+  activityId      String   @unique // Business ID
+  timestamp       DateTime @default(now())
+  performedById   String
+  performedBy     UserAccount @relation(fields: [performedById], references: [id], onDelete: Restrict)
+  actionType      String   // e.g., "create_client", "update_loan", etc.
+  description     String   // Detailed description
+  targetEntity    String?  // Entity type: "client", "loan_file", etc.
+  createdAt       DateTime @default(now())
+
+  @@index([activityId])
+  @@index([performedById])
+  @@index([timestamp])
+  @@index([actionType])
+  @@map("admin_activity_log")
+}
+
+/// File Auditing Log - Audit trail and queries
+model FileAuditLog {
+  id              String   @id @default(uuid())
+  logEntryId      String   @unique // Business ID
+  fileId          String?
+  file            LoanFile? @relation("LoanFileQueries", fields: [fileId], references: [id], onDelete: SetNull)
+  timestamp       DateTime @default(now())
+  actorId         String
+  actor           UserAccount @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actionEventType String   // e.g., "query_raised", "status_change", "document_upload"
+  detailsMessage  String   // Contains query content and metadata
+  targetUserRole  String?  // Target user/role for queries
+  resolved        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Query threading support (embedded in detailsMessage)
+  // Format: [[parent:<id>]][[status:<open|resolved>]] message
+
+  @@index([logEntryId])
+  @@index([fileId])
+  @@index([actorId])
+  @@index([timestamp])
+  @@index([resolved])
+  @@index([actionEventType])
+  @@map("file_auditing_log")
+}
+
+// ============================================================================
+// FORM CONFIGURATION
+// ============================================================================
+
+/// Form Categories
+model FormCategory {
+  id            String   @id @default(uuid())
+  categoryId    String   @unique // Business ID
+  categoryName  String
+  description   String?
+  displayOrder  Int?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  formFields    FormField[]
+  clientMappings ClientFormMapping[]
+
+  @@index([categoryId])
+  @@index([active])
+  @@map("form_categories")
+}
+
+/// Form Fields
+model FormField {
+  id            String   @id @default(uuid())
+  fieldId       String   @unique // Business ID
+  categoryId    String
+  category      FormCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  fieldLabel    String
+  fieldType     String   // text, file, date, number, select, checkbox, textarea
+  fieldPlaceholder String?
+  fieldOptions  String?  // JSON string for select options
+  isMandatory   Boolean  @default(false)
+  displayOrder  Int?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([fieldId])
+  @@index([categoryId])
+  @@index([active])
+  @@map("form_fields")
+}
+
+/// Client Form Mapping - Custom form configuration per client
+model ClientFormMapping {
+  id            String   @id @default(uuid())
+  mappingId     String   @unique // Business ID
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      FormCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  isRequired    Boolean  @default(false)
+  displayOrder  Int?
+  version       Int?     // For versioning support
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([mappingId])
+  @@index([clientId])
+  @@index([categoryId])
+  @@map("client_form_mapping")
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+/// Notifications
+model Notification {
+  id                String   @id @default(uuid())
+  notificationId    String   @unique // Business ID
+  recipientUserId   String?
+  recipientUser     UserAccount? @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  recipientRole     String?  // If role-based notification
+  relatedFileId     String?
+  relatedClientId   String?
+  relatedLedgerEntryId String?
+  notificationType  String   // e.g., "query_raised", "status_change", "payout_approved"
+  title             String
+  message           String
+  channel           NotificationChannel @default(IN_APP) // email, in_app, both
+  isRead            Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  readAt            DateTime?
+  actionLink        String?
+
+  @@index([notificationId])
+  @@index([recipientUserId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  client
+  kam
+  credit_team
+  nbfc
+}
+
+enum LoanStatus {
+  draft
+  under_kam_review
+  query_with_client
+  pending_credit_review
+  credit_query_with_kam
+  in_negotiation
+  sent_to_nbfc
+  approved
+  rejected
+  disbursed
+  withdrawn
+  closed
+}
+
+enum LenderDecisionStatus {
+  Pending
+  Approved
+  Rejected
+  NeedsClarification
+}
+
+enum DisputeStatus {
+  None
+  UnderQuery
+  Resolved
+}
+
+enum AccountStatus {
+  Active
+  Locked
+  Disabled
+}
+
+enum PayoutRequestStatus {
+  Requested
+  Approved
+  PartiallyApproved
+  Rejected
+  Paid
+}
+
+enum NotificationChannel {
+  email
+  in_app
+  both
+}
+
