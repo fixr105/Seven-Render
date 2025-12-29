@@ -108,6 +108,12 @@ export default async function handlerWrapper(
   res: VercelResponse
 ): Promise<void> {
   try {
+    // Add no-cache headers to prevent edge caching of API responses
+    // This ensures users always get the latest code, especially important after deployments
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     // Normalize the request URL - remove /api prefix
     let path = req.url || '/';
     if (path.startsWith('/api')) {
