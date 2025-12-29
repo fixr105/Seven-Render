@@ -26,8 +26,9 @@ export class AuthService {
    */
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
     // Use dedicated user account webhook for login (loads only once)
-    // Use shorter timeout for production (5 seconds instead of 8)
-    const userAccounts = await n8nClient.getUserAccounts(5000);
+    // Use very short timeout (3 seconds) to prevent Vercel function timeout
+    // If this times out, login will fail fast rather than hanging
+    const userAccounts = await n8nClient.getUserAccounts(3000);
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
@@ -88,101 +89,89 @@ export class AuthService {
       role,
     };
 
-    // Fetch role-specific data from individual webhooks (only after user account is validated)
-    // This is separate from login to keep login fast and use dedicated webhook
-    // Use Promise.race with timeout to prevent blocking on slow webhooks
-    const roleDataPromise = (async () => {
-      switch (role) {
-        case UserRole.CLIENT:
-          // For clients, find the Client record in Airtable via n8n webhook
-          try {
-            const clients = await n8nClient.fetchTable('Clients', true, undefined, 3000) as any[];
-            
-            const client = clients.find((c: any) => {
-              const contactInfo = c['Contact Email / Phone'] || c['Contact Email/Phone'] || '';
-              return contactInfo.toLowerCase().includes(email.toLowerCase());
-            });
-            
-            if (client) {
-              authUser.clientId = client.id || client['Client ID'];
-              authUser.name = client['Client Name'] || email.split('@')[0];
-              console.log(`[AuthService] Client login: ${email} -> Airtable Client ID: ${authUser.clientId}, Client Name: ${authUser.name}`);
-            } else {
-              console.warn(`[AuthService] No Client record found in Airtable for ${email}`);
-              authUser.name = email.split('@')[0];
-            }
-          } catch (error: any) {
-            console.error(`[AuthService] Error looking up Airtable client for ${email}:`, error.message);
-            authUser.name = email.split('@')[0];
-          }
-          break;
+    // Set default name immediately (don't wait for role data)
+    // Role data fetching is now completely non-blocking to prevent Vercel timeouts
+    authUser.name = userAccount['Associated Profile'] || email.split('@')[0];
 
-        case UserRole.KAM:
-          // Fetch only KAM Users table
-          try {
-            const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 3000) as any[];
-            
-            const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
-            if (kamUser) {
-              authUser.kamId = kamUser.id;
-              authUser.name = kamUser.Name;
+    // Fetch role-specific data in background (completely non-blocking)
+    // This ensures login completes immediately even if webhooks are very slow
+    // Role data will be fetched after login completes, and can be updated on next request
+    (async () => {
+      try {
+        switch (role) {
+          case UserRole.CLIENT:
+            // For clients, find the Client record in Airtable via n8n webhook
+            try {
+              const clients = await n8nClient.fetchTable('Clients', true, undefined, 2000) as any[];
+              
+              const client = clients.find((c: any) => {
+                const contactInfo = c['Contact Email / Phone'] || c['Contact Email/Phone'] || '';
+                return contactInfo.toLowerCase().includes(email.toLowerCase());
+              });
+              
+              if (client) {
+                authUser.clientId = client.id || client['Client ID'];
+                authUser.name = client['Client Name'] || authUser.name;
+                console.log(`[AuthService] Client login (background): ${email} -> Airtable Client ID: ${authUser.clientId}`);
+              }
+            } catch (error: any) {
+              console.warn(`[AuthService] Background client lookup failed for ${email}:`, error.message);
             }
-          } catch (error: any) {
-            console.error(`[AuthService] Error looking up KAM user for ${email}:`, error.message);
-          }
-          break;
+            break;
 
-        case UserRole.CREDIT:
-          // Fetch only Credit Team Users table
-          try {
-            const creditUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 3000) as any[];
-            
-            const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
-            if (creditUser) {
-              authUser.name = creditUser.Name;
+          case UserRole.KAM:
+            // Fetch only KAM Users table
+            try {
+              const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 2000) as any[];
+              
+              const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
+              if (kamUser) {
+                authUser.kamId = kamUser.id;
+                authUser.name = kamUser.Name || authUser.name;
+              }
+            } catch (error: any) {
+              console.warn(`[AuthService] Background KAM lookup failed for ${email}:`, error.message);
             }
-          } catch (error: any) {
-            console.error(`[AuthService] Error looking up Credit user for ${email}:`, error.message);
-          }
-          break;
+            break;
 
-        case UserRole.NBFC:
-          // Fetch only NBFC Partners table
-          try {
-            const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 3000) as any[];
-            
-            // NBFC users might have email in Contact Email/Phone
-            const nbfcPartner = nbfcPartners.find((n) => 
-              n['Contact Email/Phone']?.toLowerCase().includes(email.toLowerCase())
-            );
-            if (nbfcPartner) {
-              authUser.nbfcId = nbfcPartner.id;
-              authUser.name = nbfcPartner['Lender Name'];
+          case UserRole.CREDIT:
+            // Fetch only Credit Team Users table
+            try {
+              const creditUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 2000) as any[];
+              
+              const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
+              if (creditUser) {
+                authUser.name = creditUser.Name || authUser.name;
+              }
+            } catch (error: any) {
+              console.warn(`[AuthService] Background Credit lookup failed for ${email}:`, error.message);
             }
-          } catch (error: any) {
-            console.error(`[AuthService] Error looking up NBFC partner for ${email}:`, error.message);
-          }
-          break;
+            break;
+
+          case UserRole.NBFC:
+            // Fetch only NBFC Partners table
+            try {
+              const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 2000) as any[];
+              
+              // NBFC users might have email in Contact Email/Phone
+              const nbfcPartner = nbfcPartners.find((n) => 
+                n['Contact Email/Phone']?.toLowerCase().includes(email.toLowerCase())
+              );
+              if (nbfcPartner) {
+                authUser.nbfcId = nbfcPartner.id;
+                authUser.name = nbfcPartner['Lender Name'] || authUser.name;
+              }
+            } catch (error: any) {
+              console.warn(`[AuthService] Background NBFC lookup failed for ${email}:`, error.message);
+            }
+            break;
+        }
+      } catch (error: any) {
+        console.warn(`[AuthService] Background role data fetch failed for ${email}:`, error.message);
       }
-    })();
-
-    // Wait for role data with very short timeout (3 seconds max)
-    // This ensures login completes quickly even if webhooks are slow
-    // If it times out, we continue with default values (name from email, no clientId)
-    try {
-      await Promise.race([
-        roleDataPromise,
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Role data fetch timeout')), 3000)
-        )
-      ]);
-    } catch (error: any) {
-      console.warn(`[AuthService] Role data fetch timed out or failed for ${email}, using defaults`);
-      // Set default name if not already set
-      if (!authUser.name) {
-        authUser.name = email.split('@')[0];
-      }
-    }
+    })().catch(() => {
+      // Silently ignore background errors - login should not fail because of this
+    });
 
     // Update last login (non-blocking - don't wait for it)
     n8nClient.postUserAccount({
