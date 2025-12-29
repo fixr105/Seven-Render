@@ -959,32 +959,18 @@ export class CreditController {
       const { ledgerEntryId } = req.params;
       const { reason } = req.body;
 
-      // Fetch ledger entry
-      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
-      const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
-
-      if (!entry) {
-        res.status(404).json({ success: false, error: 'Ledger entry not found' });
+      if (!reason || reason.trim().length === 0) {
+        res.status(400).json({ success: false, error: 'Reason is required' });
         return;
       }
 
-      // Update dispute status
-      await n8nClient.postCommissionLedger({
-        ...entry,
-        'Dispute Status': DisputeStatus.UNDER_QUERY,
-      });
+      // Use commission service for dispute flagging
+      const { commissionService } = await import('../services/commission/commission.service.js');
 
-      // Log to file audit
-      await n8nClient.postFileAuditLog({
-        id: `AUDIT-${Date.now()}`,
-        'Log Entry ID': `AUDIT-${Date.now()}`,
-        File: entry['Loan File'] || '',
-        Timestamp: new Date().toISOString(),
-        Actor: req.user!.email,
-        'Action/Event Type': 'ledger_dispute_flagged',
-        'Details/Message': `Ledger dispute flagged by credit team: ${reason || 'Dispute raised'}`,
-        'Target User/Role': 'client',
-        Resolved: 'False',
+      await commissionService.flagDispute({
+        ledgerEntryId,
+        reason,
+        raisedBy: req.user!,
       });
 
       res.json({
