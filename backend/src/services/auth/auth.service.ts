@@ -104,15 +104,39 @@ export class AuthService {
             try {
               const clients = await n8nClient.fetchTable('Clients', true, undefined, 2000) as any[];
               
+              // Try multiple field name variations for email matching
               const client = clients.find((c: any) => {
-                const contactInfo = c['Contact Email / Phone'] || c['Contact Email/Phone'] || '';
-                return contactInfo.toLowerCase().includes(email.toLowerCase());
+                // Check various possible email field names
+                const contactInfo = 
+                  c['Contact Email / Phone'] || 
+                  c['Contact Email/Phone'] || 
+                  c['Contact Email'] ||
+                  c['Email'] ||
+                  c['Email Address'] ||
+                  '';
+                
+                // Also check if Client ID or Client Name matches (fallback)
+                const clientId = c['Client ID'] || '';
+                const clientName = c['Client Name'] || '';
+                
+                // Match by email if available, otherwise try to match by name/ID
+                if (contactInfo) {
+                  return contactInfo.toLowerCase().includes(email.toLowerCase());
+                }
+                
+                // Fallback: try matching email username with client name
+                const emailUsername = email.split('@')[0].toLowerCase();
+                return clientName.toLowerCase().includes(emailUsername) || 
+                       clientId.toLowerCase().includes(emailUsername);
               });
               
               if (client) {
-                authUser.clientId = client.id || client['Client ID'];
+                // Use Client ID if available, otherwise use record id
+                authUser.clientId = client['Client ID'] || client.id;
                 authUser.name = client['Client Name'] || authUser.name;
-                console.log(`[AuthService] Client login (background): ${email} -> Airtable Client ID: ${authUser.clientId}`);
+                console.log(`[AuthService] Client login (background): ${email} -> Airtable Client ID: ${authUser.clientId}, Name: ${authUser.name}`);
+              } else {
+                console.warn(`[AuthService] No Client record found matching ${email} in ${clients.length} clients`);
               }
             } catch (error: any) {
               console.warn(`[AuthService] Background client lookup failed for ${email}:`, error.message);
