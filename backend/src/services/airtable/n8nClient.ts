@@ -525,7 +525,7 @@ export class N8nClient {
    * Loads only once and waits for response
    * Includes timeout to prevent Vercel function timeouts
    */
-  async getUserAccounts(timeoutMs: number = 55000): Promise<UserAccount[]> {
+  async getUserAccounts(timeoutMs: number = 5000): Promise<UserAccount[]> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -547,7 +547,7 @@ export class N8nClient {
         // Also timeout the JSON parsing in case response body is large
         const jsonPromise = response.json();
         const jsonTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('JSON parsing timeout')), timeoutMs - 1000)
+          setTimeout(() => reject(new Error('JSON parsing timeout')), Math.max(timeoutMs - 500, 1000))
         );
         
         return await Promise.race([jsonPromise, jsonTimeout]);

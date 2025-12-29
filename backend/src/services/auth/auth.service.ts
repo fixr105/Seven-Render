@@ -26,9 +26,8 @@ export class AuthService {
    */
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
     // Use dedicated user account webhook for login (loads only once)
-    // No aggressive timeout - allow webhook to complete naturally
-    // Vercel function has 60s maxDuration, so this will timeout at Vercel level if needed
-    const userAccounts = await n8nClient.getUserAccounts(55000); // 55 seconds - close to Vercel's 60s limit
+    // Webhook responds in ~1 second, so use 5 second timeout for safety
+    const userAccounts = await n8nClient.getUserAccounts(5000); // 5 seconds - webhook responds in ~1s
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
