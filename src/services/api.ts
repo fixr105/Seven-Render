@@ -273,9 +273,9 @@ class ApiService {
     }
 
     try {
-      // Add timeout for fetch requests (60 seconds for login, 30 seconds for others)
+      // Add timeout for fetch requests (55 seconds for login to match Vercel limit, 30 seconds for others)
       const isLoginRequest = endpoint.includes('/auth/login');
-      const timeoutMs = isLoginRequest ? 60000 : 30000; // 60s for login, 30s for others
+      const timeoutMs = isLoginRequest ? 55000 : 30000; // 55s for login (Vercel 60s limit), 30s for others
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
