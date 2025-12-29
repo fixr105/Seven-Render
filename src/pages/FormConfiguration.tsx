@@ -145,9 +145,8 @@ export const FormConfiguration: React.FC = () => {
   const [clients, setClients] = useState<any[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
   
-  // Fetch form mappings from webhook
-  const { data: webhookData } = useWebhookTables(['Client Form Mapping']);
-  const formMappings = webhookData['Client Form Mapping'] || [];
+  // Fetch form mappings from API (will be fetched per client as needed)
+  const [formMappings, setFormMappings] = useState<any[]>([]);
 
   // Fetch clients for KAM
   useEffect(() => {
