@@ -11,7 +11,6 @@ import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
-import { useWebhookTables } from '../hooks/useWebhookData';
 
 // Form Modules Configuration
 interface FormModule {

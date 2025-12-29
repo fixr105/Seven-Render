@@ -12,7 +12,6 @@ import { Clients } from './pages/Clients';
 import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
-import { WebhookTest } from './pages/WebhookTest';
 import { FormConfiguration } from './pages/FormConfiguration';
 import { ClientForm } from './pages/ClientForm';
 
@@ -114,15 +113,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Reports />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/webhook-test"
-        element={
-          <ProtectedRoute allowedRoles={['credit_team', 'kam']}>
-            <WebhookTest />
           </ProtectedRoute>
         }
       />
