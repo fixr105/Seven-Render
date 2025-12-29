@@ -986,6 +986,52 @@ export class CreditController {
   }
 
   /**
+   * POST /credit/ledger/:ledgerEntryId/resolve-dispute
+   * Resolve a ledger entry dispute (Credit Team only)
+   * 
+   * Allows credit team to resolve disputes by accepting or rejecting them
+   */
+  async resolveLedgerDispute(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'credit_team') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { ledgerEntryId } = req.params;
+      const { resolved, adjustedAmount, notes } = req.body;
+
+      if (resolved === undefined) {
+        res.status(400).json({ success: false, error: 'resolved flag is required' });
+        return;
+      }
+
+      // Use commission service for dispute resolution
+      const { commissionService } = await import('../services/commission/commission.service.js');
+
+      await commissionService.resolveDispute(
+        req.user!,
+        ledgerEntryId,
+        {
+          resolved: resolved === true || resolved === 'true',
+          adjustedAmount: adjustedAmount ? parseFloat(adjustedAmount) : undefined,
+          notes,
+        }
+      );
+
+      res.json({
+        success: true,
+        message: `Dispute ${resolved ? 'resolved' : 'rejected'}`,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to resolve dispute',
+      });
+    }
+  }
+
+  /**
    * POST /credit/payout-requests/:id/reject
    */
   async rejectPayout(req: Request, res: Response): Promise<void> {
