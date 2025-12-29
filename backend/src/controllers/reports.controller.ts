@@ -11,13 +11,15 @@ export class ReportsController {
    * POST /reports/daily/generate
    * Generate daily summary report (CREDIT admin only)
    * 
-   * Aggregates metrics from:
-   * - Loan Applications table
-   * - Commission Ledger table
-   * - File Auditing Log table
+   * Uses DailySummaryService to aggregate metrics from:
+   * - AdminActivityLog (last 24 hours)
+   * - LoanFiles status changes (last 24 hours)
+   * - Commission Ledger (last 24 hours)
+   * - File Auditing Log (last 24 hours)
    * 
    * Webhook Mapping:
    * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
+   * - GET → n8nClient.fetchTable('Admin Activity Log') → /webhook/adminactivitylog → Airtable: Admin Activity Log
    * - GET → n8nClient.fetchTable('Commission Ledger') → /webhook/commisionledger → Airtable: Commission Ledger
    * - GET → n8nClient.fetchTable('File Auditing Log') → /webhook/fileauditinglog → Airtable: File Auditing Log
    * - POST → n8nClient.postDailySummary() → /webhook/DAILYSUMMARY → Airtable: Daily Summary Reports
@@ -32,6 +34,18 @@ export class ReportsController {
 
       const { date, emailRecipients } = req.body;
       const reportDate = date || new Date().toISOString().split('T')[0];
+
+      // Use daily summary service
+      const { dailySummaryService } = await import('../services/reports/dailySummary.service.js');
+      
+      // Generate report
+      const reportData = await dailySummaryService.generateDailySummary(reportDate);
+      
+      // Save to database
+      const reportId = await dailySummaryService.saveDailySummary(
+        reportData,
+        emailRecipients
+      );
       
       // Fetch data from all relevant tables
       const [applications, ledgerEntries, auditLogs] = await Promise.all([
@@ -196,9 +210,10 @@ ${applicationMetrics.pendingQueries > 0 ? `⚠ ${applicationMetrics.pendingQueri
       if (emailRecipients && Array.isArray(emailRecipients) && emailRecipients.length > 0) {
         try {
           // Format email body as HTML
-          const emailBody = summaryContent
+          const emailBody = reportData.summaryContent
             .replace(/\n/g, '<br>')
-            .replace(/═══════════════════════════════════════════════════════════/g, '<hr>')
+            .replace(/=/g, '═')
+            .replace(/═+/g, '<hr>')
             .replace(/✓/g, '✅')
             .replace(/⚠/g, '⚠️');
 
@@ -236,14 +251,10 @@ ${applicationMetrics.pendingQueries > 0 ? `⚠ ${applicationMetrics.pendingQueri
       res.json({
         success: true,
         data: {
-          reportId: reportData.id,
-          reportDate,
-          summary: summaryContent,
-          metrics: {
-            applications: applicationMetrics,
-            commission: commissionMetrics,
-            audit: auditMetrics,
-          },
+          reportId,
+          reportDate: reportData.reportDate,
+          summary: reportData.summaryContent,
+          metrics: reportData.metrics,
           emailSent: emailRecipients && emailRecipients.length > 0,
         },
       });

@@ -24,6 +24,19 @@ app.use('/', routes);
 // Error handling
 app.use(handleError);
 
+// Start background jobs (only if not running on Vercel)
+if (process.env.VERCEL !== '1') {
+  // Start daily summary job
+  try {
+    const { dailySummaryJob } = await import('./jobs/dailySummary.job.js');
+    dailySummaryJob.start();
+    console.log('✅ Daily summary job started');
+  } catch (error: any) {
+    console.warn('⚠️  Failed to start daily summary job:', error.message);
+    // Don't fail server startup if job fails to start
+  }
+}
+
 // Start server (only if not running on Vercel)
 if (process.env.VERCEL !== '1') {
   app.listen(PORT, () => {
