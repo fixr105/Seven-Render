@@ -21,6 +21,15 @@ const getApiBaseUrl = () => {
     return baseUrl;
   }
   
+  // In production, try to use current origin to avoid relative path issues
+  if (typeof window !== 'undefined' && window.location.origin) {
+    const origin = window.location.origin;
+    // Only use absolute URL if we're not on localhost (production)
+    if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      return `${origin}/api`;
+    }
+  }
+  
   // Default: use relative path (works for both dev proxy and Vercel production)
   // In development, Vite proxy handles /api -> localhost:3001
   // In production, Vercel rewrites handle /api -> serverless function
