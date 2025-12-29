@@ -525,7 +525,7 @@ export class N8nClient {
    * Loads only once and waits for response
    * Includes timeout to prevent Vercel function timeouts
    */
-  async getUserAccounts(timeoutMs: number = 8000): Promise<UserAccount[]> {
+  async getUserAccounts(timeoutMs: number = 55000): Promise<UserAccount[]> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 

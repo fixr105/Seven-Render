@@ -26,22 +26,9 @@ export class AuthService {
    */
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
     // Use dedicated user account webhook for login (loads only once)
-    // Wrap in Promise.race to ensure timeout is enforced even if getUserAccounts doesn't timeout internally
-    // This is critical for Vercel serverless functions which have a 60s hard limit
-    const getUserAccountsPromise = n8nClient.getUserAccounts(2000); // 2 second internal timeout
-    const externalTimeout = new Promise<UserAccount[]>((_, reject) => 
-      setTimeout(() => reject(new Error('User accounts fetch timed out after 3 seconds')), 3000)
-    );
-    
-    let userAccounts: UserAccount[];
-    try {
-      userAccounts = await Promise.race([getUserAccountsPromise, externalTimeout]);
-    } catch (error: any) {
-      if (error.message?.includes('timed out') || error.message?.includes('timeout')) {
-        throw new Error('Authentication service is temporarily unavailable. Please try again in a moment.');
-      }
-      throw error;
-    }
+    // No aggressive timeout - allow webhook to complete naturally
+    // Vercel function has 60s maxDuration, so this will timeout at Vercel level if needed
+    const userAccounts = await n8nClient.getUserAccounts(55000); // 55 seconds - close to Vercel's 60s limit
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
