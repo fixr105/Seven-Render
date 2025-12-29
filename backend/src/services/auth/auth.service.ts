@@ -25,10 +25,12 @@ export class AuthService {
    * Login - validate credentials and return JWT
    */
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
-    // Use dedicated user account webhook for login (loads only once)
-    // Use 10 second timeout to handle slow webhook responses
-    // If webhook is consistently slow, consider caching user accounts
-    const userAccounts = await n8nClient.getUserAccounts(10000); // 10 seconds
+    // Use fetchTable instead of getUserAccounts to ensure we're using the correct webhook
+    // The 'User Accounts' table name maps to the /useraccount webhook path
+    // This is more reliable than the dedicated getUserAccounts method
+    console.log('[AuthService] Fetching user accounts via fetchTable...');
+    const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000) as UserAccount[];
+    console.log(`[AuthService] Retrieved ${userAccounts.length} user accounts`);
 
     // Find user by email (Username field in Airtable)
     const userAccount = userAccounts.find(
