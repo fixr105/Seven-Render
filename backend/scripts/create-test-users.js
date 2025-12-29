@@ -9,28 +9,29 @@ const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul
 const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
 
 // Test users to create
+// Note: Passwords match QA test suite expectations (Test@123)
 const testUsers = [
   {
     email: 'client@test.com',
-    password: 'password123',
+    password: 'Test@123',
     role: 'client',
     name: 'Test Client',
   },
   {
     email: 'kam@test.com',
-    password: 'password123',
+    password: 'Test@123',
     role: 'kam',
     name: 'Test KAM',
   },
   {
     email: 'credit@test.com',
-    password: 'password123',
+    password: 'Test@123',
     role: 'credit_team',
     name: 'Test Credit',
   },
   {
     email: 'nbfc@test.com',
-    password: 'password123',
+    password: 'Test@123',
     role: 'nbfc',
     name: 'Test NBFC',
   },
@@ -131,7 +132,7 @@ async function main() {
   console.log('\n✅ Test user creation complete!');
   console.log('\nYou can now login with:');
   testUsers.forEach(user => {
-    console.log(`  ${user.email} / password123 (${user.role})`);
+    console.log(`  ${user.email} / ${user.password} (${user.role})`);
   });
 }
 

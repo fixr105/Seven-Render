@@ -508,35 +508,50 @@ export class N8nClient {
    * GET User Accounts directly from dedicated webhook
    * This is used specifically for login/authentication
    * Loads only once and waits for response
+   * Includes timeout to prevent Vercel function timeouts
    */
-  async getUserAccounts(): Promise<UserAccount[]> {
+  async getUserAccounts(timeoutMs: number = 8000): Promise<UserAccount[]> {
     try {
-      const response = await fetch(n8nConfig.getUserAccountsUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      if (!response.ok) {
-        throw new Error(`User Accounts webhook failed: ${response.status} ${response.statusText}`);
-      }
+      try {
+        const response = await fetch(n8nConfig.getUserAccountsUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
 
-      const data = await response.json();
-      
-      // The webhook returns an array of user accounts directly
-      if (Array.isArray(data)) {
-        return data as UserAccount[];
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`User Accounts webhook failed: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // The webhook returns an array of user accounts directly
+        if (Array.isArray(data)) {
+          return data as UserAccount[];
+        }
+        
+        // If it's an object, try to extract User Accounts
+        if (typeof data === 'object' && data !== null && data !== undefined && 'User Accounts' in data) {
+          const userAccountsData = (data as Record<string, any>)['User Accounts'];
+          return Array.isArray(userAccountsData) ? userAccountsData as UserAccount[] : [];
+        }
+        
+        console.warn('Unexpected response format from User Accounts webhook');
+        return [];
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error(`User Accounts webhook timed out after ${timeoutMs}ms. Please try again.`);
+        }
+        throw fetchError;
       }
-      
-      // If it's an object, try to extract User Accounts
-      if (typeof data === 'object' && data !== null && data !== undefined && 'User Accounts' in data) {
-        const userAccountsData = (data as Record<string, any>)['User Accounts'];
-        return Array.isArray(userAccountsData) ? userAccountsData as UserAccount[] : [];
-      }
-      
-      console.warn('Unexpected response format from User Accounts webhook');
-      return [];
     } catch (error) {
       console.error('Error fetching User Accounts from dedicated webhook:', error);
       throw error;

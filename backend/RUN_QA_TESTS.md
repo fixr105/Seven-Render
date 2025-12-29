@@ -15,6 +15,30 @@
    - `kam@test.com` / `Test@123` (role: kam)
    - `credit@test.com` / `Test@123` (role: credit_team)
    - `nbfc@test.com` / `Test@123` (role: nbfc)
+   
+   **Why test users aren't created automatically:**
+   - The system uses **Airtable** (external database) via n8n webhooks for user storage
+   - Users must exist in Airtable's "User Accounts" table before login will work
+   - There's no automatic seeding on startup because:
+     - Airtable is an external service that requires manual setup
+     - n8n webhooks must be configured and accessible
+     - Test users should only be created in test/development environments
+   
+   **To create test users quickly:**
+   
+   Option A: Check and create missing users (recommended):
+   ```bash
+   cd backend
+   node scripts/ensure-test-users.js
+   ```
+   This script checks if test users exist and only creates missing ones.
+   
+   Option B: Force create all users:
+   ```bash
+   cd backend
+   node scripts/create-test-users.js
+   ```
+   This script will create all 4 test users in Airtable via n8n webhooks (may create duplicates if users already exist).
 
 3. **Test data available:**
    - At least 1 loan product

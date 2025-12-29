@@ -183,65 +183,97 @@ export const Login: React.FC = () => {
             </p>
           </div>
 
-          {/* Dummy Login Credentials */}
+          {/* Test User Credentials */}
           <div className="mt-6 pt-6 border-t border-neutral-200">
-            <p className="text-xs font-semibold text-neutral-500 uppercase mb-3">Test Credentials</p>
+            <p className="text-xs font-semibold text-neutral-500 uppercase mb-3">Test Users</p>
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => {
-                  setEmail('client@test.com');
-                  setPassword('password123');
-                  setError('');
-                }}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+                onClick={() => handleLogin('client@test.com', 'Test@123')}
+                disabled={loading}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <p className="text-xs font-medium text-neutral-700 mb-1">👤 Client (DSA)</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">client@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-neutral-900 mb-1">👤 Test Client</p>
+                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test Client</span></p>
+                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">Client (DSA Partner)</span></p>
+                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">client@test.com</span></p>
+                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
+                  </div>
+                  {loading && email === 'client@test.com' && (
+                    <div className="ml-2">
+                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setEmail('kam@test.com');
-                  setPassword('password123');
-                  setError('');
-                }}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+                onClick={() => handleLogin('kam@test.com', 'Test@123')}
+                disabled={loading}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <p className="text-xs font-medium text-neutral-700 mb-1">👔 Key Account Manager (KAM)</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">kam@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-neutral-900 mb-1">👔 Test KAM</p>
+                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test KAM</span></p>
+                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">Key Account Manager</span></p>
+                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">kam@test.com</span></p>
+                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
+                  </div>
+                  {loading && email === 'kam@test.com' && (
+                    <div className="ml-2">
+                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setEmail('credit@test.com');
-                  setPassword('password123');
-                  setError('');
-                }}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+                onClick={() => handleLogin('credit@test.com', 'Test@123')}
+                disabled={loading}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <p className="text-xs font-medium text-neutral-700 mb-1">💼 Credit Team</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">credit@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-neutral-900 mb-1">💼 Test Credit</p>
+                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test Credit</span></p>
+                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">Credit Team</span></p>
+                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">credit@test.com</span></p>
+                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
+                  </div>
+                  {loading && email === 'credit@test.com' && (
+                    <div className="ml-2">
+                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setEmail('nbfc@test.com');
-                  setPassword('password123');
-                  setError('');
-                }}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left"
+                onClick={() => handleLogin('nbfc@test.com', 'Test@123')}
+                disabled={loading}
+                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <p className="text-xs font-medium text-neutral-700 mb-1">🏦 NBFC Partner</p>
-                <p className="text-xs text-neutral-600">Email: <span className="font-mono text-brand-primary">nbfc@test.com</span></p>
-                <p className="text-xs text-neutral-600">Password: <span className="font-mono text-brand-primary">password123</span></p>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-neutral-900 mb-1">🏦 Test NBFC</p>
+                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test NBFC</span></p>
+                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">NBFC Partner</span></p>
+                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">nbfc@test.com</span></p>
+                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
+                  </div>
+                  {loading && email === 'nbfc@test.com' && (
+                    <div className="ml-2">
+                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
               </button>
             </div>
             <p className="mt-3 text-xs text-neutral-500 text-center">
-              Click any credential card to auto-fill the form
+              Click any user card to automatically sign in
             </p>
           </div>
         </div>

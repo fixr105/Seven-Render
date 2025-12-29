@@ -16,16 +16,34 @@ export class AuthController {
       // Validate input
       const { email, password } = loginSchema.parse(req.body);
 
-      const result = await authService.login(email, password);
+      // Wrap login in a timeout to prevent Vercel function timeout
+      const loginPromise = authService.login(email, password);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Login request timed out. The server may be experiencing high load. Please try again in a moment.')), 8000)
+      );
+
+      const result = await Promise.race([loginPromise, timeoutPromise]);
 
       res.json({
         success: true,
         data: result,
       });
     } catch (error: any) {
-      res.status(401).json({
+      // Provide better error messages for timeout scenarios
+      let statusCode = 401;
+      let errorMessage = error.message || 'Login failed';
+
+      if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+        statusCode = 504; // Gateway Timeout
+        errorMessage = 'Login request timed out. Please check your connection and try again.';
+      } else if (errorMessage.includes('webhook') && errorMessage.includes('timeout')) {
+        statusCode = 504;
+        errorMessage = 'Unable to connect to authentication service. Please try again in a moment.';
+      }
+
+      res.status(statusCode).json({
         success: false,
-        error: error.message || 'Login failed',
+        error: errorMessage,
       });
     }
   }

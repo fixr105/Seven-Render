@@ -89,65 +89,117 @@ export class AuthService {
 
     // Fetch role-specific data from individual webhooks (only after user account is validated)
     // This is separate from login to keep login fast and use dedicated webhook
-    switch (role) {
-      case UserRole.CLIENT:
-        // For clients, find the Client record in Airtable via n8n webhook
-        try {
-          const clients = await n8nClient.fetchTable('Clients');
-          const client = clients.find((c: any) => {
-            const contactInfo = c['Contact Email / Phone'] || c['Contact Email/Phone'] || '';
-            return contactInfo.toLowerCase().includes(email.toLowerCase());
-          });
-          
-          if (client) {
-            authUser.clientId = client.id || client['Client ID'];
-            authUser.name = client['Client Name'] || email.split('@')[0];
-            console.log(`[AuthService] Client login: ${email} -> Airtable Client ID: ${authUser.clientId}, Client Name: ${authUser.name}`);
-          } else {
-            console.warn(`[AuthService] No Client record found in Airtable for ${email}`);
+    // Use Promise.race with timeout to prevent blocking on slow webhooks
+    const roleDataPromise = (async () => {
+      switch (role) {
+        case UserRole.CLIENT:
+          // For clients, find the Client record in Airtable via n8n webhook
+          try {
+            const clients = await Promise.race([
+              n8nClient.fetchTable('Clients'),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 5000)
+              )
+            ]) as any[];
+            
+            const client = clients.find((c: any) => {
+              const contactInfo = c['Contact Email / Phone'] || c['Contact Email/Phone'] || '';
+              return contactInfo.toLowerCase().includes(email.toLowerCase());
+            });
+            
+            if (client) {
+              authUser.clientId = client.id || client['Client ID'];
+              authUser.name = client['Client Name'] || email.split('@')[0];
+              console.log(`[AuthService] Client login: ${email} -> Airtable Client ID: ${authUser.clientId}, Client Name: ${authUser.name}`);
+            } else {
+              console.warn(`[AuthService] No Client record found in Airtable for ${email}`);
+              authUser.name = email.split('@')[0];
+            }
+          } catch (error: any) {
+            console.error(`[AuthService] Error looking up Airtable client for ${email}:`, error.message);
             authUser.name = email.split('@')[0];
           }
-        } catch (error: any) {
-          console.error(`[AuthService] Error looking up Airtable client for ${email}:`, error.message);
-          authUser.name = email.split('@')[0];
-        }
-        break;
+          break;
 
-      case UserRole.KAM:
-        // Fetch only KAM Users table
-        const kamUsers = await n8nClient.fetchTable('KAM Users');
-        const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
-        if (kamUser) {
-          authUser.kamId = kamUser.id;
-          authUser.name = kamUser.Name;
-        }
-        break;
+        case UserRole.KAM:
+          // Fetch only KAM Users table
+          try {
+            const kamUsers = await Promise.race([
+              n8nClient.fetchTable('KAM Users'),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 5000)
+              )
+            ]) as any[];
+            
+            const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
+            if (kamUser) {
+              authUser.kamId = kamUser.id;
+              authUser.name = kamUser.Name;
+            }
+          } catch (error: any) {
+            console.error(`[AuthService] Error looking up KAM user for ${email}:`, error.message);
+          }
+          break;
 
-      case UserRole.CREDIT:
-        // Fetch only Credit Team Users table
-        const creditUsers = await n8nClient.fetchTable('Credit Team Users');
-        const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
-        if (creditUser) {
-          authUser.name = creditUser.Name;
-        }
-        break;
+        case UserRole.CREDIT:
+          // Fetch only Credit Team Users table
+          try {
+            const creditUsers = await Promise.race([
+              n8nClient.fetchTable('Credit Team Users'),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 5000)
+              )
+            ]) as any[];
+            
+            const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
+            if (creditUser) {
+              authUser.name = creditUser.Name;
+            }
+          } catch (error: any) {
+            console.error(`[AuthService] Error looking up Credit user for ${email}:`, error.message);
+          }
+          break;
 
-      case UserRole.NBFC:
-        // Fetch only NBFC Partners table
-        const nbfcPartners = await n8nClient.fetchTable('NBFC Partners');
-        // NBFC users might have email in Contact Email/Phone
-        const nbfcPartner = nbfcPartners.find((n) => 
-          n['Contact Email/Phone']?.toLowerCase().includes(email.toLowerCase())
-        );
-        if (nbfcPartner) {
-          authUser.nbfcId = nbfcPartner.id;
-          authUser.name = nbfcPartner['Lender Name'];
-        }
-        break;
+        case UserRole.NBFC:
+          // Fetch only NBFC Partners table
+          try {
+            const nbfcPartners = await Promise.race([
+              n8nClient.fetchTable('NBFC Partners'),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 5000)
+              )
+            ]) as any[];
+            
+            // NBFC users might have email in Contact Email/Phone
+            const nbfcPartner = nbfcPartners.find((n) => 
+              n['Contact Email/Phone']?.toLowerCase().includes(email.toLowerCase())
+            );
+            if (nbfcPartner) {
+              authUser.nbfcId = nbfcPartner.id;
+              authUser.name = nbfcPartner['Lender Name'];
+            }
+          } catch (error: any) {
+            console.error(`[AuthService] Error looking up NBFC partner for ${email}:`, error.message);
+          }
+          break;
+      }
+    })();
+
+    // Wait for role data with overall timeout (don't block login if it's slow)
+    try {
+      await Promise.race([
+        roleDataPromise,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Role data fetch timeout')), 6000)
+        )
+      ]);
+    } catch (error: any) {
+      console.warn(`[AuthService] Role data fetch timed out or failed for ${email}, continuing with login`);
+      // Continue with login even if role data fetch fails
     }
 
-    // Update last login
-    await n8nClient.postUserAccount({
+    // Update last login (non-blocking - don't wait for it)
+    n8nClient.postUserAccount({
       id: userAccount.id,
       Username: userAccount.Username,
       Password: userAccount.Password,
@@ -155,6 +207,9 @@ export class AuthService {
       'Associated Profile': userAccount['Associated Profile'],
       'Last Login': new Date().toISOString(),
       'Account Status': userAccount['Account Status'],
+    }).catch((error) => {
+      console.warn(`[AuthService] Failed to update last login for ${email}:`, error.message);
+      // Non-critical, don't block login
     });
 
     // Generate JWT
