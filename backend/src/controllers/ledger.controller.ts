@@ -191,6 +191,8 @@ export class LedgerController {
   /**
    * POST /clients/me/payout-requests
    * Create payout request (CLIENT only)
+   * 
+   * Uses commission service for payout request creation
    */
   async createPayoutRequest(req: Request, res: Response): Promise<void> {
     try {
@@ -201,74 +203,19 @@ export class LedgerController {
 
       const { amount, full, amountRequested } = req.body; // Support both 'amount' and 'amountRequested' for compatibility
       const requestedAmountValue = amount || amountRequested;
-      // Fetch only Commission Ledger table
-      let ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
-      // Filter by client
-      ledgerEntries = ledgerEntries.filter(
-        (entry) => entry.Client === req.user!.clientId
-      );
+      // Use commission service for payout request
+      const { commissionService } = await import('../services/commission/commission.service.js');
 
-      // Calculate current balance
-      const currentBalance = ledgerEntries.reduce(
-        (sum, entry) => sum + parseFloat(entry['Payout Amount'] || '0'),
-        0
-      );
-
-      if (currentBalance <= 0) {
-        res.status(400).json({
-          success: false,
-          error: 'No balance available for payout',
-        });
-        return;
-      }
-
-      const requestedAmount = full ? currentBalance : (requestedAmountValue || currentBalance);
-
-      if (requestedAmount > currentBalance) {
-        res.status(400).json({
-          success: false,
-          error: 'Requested amount exceeds available balance',
-        });
-        return;
-      }
-
-      // Create payout request entry
-      const payoutEntry = {
-        id: `LEDGER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        'Ledger Entry ID': `LEDGER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        Client: req.user!.clientId!,
-        'Loan File': '',
-        Date: new Date().toISOString().split('T')[0],
-        'Disbursed Amount': '',
-        'Commission Rate': '',
-        'Payout Amount': '0', // Request entry, not actual payout
-        Description: `Payout request: ${requestedAmount}`,
-        'Dispute Status': DisputeStatus.NONE,
-        'Payout Request': 'Requested',
-      };
-
-      await n8nClient.postCommissionLedger(payoutEntry);
-
-      await n8nClient.postFileAuditLog({
-        id: `AUDIT-${Date.now()}`,
-        'Log Entry ID': `AUDIT-${Date.now()}`,
-        File: '',
-        Timestamp: new Date().toISOString(),
-        Actor: req.user!.email,
-        'Action/Event Type': 'payout_request',
-        'Details/Message': `Payout request created: ${requestedAmount}`,
-        'Target User/Role': 'credit_team',
-        Resolved: 'False',
+      const result = await commissionService.createPayoutRequest(req.user!, {
+        clientId: req.user!.clientId!,
+        amount: requestedAmountValue,
+        full,
       });
 
       res.json({
         success: true,
-        data: {
-          requestId: payoutEntry.id,
-          requestedAmount,
-          currentBalance,
-        },
+        data: result,
       });
     } catch (error: any) {
       res.status(500).json({

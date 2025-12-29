@@ -537,15 +537,8 @@ export class CreditController {
         commissionRate = parseFloat(rateStr) || 1.5;
       }
 
-      // Calculate commission
-      const loanAmount = parseFloat(disbursedAmount);
-      const commission = (loanAmount * commissionRate) / 100;
-
-      // Determine if it's a Payout (positive) or Payin (negative)
-      // Payout: commission is positive (client earns money)
-      // Payin: commission is negative (client owes money) - store as negative amount
-      const payoutAmount = commission >= 0 ? commission : -Math.abs(commission);
-      const entryType = commission >= 0 ? 'Payout' : 'Payin';
+      // Use commission service to calculate commission
+      const { commissionService } = await import('../services/commission/commission.service.js');
 
       // Module 3: Validate status transition using state machine
       const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
@@ -581,26 +574,17 @@ export class CreditController {
         `Loan disbursed. Amount: ${disbursedAmount}, Commission: ${commissionRate}%`
       );
 
-      // Create commission ledger entry
-      const ledgerEntryId = `LEDGER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const disbursementDate = disbursedDate || new Date().toISOString().split('T')[0];
+      // Calculate and create commission ledger entry using service
+      const commissionResult = await commissionService.calculateCommission({
+        loanFileId: application['File ID'],
+        clientId: application.Client,
+        disbursedAmount: parseFloat(disbursedAmount),
+        disbursedDate: disbursedDate || new Date().toISOString().split('T')[0],
+        commissionRate,
+      });
+
       const disbursementTimestamp = new Date().toISOString();
-
-      const ledgerEntry = {
-        id: ledgerEntryId,
-        'Ledger Entry ID': ledgerEntryId,
-        Client: application.Client,
-        'Loan File': application['File ID'],
-        Date: disbursementDate,
-        'Disbursed Amount': disbursedAmount.toString(),
-        'Commission Rate': commissionRate.toString(),
-        'Payout Amount': payoutAmount.toString(), // Positive for Payout, negative for Payin
-        Description: `${entryType} for loan disbursement - ${application['File ID']} (Commission: ${commissionRate}% of ${disbursedAmount})`,
-        'Dispute Status': DisputeStatus.NONE,
-        'Payout Request': 'False',
-      };
-
-      await n8nClient.postCommissionLedger(ledgerEntry);
+      const ledgerEntryId = commissionResult.ledgerEntryId;
 
       // Log activities
       await n8nClient.postAdminActivityLog({
@@ -609,7 +593,7 @@ export class CreditController {
         Timestamp: disbursementTimestamp,
         'Performed By': req.user!.email,
         'Action Type': 'mark_disbursed',
-        'Description/Details': `Application ${application['File ID']} marked as disbursed. Amount: ${disbursedAmount}, Commission Rate: ${commissionRate}%, ${entryType}: ${Math.abs(payoutAmount)}`,
+        'Description/Details': `Application ${application['File ID']} marked as disbursed. Amount: ${disbursedAmount}, Commission Rate: ${commissionResult.commissionRate}%, ${commissionResult.entryType}: ${Math.abs(commissionResult.payoutAmount)}`,
         'Target Entity': 'loan_application',
       });
 
@@ -620,7 +604,7 @@ export class CreditController {
         Timestamp: disbursementTimestamp,
         Actor: req.user!.email,
         'Action/Event Type': 'disbursed',
-        'Details/Message': `Loan disbursed. Amount: ${disbursedAmount}, Commission Rate: ${commissionRate}%, ${entryType}: ${Math.abs(payoutAmount)}`,
+        'Details/Message': `Loan disbursed. Amount: ${disbursedAmount}, Commission Rate: ${commissionResult.commissionRate}%, ${commissionResult.entryType}: ${Math.abs(commissionResult.payoutAmount)}`,
         'Target User/Role': 'client',
         Resolved: 'False',
       });
@@ -643,11 +627,11 @@ export class CreditController {
         );
 
         // Notify client about commission
-        if (commission > 0) {
+        if (commissionResult.commissionAmount > 0) {
           await notificationService.notifyCommissionCreated(
             ledgerEntryId,
             application.Client,
-            commission,
+            commissionResult.commissionAmount,
             clientEmail
           );
         }
@@ -661,12 +645,14 @@ export class CreditController {
         data: {
           message: 'Application marked as disbursed',
           commissionEntry: {
-            ...ledgerEntry,
-            entryType,
-            commissionCalculated: commission,
-            commissionRate,
+            ledgerEntryId: commissionResult.ledgerEntryId,
+            entryType: commissionResult.entryType,
+            commissionCalculated: commissionResult.commissionAmount,
+            commissionRate: commissionResult.commissionRate,
             loanAmount: disbursedAmount,
             disbursementTimestamp,
+            payoutAmount: commissionResult.payoutAmount,
+            description: commissionResult.description,
           },
         },
       });
