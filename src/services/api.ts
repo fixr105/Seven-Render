@@ -246,6 +246,10 @@ class ApiService {
       ...options.headers,
     };
 
+    // Public endpoints that don't require authentication
+    const publicEndpoints = ['/auth/login', '/auth/register', '/health'];
+    const isPublicEndpoint = publicEndpoints.some(publicPath => endpoint.startsWith(publicPath));
+
     // Add auth token if available
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
@@ -253,7 +257,8 @@ class ApiService {
       if (import.meta.env.DEV) {
         console.log(`[ApiService] Sending request to ${endpoint} with token: ${this.token.substring(0, 20)}...`);
       }
-    } else {
+    } else if (!isPublicEndpoint) {
+      // Only warn for protected endpoints that require authentication
       console.warn(`[ApiService] No token available for request to ${endpoint}. User may need to login.`);
       console.warn(`[ApiService] localStorage.getItem('auth_token'):`, localStorage.getItem('auth_token'));
     }
@@ -315,7 +320,12 @@ class ApiService {
       let errorMessage = 'Network error';
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        errorMessage = `Cannot connect to backend API at ${this.baseUrl}. Please ensure the server is running.`;
+        const isLocalhost = this.baseUrl.includes('localhost') || this.baseUrl.startsWith('/api');
+        if (isLocalhost) {
+          errorMessage = `Cannot connect to backend API. Please ensure the backend server is running on port 3001.\n\nTo start the server:\n  cd backend\n  npm run dev`;
+        } else {
+          errorMessage = `Cannot connect to backend API at ${this.baseUrl}. Please check your network connection and ensure the server is accessible.`;
+        }
       } else if (error.message?.includes('JSON.parse')) {
         errorMessage = `Invalid response from server. The API may not be responding correctly.`;
       } else if (error.message) {
