@@ -29,7 +29,7 @@ export class DataFilterService {
           return [];
         }
         const filtered = applications.filter((app) => {
-          const appClient = app.Client || app['Client'] || app.clientId || app['Client ID'];
+          const appClient = app.Client || app['Client'] || app['Client ID'];
           const clientIdStr = String(user.clientId);
           const matches = appClient && (
             String(appClient) === clientIdStr || 

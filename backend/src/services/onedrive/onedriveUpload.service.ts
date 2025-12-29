@@ -69,13 +69,13 @@ export async function uploadToOneDrive(
       throw new Error(`OneDrive upload failed: ${response.status} ${response.statusText}. ${errorText}`);
     }
 
-    const result = await response.json();
+    const result = await response.json() as any;
     
     // Expected response format: { shareLink, fileId, webUrl }
     return {
-      shareLink: result.shareLink || result.share_link || result.url,
-      fileId: result.fileId || result.file_id || result.id,
-      webUrl: result.webUrl || result.web_url || result.shareLink || result.url,
+      shareLink: result?.shareLink || result?.share_link || result?.url || '',
+      fileId: result?.fileId || result?.file_id || result?.id || '',
+      webUrl: result?.webUrl || result?.web_url || result?.shareLink || result?.url || '',
     };
   } catch (error: any) {
     console.error('[OneDriveUpload] Error uploading file:', error);
@@ -104,6 +104,10 @@ export async function uploadMultipleToOneDrive(
 
   return Promise.all(uploadPromises);
 }
+
+
+
+
 
 
 

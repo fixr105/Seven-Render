@@ -192,7 +192,7 @@ export class N8nApiClient {
             records = dataObj.data;
           } else {
             // Single record
-            records = [data];
+            records = [data as T];
           }
         }
 
@@ -341,6 +341,10 @@ export class N8nApiClient {
 
 // Export singleton instance
 export const n8nApiClient = new N8nApiClient();
+
+
+
+
 
 
 
