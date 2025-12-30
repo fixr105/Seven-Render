@@ -70,7 +70,8 @@ export class AuthService {
       console.log('[AuthService] Fetching from:', webhookUrl);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      // Increase timeout to 15 seconds for production (webhook may be slower)
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       
       try {
         const response = await fetch(webhookUrl, {
@@ -96,8 +97,10 @@ export class AuthService {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         if (fetchError.name === 'AbortError') {
-          throw new Error('Webhook request timed out after 5 seconds');
+          console.error('[AuthService] ❌ Webhook request timed out after 15 seconds');
+          throw new Error('Authentication service timeout: Webhook request timed out. Please try again.');
         }
+        console.error('[AuthService] ❌ Webhook fetch error:', fetchError.message);
         throw fetchError;
       }
       

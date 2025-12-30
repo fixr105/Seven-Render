@@ -273,10 +273,10 @@ class ApiService {
     }
 
     try {
-      // Add timeout for fetch requests (30 seconds for all requests)
-      // Login webhook responds in ~1 second, so 30s is more than sufficient
+      // Add timeout for fetch requests
+      // Login webhook should respond quickly, but allow up to 55 seconds for Vercel function limit
       const isLoginRequest = endpoint.includes('/auth/login');
-      const timeoutMs = isLoginRequest ? 30000 : 30000; // 30s for all requests
+      const timeoutMs = isLoginRequest ? 55000 : 30000; // 55s for login (Vercel limit is 60s), 30s for others
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
