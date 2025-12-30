@@ -16,7 +16,8 @@
     "test:module0": "tsx src/module0-verification.ts",
     "test:module1": "tsx src/module1-verification.ts",
     "test:duplicate": "tsx src/services/validation/__tests__/duplicateDetection.test.runner.ts",
-    "test:statemachine": "tsx src/services/statusTracking/__tests__/statusStateMachine.test.runner.ts"
+    "test:statemachine": "tsx src/services/statusTracking/__tests__/statusStateMachine.test.runner.ts",
+    "test:login": "tsx src/controllers/__tests__/login.test.runner.ts"
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",

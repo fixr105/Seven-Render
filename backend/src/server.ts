@@ -14,7 +14,13 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+// CORS configuration - allow credentials (cookies) for authentication
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || true, // Allow all origins in dev, specific origin in prod
+  credentials: true, // Allow cookies to be sent with requests
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

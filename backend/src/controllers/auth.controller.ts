@@ -10,37 +10,344 @@ import { loginSchema } from '../utils/validators.js';
 export class AuthController {
   /**
    * POST /auth/login
+   * 
+   * Webhook Called:
+   * - GET /webhook/useraccount → Airtable: User Accounts
+   * 
+   * Response Format from webhook:
+   * [
+   *   {
+   *     "id": "recRUcnoAhb3oiPme",
+   *     "fields": {
+   *       "Username": "user@example.com",
+   *       "Password": "...",
+   *       "Role": "client",
+   *       ...
+   *     }
+   *   }
+   * ]
    */
+  /**
+   * Helper function to redact sensitive fields from objects
+   */
+  private redactSensitive(data: any, fieldsToRedact: string[] = ['password', 'Password', 'token', 'Token']): any {
+    if (!data || typeof data !== 'object') {
+      return data;
+    }
+    
+    const redacted = { ...data };
+    for (const field of fieldsToRedact) {
+      if (field in redacted) {
+        const value = redacted[field];
+        if (typeof value === 'string' && value.length > 0) {
+          // Show first 4 and last 4 characters, redact the middle
+          if (value.length > 8) {
+            redacted[field] = `${value.substring(0, 4)}...${value.substring(value.length - 4)}`;
+          } else {
+            redacted[field] = '***REDACTED***';
+          }
+        } else {
+          redacted[field] = '***REDACTED***';
+        }
+      }
+    }
+    return redacted;
+  }
+
+  /**
+   * Helper function to create structured log entry
+   */
+  private logStructured(step: string, data: Record<string, any>, email?: string): void {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      step,
+      email: email || 'N/A',
+      ...data,
+    };
+    console.log(`[AuthController] ${step}:`, JSON.stringify(logEntry, null, 2));
+  }
+
   async login(req: Request, res: Response): Promise<void> {
+    const startTime = Date.now();
+    const requestId = `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.logStructured('LOGIN_REQUEST_STARTED', {
+      requestId,
+      timestamp: new Date().toISOString(),
+    });
+    
     try {
-      // Validate input
-      const { email, password } = loginSchema.parse(req.body);
-
-      // No aggressive timeout - let login complete naturally
-      // Vercel function has 60s maxDuration, so it will timeout at Vercel level if needed
-      const result = await authService.login(email, password);
-
-      res.json({
-        success: true,
-        data: result,
-      });
-    } catch (error: any) {
-      // Provide better error messages for timeout scenarios
-      let statusCode = 401;
-      let errorMessage = error.message || 'Login failed';
-
-      if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-        statusCode = 504; // Gateway Timeout
-        errorMessage = 'Login request timed out. Please check your connection and try again.';
-      } else if (errorMessage.includes('webhook') && errorMessage.includes('timeout')) {
-        statusCode = 504;
-        errorMessage = 'Unable to connect to authentication service. Please try again in a moment.';
+      // Step 1: Validate input
+      let email: string;
+      let password: string;
+      
+      try {
+        const validated = loginSchema.parse(req.body);
+        email = validated.email;
+        password = validated.password;
+        
+        this.logStructured('INPUT_VALIDATION_COMPLETED', {
+          requestId,
+          email,
+          hasPassword: !!password,
+        }, email);
+      } catch (validationError: any) {
+        this.logStructured('INPUT_VALIDATION_FAILED', {
+          requestId,
+          error: validationError.message,
+        });
+        
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input: ' + (validationError.message || 'Email and password are required'),
+        });
+        return;
       }
 
-      res.status(statusCode).json({
-        success: false,
-        error: errorMessage,
+      // Step 2: Call auth service to authenticate
+      this.logStructured('WEBHOOK_CALL_STARTED', {
+        requestId,
+        webhookUrl: '/webhook/useraccount',
+        email,
+      }, email);
+      
+      let result: { user: any; token: string; webhookResponse?: any };
+      try {
+        result = await authService.login(email, password);
+        
+        // Log webhook response (redacted)
+        if (result.webhookResponse) {
+          const redactedResponse = Array.isArray(result.webhookResponse)
+            ? result.webhookResponse.map((record: any) => ({
+                id: record.id,
+                fields: this.redactSensitive(record.fields || {}),
+              }))
+            : this.redactSensitive(result.webhookResponse);
+          
+          this.logStructured('WEBHOOK_CALL_COMPLETED', {
+            requestId,
+            responseType: Array.isArray(result.webhookResponse) ? 'array' : typeof result.webhookResponse,
+            recordCount: Array.isArray(result.webhookResponse) ? result.webhookResponse.length : 1,
+            responseBody: redactedResponse,
+            email,
+          }, email);
+        } else {
+          this.logStructured('WEBHOOK_CALL_COMPLETED', {
+            requestId,
+            note: 'Webhook response not available for logging',
+            email,
+          }, email);
+        }
+        
+        // Log user extraction
+        this.logStructured('USER_EXTRACTED', {
+          requestId,
+          userId: result.user.id,
+          userRole: result.user.role,
+          userEmail: result.user.email,
+          clientId: result.user.clientId || 'N/A',
+          kamId: result.user.kamId || 'N/A',
+          nbfcId: result.user.nbfcId || 'N/A',
+          userName: result.user.name || 'N/A',
+          email,
+        }, email);
+        
+        // Log token creation
+        const tokenPreview = result.token 
+          ? `${result.token.substring(0, 20)}...${result.token.substring(result.token.length - 10)}`
+          : 'N/A';
+        
+        this.logStructured('TOKEN_CREATED', {
+          requestId,
+          tokenLength: result.token?.length || 0,
+          tokenPreview: tokenPreview,
+          hasToken: !!result.token,
+          email,
+        }, email);
+        
+      } catch (authError: any) {
+        console.error('[AuthController] ❌ Authentication failed:', authError.message);
+        
+        // Determine status code based on error type
+        let statusCode = 401;
+        let errorMessage = authError.message || 'Login failed';
+
+        if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+          statusCode = 504; // Gateway Timeout
+          errorMessage = 'Login request timed out. Please check your connection and try again.';
+          console.error('[AuthController] Timeout error detected, returning 504');
+        } else if (errorMessage.includes('webhook') && errorMessage.includes('timeout')) {
+          statusCode = 504;
+          errorMessage = 'Unable to connect to authentication service. Please try again in a moment.';
+          console.error('[AuthController] Webhook timeout error detected, returning 504');
+        } else if (
+          errorMessage.includes('Invalid email or password') || 
+          errorMessage.includes('Account is not active') ||
+          errorMessage.includes('no role assigned') ||
+          errorMessage.includes('Invalid webhook response') ||
+          errorMessage.includes('No user accounts found') ||
+          errorMessage.includes('missing required') ||
+          errorMessage.includes('malformed') ||
+          errorMessage.includes('empty')
+        ) {
+          statusCode = 401; // Unauthorized
+          // Provide helpful error message for validation failures
+          if (errorMessage.includes('Invalid webhook response') || 
+              errorMessage.includes('missing required') ||
+              errorMessage.includes('malformed') ||
+              errorMessage.includes('empty')) {
+            errorMessage = 'Invalid email or password';
+          }
+          console.error('[AuthController] Invalid credentials, validation error, or account issue, returning 401');
+        } else {
+          statusCode = 500; // Internal Server Error for unexpected errors
+          console.error('[AuthController] Unexpected error, returning 500');
+        }
+
+        const duration = Date.now() - startTime;
+        
+        this.logStructured('LOGIN_FAILED', {
+          requestId,
+          duration: `${duration}ms`,
+          statusCode,
+          error: errorMessage,
+          email,
+        }, email);
+        
+        res.status(statusCode).json({
+          success: false,
+          error: errorMessage,
+        });
+        return;
+      }
+
+      // Step 3: Set JWT as secure HTTP-only cookie
+      console.log('[AuthController] Step 3: Setting JWT as secure HTTP-only cookie...');
+      try {
+        if (!result.token) {
+          console.error('[AuthController] ❌ No token in result object');
+          throw new Error('Token generation failed: No token received from auth service');
+        }
+
+        // Calculate cookie expiration (7 days default, or match JWT expiration)
+        const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+        let maxAge: number;
+        
+        // Parse JWT expiration string to milliseconds
+        if (jwtExpiresIn.endsWith('d')) {
+          const days = parseInt(jwtExpiresIn.slice(0, -1), 10);
+          maxAge = days * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+        } else if (jwtExpiresIn.endsWith('h')) {
+          const hours = parseInt(jwtExpiresIn.slice(0, -1), 10);
+          maxAge = hours * 60 * 60 * 1000; // Convert hours to milliseconds
+        } else if (jwtExpiresIn.endsWith('m')) {
+          const minutes = parseInt(jwtExpiresIn.slice(0, -1), 10);
+          maxAge = minutes * 60 * 1000; // Convert minutes to milliseconds
+        } else {
+          // Default to 7 days if format is unrecognized
+          maxAge = 7 * 24 * 60 * 60 * 1000;
+        }
+
+        // Determine if we should use secure cookies (HTTPS only)
+        // Use secure cookies in production, but allow http in development
+        const isProduction = process.env.NODE_ENV === 'production';
+        const isSecure = isProduction || process.env.USE_SECURE_COOKIES === 'true';
+
+        // Set cookie options
+        const cookieOptions = {
+          httpOnly: true, // Prevents JavaScript access (XSS protection)
+          secure: isSecure, // HTTPS only in production
+          sameSite: 'lax' as const, // CSRF protection (lax allows same-site navigation)
+          maxAge: maxAge, // Cookie expiration matches JWT expiration
+          path: '/', // Available on all paths
+        };
+
+        console.log('[AuthController] Cookie options:', {
+          httpOnly: cookieOptions.httpOnly,
+          secure: cookieOptions.secure,
+          sameSite: cookieOptions.sameSite,
+          maxAge: `${maxAge / 1000 / 60 / 60 / 24} days`,
+          path: cookieOptions.path,
+        });
+
+        // Set the cookie
+        res.cookie('auth_token', result.token, cookieOptions);
+        console.log('[AuthController] ✅ Cookie set successfully');
+        console.log('[AuthController] Token length:', result.token.length, 'characters');
+        
+      } catch (cookieError: any) {
+        console.error('[AuthController] ❌ Failed to set cookie:', cookieError.message);
+        console.error('[AuthController] Cookie error stack:', cookieError.stack);
+        
+        const duration = Date.now() - startTime;
+        console.log(`[AuthController] Login failed after ${duration}ms due to cookie error`);
+        console.log('[AuthController] ========== LOGIN REQUEST ENDED (COOKIE ERROR) ==========');
+        
+        // Return 500 error if cookie setting fails
+        res.status(500).json({
+          success: false,
+          error: 'Failed to set authentication cookie. Please try again.',
+        });
+        return;
+      }
+
+      // Step 4: Return success response
+      const duration = Date.now() - startTime;
+      
+      // Log response sent (redact token from log)
+      const responseData = {
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          role: result.user.role,
+          clientId: result.user.clientId || 'N/A',
+          kamId: result.user.kamId || 'N/A',
+          nbfcId: result.user.nbfcId || 'N/A',
+          name: result.user.name || 'N/A',
+        },
+        token: '***REDACTED***', // Token is in cookie, redact from logs
+      };
+      
+      this.logStructured('RESPONSE_SENT', {
+        requestId,
+        statusCode: 200,
+        duration: `${duration}ms`,
+        responseData,
+        email,
+      }, email);
+      
+      // Return user data (token is in cookie, but also include it in response for compatibility)
+      res.status(200).json({
+        success: true,
+        data: {
+          user: result.user,
+          token: result.token, // Still include in response for clients that need it
+        },
       });
+      return;
+      
+    } catch (error: any) {
+      // Catch-all for any unexpected errors
+      const duration = Date.now() - startTime;
+      const email = (req.body as any)?.email || 'unknown';
+      
+      this.logStructured('LOGIN_ERROR', {
+        requestId,
+        duration: `${duration}ms`,
+        error: error.message || 'Unknown error',
+        errorType: error.name || 'Error',
+        stack: error.stack?.split('\n').slice(0, 3) || [],
+        email,
+      }, email);
+      
+      // Ensure we always return a response
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: 'Internal server error during login. Please try again.',
+        });
+      }
+      return;
     }
   }
 
@@ -49,7 +356,9 @@ export class AuthController {
    */
   async getMe(req: Request, res: Response): Promise<void> {
     try {
+      // Step 1: Verify user is authenticated
       if (!req.user) {
+        console.error('[AuthController] getMe: User not authenticated');
         res.status(401).json({
           success: false,
           error: 'Not authenticated',
@@ -57,22 +366,53 @@ export class AuthController {
         return;
       }
 
-      // Get name from role-specific table
+      console.log('[AuthController] getMe: Fetching user info for:', req.user.email);
+
+      // Step 2: Get default name from email
       let name = req.user.email.split('@')[0];
 
-      // Try to get name from role-specific table
-      if (req.user.role === 'kam') {
-        const kamUsers = await n8nClient.fetchTable('KAM Users');
-        const kamUser = kamUsers.find((k) => k.id === req.user.kamId);
-        if (kamUser) name = kamUser.Name;
-      } else if (req.user.role === 'credit_team') {
-        const creditUsers = await n8nClient.fetchTable('Credit Team Users');
-        // Use case-insensitive comparison to match login flow behavior
-        const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === req.user.email?.toLowerCase());
-        if (creditUser) name = creditUser.Name;
+      // Step 3: Try to get name from role-specific table (with error handling)
+      try {
+        if (req.user.role === 'kam') {
+          console.log('[AuthController] getMe: Fetching KAM Users table...');
+          try {
+            const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 5000);
+            const kamUser = kamUsers.find((k) => k.id === req.user.kamId);
+            if (kamUser) {
+              name = kamUser.Name || name;
+              console.log('[AuthController] getMe: Found KAM user name:', name);
+            } else {
+              console.warn('[AuthController] getMe: KAM user not found in table');
+            }
+          } catch (kamError: any) {
+            console.error('[AuthController] getMe: Failed to fetch KAM Users:', kamError.message);
+            // Continue with default name - don't fail the request
+          }
+        } else if (req.user.role === 'credit_team') {
+          console.log('[AuthController] getMe: Fetching Credit Team Users table...');
+          try {
+            const creditUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 5000);
+            // Use case-insensitive comparison to match login flow behavior
+            const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === req.user.email?.toLowerCase());
+            if (creditUser) {
+              name = creditUser.Name || name;
+              console.log('[AuthController] getMe: Found Credit user name:', name);
+            } else {
+              console.warn('[AuthController] getMe: Credit user not found in table');
+            }
+          } catch (creditError: any) {
+            console.error('[AuthController] getMe: Failed to fetch Credit Team Users:', creditError.message);
+            // Continue with default name - don't fail the request
+          }
+        }
+      } catch (roleDataError: any) {
+        console.error('[AuthController] getMe: Error fetching role-specific data:', roleDataError.message);
+        // Continue with default name - don't fail the request
       }
 
-      res.json({
+      // Step 4: Return user data
+      console.log('[AuthController] getMe: Returning user data');
+      res.status(200).json({
         success: true,
         data: {
           id: req.user.id,
@@ -84,11 +424,20 @@ export class AuthController {
           name,
         },
       });
+      return;
     } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to get user info',
-      });
+      // Catch-all for any unexpected errors
+      console.error('[AuthController] getMe: Unexpected error:', error);
+      console.error('[AuthController] getMe: Error stack:', error.stack);
+      
+      // Ensure we always return a response
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: error.message || 'Failed to get user info',
+        });
+      }
+      return;
     }
   }
 }
