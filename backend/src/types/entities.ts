@@ -8,6 +8,7 @@ import { UserRole, LoanStatus, LenderDecisionStatus, DisputeStatus, AccountStatu
 // User Account
 export interface UserAccount {
   id: string;
+  createdTime?: string; // From Airtable record
   Username: string;
   Password: string;
   Role: UserRole;
