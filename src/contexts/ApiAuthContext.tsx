@@ -84,15 +84,35 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const signInAsTestUser = (role: UserRole, email: string) => {
+    // User profiles matching the specified emails
+    const userProfiles: Record<string, Partial<UserContext>> = {
+      'client@test.com': {
+        name: 'Test Client',
+        clientId: 'TEST-CLIENT-001',
+      },
+      'kam@test.com': {
+        name: 'Test KAM',
+        kamId: 'TEST-KAM-001',
+      },
+      'credit@test.com': {
+        name: 'Test Credit',
+      },
+      'nbfc@test.com': {
+        name: 'Test NBFC',
+        nbfcId: 'TEST-NBFC-001',
+      },
+    };
+
     // Create a mock user for bypass/test mode
+    const profile = userProfiles[email] || {};
     const mockUser: UserContext = {
       id: `test-${role}-${Date.now()}`,
       email: email,
       role: role,
-      name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      clientId: role === 'client' ? `test-client-${Date.now()}` : undefined,
-      kamId: role === 'kam' ? `test-kam-${Date.now()}` : undefined,
-      nbfcId: role === 'nbfc' ? `test-nbfc-${Date.now()}` : undefined,
+      name: profile.name || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      clientId: profile.clientId,
+      kamId: profile.kamId,
+      nbfcId: profile.nbfcId,
     };
 
     // Store a test token in localStorage

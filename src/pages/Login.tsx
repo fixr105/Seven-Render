@@ -1,23 +1,48 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
+import { UserRole } from '../services/api';
+import { User, Briefcase, Shield, Building2 } from 'lucide-react';
+
+// User profiles for each role
+const USER_PROFILES = {
+  client: {
+    email: 'client@test.com',
+    role: 'client' as UserRole,
+    name: 'Test Client',
+    icon: User,
+    color: 'bg-blue-500',
+    description: 'Client (DSA Partner)',
+  },
+  kam: {
+    email: 'kam@test.com',
+    role: 'kam' as UserRole,
+    name: 'Test KAM',
+    icon: Briefcase,
+    color: 'bg-green-500',
+    description: 'Key Account Manager',
+  },
+  credit_team: {
+    email: 'credit@test.com',
+    role: 'credit_team' as UserRole,
+    name: 'Test Credit',
+    icon: Shield,
+    color: 'bg-purple-500',
+    description: 'Credit Team',
+  },
+  nbfc: {
+    email: 'nbfc@test.com',
+    role: 'nbfc' as UserRole,
+    name: 'Test NBFC',
+    icon: Building2,
+    color: 'bg-orange-500',
+    description: 'NBFC Partner',
+  },
+};
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { user, signIn } = useAuthSafe();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
+  const { user, signInAsTestUser } = useAuthSafe();
 
   useEffect(() => {
     if (user) {
@@ -25,357 +50,65 @@ export const Login: React.FC = () => {
     }
   }, [user, navigate]);
 
-  const handleLogin = async (userEmail: string, userPassword: string) => {
-    setError('');
-    setLoading(true);
-    setEmail(userEmail);
-    setPassword(userPassword);
-
-    try {
-      const { error: signInError } = await signIn(userEmail, userPassword);
-
-      if (signInError) {
-        // Handle string errors from API auth
-        const errorMessage = typeof signInError === 'string' 
-          ? signInError 
-          : signInError.message || 'Invalid email or password';
-        
-        // Provide more helpful error messages
-        let displayMessage = errorMessage;
-        
-        // Check for network/connection errors
-        if (errorMessage.includes('Failed to fetch') || 
-            errorMessage.includes('Network error') ||
-            errorMessage.includes('fetch') ||
-            errorMessage.includes('Cannot connect')) {
-          const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-          displayMessage = `Cannot connect to backend API (${apiUrl}). Please ensure the backend server is running.`;
-        } else if (errorMessage.includes('Invalid email or password')) {
-          displayMessage = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (errorMessage.includes('Email not confirmed')) {
-          displayMessage = 'Email not confirmed. Please check your email or contact administrator.';
-        }
-        
-        setError(displayMessage);
-        setLoading(false);
-      } else {
-        navigate('/dashboard');
-      }
-    } catch (err: any) {
-      console.error('Login error:', err);
-      let errorMessage = 'An unexpected error occurred. Please try again.';
-      
-      if (err.message?.includes('fetch') || err.message?.includes('Network')) {
-        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        errorMessage = `Cannot connect to backend API (${apiUrl}). Please ensure the backend server is running.`;
-      }
-      
-      setError(errorMessage);
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await handleLogin(email, password);
-  };
-
-  const handleForgotPassword = async () => {
-    if (!resetEmail.trim()) {
-      setError('Please enter your email address');
-      return;
-    }
-
-    setResetLoading(true);
-    setError('');
-
-    try {
-      // TODO: Implement password reset via backend API
-      setError('Password reset functionality is not yet implemented. Please contact your administrator.');
-      setResetLoading(false);
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-      setResetLoading(false);
-    }
+  const handleRoleSelect = (roleKey: keyof typeof USER_PROFILES) => {
+    const profile = USER_PROFILES[roleKey];
+    // Use the bypass function to directly set user without authentication
+    signInAsTestUser(profile.role, profile.email);
+    // Navigate immediately (user will be set synchronously)
+    navigate('/dashboard');
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl">
         {/* Logo and title */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-brand-primary rounded-lg mb-4">
-            <span className="text-white font-bold text-2xl">SF</span>
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-brand-primary rounded-xl mb-6 shadow-lg">
+            <span className="text-white font-bold text-3xl">SF</span>
           </div>
-          <h1 className="text-2xl font-bold text-neutral-900">Seven Fincorp</h1>
-          <p className="text-neutral-500 mt-2">Loan Management Dashboard</p>
+          <h1 className="text-4xl font-bold text-neutral-900 mb-2">Seven Fincorp</h1>
+          <p className="text-lg text-neutral-600">Loan Management Dashboard</p>
+          <p className="text-sm text-neutral-500 mt-2">Select your role to continue</p>
         </div>
 
-        {/* Login form */}
-        <div className="bg-white rounded shadow-level-2 p-6">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-6">Sign in to your account</h2>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-error">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              type="email"
-              label="Email Address"
-              placeholder="Enter your email"
-              icon={Mail}
-              iconPosition="left"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-
-            <div className="relative">
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                label="Password"
-                placeholder="Enter your password"
-                icon={Lock}
-                iconPosition="left"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+        {/* Role Selection Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Object.entries(USER_PROFILES).map(([key, profile]) => {
+            const Icon = profile.icon;
+            return (
               <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-[38px] text-neutral-500 hover:text-neutral-700"
+                key={key}
+                onClick={() => handleRoleSelect(key as keyof typeof USER_PROFILES)}
+                className="group bg-white rounded-xl shadow-level-2 p-8 hover:shadow-level-3 transition-all duration-200 hover:scale-105 border-2 border-transparent hover:border-brand-primary/30 text-left"
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary" />
-                Remember me
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                className="text-sm text-brand-primary hover:underline"
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-full"
-              loading={loading}
-            >
-              Sign In
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-500">
-              Need access? Contact your administrator
-            </p>
-          </div>
-
-          {/* Test User Credentials */}
-          <div className="mt-6 pt-6 border-t border-neutral-200">
-            <p className="text-xs font-semibold text-neutral-500 uppercase mb-3">Test Users</p>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => handleLogin('client@test.com', 'Test@123')}
-                disabled={loading}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-neutral-900 mb-1">👤 Test Client</p>
-                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test Client</span></p>
-                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">Client (DSA Partner)</span></p>
-                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">client@test.com</span></p>
-                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
+                <div className="flex items-start gap-6">
+                  <div className={`${profile.color} w-16 h-16 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                    <Icon className="w-8 h-8" />
                   </div>
-                  {loading && email === 'client@test.com' && (
-                    <div className="ml-2">
-                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-neutral-900 mb-2 group-hover:text-brand-primary transition-colors">
+                      {profile.name}
+                    </h3>
+                    <p className="text-sm text-neutral-600 mb-4">{profile.description}</p>
+                    <div className="flex items-center gap-2 text-xs text-neutral-500">
+                      <span className="font-mono bg-neutral-100 px-2 py-1 rounded">{profile.email}</span>
                     </div>
-                  )}
+                  </div>
+                  <div className="text-brand-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </div>
               </button>
-              <button
-                type="button"
-                onClick={() => handleLogin('kam@test.com', 'Test@123')}
-                disabled={loading}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-neutral-900 mb-1">👔 Test KAM</p>
-                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test KAM</span></p>
-                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">Key Account Manager</span></p>
-                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">kam@test.com</span></p>
-                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
-                  </div>
-                  {loading && email === 'kam@test.com' && (
-                    <div className="ml-2">
-                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  )}
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLogin('credit@test.com', 'Test@123')}
-                disabled={loading}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-neutral-900 mb-1">💼 Test Credit</p>
-                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test Credit</span></p>
-                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">Credit Team</span></p>
-                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">credit@test.com</span></p>
-                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
-                  </div>
-                  {loading && email === 'credit@test.com' && (
-                    <div className="ml-2">
-                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  )}
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLogin('nbfc@test.com', 'Test@123')}
-                disabled={loading}
-                className="w-full p-3 bg-neutral-50 rounded border border-neutral-200 hover:bg-neutral-100 hover:border-brand-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-neutral-900 mb-1">🏦 Test NBFC</p>
-                    <p className="text-xs text-neutral-600 mb-1">Name: <span className="font-medium text-neutral-700">Test NBFC</span></p>
-                    <p className="text-xs text-neutral-600 mb-1">Role: <span className="font-medium text-neutral-700">NBFC Partner</span></p>
-                    <p className="text-xs text-neutral-500">Email: <span className="font-mono text-brand-primary">nbfc@test.com</span></p>
-                    <p className="text-xs text-neutral-500">Password: <span className="font-mono text-brand-primary">Test@123</span></p>
-                  </div>
-                  {loading && email === 'nbfc@test.com' && (
-                    <div className="ml-2">
-                      <div className="w-4 h-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  )}
-                </div>
-              </button>
-            </div>
-            <p className="mt-3 text-xs text-neutral-500 text-center">
-              Click any user card to automatically sign in
-            </p>
-          </div>
+            );
+          })}
         </div>
 
-        <div className="mt-6 text-center text-xs text-neutral-500">
+        <div className="mt-12 text-center text-sm text-neutral-500">
           <p>© 2025 Seven Fincorp. All rights reserved.</p>
         </div>
       </div>
-
-      {/* Forgot Password Modal */}
-      <Modal
-        isOpen={showForgotPassword}
-        onClose={() => {
-          setShowForgotPassword(false);
-          setResetEmail('');
-          setResetSuccess(false);
-          setError('');
-        }}
-        size="md"
-      >
-        <ModalHeader onClose={() => {
-          setShowForgotPassword(false);
-          setResetEmail('');
-          setResetSuccess(false);
-          setError('');
-        }}>
-          Reset Password
-        </ModalHeader>
-        <ModalBody>
-          {resetSuccess ? (
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-8 h-8 text-success" />
-              </div>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-2">Check Your Email</h3>
-              <p className="text-sm text-neutral-600">
-                We've sent a password reset link to <strong>{resetEmail}</strong>
-              </p>
-              <p className="text-sm text-neutral-500 mt-2">
-                Please check your inbox and follow the instructions to reset your password.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-neutral-600">
-                Enter your email address and we'll send you a link to reset your password.
-              </p>
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-error">
-                  {error}
-                </div>
-              )}
-              <Input
-                type="email"
-                label="Email Address"
-                placeholder="Enter your email"
-                icon={Mail}
-                iconPosition="left"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                required
-              />
-            </div>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          {resetSuccess ? (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setShowForgotPassword(false);
-                setResetEmail('');
-                setResetSuccess(false);
-              }}
-            >
-              Close
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowForgotPassword(false);
-                  setResetEmail('');
-                  setError('');
-                }}
-                disabled={resetLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleForgotPassword}
-                loading={resetLoading}
-                disabled={!resetEmail.trim()}
-              >
-                Send Reset Link
-              </Button>
-            </>
-          )}
-        </ModalFooter>
-      </Modal>
     </div>
   );
 };
