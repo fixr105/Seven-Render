@@ -120,9 +120,9 @@ export class AuthService {
       
       console.log(`[AuthService] ✅ Response is array with ${rawWebhookResponse.length} records`);
       
-      // Step 1.2: Validate each record has required structure (id and fields)
+      // Step 1.2: Validate each record has required structure (id and either fields or direct properties)
       console.log('[AuthService] Step 1.2: Validating record structure...');
-      
+
       const invalidRecords: number[] = [];
       rawWebhookResponse.forEach((record: any, index: number) => {
         if (!record || typeof record !== 'object') {
@@ -130,43 +130,53 @@ export class AuthService {
           invalidRecords.push(index);
           return;
         }
-        
+
         if (!record.id || typeof record.id !== 'string') {
           console.error(`[AuthService] ❌ Record ${index} missing or invalid 'id' field`);
           invalidRecords.push(index);
           return;
         }
+
+        // Check if record has fields property OR direct Username property (both formats are valid)
+        const hasFields = record.fields && typeof record.fields === 'object' && record.fields !== null;
+        const hasDirectUsername = record.Username && typeof record.Username === 'string';
         
-        if (!record.fields || typeof record.fields !== 'object' || record.fields === null) {
-          console.error(`[AuthService] ❌ Record ${index} missing or invalid 'fields' property`);
+        if (!hasFields && !hasDirectUsername) {
+          console.error(`[AuthService] ❌ Record ${index} missing 'fields' property or direct 'Username' field`);
           console.error(`[AuthService] Record ${index} structure:`, Object.keys(record));
           invalidRecords.push(index);
           return;
         }
       });
-      
+
       if (invalidRecords.length > 0) {
         console.error(`[AuthService] ❌ Found ${invalidRecords.length} invalid records at indices:`, invalidRecords);
-        throw new Error(`Invalid webhook response: ${invalidRecords.length} record(s) missing required 'id' or 'fields' properties`);
+        throw new Error(`Invalid webhook response: ${invalidRecords.length} record(s) missing required 'id' or user data properties`);
       }
+
+      console.log('[AuthService] ✅ All records have valid structure');
       
-      console.log('[AuthService] ✅ All records have valid structure (id and fields)');
-      
-      // Step 1.3: Extract and normalize user data from fields
-      console.log('[AuthService] Step 1.3: Extracting user data from fields...');
-      
+      // Step 1.3: Extract and normalize user data from fields or direct properties
+      console.log('[AuthService] Step 1.3: Extracting user data...');
+
       userAccounts = rawWebhookResponse.map((record: any, index: number) => {
         try {
-          // Extract data from fields and create normalized format
+          // Handle both formats:
+          // Format 1: { id: "...", fields: { Username: "...", ... } }
+          // Format 2: { id: "...", Username: "...", Password: "...", ... }
+          const hasFields = record.fields && typeof record.fields === 'object';
+          const source = hasFields ? record.fields : record;
+
+          // Extract data from fields (if nested) or directly from record
           const normalized: UserAccount = {
             id: record.id,
             createdTime: record.createdTime || '',
-            Username: record.fields.Username || record.fields['Username'] || '',
-            Password: record.fields.Password || record.fields['Password'] || '',
-            Role: record.fields.Role || record.fields['Role'] || '',
-            'Account Status': record.fields['Account Status'] || record.fields.AccountStatus || record.fields.status || 'Unknown',
-            'Associated Profile': record.fields['Associated Profile'] || record.fields.AssociatedProfile || record.fields.profile || '',
-            'Last Login': record.fields['Last Login'] || record.fields.LastLogin || record.fields.lastLogin || '',
+            Username: source.Username || source['Username'] || '',
+            Password: source.Password || source['Password'] || '',
+            Role: source.Role || source['Role'] || '',
+            'Account Status': source['Account Status'] || source.AccountStatus || source.status || 'Unknown',
+            'Associated Profile': source['Associated Profile'] || source.AssociatedProfile || source.profile || '',
+            'Last Login': source['Last Login'] || source.LastLogin || source.lastLogin || '',
           };
           
           // Validate required fields
