@@ -128,25 +128,36 @@ export default async function handlerWrapper(
     res.setHeader('Expires', '0');
     
     // Normalize the request URL - remove /api prefix
-    // Vercel provides the path in req.url, but we need to extract it from the full URL
-    const originalUrl = req.url || '/';
-    console.log(`[Serverless] Original req.url: ${originalUrl}`);
+    // Vercel's rewrite rule sends /api/* to this handler
+    // The req.url might already have /api stripped, or might still have it
+    // We need to check what Vercel actually provides
+    
+    // Log everything we can about the request
+    console.log(`[Serverless] req.url: ${req.url}`);
+    console.log(`[Serverless] req.path: ${(req as any).path || 'N/A'}`);
     console.log(`[Serverless] req.query: ${JSON.stringify(req.query)}`);
+    console.log(`[Serverless] req.headers.host: ${req.headers.host}`);
+    console.log(`[Serverless] req.headers['x-vercel-rewrite']: ${req.headers['x-vercel-rewrite'] || 'N/A'}`);
     
-    // Extract path from URL (remove query string if present)
-    let path = originalUrl.split('?')[0];
+    // Try to get the original path from various sources
+    let path = req.url || '/';
     
-    // Remove /api prefix if present
+    // If path doesn't start with /api, it might already be normalized by Vercel
+    // But we still need to ensure it starts with /
     if (path.startsWith('/api')) {
-      path = path.replace('/api', '') || '/';
+      // Remove /api prefix
+      path = path.replace(/^\/api/, '') || '/';
     }
+    
+    // Remove query string
+    path = path.split('?')[0];
     
     // Ensure path starts with /
     if (!path.startsWith('/')) {
       path = '/' + path;
     }
     
-    console.log(`[Serverless] Normalized path: ${path}`);
+    console.log(`[Serverless] Final normalized path: ${path}`);
     
     // Update request URL for Express
     req.url = path;
