@@ -11,11 +11,20 @@ import { requireCredit } from '../middleware/rbac.middleware.js';
 
 const router = Router();
 
+// Log when products router is accessed
+router.use((req, res, next) => {
+  console.log(`[PRODUCTS ROUTER] ${req.method} ${req.path} - req.url: ${req.url}`);
+  next();
+});
+
 // All routes require authentication
 router.use(authenticate);
 
 // Loan Products
-router.get('/loan-products', productsController.listLoanProducts.bind(productsController));
+router.get('/loan-products', (req, res, next) => {
+  console.log(`[PRODUCTS ROUTE] /loan-products route handler called`);
+  productsController.listLoanProducts(req, res).catch(next);
+});
 router.get('/loan-products/:id', productsController.getLoanProduct.bind(productsController));
 
 // NBFC Partners
