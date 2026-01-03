@@ -232,7 +232,11 @@ export default async function handlerWrapper(
     }
     
     // Call the serverless handler
-    return serverlessHandler(req, res);
+    // CRITICAL: serverless-http returns a Promise that resolves when response is complete
+    // We must await it to ensure the function doesn't exit before response is sent
+    const handlerResult = await serverlessHandler(req, res);
+    console.log(`[Serverless] Handler completed, result: ${handlerResult}`);
+    return handlerResult;
   } catch (error: any) {
     console.error('[Serverless] Handler error:', error);
     

@@ -30,27 +30,33 @@ export const authenticate = async (
       console.log(`[AUTH] Response headers sent: ${res.headersSent}`);
       
       // Ensure response is sent properly in serverless environment
+      // CRITICAL: In serverless-http, we must ensure the response is fully sent
+      // before returning from middleware, otherwise the function may timeout
       if (!res.headersSent) {
         console.log(`[AUTH] Setting status 401 and sending JSON response`);
         try {
+          // Send response and ensure it's completed
           res.status(401).json({
             success: false,
             error: 'No token provided',
           });
-          // Explicitly end the response to ensure it's sent in serverless
-          if (!res.headersSent) {
-            res.end();
-          }
-          console.log(`[AUTH] 401 response sent successfully`);
+          
+          // In serverless-http, we need to ensure the response stream is finished
+          // The json() method should handle this, but we'll verify
+          console.log(`[AUTH] 401 response sent, headersSent: ${res.headersSent}`);
         } catch (error: any) {
           console.error(`[AUTH] Error sending 401 response:`, error);
           if (!res.headersSent) {
-            res.status(500).end('Internal server error');
+            res.status(500).json({
+              success: false,
+              error: 'Internal server error',
+            });
           }
         }
       } else {
         console.warn(`[AUTH] Response already sent, cannot send 401`);
       }
+      // Return immediately - don't call next() when sending error response
       return;
     }
 
