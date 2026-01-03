@@ -31,23 +31,52 @@ router.get('/health', (req, res) => {
 });
 
 // Debug endpoints - MUST be before other routes to avoid conflicts
-// Test endpoint to verify routes are working
-router.get('/debug/test', (req, res) => {
-  console.log('[DEBUG] /debug/test endpoint called - routes are working!');
-  console.log('[DEBUG] Request headers:', JSON.stringify(req.headers));
-  res.json({ 
-    success: true, 
-    message: 'Routes are working', 
-    timestamp: new Date().toISOString(),
-    path: req.path,
-    url: req.url,
-  });
+// Add explicit logging middleware to track route matching
+router.use('/debug', (req, res, next) => {
+  console.log(`[DEBUG ROUTE] Matched /debug path: ${req.path}, method: ${req.method}`);
+  next();
 });
 
-// Debug endpoint to check environment and webhook configuration
+// Test endpoint to verify routes are working (simple, no async)
+router.get('/debug/test', (req, res) => {
+  console.log('[DEBUG] /debug/test handler called!');
+  try {
+    res.json({ 
+      success: true, 
+      message: 'Routes are working', 
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      url: req.url,
+      method: req.method,
+    });
+  } catch (error: any) {
+    console.error('[DEBUG] Error in /debug/test:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to check environment (simple version first)
+router.get('/debug/env', (req, res) => {
+  try {
+    console.log('[DEBUG] /debug/env endpoint called');
+    res.json({
+      success: true,
+      environment: {
+        NODE_ENV: process.env.NODE_ENV || 'not set',
+        VERCEL: process.env.VERCEL || 'not set',
+        N8N_BASE_URL: process.env.N8N_BASE_URL || 'NOT SET - using default',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[DEBUG] Error in /debug/env:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to check environment and webhook configuration (with async import)
 router.get('/debug/webhook-config', async (req, res) => {
   console.log('[DEBUG] /debug/webhook-config endpoint called');
-  console.log('[DEBUG] Request headers:', JSON.stringify(req.headers));
   try {
     const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
     const { getWebhookUrl } = await import('../config/webhookConfig.js');
@@ -73,8 +102,6 @@ router.get('/debug/webhook-config', async (req, res) => {
       },
       webhookUrls,
       timestamp: new Date().toISOString(),
-      path: req.path,
-      url: req.url,
     });
   } catch (error: any) {
     console.error('[DEBUG] Error in webhook-config:', error);
