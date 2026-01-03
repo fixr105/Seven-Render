@@ -26,7 +26,7 @@ const router = Router();
 
 // Request logging middleware - logs ALL requests to help debug routing
 router.use((req, res, next) => {
-  console.log(`[ROUTE LOGGER] ${req.method} ${req.path} - Original URL: ${req.url}`);
+  console.log(`[ROUTE LOGGER] ${req.method} ${req.path} - req.url: ${req.url} - originalUrl: ${(req as any).originalUrl || 'N/A'}`);
   next();
 });
 
@@ -138,6 +138,13 @@ router.use('/', auditRoutes); // Audit routes (mounted at root for /loan-applica
 router.use('/', aiRoutes); // AI routes (mounted at root for /loan-applications/:id/summary)
 router.use('/public', publicRoutes); // Public routes (form links, etc.)
 router.use('/documents', documentsRoutes); // Module 2: Document upload routes (OneDrive)
+
+// Catch-all route for debugging - MUST be last
+router.use('*', (req, res, next) => {
+  console.log(`[CATCH-ALL] Unmatched route: ${req.method} ${req.path} - req.url: ${req.url}`);
+  // Don't send response here, let it fall through to 404
+  next();
+});
 
 export default router;
 
