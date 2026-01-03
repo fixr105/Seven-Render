@@ -13,57 +13,45 @@ export class ProductsController {
    * List all loan products
    */
   async listLoanProducts(req: Request, res: Response): Promise<void> {
-    const maxRetries = 2;
-    const timeoutMs = 20000; // 20 seconds
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[listLoanProducts] Attempt ${attempt}/${maxRetries} - Fetching loan products with ${timeoutMs}ms timeout`);
-        
-        // Fetch only Loan Products table with increased timeout
-        const products = await n8nClient.fetchTable('Loan Products', true, undefined, timeoutMs);
-        
-        console.log(`[listLoanProducts] Successfully fetched ${products.length} loan products`);
+    try {
+      // n8n is fast (~1.08s), so use shorter timeout (5s should be plenty)
+      const timeoutMs = 5000; // 5 seconds - n8n responds in ~1.08s
+      
+      console.log(`[listLoanProducts] Fetching loan products with ${timeoutMs}ms timeout`);
+      
+      // Fetch only Loan Products table
+      const products = await n8nClient.fetchTable('Loan Products', true, undefined, timeoutMs);
+      
+      console.log(`[listLoanProducts] Successfully fetched ${products.length} loan products`);
 
-        // Filter active products if requested
-        const { activeOnly } = req.query;
-        let filteredProducts = products;
-        
-        if (activeOnly === 'true') {
-          filteredProducts = products.filter((p: any) => p.Active === 'True' || p.Active === true);
-          console.log(`[listLoanProducts] Filtered to ${filteredProducts.length} active products`);
-        }
-
-        res.json({
-          success: true,
-          data: filteredProducts.map((product: any) => ({
-            id: product.id,
-            productId: product['Product ID'],
-            productName: product['Product Name'],
-            description: product['Description'],
-            active: product['Active'] === 'True' || product['Active'] === true,
-            requiredDocumentsFields: product['Required Documents/Fields'],
-          })),
-        });
-        return;
-      } catch (error: any) {
-        console.error(`[listLoanProducts] Attempt ${attempt}/${maxRetries} failed:`, error.message);
-        
-        // If this is the last attempt or error is not a timeout, return empty array instead of error
-        if (attempt === maxRetries || !error.message?.includes('timeout')) {
-          console.error(`[listLoanProducts] All attempts failed, returning empty array`);
-          // Return empty array instead of error to prevent frontend timeout
-          // Frontend can handle empty array gracefully
-          res.json({
-            success: true,
-            data: [],
-          });
-          return;
-        }
-        
-        // Wait before retry (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      // Filter active products if requested
+      const { activeOnly } = req.query;
+      let filteredProducts = products;
+      
+      if (activeOnly === 'true') {
+        filteredProducts = products.filter((p: any) => p.Active === 'True' || p.Active === true);
+        console.log(`[listLoanProducts] Filtered to ${filteredProducts.length} active products`);
       }
+
+      res.json({
+        success: true,
+        data: filteredProducts.map((product: any) => ({
+          id: product.id,
+          productId: product['Product ID'],
+          productName: product['Product Name'],
+          description: product['Description'],
+          active: product['Active'] === 'True' || product['Active'] === true,
+          requiredDocumentsFields: product['Required Documents/Fields'],
+        })),
+      });
+    } catch (error: any) {
+      console.error(`[listLoanProducts] Failed to fetch loan products:`, error.message);
+      // Return empty array instead of error to prevent frontend timeout
+      // Frontend can handle empty array gracefully
+      res.json({
+        success: true,
+        data: [],
+      });
     }
   }
 
