@@ -28,12 +28,18 @@ export const authenticate = async (
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.log(`[AUTH] No valid auth header, returning 401 immediately`);
       console.log(`[AUTH] Response headers sent: ${res.headersSent}`);
-      console.log(`[AUTH] Setting status 401 and sending JSON response`);
-      res.status(401).json({
-        success: false,
-        error: 'No token provided',
-      });
-      console.log(`[AUTH] 401 response sent, returning from middleware`);
+      
+      // Ensure response is sent properly in serverless environment
+      if (!res.headersSent) {
+        console.log(`[AUTH] Setting status 401 and sending JSON response`);
+        res.status(401).json({
+          success: false,
+          error: 'No token provided',
+        });
+        console.log(`[AUTH] 401 response sent, returning from middleware`);
+      } else {
+        console.warn(`[AUTH] Response already sent, cannot send 401`);
+      }
       return;
     }
 
