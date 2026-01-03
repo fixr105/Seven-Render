@@ -260,29 +260,21 @@ class ApiService {
     const isPublicEndpoint = publicEndpoints.some(publicPath => endpoint.startsWith(publicPath));
 
     // Add auth token if available
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
-      // Debug logging in development
-      if (import.meta.env.DEV) {
-        console.log(`[ApiService] Sending request to ${endpoint} with token: ${this.token.substring(0, 20)}...`);
-      }
+    // ALWAYS check localStorage first to ensure we have the latest token
+    const storageToken = localStorage.getItem('auth_token');
+    const tokenToUse = this.token || storageToken;
+    
+    if (tokenToUse) {
+      headers['Authorization'] = `Bearer ${tokenToUse}`;
+      // Always log in production to debug auth issues
+      console.log(`[ApiService] Sending request to ${endpoint} with Authorization header`);
+      console.log(`[ApiService] Token length: ${tokenToUse.length}, starts with: ${tokenToUse.substring(0, 20)}...`);
     } else if (!isPublicEndpoint) {
-      // Only warn for protected endpoints that require authentication
-      const storageToken = localStorage.getItem('auth_token');
-      console.warn(`[ApiService] No token in service instance for request to ${endpoint}.`);
+      // No token at all - log warning
+      console.warn(`[ApiService] ⚠️ NO TOKEN FOUND for protected endpoint: ${endpoint}`);
       console.warn(`[ApiService] Token in service: ${this.token ? 'exists' : 'null'}`);
-      console.warn(`[ApiService] Token in localStorage: ${storageToken ? `${storageToken.substring(0, 20)}...` : 'null'}`);
-      
-      // If token exists in storage but not in service, try to reload it
-      if (storageToken && !this.token) {
-        console.log(`[ApiService] Reloading token from localStorage...`);
-        this.setToken(storageToken);
-        headers['Authorization'] = `Bearer ${storageToken}`;
-      } else if (!storageToken) {
-        // No token at all - log warning but let the request proceed
-        // The backend will return 401 which we'll handle in the response
-        console.warn(`[ApiService] No token found in localStorage. Request will likely fail with 401.`);
-      }
+      console.warn(`[ApiService] Token in localStorage: ${storageToken ? 'exists' : 'null'}`);
+      console.warn(`[ApiService] Request will fail with 401 - user may need to login`);
     }
 
     try {
