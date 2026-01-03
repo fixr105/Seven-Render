@@ -128,13 +128,20 @@ export default async function handlerWrapper(
     res.setHeader('Expires', '0');
     
     // Normalize the request URL - remove /api prefix
-    let path = req.url || '/';
-    console.log(`[Serverless] Original req.url: ${req.url}`);
-    console.log(`[Serverless] Original req.path: ${(req as any).path || 'N/A'}`);
+    // Vercel provides the path in req.url, but we need to extract it from the full URL
+    const originalUrl = req.url || '/';
+    console.log(`[Serverless] Original req.url: ${originalUrl}`);
+    console.log(`[Serverless] req.query: ${JSON.stringify(req.query)}`);
     
+    // Extract path from URL (remove query string if present)
+    let path = originalUrl.split('?')[0];
+    
+    // Remove /api prefix if present
     if (path.startsWith('/api')) {
       path = path.replace('/api', '') || '/';
     }
+    
+    // Ensure path starts with /
     if (!path.startsWith('/')) {
       path = '/' + path;
     }
