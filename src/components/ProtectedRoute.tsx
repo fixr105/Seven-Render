@@ -23,6 +23,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (!user) {
+    console.log('[ProtectedRoute] No user found, redirecting to /login');
+    console.log('[ProtectedRoute] Token in localStorage:', localStorage.getItem('auth_token') ? 'exists' : 'null');
     return <Navigate to="/login" replace />;
   }
 

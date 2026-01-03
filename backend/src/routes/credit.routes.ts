@@ -7,11 +7,13 @@ import { creditController } from '../controllers/credit.controller.js';
 import { ledgerController } from '../controllers/ledger.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireCredit } from '../middleware/rbac.middleware.js';
+import { enforceRolePermissions } from '../middleware/roleEnforcement.middleware.js';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(requireCredit);
+router.use(enforceRolePermissions); // Role enforcement with admin override
 
 router.get('/dashboard', creditController.getDashboard.bind(creditController));
 router.get('/loan-applications', creditController.listApplications.bind(creditController));

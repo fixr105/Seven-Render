@@ -15,6 +15,9 @@ import { n8nClient } from '../src/services/airtable/n8nClient.js';
 
 const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
 const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
+const N8N_POST_KAM_USERS_URL = process.env.N8N_POST_KAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/KAMusers';
+const N8N_POST_CREDIT_TEAM_USERS_URL = process.env.N8N_POST_CREDIT_TEAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS';
+const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners';
 
 // Test users that should exist
 const requiredTestUsers = [
@@ -102,44 +105,141 @@ async function createUserAccount(user) {
 }
 
 /**
- * Create client profile for client users
+ * Create profile record for user based on role
  */
-async function createClientProfile(userId, user) {
-  if (user.role !== 'client') return;
+async function createProfileRecord(userId, user) {
+  if (user.role === 'client') {
+    const clientData = {
+      id: userId,
+      'Client ID': userId,
+      'Client Name': user.name,
+      'Primary Contact Name': user.name,
+      'Contact Email / Phone': user.email,
+      'Assigned KAM': '',
+      'Enabled Modules': '',
+      'Commission Rate': '1.5',
+      'Status': 'Active',
+      'Form Categories': '',
+    };
 
-  const clientData = {
-    id: userId,
-    'Client ID': userId,
-    'Client Name': user.name,
-    'Primary Contact Name': user.name,
-    'Contact Email / Phone': user.email,
-    'Assigned KAM': '',
-    'Enabled Modules': '',
-    'Commission Rate': '1.5',
-    'Status': 'Active',
-    'Form Categories': '',
-  };
-
-  console.log(`  Creating client profile: ${user.email}...`);
-  
-  try {
-    const response = await fetch(N8N_POST_CLIENT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(clientData),
-    });
-
-    const result = await response.json();
+    console.log(`  Creating client profile: ${user.email}...`);
     
-    if (response.ok) {
-      console.log(`  ✅ Created client profile: ${user.email}`);
-    } else {
-      console.error(`  ❌ Failed to create client profile: ${user.email}`, result);
+    try {
+      const response = await fetch(N8N_POST_CLIENT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clientData),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        console.log(`  ✅ Created client profile: ${user.email}`);
+      } else {
+        console.error(`  ❌ Failed to create client profile: ${user.email}`, result);
+      }
+    } catch (error) {
+      console.error(`  ❌ Error creating client profile: ${user.email}`, error.message);
     }
-  } catch (error) {
-    console.error(`  ❌ Error creating client profile: ${user.email}`, error.message);
+  } else if (user.role === 'kam') {
+    const kamData = {
+      id: userId,
+      'KAM ID': userId,
+      'Name': user.name,
+      'Email': user.email,
+      'Phone': '',
+      'Managed Clients': '',
+      'Role': 'kam',
+      'Status': 'Active',
+    };
+
+    console.log(`  Creating KAM profile: ${user.email}...`);
+    
+    try {
+      const response = await fetch(N8N_POST_KAM_USERS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(kamData),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        console.log(`  ✅ Created KAM profile: ${user.email}`);
+      } else {
+        console.error(`  ❌ Failed to create KAM profile: ${user.email}`, result);
+      }
+    } catch (error) {
+      console.error(`  ❌ Error creating KAM profile: ${user.email}`, error.message);
+    }
+  } else if (user.role === 'credit_team') {
+    const creditData = {
+      id: userId,
+      'Credit User ID': userId,
+      'Name': user.name,
+      'Email': user.email,
+      'Phone': '',
+      'Role': 'credit_team',
+      'Status': 'Active',
+    };
+
+    console.log(`  Creating Credit Team profile: ${user.email}...`);
+    
+    try {
+      const response = await fetch(N8N_POST_CREDIT_TEAM_USERS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(creditData),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        console.log(`  ✅ Created Credit Team profile: ${user.email}`);
+      } else {
+        console.error(`  ❌ Failed to create Credit Team profile: ${user.email}`, result);
+      }
+    } catch (error) {
+      console.error(`  ❌ Error creating Credit Team profile: ${user.email}`, error.message);
+    }
+  } else if (user.role === 'nbfc') {
+    const nbfcData = {
+      id: userId,
+      'Lender ID': userId,
+      'Lender Name': user.name,
+      'Contact Person': user.name,
+      'Contact Email/Phone': user.email,
+      'Address/Region': '',
+      'Active': 'True',
+    };
+
+    console.log(`  Creating NBFC profile: ${user.email}...`);
+    
+    try {
+      const response = await fetch(N8N_POST_NBFC_PARTNERS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(nbfcData),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        console.log(`  ✅ Created NBFC profile: ${user.email}`);
+      } else {
+        console.error(`  ❌ Failed to create NBFC profile: ${user.email}`, result);
+      }
+    } catch (error) {
+      console.error(`  ❌ Error creating NBFC profile: ${user.email}`, error.message);
+    }
   }
 }
 
@@ -162,8 +262,8 @@ async function ensureTestUsers() {
       console.log(`⚠️  User missing: ${user.email}`);
       const userId = await createUserAccount(user);
       
-      if (userId && user.role === 'client') {
-        await createClientProfile(userId, user);
+      if (userId) {
+        await createProfileRecord(userId, user);
       }
       
       if (userId) {

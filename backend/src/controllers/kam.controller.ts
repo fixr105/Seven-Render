@@ -375,7 +375,8 @@ export class KAMController {
 
       console.log('[createClient] Creating client:', { name, email, contactPerson, phone, isNewUser });
 
-      // Create user account only if it doesn't exist
+      // Create user account only if it doesn't exist (non-blocking for existing users)
+      let userAccountPromise: Promise<any> | null = null;
       if (isNewUser) {
         const { authService } = await import('../services/auth/auth.service.js');
         const hashedPassword = await authService.hashPassword('TempPassword123!');
@@ -390,6 +391,7 @@ export class KAMController {
         };
 
         console.log('[createClient] Creating user account:', userAccountId);
+        // Create user account - this must succeed before creating client record
         try {
           const userAccountResult = await n8nClient.postUserAccount(userAccountData);
           console.log('[createClient] User account created successfully:', userAccountResult);
@@ -463,26 +465,11 @@ export class KAMController {
         throw new Error(`Failed to create client record: ${clientError.message || 'Unknown error'}`);
       }
 
-      // Log admin activity (non-blocking - don't fail if this fails)
-      try {
-        await n8nClient.postAdminActivityLog({
-          id: `ACT-${Date.now()}`,
-          'Activity ID': `ACT-${Date.now()}`,
-          Timestamp: new Date().toISOString(),
-          'Performed By': req.user!.email,
-          'Action Type': 'create_client',
-          'Description/Details': `Created new client: ${name} (${email})`,
-          'Target Entity': 'client',
-        });
-        console.log('[createClient] Admin activity logged successfully');
-      } catch (logError: any) {
-        console.warn('[createClient] Failed to log admin activity (non-critical):', logError);
-      }
-
       console.log('[createClient] Client created successfully:', clientId);
       
       // Cache is already invalidated in postClient method, no need to invalidate again
 
+      // Return success response immediately
       res.json({
         success: true,
         data: {
@@ -491,6 +478,21 @@ export class KAMController {
           userId: userAccountId,
           message: 'Client created successfully',
         },
+      });
+
+      // Log admin activity asynchronously (non-blocking - don't fail if this fails)
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'create_client',
+        'Description/Details': `Created new client: ${name} (${email})`,
+        'Target Entity': 'client',
+      }).then(() => {
+        console.log('[createClient] Admin activity logged successfully');
+      }).catch((logError: any) => {
+        console.warn('[createClient] Failed to log admin activity (non-critical):', logError);
       });
     } catch (error: any) {
       console.error('[createClient] Error creating client:', error);
@@ -580,19 +582,47 @@ export class KAMController {
         return;
       }
       
-      // Check if this client is assigned to the current KAM
+      // Check if this client is assigned to the current KAM (with flexible matching)
       const assignedKAM = client['Assigned KAM'] || '';
       const kamId = req.user!.kamId || '';
+      const assignedKAMStr = String(assignedKAM || '').trim();
+      const kamIdStr = String(kamId || '').trim();
       
-      // Also check if KAM ID from KAM Users table matches
-      if (assignedKAM !== kamId) {
-        // Try to match by KAM Users table ID
+      // Helper function for flexible ID matching
+      const matchIds = (id1: any, id2: any): boolean => {
+        if (!id1 || !id2) return false;
+        const str1 = String(id1).trim();
+        const str2 = String(id2).trim();
+        if (str1 === str2) return true;
+        if (str1.toLowerCase() === str2.toLowerCase()) return true;
+        if (str1.includes(str2) || str2.includes(str1)) return true;
+        return false;
+      };
+      
+      // Check if assigned KAM matches KAM ID directly
+      if (!matchIds(assignedKAMStr, kamIdStr)) {
+        // Try to match by KAM Users table
         const kamUsers = await n8nClient.fetchTable('KAM Users');
-        const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
-        const kamUserEmail = kamUser?.Email || '';
+        const kamUser = kamUsers.find((k: any) => 
+          matchIds(k.id, kamId) || 
+          matchIds(k['KAM ID'], kamId)
+        );
+        const kamUserEmail = kamUser?.Email || kamUser?.['Email'] || '';
+        const kamUserKamId = kamUser?.['KAM ID'] || kamUser?.id || '';
         
-        // Check if assigned KAM matches KAM ID or email
-        if (assignedKAM !== kamId && assignedKAM !== kamUserEmail && !kamId.includes(assignedKAM) && !assignedKAM.includes(kamId)) {
+        // Check if assigned KAM matches KAM ID, email, or any variation
+        const matches = 
+          matchIds(assignedKAMStr, kamUserKamId) ||
+          matchIds(assignedKAMStr, kamUserEmail) ||
+          matchIds(assignedKAMStr, kamUser?.id) ||
+          assignedKAMStr.includes(kamUserKamId) ||
+          kamUserKamId.includes(assignedKAMStr) ||
+          assignedKAMStr.toLowerCase().includes(kamUserKamId.toLowerCase()) ||
+          kamUserKamId.toLowerCase().includes(assignedKAMStr.toLowerCase()) ||
+          kamIdStr.includes(assignedKAMStr) ||
+          assignedKAMStr.includes(kamIdStr);
+        
+        if (!matches) {
           res.status(403).json({ 
             success: false, 
             error: `Access denied: Client not managed by this KAM. Client assigned to: ${assignedKAM || 'No KAM'}, Your KAM ID: ${kamId}` 
@@ -774,19 +804,47 @@ export class KAMController {
         return;
       }
       
-      // Check if this client is assigned to the current KAM
+      // Check if this client is assigned to the current KAM (with flexible matching)
       const assignedKAM = client['Assigned KAM'] || '';
       const kamId = req.user!.kamId || '';
+      const assignedKAMStr = String(assignedKAM || '').trim();
+      const kamIdStr = String(kamId || '').trim();
       
-      // Also check if KAM ID from KAM Users table matches
-      if (assignedKAM !== kamId) {
-        // Try to match by KAM Users table ID
+      // Helper function for flexible ID matching
+      const matchIds = (id1: any, id2: any): boolean => {
+        if (!id1 || !id2) return false;
+        const str1 = String(id1).trim();
+        const str2 = String(id2).trim();
+        if (str1 === str2) return true;
+        if (str1.toLowerCase() === str2.toLowerCase()) return true;
+        if (str1.includes(str2) || str2.includes(str1)) return true;
+        return false;
+      };
+      
+      // Check if assigned KAM matches KAM ID directly
+      if (!matchIds(assignedKAMStr, kamIdStr)) {
+        // Try to match by KAM Users table
         const kamUsers = await n8nClient.fetchTable('KAM Users');
-        const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
-        const kamUserEmail = kamUser?.Email || '';
+        const kamUser = kamUsers.find((k: any) => 
+          matchIds(k.id, kamId) || 
+          matchIds(k['KAM ID'], kamId)
+        );
+        const kamUserEmail = kamUser?.Email || kamUser?.['Email'] || '';
+        const kamUserKamId = kamUser?.['KAM ID'] || kamUser?.id || '';
         
-        // Check if assigned KAM matches KAM ID or email
-        if (assignedKAM !== kamId && assignedKAM !== kamUserEmail && !kamId.includes(assignedKAM) && !assignedKAM.includes(kamId)) {
+        // Check if assigned KAM matches KAM ID, email, or any variation
+        const matches = 
+          matchIds(assignedKAMStr, kamUserKamId) ||
+          matchIds(assignedKAMStr, kamUserEmail) ||
+          matchIds(assignedKAMStr, kamUser?.id) ||
+          assignedKAMStr.includes(kamUserKamId) ||
+          kamUserKamId.includes(assignedKAMStr) ||
+          assignedKAMStr.toLowerCase().includes(kamUserKamId.toLowerCase()) ||
+          kamUserKamId.toLowerCase().includes(assignedKAMStr.toLowerCase()) ||
+          kamIdStr.includes(assignedKAMStr) ||
+          assignedKAMStr.includes(kamIdStr);
+        
+        if (!matches) {
           res.status(403).json({ 
             success: false, 
             error: `Access denied: Client not managed by this KAM. Client assigned to: ${assignedKAM || 'No KAM'}, Your KAM ID: ${kamId}` 
@@ -958,7 +1016,17 @@ export class KAMController {
             'Version': versionTimestamp, // Module 1: Store version timestamp
             'Product ID': productId || '', // Optional: link to loan product
           };
-          await n8nClient.postClientFormMapping(mappingData);
+          
+          console.log(`[createFormMapping] Creating mapping ${index + 1}/${modules.length}:`, mappingData);
+          try {
+            const webhookResult = await n8nClient.postClientFormMapping(mappingData);
+            console.log(`[createFormMapping] Mapping ${index + 1} created successfully:`, webhookResult);
+          } catch (webhookError: any) {
+            console.error(`[createFormMapping] Failed to create mapping ${index + 1}:`, webhookError.message);
+            // Continue with other mappings even if one fails
+            // But log the error for debugging
+          }
+          
           return mappingData;
         });
 

@@ -13,34 +13,54 @@ export class ProductsController {
    * List all loan products
    */
   async listLoanProducts(req: Request, res: Response): Promise<void> {
-    try {
-      // Fetch only Loan Products table
-      const products = await n8nClient.fetchTable('Loan Products');
+    const maxRetries = 2;
+    const timeoutMs = 20000; // 20 seconds
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[listLoanProducts] Attempt ${attempt}/${maxRetries} - Fetching loan products with ${timeoutMs}ms timeout`);
+        
+        // Fetch only Loan Products table with increased timeout
+        const products = await n8nClient.fetchTable('Loan Products', true, undefined, timeoutMs);
+        
+        console.log(`[listLoanProducts] Successfully fetched ${products.length} loan products`);
 
-      // Filter active products if requested
-      const { activeOnly } = req.query;
-      let filteredProducts = products;
-      
-      if (activeOnly === 'true') {
-        filteredProducts = products.filter((p: any) => p.Active === 'True');
+        // Filter active products if requested
+        const { activeOnly } = req.query;
+        let filteredProducts = products;
+        
+        if (activeOnly === 'true') {
+          filteredProducts = products.filter((p: any) => p.Active === 'True' || p.Active === true);
+          console.log(`[listLoanProducts] Filtered to ${filteredProducts.length} active products`);
+        }
+
+        res.json({
+          success: true,
+          data: filteredProducts.map((product: any) => ({
+            id: product.id,
+            productId: product['Product ID'],
+            productName: product['Product Name'],
+            description: product['Description'],
+            active: product['Active'] === 'True' || product['Active'] === true,
+            requiredDocumentsFields: product['Required Documents/Fields'],
+          })),
+        });
+        return;
+      } catch (error: any) {
+        console.error(`[listLoanProducts] Attempt ${attempt}/${maxRetries} failed:`, error.message);
+        
+        // If this is the last attempt or error is not a timeout, return error
+        if (attempt === maxRetries || !error.message?.includes('timeout')) {
+          res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to fetch loan products',
+          });
+          return;
+        }
+        
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
-
-      res.json({
-        success: true,
-        data: filteredProducts.map((product: any) => ({
-          id: product.id,
-          productId: product['Product ID'],
-          productName: product['Product Name'],
-          description: product['Description'],
-          active: product['Active'] === 'True',
-          requiredDocumentsFields: product['Required Documents/Fields'],
-        })),
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to fetch loan products',
-      });
     }
   }
 

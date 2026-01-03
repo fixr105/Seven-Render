@@ -168,10 +168,9 @@ export const ApplicationDetail: React.FC = () => {
         // Handle both structured and plain summary formats
         const summary = response.data.summary || response.data.structured?.fullSummary || '';
         setAiSummary(summary);
-        // Refresh application details to get updated summary from backend
-        await fetchApplicationDetails();
+        // No automatic refresh - user must manually refresh to see updates
         if (summary) {
-          alert('AI summary generated successfully!');
+          alert('AI summary generated successfully! Please refresh the page to see the updated summary.');
         } else {
           alert('AI summary generation completed, but no summary was returned.');
         }
@@ -283,8 +282,8 @@ export const ApplicationDetail: React.FC = () => {
     try {
       const response = await apiService.resolveQuery(id, queryId);
       if (response.success) {
-        await fetchQueries();
-        alert('Query resolved successfully');
+        // No automatic refresh - user must manually refresh to see updates
+        alert('Query resolved successfully! Please refresh the page to see the updated query status.');
       } else {
         throw new Error(response.error || 'Failed to resolve query');
       }
@@ -949,8 +948,8 @@ export const ApplicationDetail: React.FC = () => {
                     setDecisionStatus('');
                     setDecisionRemarks('');
                     setApprovedAmount('');
-                    await fetchApplicationDetails();
-                    alert('Decision recorded successfully!');
+                    // No automatic refresh - user must manually refresh to see updates
+                    alert('Decision recorded successfully! Please refresh the page to see the updated decision.');
                   } else {
                     throw new Error(response.error || 'Failed to record decision');
                   }

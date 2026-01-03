@@ -241,45 +241,22 @@ export class LoanController {
 
       const result = await n8nClient.postLoanApplication(applicationData);
 
-      // Module 0: Use admin logger helper
-      await logApplicationAction(
-        req.user!,
-        saveAsDraft ? AdminActionType.SAVE_DRAFT : AdminActionType.SUBMIT_APPLICATION,
-        fileId,
-        `${saveAsDraft ? 'Created draft' : 'Submitted'} loan application`,
-        { productId, formConfigVersion }
-      );
-
-      // If submitted (not draft), also log to file audit
+      // Asana Integration: Create Asana task if not a draft (non-blocking)
       if (!saveAsDraft) {
-        await n8nClient.postFileAuditLog({
-          id: `AUDIT-${Date.now()}`,
-          'Log Entry ID': `AUDIT-${Date.now()}`,
-          File: fileId,
-          Timestamp: new Date().toISOString(),
-          Actor: req.user.email,
-          'Action/Event Type': 'status_change',
-          'Details/Message': `Application submitted and moved to KAM review${needsAttention ? ' (needs attention)' : ''}`,
-          'Target User/Role': 'kam',
-          Resolved: 'False',
-        });
-
-        // Module 2: Auto-create query/task marker for KAM attention if issues found
-        if (needsAttention) {
-          await n8nClient.postFileAuditLog({
-            id: `AUDIT-${Date.now()}-ATTENTION`,
-            'Log Entry ID': `AUDIT-${Date.now()}-ATTENTION`,
-            File: fileId,
-            Timestamp: new Date().toISOString(),
-            Actor: 'System',
-            'Action/Event Type': 'query',
-            'Details/Message': `Application submitted with validation warnings. Please review: ${validationWarnings.join('; ')}`,
-            'Target User/Role': 'kam',
-            Resolved: 'False',
-          });
-        }
+        (async () => {
+          try {
+            const { createAsanaTaskForLoan } = await import('../services/asana/asana.service.js');
+            await createAsanaTaskForLoan({
+              ...applicationData,
+              'Submitted By': req.user!.email,
+            });
+          } catch (error: any) {
+            console.error('[createApplication] Failed to create Asana task (non-blocking):', error.message);
+          }
+        })();
       }
 
+      // Return success response immediately, then log audit actions asynchronously (non-blocking)
       res.json({
         success: true,
         data: {
@@ -293,6 +270,51 @@ export class LoanController {
           } : null,
         },
       });
+
+      // Module 0: Use admin logger helper (non-blocking)
+      logApplicationAction(
+        req.user!,
+        saveAsDraft ? AdminActionType.SAVE_DRAFT : AdminActionType.SUBMIT_APPLICATION,
+        fileId,
+        `${saveAsDraft ? 'Created draft' : 'Submitted'} loan application`,
+        { productId, formConfigVersion }
+      ).catch((error) => {
+        console.error('[createApplication] Failed to log admin action (non-blocking):', error);
+      });
+
+      // If submitted (not draft), also log to file audit (non-blocking)
+      if (!saveAsDraft) {
+        n8nClient.postFileAuditLog({
+          id: `AUDIT-${Date.now()}`,
+          'Log Entry ID': `AUDIT-${Date.now()}`,
+          File: fileId,
+          Timestamp: new Date().toISOString(),
+          Actor: req.user.email,
+          'Action/Event Type': 'status_change',
+          'Details/Message': `Application submitted and moved to KAM review${needsAttention ? ' (needs attention)' : ''}`,
+          'Target User/Role': 'kam',
+          Resolved: 'False',
+        }).catch((error) => {
+          console.error('[createApplication] Failed to log file audit (non-blocking):', error);
+        });
+
+        // Module 2: Auto-create query/task marker for KAM attention if issues found (non-blocking)
+        if (needsAttention) {
+          n8nClient.postFileAuditLog({
+            id: `AUDIT-${Date.now()}-ATTENTION`,
+            'Log Entry ID': `AUDIT-${Date.now()}-ATTENTION`,
+            File: fileId,
+            Timestamp: new Date().toISOString(),
+            Actor: 'System',
+            'Action/Event Type': 'query',
+            'Details/Message': `Application submitted with validation warnings. Please review: ${validationWarnings.join('; ')}`,
+            'Target User/Role': 'kam',
+            Resolved: 'False',
+          }).catch((error) => {
+            console.error('[createApplication] Failed to log attention marker (non-blocking):', error);
+          });
+        }
+      }
     } catch (error: any) {
       res.status(500).json({
         success: false,
@@ -867,6 +889,20 @@ export class LoanController {
         'Last Updated': new Date().toISOString(),
         'Form Config Version': formConfigVersion, // Module 1: Freeze version on submission
       });
+
+      // Asana Integration: Create Asana task for submitted loan (non-blocking)
+      (async () => {
+        try {
+          const { createAsanaTaskForLoan } = await import('../services/asana/asana.service.js');
+          await createAsanaTaskForLoan({
+            ...application,
+            Status: newStatus,
+            'Submitted By': req.user!.email,
+          });
+        } catch (error: any) {
+          console.error('[submitApplication] Failed to create Asana task (non-blocking):', error.message);
+        }
+      })();
 
       // Module 3: Record status change in history
       await recordStatusChange(

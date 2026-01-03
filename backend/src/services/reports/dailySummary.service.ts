@@ -72,13 +72,38 @@ export class DailySummaryService {
     const endDate = new Date(targetDate);
     endDate.setHours(23, 59, 59, 999);
 
-    // Fetch all relevant data
-    const [applications, adminActivities, auditLogs, ledgerEntries] = await Promise.all([
-      n8nClient.fetchTable('Loan Application'),
-      n8nClient.fetchTable('Admin Activity Log'),
-      n8nClient.fetchTable('File Auditing Log'),
-      n8nClient.fetchTable('Commission Ledger'),
+    // Fetch all relevant data with individual timeouts (20s each) and handle partial failures
+    const fetchWithTimeout = async (tableName: string, timeoutMs: number = 20000) => {
+      try {
+        return await n8nClient.fetchTable(tableName, true, undefined, timeoutMs);
+      } catch (error: any) {
+        console.error(`[generateDailySummary] Failed to fetch ${tableName}:`, error.message);
+        // Return empty array on failure to allow partial report generation
+        return [];
+      }
+    };
+
+    // Use Promise.allSettled to handle partial failures gracefully
+    const results = await Promise.allSettled([
+      fetchWithTimeout('Loan Application', 20000),
+      fetchWithTimeout('Admin Activity Log', 20000),
+      fetchWithTimeout('File Auditing Log', 20000),
+      fetchWithTimeout('Commission Ledger', 20000),
     ]);
+
+    // Extract results, using empty array if promise rejected
+    const applications = results[0].status === 'fulfilled' ? results[0].value : [];
+    const adminActivities = results[1].status === 'fulfilled' ? results[1].value : [];
+    const auditLogs = results[2].status === 'fulfilled' ? results[2].value : [];
+    const ledgerEntries = results[3].status === 'fulfilled' ? results[3].value : [];
+
+    // Log any failures
+    results.forEach((result, index) => {
+      const tableNames = ['Loan Application', 'Admin Activity Log', 'File Auditing Log', 'Commission Ledger'];
+      if (result.status === 'rejected') {
+        console.warn(`[generateDailySummary] Failed to fetch ${tableNames[index]}, using empty data:`, result.reason);
+      }
+    });
 
     // Filter data for the last 24 hours (target date)
     const dateApplications = this.filterByDate(applications, targetDate, [

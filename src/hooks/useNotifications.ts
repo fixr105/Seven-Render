@@ -6,11 +6,7 @@ export const useNotifications = () => {
   const { userRoleId } = useAuthSafe();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    if (userRoleId) {
-      fetchNotifications();
-    }
-  }, [userRoleId]);
+  // Removed automatic fetching - notifications will only load on manual refresh
 
   const fetchNotifications = async () => {
     if (!userRoleId) return;

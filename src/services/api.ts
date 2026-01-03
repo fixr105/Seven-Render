@@ -268,15 +268,29 @@ class ApiService {
       }
     } else if (!isPublicEndpoint) {
       // Only warn for protected endpoints that require authentication
-      console.warn(`[ApiService] No token available for request to ${endpoint}. User may need to login.`);
-      console.warn(`[ApiService] localStorage.getItem('auth_token'):`, localStorage.getItem('auth_token'));
+      const storageToken = localStorage.getItem('auth_token');
+      console.warn(`[ApiService] No token in service instance for request to ${endpoint}.`);
+      console.warn(`[ApiService] Token in service: ${this.token ? 'exists' : 'null'}`);
+      console.warn(`[ApiService] Token in localStorage: ${storageToken ? `${storageToken.substring(0, 20)}...` : 'null'}`);
+      
+      // If token exists in storage but not in service, try to reload it
+      if (storageToken && !this.token) {
+        console.log(`[ApiService] Reloading token from localStorage...`);
+        this.setToken(storageToken);
+        headers['Authorization'] = `Bearer ${storageToken}`;
+      } else if (!storageToken) {
+        // No token at all - log warning but let the request proceed
+        // The backend will return 401 which we'll handle in the response
+        console.warn(`[ApiService] No token found in localStorage. Request will likely fail with 401.`);
+      }
     }
 
     try {
       // Add timeout for fetch requests
-      // Login webhook should respond quickly, but allow up to 55 seconds for Vercel function limit
+      // Login and application creation webhooks need more time, allow up to 60 seconds for Vercel function limit
       const isLoginRequest = endpoint.includes('/auth/login');
-      const timeoutMs = isLoginRequest ? 55000 : 30000; // 55s for login (Vercel limit is 60s), 30s for others
+      const isApplicationRequest = endpoint.includes('/loan-applications') && options.method === 'POST';
+      const timeoutMs = isLoginRequest || isApplicationRequest ? 60000 : 30000; // 60s for login/app creation (Vercel limit is 60s), 30s for others
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);

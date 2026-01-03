@@ -34,9 +34,14 @@ export const authenticate = async (
     const token = authHeader.substring(7);
     
     // Allow test tokens (bypass authentication for development/testing)
+    // Token format: test-token-{role}@{timestamp}
+    // This format allows roles with underscores (e.g., credit_team)
     if (token.startsWith('test-token-')) {
-      const tokenParts = token.split('-');
-      const role = tokenParts[2] as any; // 'client', 'kam', 'credit_team', 'nbfc'
+      // Extract role from token: test-token-{role}@{timestamp}
+      // Split by '@' first to separate role from timestamp
+      const roleAndTimestamp = token.replace('test-token-', '');
+      const atIndex = roleAndTimestamp.indexOf('@');
+      const role = atIndex > 0 ? roleAndTimestamp.substring(0, atIndex) : roleAndTimestamp;
       
       // Map test user emails to roles
       const testUsers: Record<string, { email: string; role: any; clientId?: string; kamId?: string; nbfcId?: string; name: string }> = {
@@ -79,6 +84,8 @@ export const authenticate = async (
         console.log(`[AuthMiddleware] Test token authenticated: ${testUser.email} (${testUser.role})`);
         next();
         return;
+      } else {
+        console.warn(`[AuthMiddleware] Unknown test role: ${role}`);
       }
     }
     

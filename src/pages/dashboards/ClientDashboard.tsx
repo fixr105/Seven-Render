@@ -27,9 +27,7 @@ export const ClientDashboard: React.FC = () => {
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
-  useEffect(() => {
-    fetchLoanProducts();
-  }, []);
+  // Removed automatic fetching - loan products will only load on manual refresh
 
   const fetchLoanProducts = async () => {
     try {
@@ -43,6 +41,10 @@ export const ClientDashboard: React.FC = () => {
           description: product.description || product['Description'],
         }));
         setLoanProducts(products);
+        
+        if (products.length === 0) {
+          console.warn('No loan products available');
+        }
       } else if (response.error) {
         console.error('Error fetching loan products:', response.error);
         // If 401/403, the API service already cleared the token

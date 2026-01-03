@@ -32,9 +32,7 @@ export const useApplications = () => {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchApplications();
-  }, [userRole, user?.id]);
+  // Removed automatic fetching - applications will only load on manual refresh
 
   const fetchApplications = async () => {
     try {

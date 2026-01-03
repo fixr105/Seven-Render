@@ -35,11 +35,18 @@ export class ReportsController {
       const { date, emailRecipients } = req.body;
       const reportDate = date || new Date().toISOString().split('T')[0];
 
-      // Use daily summary service
+      // Use daily summary service with overall timeout (60s)
       const { dailySummaryService } = await import('../services/reports/dailySummary.service.js');
       
-      // Generate report
-      const reportData = await dailySummaryService.generateDailySummary(reportDate);
+      // Generate report with timeout wrapper
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Report generation timed out after 60 seconds')), 60000);
+      });
+
+      const reportData = await Promise.race([
+        dailySummaryService.generateDailySummary(reportDate),
+        timeoutPromise,
+      ]) as any;
       
       // Save to database
       const reportId = await dailySummaryService.saveDailySummary(
@@ -47,9 +54,11 @@ export class ReportsController {
         emailRecipients
       );
 
-      // Send email to management if recipients provided
+      // Send email to management if recipients provided (non-blocking)
       if (emailRecipients && Array.isArray(emailRecipients) && emailRecipients.length > 0) {
-        try {
+        // Send email asynchronously to avoid blocking response
+        (async () => {
+          try {
           // Format email body as HTML
           const emailBody = reportData.summaryContent
             .replace(/\n/g, '<br>')
@@ -83,10 +92,11 @@ export class ReportsController {
               </html>
             `,
           });
-        } catch (emailError) {
-          console.error('[ReportsController] Failed to send email:', emailError);
-          // Don't fail the report generation if email fails
-        }
+          } catch (emailError) {
+            console.error('[ReportsController] Failed to send email:', emailError);
+            // Don't fail the report generation if email fails
+          }
+        })();
       }
 
       res.json({

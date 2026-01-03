@@ -498,9 +498,9 @@ export class N8nClient {
         console.log(`[postData] Posting to webhook: ${webhookUrl} (attempt ${attempt}/${retries})`);
         console.log(`[postData] Data:`, JSON.stringify(data, null, 2));
         
-        // Add timeout to prevent hanging
+        // Add timeout to prevent hanging (55s to respect Vercel Pro limit of 60s)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
         
         try {
           const response = await fetch(webhookUrl, {
@@ -532,22 +532,29 @@ export class N8nClient {
           // Handle empty response
           if (responseText.trim() === '') {
             console.log('[postData] Empty response received, treating as success');
-            return { success: true, message: 'Data posted successfully' };
+            // Return a proper success object that can be serialized
+            return { success: true, message: 'Data posted successfully', data: null };
           }
 
           // Try to parse JSON response
           try {
             const parsed = JSON.parse(responseText);
-            console.log('[postData] Successfully parsed JSON response');
+            console.log('[postData] Successfully parsed JSON response:', typeof parsed);
+            // Ensure we always return an object (not null or undefined)
+            if (parsed === null || parsed === undefined) {
+              return { success: true, message: 'Data posted successfully', data: null };
+            }
             return parsed;
-          } catch (parseError) {
+          } catch (parseError: any) {
             console.warn('[postData] Response is not JSON, returning as text');
-            return { message: responseText, status: response.status };
+            console.warn('[postData] Response text:', responseText.substring(0, 200));
+            // Return a proper object structure
+            return { success: true, message: 'Data posted successfully', data: { raw: responseText }, status: response.status };
           }
         } catch (fetchError: any) {
           clearTimeout(timeoutId);
           if (fetchError.name === 'AbortError') {
-            throw new Error(`Webhook request timed out after 30 seconds`);
+            throw new Error(`Webhook request timed out after 55 seconds`);
           }
           throw fetchError;
         }
@@ -578,12 +585,26 @@ export class N8nClient {
   }
 
   async postClientFormMapping(data: Record<string, any>) {
-    const result = await this.postData(n8nConfig.postClientFormMappingUrl, data);
-    // Invalidate cache for Client Form Mapping and related tables
-    this.invalidateCache('Client Form Mapping');
-    this.invalidateCache('Form Categories');
-    this.invalidateCache('Form Fields');
-    return result;
+    console.log('[postClientFormMapping] Starting POST to Client Form Mapping webhook');
+    console.log('[postClientFormMapping] Webhook URL:', n8nConfig.postClientFormMappingUrl);
+    console.log('[postClientFormMapping] Data:', JSON.stringify(data, null, 2));
+    
+    try {
+      const result = await this.postData(n8nConfig.postClientFormMappingUrl, data);
+      console.log('[postClientFormMapping] Webhook response:', JSON.stringify(result, null, 2));
+      
+      // Invalidate cache for Client Form Mapping and related tables
+      this.invalidateCache('Client Form Mapping');
+      this.invalidateCache('Form Categories');
+      this.invalidateCache('Form Fields');
+      
+      console.log('[postClientFormMapping] Cache invalidated, returning result');
+      return result;
+    } catch (error: any) {
+      console.error('[postClientFormMapping] Error posting to webhook:', error.message);
+      console.error('[postClientFormMapping] Error stack:', error.stack);
+      throw error;
+    }
   }
 
   async postCommissionLedger(data: Record<string, any>) {
@@ -760,7 +781,7 @@ export class N8nClient {
     // Only send: id, File ID, Client, Applicant Name, Loan Product, Requested Loan Amount,
     // Documents, Status, Assigned Credit Analyst, Assigned NBFC, Lender Decision Status,
     // Lender Decision Date, Lender Decision Remarks, Approved Loan Amount, AI File Summary,
-    // Form Data, Creation Date, Submitted Date, Last Updated
+    // Form Data, Creation Date, Submitted Date, Last Updated, Asana Task ID, Asana Task Link
     
     // Handle Form Data - stringify if it's an object
     let formData = data['Form Data'] || data.formData || '';
@@ -788,6 +809,9 @@ export class N8nClient {
       'Creation Date': data['Creation Date'] || data.creationDate || '',
       'Submitted Date': data['Submitted Date'] || data.submittedDate || '',
       'Last Updated': data['Last Updated'] || data.lastUpdated || '',
+      // Asana Integration fields
+      'Asana Task ID': data['Asana Task ID'] || data.asanaTaskId || '',
+      'Asana Task Link': data['Asana Task Link'] || data.asanaTaskLink || '',
     };
     const result = await this.postData(n8nConfig.postApplicationsUrl, loanApplicationData);
     // Invalidate cache for Loan Applications and related tables

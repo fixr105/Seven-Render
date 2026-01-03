@@ -39,6 +39,8 @@ export const NewApplication: React.FC = () => {
   const [formConfigLoading, setFormConfigLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
+  const [loanProductsLoading, setLoanProductsLoading] = useState(true);
+  const [loanProductsError, setLoanProductsError] = useState<string | null>(null);
   const [formConfig, setFormConfig] = useState<any[]>([]); // Form configuration from backend
   const [currentStep, setCurrentStep] = useState(0); // Module 2: Stepper current step
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]); // Module 2: Soft validation warnings
@@ -129,6 +131,8 @@ export const NewApplication: React.FC = () => {
 
   const fetchLoanProducts = async () => {
     try {
+      setLoanProductsLoading(true);
+      setLoanProductsError(null);
       const response = await apiService.listLoanProducts(true); // activeOnly = true
       
       if (response.success && response.data) {
@@ -141,10 +145,20 @@ export const NewApplication: React.FC = () => {
             productsMap.set(id, { id, name });
           }
         });
-        setLoanProducts(Array.from(productsMap.values()));
+        const products = Array.from(productsMap.values());
+        setLoanProducts(products);
+        
+        if (products.length === 0) {
+          setLoanProductsError('No loan products are currently available. Please contact your KAM or administrator.');
+        }
+      } else {
+        setLoanProductsError(response.error || 'Failed to load loan products. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching loan products:', error);
+      setLoanProductsError(error.message || 'Failed to load loan products. Please try again.');
+    } finally {
+      setLoanProductsLoading(false);
     }
   };
 
@@ -486,7 +500,7 @@ export const NewApplication: React.FC = () => {
               <Select
                 label="Loan Product *"
                 options={[
-                  { value: '', label: 'Select Loan Product' },
+                  { value: '', label: loanProductsLoading ? 'Loading products...' : loanProducts.length === 0 ? 'No products available' : 'Select Loan Product' },
                   ...loanProducts.map(p => ({ value: p.id, label: p.name }))
                 ]}
                 value={formData.loan_product_id}
@@ -502,7 +516,9 @@ export const NewApplication: React.FC = () => {
                   }
                 }}
                 required
-                error={fieldErrors.loan_product_id}
+                error={fieldErrors.loan_product_id || loanProductsError || undefined}
+                disabled={loanProductsLoading || loanProducts.length === 0}
+                helperText={loanProductsError || (loanProducts.length === 0 ? 'Please contact your KAM to configure loan products' : undefined)}
               />
               <Input
                 id="requested_loan_amount"

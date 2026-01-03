@@ -1,0 +1,87 @@
+{
+  "formData": {
+    "applicant_name": "John Doe",
+    "loan_product_id": "",
+    "requested_loan_amount": "5000000",
+    "form_data": {
+      "full_name": "John Doe",
+      "email": "john.doe@example.com",
+      "phone": "+91 9876543210",
+      "pan_number": "ABCDE1234F",
+      "aadhar_number": "1234 5678 9012",
+      "address": "123 Test Street, Test City, 123456",
+      "employment_type": "Salaried",
+      "monthly_income": "150000",
+      "property_type": "Residential",
+      "property_value": "7000000"
+    }
+  },
+  "fileUploads": [
+    {
+      "fieldId": "pan_document",
+      "fileName": "pan-card.pdf",
+      "fileType": "application/pdf"
+    },
+    {
+      "fieldId": "aadhar_document",
+      "fileName": "aadhar-card.pdf",
+      "fileType": "application/pdf"
+    }
+  ],
+  "formConfig": {
+    "categories": [
+      {
+        "categoryId": "CAT-PERSONAL-001",
+        "categoryName": "Personal Information",
+        "description": "Basic personal details",
+        "fields": [
+          {
+            "fieldId": "full_name",
+            "label": "Full Name",
+            "type": "text",
+            "isRequired": true,
+            "placeholder": "Enter your full name"
+          },
+          {
+            "fieldId": "email",
+            "label": "Email Address",
+            "type": "email",
+            "isRequired": true,
+            "placeholder": "Enter your email"
+          },
+          {
+            "fieldId": "phone",
+            "label": "Phone Number",
+            "type": "text",
+            "isRequired": true,
+            "placeholder": "+91 9876543210"
+          }
+        ]
+      },
+      {
+        "categoryId": "CAT-KYC-001",
+        "categoryName": "KYC Documents",
+        "description": "Identity and address verification",
+        "fields": [
+          {
+            "fieldId": "pan_document",
+            "label": "PAN Card",
+            "type": "file",
+            "isRequired": true
+          },
+          {
+            "fieldId": "aadhar_document",
+            "label": "Aadhar Card",
+            "type": "file",
+            "isRequired": true
+          }
+        ]
+      }
+    ]
+  }
+}
+
+
+
+
+

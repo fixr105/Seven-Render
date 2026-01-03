@@ -15,6 +15,7 @@ export const Profile: React.FC = () => {
   const { user, userRole, userRoleId } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState<string>('');
   const [profileData, setProfileData] = useState({
     name: '',
     email: user?.email || '',
@@ -51,7 +52,36 @@ export const Profile: React.FC = () => {
     }
   };
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Allow only numbers, +, -, spaces, and parentheses
+    value = value.replace(/[^0-9+\-\s()]/g, '');
+    setProfileData({ ...profileData, phone: value });
+    setPhoneError('');
+  };
+
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) return true; // Phone is optional
+    // Basic validation: should contain at least 10 digits
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (digitsOnly.length < 10) {
+      setPhoneError('Phone number must contain at least 10 digits');
+      return false;
+    }
+    if (digitsOnly.length > 15) {
+      setPhoneError('Phone number cannot exceed 15 digits');
+      return false;
+    }
+    setPhoneError('');
+    return true;
+  };
+
   const handleSave = async () => {
+    // Validate phone number before saving
+    if (!validatePhone(profileData.phone)) {
+      return;
+    }
+
     setLoading(true);
     try {
       // TODO: Implement profile update via backend API
@@ -118,11 +148,15 @@ export const Profile: React.FC = () => {
                 <Input
                   type="tel"
                   label="Phone Number"
-                  placeholder="Enter your phone number"
+                  placeholder="+91 9876543210"
                   icon={Phone}
                   iconPosition="left"
                   value={profileData.phone}
-                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                  onChange={handlePhoneChange}
+                  onBlur={() => validatePhone(profileData.phone)}
+                  pattern="[0-9+\-\s()]*"
+                  error={phoneError}
+                  helperText="Enter phone number with country code (e.g., +91 9876543210)"
                 />
                 {userRole === 'client' && (
                   <Input

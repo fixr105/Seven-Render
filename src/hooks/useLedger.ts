@@ -9,14 +9,7 @@ export const useLedger = () => {
   const [payoutRequests, setPayoutRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (userRole === 'client') {
-      fetchLedger();
-      fetchPayoutRequests();
-    } else if (userRole === 'credit_team') {
-      fetchPayoutRequests();
-    }
-  }, [userRole]);
+  // Removed automatic fetching - ledger data will only load on manual refresh
 
   const fetchLedger = async () => {
     if (userRole !== 'client') return;
@@ -101,8 +94,7 @@ export const useLedger = () => {
         full: full || false 
       });
       if (response.success) {
-        await fetchPayoutRequests();
-        await fetchLedger();
+        // No automatic refresh - user must manually refresh to see updates
         return response;
       }
       throw new Error(response.error || 'Failed to create payout request');
@@ -116,7 +108,7 @@ export const useLedger = () => {
     try {
       const response = await apiService.createLedgerQuery(ledgerEntryId, message);
       if (response.success) {
-        await fetchLedger();
+        // No automatic refresh - user must manually refresh to see updates
         return response;
       }
       throw new Error(response.error || 'Failed to raise query');
@@ -130,7 +122,7 @@ export const useLedger = () => {
     try {
       const response = await apiService.flagLedgerPayout(ledgerEntryId);
       if (response.success) {
-        await fetchLedger();
+        // No automatic refresh - user must manually refresh to see updates
         return response;
       }
       throw new Error(response.error || 'Failed to flag payout');
@@ -142,8 +134,7 @@ export const useLedger = () => {
 
   const processPayoutRequest = async (requestId: string, approve: boolean) => {
     // This should be handled by credit team endpoint
-    // For now, just refetch
-    await fetchPayoutRequests();
+    // No automatic refresh - user must manually refresh to see updates
   };
 
   const addLedgerEntry = async (entryData: {
@@ -163,8 +154,7 @@ export const useLedger = () => {
     file_number?: string;
   }) => {
     // Ledger entries are created automatically by the backend
-    // This function is kept for backward compatibility
-    await fetchLedger();
+    // No automatic refresh - user must manually refresh to see updates
     return entryData;
   };
 

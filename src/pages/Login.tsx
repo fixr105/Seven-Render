@@ -50,11 +50,16 @@ export const Login: React.FC = () => {
     }
   }, [user, navigate]);
 
-  const handleRoleSelect = (roleKey: keyof typeof USER_PROFILES) => {
+  const handleRoleSelect = async (roleKey: keyof typeof USER_PROFILES) => {
     const profile = USER_PROFILES[roleKey];
     // Use the bypass function to directly set user without authentication
     signInAsTestUser(profile.role, profile.email);
-    // Navigate immediately (user will be set synchronously)
+    
+    // Small delay to ensure token is set in localStorage before navigation
+    // This prevents race conditions where API calls happen before token is available
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Navigate to dashboard (user and token are now set)
     navigate('/dashboard');
   };
 

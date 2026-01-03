@@ -62,11 +62,8 @@ export const Clients: React.FC = () => {
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
   ];
 
-  useEffect(() => {
-    console.log('[Clients] Component mounted/updated, fetching clients...');
-    console.log('[Clients] User role:', userRole, 'User role ID:', userRoleId);
-    fetchClients();
-  }, [userRole, userRoleId]);
+  // Removed automatic fetching - data will only load on manual refresh or page load
+  // Users must click the Refresh button to fetch data
 
   const fetchClients = async (forceRefresh: boolean = false) => {
     try {
@@ -153,6 +150,27 @@ export const Clients: React.FC = () => {
       return;
     }
 
+    // Check if token is available before making request
+    const token = apiService.getToken();
+    const tokenFromStorage = localStorage.getItem('auth_token');
+    console.log('[Clients] 🔑 Token check:', {
+      fromService: token ? `${token.substring(0, 20)}...` : 'null',
+      fromStorage: tokenFromStorage ? `${tokenFromStorage.substring(0, 20)}...` : 'null',
+    });
+    
+    if (!token && !tokenFromStorage) {
+      console.error('[Clients] ❌ No token available! User needs to login.');
+      alert('Authentication required. Please log in again.');
+      navigate('/login');
+      return;
+    }
+    
+    // If token exists in storage but not in service, reload it
+    if (!token && tokenFromStorage) {
+      console.log('[Clients] 🔄 Reloading token from storage...');
+      apiService.setToken(tokenFromStorage);
+    }
+
     console.log('[Clients] ✅ Validation passed, submitting...');
     setSubmitting(true);
     try {
@@ -189,57 +207,8 @@ export const Clients: React.FC = () => {
       console.log('[Clients] Created client email:', newClient.email);
       console.log('[Clients] Created client ID:', response.data?.id || response.data?.clientId);
       
-      // Force refresh with cache bypass - try multiple times to ensure we get the new client
-      let retryCount = 0;
-      const maxRetries = 5;
-      const createdClientEmail = newClient.email;
-      
-      const refreshWithRetry = async () => {
-        retryCount++;
-        const delay = 1000 * retryCount; // 1s, 2s, 3s, 4s, 5s
-        
-        setTimeout(async () => {
-          console.log(`[Clients] 🔄 Refreshing client list (attempt ${retryCount}/${maxRetries}) after ${delay}ms`);
-          await fetchClients(true);
-          
-          // Check if the new client is in the list
-          const updatedResponse = await apiService.listClients(true);
-          if (updatedResponse.success && updatedResponse.data) {
-            const foundClient = updatedResponse.data.find((c: any) => {
-              const clientEmail = c.email || c.contactEmailPhone?.split(' / ')[0] || '';
-              return clientEmail.toLowerCase() === createdClientEmail.toLowerCase();
-            });
-            
-            if (foundClient) {
-              console.log('[Clients] ✅ New client found in list:', foundClient);
-              setDebugInfo(`✅ New client found! Name: ${foundClient.clientName || foundClient['Client Name']}, Email: ${foundClient.email || foundClient.contactEmailPhone?.split(' / ')[0]}`);
-              // Update the local state
-              fetchClients(true);
-            } else {
-              console.log(`[Clients] ⚠️  New client not found yet (attempt ${retryCount}/${maxRetries})`);
-              const clientList = updatedResponse.data.map((c: any) => ({
-                name: c.clientName || c['Client Name'],
-                email: c.email || c.contactEmailPhone?.split(' / ')[0],
-                assignedKAM: c.assignedKAM || c['Assigned KAM']
-              }));
-              console.log('[Clients] Current clients in list:', clientList);
-              setDebugInfo(`⚠️ Client not found yet (attempt ${retryCount}/${maxRetries}). Looking for: ${createdClientEmail}. Found ${updatedResponse.data.length} clients total.`);
-              
-              if (retryCount < maxRetries) {
-                refreshWithRetry();
-              } else {
-                console.warn('[Clients] ❌ Client not found after all retries. Please click Refresh button manually.');
-                setDebugInfo(`❌ Client not found after ${maxRetries} attempts. Found ${updatedResponse.data.length} clients. Please check backend logs.`);
-              }
-            }
-          }
-        }, delay);
-      };
-      
-      // Start first refresh immediately
-      refreshWithRetry();
-      
-      alert(`Client onboarded successfully!\n\nEmail: ${newClient.email}\n\nThe list will refresh automatically. If the client doesn't appear after a few seconds, click the Refresh button.`);
+      // No automatic refresh - user must click Refresh button to see the new client
+      alert(`Client onboarded successfully!\n\nEmail: ${newClient.email}\n\nPlease click the Refresh button to see the new client in the list.`);
     } catch (error: any) {
       console.error('Error onboarding client:', error);
       alert(`Failed to onboard client: ${error.message || 'Unknown error'}`);

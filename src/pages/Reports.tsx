@@ -67,8 +67,8 @@ export const Reports: React.FC = () => {
     try {
       const response = await apiService.generateDailySummary();
       if (response.success) {
-        alert('Daily summary report generated successfully!');
-        await fetchReports();
+        alert('Daily summary report generated successfully! Please click Refresh to see the new report.');
+        // No automatic refresh - user must manually refresh to see updates
       } else {
         alert(`Failed to generate report: ${response.error || 'Unknown error'}`);
       }

@@ -17,7 +17,17 @@
     "test:module1": "tsx src/module1-verification.ts",
     "test:duplicate": "tsx src/services/validation/__tests__/duplicateDetection.test.runner.ts",
     "test:statemachine": "tsx src/services/statusTracking/__tests__/statusStateMachine.test.runner.ts",
-    "test:login": "tsx src/controllers/__tests__/login.test.runner.ts"
+    "test:login": "tsx src/controllers/__tests__/login.test.runner.ts",
+    "create:users": "node scripts/create-production-users.js",
+    "create:nbfc": "node scripts/create-nbfc-partners.js",
+    "generate:mapping": "node scripts/generate-loan-product-field-mapping.js",
+    "create:products": "node scripts/create-loan-products.js",
+    "create:applications": "node scripts/create-test-loan-applications.js",
+    "manage:status": "node scripts/manage-loan-application-status.js",
+    "auto:commission": "node scripts/auto-create-commission-ledger.js",
+    "auto:commission:nbfc": "node scripts/auto-create-commission-from-nbfc-payout.js",
+    "daily:summary": "node scripts/generate-daily-summary-notification.js",
+    "sync:asana": "node scripts/sync-loans-to-asana.js"
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",
@@ -30,6 +40,7 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
+    "xlsx": "^0.18.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {

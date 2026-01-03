@@ -351,18 +351,60 @@ export class FormConfigService {
       throw new Error(`Client not found: ${clientId}`);
     }
 
-    // Verify KAM assignment
+    // Verify KAM assignment with flexible matching (same logic as kam.controller.ts)
     const assignedKAM = client['Assigned KAM'] || '';
-    if (assignedKAM !== kamUserId) {
+    const assignedKAMStr = String(assignedKAM || '').trim();
+    const kamUserIdStr = String(kamUserId || '').trim();
+    
+    // Helper function for flexible ID matching (same as rbacFilter.service.ts)
+    const matchIds = (id1: any, id2: any): boolean => {
+      if (!id1 || !id2) return false;
+      const str1 = String(id1).trim();
+      const str2 = String(id2).trim();
+      if (str1 === str2) return true;
+      if (str1.toLowerCase() === str2.toLowerCase()) return true;
+      if (str1.includes(str2) || str2.includes(str1)) return true;
+      return false;
+    };
+    
+    // Check if assigned KAM matches KAM user ID directly
+    if (!matchIds(assignedKAMStr, kamUserIdStr)) {
       // Try to match by KAM Users table
       const kamUsers = await n8nClient.fetchTable('KAM Users');
       const kamUser = kamUsers.find((k: any) => 
-        k.id === kamUserId || 
-        k['KAM ID'] === kamUserId
+        matchIds(k.id, kamUserId) || 
+        matchIds(k['KAM ID'], kamUserId)
       );
       
-      if (!kamUser || assignedKAM !== kamUser.id && assignedKAM !== kamUser['KAM ID']) {
-        throw new Error(`Access denied: Client not managed by this KAM`);
+      if (kamUser) {
+        const kamUserEmail = kamUser.Email || kamUser['Email'] || '';
+        const kamUserKamId = kamUser['KAM ID'] || kamUser.id || '';
+        
+        // Check if assigned KAM matches KAM ID, email, or any variation
+        const matches = 
+          matchIds(assignedKAMStr, kamUserKamId) ||
+          matchIds(assignedKAMStr, kamUserEmail) ||
+          matchIds(assignedKAMStr, kamUser.id) ||
+          assignedKAMStr.includes(kamUserKamId) ||
+          kamUserKamId.includes(assignedKAMStr) ||
+          assignedKAMStr.toLowerCase().includes(kamUserKamId.toLowerCase()) ||
+          kamUserKamId.toLowerCase().includes(assignedKAMStr.toLowerCase());
+        
+        if (!matches) {
+          throw new Error(`Access denied: Client not managed by this KAM. Client assigned to: ${assignedKAM || 'No KAM'}, Your KAM ID: ${kamUserId}`);
+        }
+      } else {
+        // KAM user not found in table, but check if IDs partially match
+        // This handles cases like "KAM001" vs "TEST-KAM-001"
+        const partialMatch = 
+          assignedKAMStr.includes(kamUserIdStr) ||
+          kamUserIdStr.includes(assignedKAMStr) ||
+          assignedKAMStr.toLowerCase().includes(kamUserIdStr.toLowerCase()) ||
+          kamUserIdStr.toLowerCase().includes(assignedKAMStr.toLowerCase());
+        
+        if (!partialMatch) {
+          throw new Error(`Access denied: Client not managed by this KAM. Client assigned to: ${assignedKAM || 'No KAM'}, Your KAM ID: ${kamUserId}`);
+        }
       }
     }
 
