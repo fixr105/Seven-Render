@@ -29,6 +29,32 @@ router.get('/health', (req, res) => {
   res.json({ success: true, message: 'API is running' });
 });
 
+// Debug endpoint to check environment and webhook configuration
+router.get('/debug/webhook-config', async (req, res) => {
+  const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
+  const { getWebhookUrl } = await import('../config/webhookConfig.js');
+  
+  const webhookUrls = {
+    'Loan Products': getWebhookUrl('Loan Products'),
+    'Loan Application': getWebhookUrl('Loan Application'),
+    'Clients': getWebhookUrl('Clients'),
+    'Commission Ledger': getWebhookUrl('Commission Ledger'),
+    'Notifications': getWebhookUrl('Notifications'),
+    'Client Form Mapping': getWebhookUrl('Client Form Mapping'),
+  };
+  
+  res.json({
+    success: true,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV || 'not set',
+      VERCEL: process.env.VERCEL || 'not set',
+      N8N_BASE_URL: n8nBaseUrl,
+    },
+    webhookUrls,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Mount route modules
 router.use('/auth', authRoutes);
 router.use('/client', clientRoutes);
