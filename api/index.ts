@@ -107,7 +107,45 @@ export default async function handlerWrapper(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // CRITICAL: Log immediately to verify handler is being called
+  console.log(`[HANDLER] Handler called - Method: ${req.method}, URL: ${req.url}`);
+  
   try {
+    // Handle debug endpoints directly in serverless handler (before Express)
+    // This bypasses Express routing to test if the issue is with Express
+    if (req.url && (req.url.includes('/debug/test') || req.url.includes('/debug/env'))) {
+      console.log(`[HANDLER] Debug endpoint detected, handling directly`);
+      const origin = req.headers.origin || req.headers.referer || '*';
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type', 'Authorization');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      
+      if (req.url.includes('/debug/test')) {
+        res.json({ 
+          success: true, 
+          message: 'Direct handler works!', 
+          timestamp: new Date().toISOString(),
+          url: req.url,
+        });
+        return;
+      }
+      
+      if (req.url.includes('/debug/env')) {
+        res.json({
+          success: true,
+          environment: {
+            NODE_ENV: process.env.NODE_ENV || 'not set',
+            VERCEL: process.env.VERCEL || 'not set',
+            N8N_BASE_URL: process.env.N8N_BASE_URL || 'NOT SET - using default',
+          },
+          timestamp: new Date().toISOString(),
+          url: req.url,
+        });
+        return;
+      }
+    }
+    
             // Add CORS headers to allow requests from any origin with credentials (cookies)
             const origin = req.headers.origin || req.headers.referer || '*';
             res.setHeader('Access-Control-Allow-Origin', origin);
