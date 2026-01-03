@@ -117,8 +117,8 @@ export const N8N_POST_WEBHOOK_PATHS = {
  * These match the GET webhook node paths in SEVEN-DASHBOARD-2.json
  */
 export const N8N_GET_WEBHOOK_PATHS = {
-  // Admin Activity Log (note: lowercase in n8n)
-  ADMIN_ACTIVITY: 'adminactivity',
+  // Admin Activity Log (note: capital A in n8n workflow)
+  ADMIN_ACTIVITY: 'Adminactivity',
   
   // Client Form Mapping
   CLIENT_FORM_MAPPING: 'clientformmapping',
