@@ -200,8 +200,28 @@ export default async function handlerWrapper(
     
     // Get handler (lazy loaded and cached)
     console.log(`[Serverless] About to initialize/get Express handler for path: ${path}`);
-    const serverlessHandler = await initializeHandler();
-    console.log(`[Serverless] Express handler ready, calling with path: ${path}`);
+    
+    // Add timeout to Express initialization to prevent hanging
+    const handlerPromise = initializeHandler();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Express initialization timeout after 10s')), 10000)
+    );
+    
+    let serverlessHandler;
+    try {
+      serverlessHandler = await Promise.race([handlerPromise, timeoutPromise]);
+      console.log(`[Serverless] Express handler ready, calling with path: ${path}`);
+    } catch (error: any) {
+      console.error(`[Serverless] Failed to get Express handler:`, error.message);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: 'Server initialization failed',
+          message: error.message,
+        });
+      }
+      return;
+    }
     
     // Call the serverless handler
     return serverlessHandler(req, res);
