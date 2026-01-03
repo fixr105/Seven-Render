@@ -3,6 +3,7 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../middleware/auth.middleware.js';
 import authRoutes from './auth.routes.js';
 import clientRoutes from './client.routes.js';
 import loanRoutes from './loan.routes.js';
@@ -36,15 +37,32 @@ router.get('/health', (req, res) => {
   res.json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
 });
 
-// Simple test endpoint to verify Express routing works (no webhooks)
+// Simple test endpoint to verify Express routing works (no webhooks, no auth)
 router.get('/test-express', (req, res) => {
   console.log('[TEST-EXPRESS] Express route matched!');
+  console.log('[TEST-EXPRESS] Request details:', {
+    method: req.method,
+    path: req.path,
+    url: req.url,
+    originalUrl: (req as any).originalUrl,
+  });
   res.json({ 
     success: true, 
     message: 'Express routing works!', 
     timestamp: new Date().toISOString(),
     path: req.path,
     url: req.url,
+  });
+});
+
+// Test endpoint with authentication to see if auth middleware is the issue
+router.get('/test-express-auth', authenticate, (req, res) => {
+  console.log('[TEST-EXPRESS-AUTH] Express route with auth matched!');
+  res.json({ 
+    success: true, 
+    message: 'Express routing with auth works!', 
+    timestamp: new Date().toISOString(),
+    user: req.user,
   });
 });
 
