@@ -262,10 +262,8 @@ export class N8nClient {
     if (useCache) {
       const cached = cacheService.get<ParsedRecord[]>(cacheKey);
       if (cached !== null) {
-        // Only log cache hits if LOG_WEBHOOK_CALLS is enabled (reduces console noise)
-        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
-          console.log(`📦 Using cached data for ${tableName} (${cached.length} records)`);
-        }
+        // Log when cache prevents webhook call (always log to verify GET webhooks are not triggered)
+        console.log(`📦 [CACHE HIT] Using cached data for ${tableName} (${cached.length} records) - GET webhook NOT called`);
         return cached;
       }
     }
@@ -280,10 +278,8 @@ export class N8nClient {
     }
 
     try {
-      // Only log webhook calls for debugging (can be disabled in production)
-      if (process.env.LOG_WEBHOOK_CALLS === 'true') {
-        console.log(`🌐 Fetching ${tableName} from webhook: ${url}`);
-      }
+      // Always log when GET webhook is actually called (not cached)
+      console.log(`🌐 [WEBHOOK CALL] Fetching ${tableName} from webhook: ${url}`);
       
       // Add timeout support to prevent hanging requests
       const controller = new AbortController();
@@ -310,10 +306,8 @@ export class N8nClient {
         // Parser handles: Airtable format, flattened format, arrays, single records
         const records = responseParser.parse(rawData);
         
-        // Only log successful fetches occasionally
-        if (process.env.LOG_WEBHOOK_CALLS === 'true') {
-          console.log(`✅ Fetched and parsed ${records.length} records from ${tableName} webhook`);
-        }
+        // Always log successful webhook fetches
+        console.log(`✅ [WEBHOOK SUCCESS] Fetched and parsed ${records.length} records from ${tableName} webhook`);
         
         // Cache the parsed result (persists until invalidated)
         if (useCache) {
