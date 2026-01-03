@@ -36,6 +36,18 @@ router.get('/health', (req, res) => {
   res.json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
 });
 
+// Simple test endpoint to verify Express routing works (no webhooks)
+router.get('/test-express', (req, res) => {
+  console.log('[TEST-EXPRESS] Express route matched!');
+  res.json({ 
+    success: true, 
+    message: 'Express routing works!', 
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    url: req.url,
+  });
+});
+
 // Debug endpoints - MUST be before other routes to avoid conflicts
 // Add explicit logging middleware to track route matching
 router.use('/debug', (req, res, next) => {

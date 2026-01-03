@@ -16,9 +16,20 @@ export class ProductsController {
     // CRITICAL: Log immediately to verify controller is being called
     console.log(`🚨 [listLoanProducts] CONTROLLER CALLED - Request received at ${new Date().toISOString()}`);
     console.log(`🚨 [listLoanProducts] Request URL: ${req.url}`);
+    console.log(`🚨 [listLoanProducts] Request path: ${req.path}`);
     console.log(`🚨 [listLoanProducts] Request method: ${req.method}`);
     console.log(`🚨 [listLoanProducts] User: ${req.user ? JSON.stringify(req.user) : 'NO USER'}`);
     try {
+      // Return empty array immediately to test if controller is reached
+      // This will help identify if the issue is with webhook calls or routing
+      console.log(`[listLoanProducts] Returning empty array for testing`);
+      res.json({
+        success: true,
+        data: [],
+        message: 'Controller reached - webhook calls disabled for testing',
+      });
+      return;
+      
       // n8n is fast (~1.08s), so use shorter timeout (5s should be plenty)
       const timeoutMs = 5000; // 5 seconds - n8n responds in ~1.08s
       
