@@ -466,12 +466,16 @@ export class LoanController {
       console.log(`[listApplications] Transformation completed in ${transformTime}ms`);
       console.log(`[listApplications] Sending response with ${transformedData.length} applications...`);
       
+      console.log(`[listApplications] Response data size: ${JSON.stringify(transformedData).length} bytes`);
+      console.log(`[listApplications] Sending response at ${new Date().toISOString()}`);
+      
       res.json({
         success: true,
         data: transformedData,
       });
       
-      console.log(`[listApplications] Response sent successfully`);
+      console.log(`[listApplications] Response sent successfully at ${new Date().toISOString()}`);
+      console.log(`[listApplications] Response headers sent: ${res.headersSent}`);
     } catch (error: any) {
       console.error('[LoanController] Error fetching applications:', error);
       res.status(500).json({

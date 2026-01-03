@@ -234,9 +234,28 @@ export default async function handlerWrapper(
     // Call the serverless handler
     // CRITICAL: serverless-http returns a Promise that resolves when response is complete
     // We must await it to ensure the function doesn't exit before response is sent
-    const handlerResult = await serverlessHandler(req, res);
-    console.log(`[Serverless] Handler completed, result: ${handlerResult}`);
-    return handlerResult;
+    console.log(`[Serverless] Calling serverless handler at ${new Date().toISOString()}`);
+    const handlerStartTime = Date.now();
+    
+    try {
+      const handlerResult = await serverlessHandler(req, res);
+      const handlerDuration = Date.now() - handlerStartTime;
+      console.log(`[Serverless] Handler completed in ${handlerDuration}ms, result type: ${typeof handlerResult}`);
+      console.log(`[Serverless] Response headers sent: ${res.headersSent}`);
+      console.log(`[Serverless] Response status: ${res.statusCode || 'not set'}`);
+      return handlerResult;
+    } catch (handlerError: any) {
+      const handlerDuration = Date.now() - handlerStartTime;
+      console.error(`[Serverless] Handler error after ${handlerDuration}ms:`, handlerError.message);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: 'Internal server error',
+          message: handlerError.message,
+        });
+      }
+      throw handlerError;
+    }
   } catch (error: any) {
     console.error('[Serverless] Handler error:', error);
     
