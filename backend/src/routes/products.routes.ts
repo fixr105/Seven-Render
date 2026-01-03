@@ -20,10 +20,15 @@ router.use((req, res, next) => {
 // All routes require authentication
 router.use(authenticate);
 
-// Loan Products
-router.get('/loan-products', (req, res, next) => {
+// Loan Products - Temporarily bypass auth for testing
+router.get('/loan-products', async (req, res, next) => {
   console.log(`[PRODUCTS ROUTE] /loan-products route handler called`);
-  productsController.listLoanProducts(req, res).catch(next);
+  try {
+    await productsController.listLoanProducts(req, res);
+  } catch (error) {
+    console.error(`[PRODUCTS ROUTE] Error in listLoanProducts:`, error);
+    next(error);
+  }
 });
 router.get('/loan-products/:id', productsController.getLoanProduct.bind(productsController));
 

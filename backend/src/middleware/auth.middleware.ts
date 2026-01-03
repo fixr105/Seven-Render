@@ -26,10 +26,14 @@ export const authenticate = async (
     console.log(`[AUTH] Auth header present: ${!!authHeader}`);
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log(`[AUTH] No valid auth header, returning 401 immediately`);
+      console.log(`[AUTH] Response headers sent: ${res.headersSent}`);
+      console.log(`[AUTH] Setting status 401 and sending JSON response`);
       res.status(401).json({
         success: false,
         error: 'No token provided',
       });
+      console.log(`[AUTH] 401 response sent, returning from middleware`);
       return;
     }
 
