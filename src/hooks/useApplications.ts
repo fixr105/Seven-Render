@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
 
@@ -32,12 +32,15 @@ export const useApplications = () => {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load applications on initial mount (when component first loads or user changes)
-  // This allows dashboard to show data when page loads
-  // But no automatic refetch after POST operations
+  // Load applications ONLY on initial mount (when page is first loaded/refreshed)
+  // No automatic refetch on user/role changes - user must manually refresh
+  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    fetchApplications();
-  }, [userRole, user?.id]);
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      fetchApplications();
+    }
+  }, []); // Empty dependency array - only runs once on mount
 
   const fetchApplications = async () => {
     try {

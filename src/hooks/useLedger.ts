@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
 
@@ -9,17 +9,20 @@ export const useLedger = () => {
   const [payoutRequests, setPayoutRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load ledger data on initial mount (when component first loads)
-  // This allows dashboard to show data when page loads
-  // But no automatic refetch after POST operations
+  // Load ledger data ONLY on initial mount (when page is first loaded/refreshed)
+  // No automatic refetch on role changes - user must manually refresh
+  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    if (userRole === 'client') {
-      fetchLedger();
-      fetchPayoutRequests();
-    } else if (userRole === 'credit_team') {
-      fetchPayoutRequests();
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      if (userRole === 'client') {
+        fetchLedger();
+        fetchPayoutRequests();
+      } else if (userRole === 'credit_team') {
+        fetchPayoutRequests();
+      }
     }
-  }, [userRole]);
+  }, []); // Empty dependency array - only runs once on mount
 
   const fetchLedger = async () => {
     if (userRole !== 'client') return;

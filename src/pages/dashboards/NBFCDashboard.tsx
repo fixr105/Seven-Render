@@ -26,9 +26,15 @@ export const NBFCDashboard: React.FC = () => {
   const [assignedApplications, setAssignedApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Load applications ONLY on initial mount (when page is first loaded/refreshed)
+  // No automatic refetch on role changes - user must manually refresh
+  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    fetchAssignedApplications();
-  }, [userRoleId]);
+    if (!hasMountedRef.current && userRoleId) {
+      hasMountedRef.current = true;
+      fetchAssignedApplications();
+    }
+  }, []); // Empty dependency array - only runs once on mount
 
   const fetchAssignedApplications = async () => {
     if (!userRoleId) return;

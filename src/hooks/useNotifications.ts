@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
 
@@ -6,14 +6,15 @@ export const useNotifications = () => {
   const { userRoleId } = useAuthSafe();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Load notifications on initial mount (when component first loads)
-  // This allows dashboard to show notification count when page loads
-  // But no automatic refetch after POST operations
+  // Load notifications ONLY on initial mount (when page is first loaded/refreshed)
+  // No automatic refetch on role changes - user must manually refresh
+  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    if (userRoleId) {
+    if (!hasMountedRef.current && userRoleId) {
+      hasMountedRef.current = true;
       fetchNotifications();
     }
-  }, [userRoleId]);
+  }, []); // Empty dependency array - only runs once on mount
 
   const fetchNotifications = async () => {
     if (!userRoleId) return;

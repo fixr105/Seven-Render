@@ -99,13 +99,17 @@ export const ApplicationDetail: React.FC = () => {
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
   ];
 
+  // Load application data ONLY on initial mount or when navigating to a different application
+  // No automatic refetch - user must manually refresh
+  const lastFetchedIdRef = React.useRef<string | null>(null);
   useEffect(() => {
-    if (id) {
+    if (id && id !== lastFetchedIdRef.current) {
+      lastFetchedIdRef.current = id;
       fetchApplicationDetails();
       fetchQueries();
       fetchStatusHistory();
     }
-  }, [id]);
+  }, [id]); // Only fetch when id changes (route navigation)
 
   const fetchApplicationDetails = async () => {
     try {

@@ -34,11 +34,15 @@ export const Reports: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
+  // Load reports ONLY on initial mount (when page is first loaded/refreshed)
+  // No automatic refetch on role changes - user must manually refresh
+  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    if (userRole === 'credit_team' || userRole === 'admin') {
+    if (!hasMountedRef.current && (userRole === 'credit_team' || userRole === 'admin')) {
+      hasMountedRef.current = true;
       fetchReports();
     }
-  }, [userRole]);
+  }, []); // Empty dependency array - only runs once on mount
 
   const fetchReports = async () => {
     try {
