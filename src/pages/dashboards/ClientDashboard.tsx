@@ -27,7 +27,10 @@ export const ClientDashboard: React.FC = () => {
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
-  // Removed automatic fetching - loan products will only load on manual refresh
+  // Load loan products on initial mount (when dashboard first loads)
+  useEffect(() => {
+    fetchLoanProducts();
+  }, []);
 
   const fetchLoanProducts = async () => {
     try {

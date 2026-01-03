@@ -6,7 +6,14 @@ export const useNotifications = () => {
   const { userRoleId } = useAuthSafe();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Removed automatic fetching - notifications will only load on manual refresh
+  // Load notifications on initial mount (when component first loads)
+  // This allows dashboard to show notification count when page loads
+  // But no automatic refetch after POST operations
+  useEffect(() => {
+    if (userRoleId) {
+      fetchNotifications();
+    }
+  }, [userRoleId]);
 
   const fetchNotifications = async () => {
     if (!userRoleId) return;

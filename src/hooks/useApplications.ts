@@ -32,7 +32,12 @@ export const useApplications = () => {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Removed automatic fetching - applications will only load on manual refresh
+  // Load applications on initial mount (when component first loads or user changes)
+  // This allows dashboard to show data when page loads
+  // But no automatic refetch after POST operations
+  useEffect(() => {
+    fetchApplications();
+  }, [userRole, user?.id]);
 
   const fetchApplications = async () => {
     try {

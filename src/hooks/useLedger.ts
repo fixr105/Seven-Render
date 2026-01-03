@@ -9,7 +9,17 @@ export const useLedger = () => {
   const [payoutRequests, setPayoutRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Removed automatic fetching - ledger data will only load on manual refresh
+  // Load ledger data on initial mount (when component first loads)
+  // This allows dashboard to show data when page loads
+  // But no automatic refetch after POST operations
+  useEffect(() => {
+    if (userRole === 'client') {
+      fetchLedger();
+      fetchPayoutRequests();
+    } else if (userRole === 'credit_team') {
+      fetchPayoutRequests();
+    }
+  }, [userRole]);
 
   const fetchLedger = async () => {
     if (userRole !== 'client') return;
