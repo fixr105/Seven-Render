@@ -110,28 +110,27 @@ router.get('/debug/env', (req, res) => {
   }
 });
 
-// Debug endpoint to check environment and webhook configuration (simplified, no async import)
+// Debug endpoint to check environment and webhook configuration (ultra-simple, no imports)
 router.get('/debug/webhook-config', (req, res) => {
-  console.log('[DEBUG] /debug/webhook-config endpoint called');
+  console.log('[DEBUG] /debug/webhook-config endpoint called at', new Date().toISOString());
   try {
     const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
+    const defaultBaseUrl = 'https://fixrrahul.app.n8n.cloud';
     
-    // Import n8nEndpoints synchronously (it's already a regular import)
-    const { getGetWebhookUrl } = require('../services/airtable/n8nEndpoints.js');
-    
+    // Manually construct webhook URLs without importing modules (to avoid timeout)
     const webhookUrls = {
-      'Loan Products': getGetWebhookUrl('LOAN_PRODUCTS'),
-      'Loan Application': getGetWebhookUrl('LOAN_APPLICATION'),
-      'Clients': getGetWebhookUrl('CLIENT'),
-      'Commission Ledger': getGetWebhookUrl('COMMISSION_LEDGER'),
-      'Notifications': getGetWebhookUrl('NOTIFICATIONS'),
-      'Client Form Mapping': getGetWebhookUrl('CLIENT_FORM_MAPPING'),
+      'Loan Products': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/loanproducts`,
+      'Loan Application': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/loanapplication`,
+      'Clients': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/client`,
+      'Commission Ledger': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/commisionledger`,
+      'Notifications': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/notifications`,
+      'Client Form Mapping': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/clientformmapping`,
     };
     
-    console.log('[DEBUG] Webhook URLs:', webhookUrls);
     console.log('[DEBUG] N8N_BASE_URL:', n8nBaseUrl);
+    console.log('[DEBUG] Webhook URLs constructed');
     
-    res.json({
+    const response = {
       success: true,
       environment: {
         NODE_ENV: process.env.NODE_ENV || 'not set',
@@ -140,14 +139,20 @@ router.get('/debug/webhook-config', (req, res) => {
       },
       webhookUrls,
       timestamp: new Date().toISOString(),
-    });
+    };
+    
+    console.log('[DEBUG] Sending response...');
+    res.json(response);
+    console.log('[DEBUG] Response sent successfully');
   } catch (error: any) {
     console.error('[DEBUG] Error in webhook-config:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      stack: error.stack,
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      });
+    }
   }
 });
 
