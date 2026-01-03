@@ -32,11 +32,22 @@ export const authenticate = async (
       // Ensure response is sent properly in serverless environment
       if (!res.headersSent) {
         console.log(`[AUTH] Setting status 401 and sending JSON response`);
-        res.status(401).json({
-          success: false,
-          error: 'No token provided',
-        });
-        console.log(`[AUTH] 401 response sent, returning from middleware`);
+        try {
+          res.status(401).json({
+            success: false,
+            error: 'No token provided',
+          });
+          // Explicitly end the response to ensure it's sent in serverless
+          if (!res.headersSent) {
+            res.end();
+          }
+          console.log(`[AUTH] 401 response sent successfully`);
+        } catch (error: any) {
+          console.error(`[AUTH] Error sending 401 response:`, error);
+          if (!res.headersSent) {
+            res.status(500).end('Internal server error');
+          }
+        }
       } else {
         console.warn(`[AUTH] Response already sent, cannot send 401`);
       }

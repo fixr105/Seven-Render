@@ -23,11 +23,18 @@ export class ProductsController {
       // Return empty array immediately to test if controller is reached
       // This will help identify if the issue is with webhook calls or routing
       console.log(`[listLoanProducts] Returning empty array for testing`);
-      res.json({
-        success: true,
-        data: [],
-        message: 'Controller reached - webhook calls disabled for testing',
-      });
+      console.log(`[listLoanProducts] Response headers sent: ${res.headersSent}`);
+      
+      if (!res.headersSent) {
+        res.json({
+          success: true,
+          data: [],
+          message: 'Controller reached - webhook calls disabled for testing',
+        });
+        console.log(`[listLoanProducts] Response sent successfully`);
+      } else {
+        console.warn(`[listLoanProducts] Response already sent, cannot send data`);
+      }
       return;
       
       // n8n is fast (~1.08s), so use shorter timeout (5s should be plenty)
