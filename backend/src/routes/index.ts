@@ -24,6 +24,12 @@ import documentsRoutes from './documents.routes.js';
 
 const router = Router();
 
+// Request logging middleware - logs ALL requests to help debug routing
+router.use((req, res, next) => {
+  console.log(`[ROUTE LOGGER] ${req.method} ${req.path} - Original URL: ${req.url}`);
+  next();
+});
+
 // Health check
 router.get('/health', (req, res) => {
   console.log('[HEALTH] Health check endpoint called');
