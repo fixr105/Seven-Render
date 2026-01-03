@@ -31,6 +31,7 @@ router.get('/health', (req, res) => {
 
 // Debug endpoint to check environment and webhook configuration
 router.get('/debug/webhook-config', async (req, res) => {
+  console.log('[DEBUG] /debug/webhook-config endpoint called');
   const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
   const { getWebhookUrl } = await import('../config/webhookConfig.js');
   
@@ -43,6 +44,9 @@ router.get('/debug/webhook-config', async (req, res) => {
     'Client Form Mapping': getWebhookUrl('Client Form Mapping'),
   };
   
+  console.log('[DEBUG] Webhook URLs:', webhookUrls);
+  console.log('[DEBUG] N8N_BASE_URL:', n8nBaseUrl);
+  
   res.json({
     success: true,
     environment: {
@@ -53,6 +57,12 @@ router.get('/debug/webhook-config', async (req, res) => {
     webhookUrls,
     timestamp: new Date().toISOString(),
   });
+});
+
+// Test endpoint to verify routes are working
+router.get('/debug/test', (req, res) => {
+  console.log('[DEBUG] /debug/test endpoint called - routes are working!');
+  res.json({ success: true, message: 'Routes are working', timestamp: new Date().toISOString() });
 });
 
 // Mount route modules

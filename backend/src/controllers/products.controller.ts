@@ -13,7 +13,11 @@ export class ProductsController {
    * List all loan products
    */
   async listLoanProducts(req: Request, res: Response): Promise<void> {
-    console.log(`[listLoanProducts] START - Request received`);
+    // CRITICAL: Log immediately to verify controller is being called
+    console.log(`🚨 [listLoanProducts] CONTROLLER CALLED - Request received at ${new Date().toISOString()}`);
+    console.log(`🚨 [listLoanProducts] Request URL: ${req.url}`);
+    console.log(`🚨 [listLoanProducts] Request method: ${req.method}`);
+    console.log(`🚨 [listLoanProducts] User: ${req.user ? JSON.stringify(req.user) : 'NO USER'}`);
     try {
       // n8n is fast (~1.08s), so use shorter timeout (5s should be plenty)
       const timeoutMs = 5000; // 5 seconds - n8n responds in ~1.08s

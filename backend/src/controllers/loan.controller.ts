@@ -340,7 +340,11 @@ export class LoanController {
    * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async listApplications(req: Request, res: Response): Promise<void> {
-    console.log(`[listApplications] START - Request received`);
+    // CRITICAL: Log immediately to verify controller is being called
+    console.log(`🚨 [listApplications] CONTROLLER CALLED - Request received at ${new Date().toISOString()}`);
+    console.log(`🚨 [listApplications] Request URL: ${req.url}`);
+    console.log(`🚨 [listApplications] Request method: ${req.method}`);
+    console.log(`🚨 [listApplications] User: ${req.user ? JSON.stringify(req.user) : 'NO USER'}`);
     try {
       const { status, dateFrom, dateTo, search } = req.query;
       const user = req.user!;
