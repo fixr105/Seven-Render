@@ -32,14 +32,11 @@ export const useApplications = () => {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load applications ONLY on initial mount (when page is first loaded/refreshed)
+  // Load applications on initial mount (when page is first loaded/refreshed)
+  // This ensures data loads when user first visits the page
   // No automatic refetch on user/role changes - user must manually refresh
-  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    if (!hasMountedRef.current) {
-      hasMountedRef.current = true;
-      fetchApplications();
-    }
+    fetchApplications();
   }, []); // Empty dependency array - only runs once on mount
 
   const fetchApplications = async () => {

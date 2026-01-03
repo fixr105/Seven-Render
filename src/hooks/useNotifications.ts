@@ -6,15 +6,14 @@ export const useNotifications = () => {
   const { userRoleId } = useAuthSafe();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Load notifications ONLY on initial mount (when page is first loaded/refreshed)
+  // Load notifications on initial mount (when page is first loaded/refreshed)
+  // This ensures notification count loads when user first visits the page
   // No automatic refetch on role changes - user must manually refresh
-  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    if (!hasMountedRef.current && userRoleId) {
-      hasMountedRef.current = true;
+    if (userRoleId) {
       fetchNotifications();
     }
-  }, []); // Empty dependency array - only runs once on mount
+  }, []); // Empty dependency array - only runs once on mount (userRoleId checked inside)
 
   const fetchNotifications = async () => {
     if (!userRoleId) return;

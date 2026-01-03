@@ -35,15 +35,14 @@ export const KAMDashboard: React.FC = () => {
   const [clients, setClients] = useState<ClientStats[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
 
-  // Load clients ONLY on initial mount (when page is first loaded/refreshed)
+  // Load clients on initial mount (when page is first loaded/refreshed)
+  // This ensures data loads when user first visits the page
   // No automatic refetch on role changes - user must manually refresh
-  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    if (!hasMountedRef.current && userRoleId) {
-      hasMountedRef.current = true;
+    if (userRoleId) {
       fetchClients();
     }
-  }, []); // Empty dependency array - only runs once on mount
+  }, []); // Empty dependency array - only runs once on mount (userRoleId checked inside)
 
   const fetchClients = async () => {
     if (!userRoleId) return;

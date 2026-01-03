@@ -9,20 +9,17 @@ export const useLedger = () => {
   const [payoutRequests, setPayoutRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load ledger data ONLY on initial mount (when page is first loaded/refreshed)
+  // Load ledger data on initial mount (when page is first loaded/refreshed)
+  // This ensures data loads when user first visits the page
   // No automatic refetch on role changes - user must manually refresh
-  const hasMountedRef = React.useRef(false);
   useEffect(() => {
-    if (!hasMountedRef.current) {
-      hasMountedRef.current = true;
-      if (userRole === 'client') {
-        fetchLedger();
-        fetchPayoutRequests();
-      } else if (userRole === 'credit_team') {
-        fetchPayoutRequests();
-      }
+    if (userRole === 'client') {
+      fetchLedger();
+      fetchPayoutRequests();
+    } else if (userRole === 'credit_team') {
+      fetchPayoutRequests();
     }
-  }, []); // Empty dependency array - only runs once on mount
+  }, []); // Empty dependency array - only runs once on mount (userRole checked inside)
 
   const fetchLedger = async () => {
     if (userRole !== 'client') return;
