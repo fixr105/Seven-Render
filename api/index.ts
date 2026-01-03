@@ -129,6 +129,9 @@ export default async function handlerWrapper(
     
     // Normalize the request URL - remove /api prefix
     let path = req.url || '/';
+    console.log(`[Serverless] Original req.url: ${req.url}`);
+    console.log(`[Serverless] Original req.path: ${(req as any).path || 'N/A'}`);
+    
     if (path.startsWith('/api')) {
       path = path.replace('/api', '') || '/';
     }
@@ -136,10 +139,16 @@ export default async function handlerWrapper(
       path = '/' + path;
     }
     
+    console.log(`[Serverless] Normalized path: ${path}`);
+    
     // Update request URL for Express
     req.url = path;
     if ('originalUrl' in req) {
       (req as any).originalUrl = path;
+    }
+    // Also update path property if it exists
+    if ('path' in req) {
+      (req as any).path = path;
     }
     
     // Get handler (lazy loaded and cached)
