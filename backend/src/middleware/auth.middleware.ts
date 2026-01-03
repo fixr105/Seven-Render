@@ -20,8 +20,10 @@ export const authenticate = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  console.log(`[AUTH] Authentication middleware called for ${req.method} ${req.path}`);
   try {
     const authHeader = req.headers.authorization;
+    console.log(`[AUTH] Auth header present: ${!!authHeader}`);
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({
@@ -32,11 +34,13 @@ export const authenticate = async (
     }
 
     const token = authHeader.substring(7);
+    console.log(`[AUTH] Token extracted, length: ${token.length}, starts with test-token: ${token.startsWith('test-token-')}`);
     
     // Allow test tokens (bypass authentication for development/testing)
     // Token format: test-token-{role}@{timestamp}
     // This format allows roles with underscores (e.g., credit_team)
     if (token.startsWith('test-token-')) {
+      console.log(`[AUTH] Processing test token`);
       // Extract role from token: test-token-{role}@{timestamp}
       // Split by '@' first to separate role from timestamp
       const roleAndTimestamp = token.replace('test-token-', '');
@@ -90,7 +94,9 @@ export const authenticate = async (
     }
     
     // Verify real JWT token
+    console.log(`[AUTH] Verifying JWT token...`);
     const user = authService.verifyToken(token);
+    console.log(`[AUTH] Token verified, user: ${user.email}, role: ${user.role}`);
     req.user = user;
     
     // Debug logging for client role
@@ -98,8 +104,10 @@ export const authenticate = async (
       console.log(`[AuthMiddleware] Authenticated client: ${user.email}, clientId: ${user.clientId}`);
     }
     
+    console.log(`[AUTH] Calling next() to continue to route handler`);
     next();
   } catch (error: any) {
+    console.error(`[AUTH] Authentication error:`, error.message);
     res.status(401).json({
       success: false,
       error: error.message || 'Invalid token',
