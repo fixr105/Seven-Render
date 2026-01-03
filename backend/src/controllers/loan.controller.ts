@@ -345,13 +345,30 @@ export class LoanController {
       const user = req.user!;
 
       // Fetch applications and related data from n8n webhooks
+      // Use Promise.allSettled to handle partial failures gracefully
       // All records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const [applications, clients, loanProducts] = await Promise.all([
+      const results = await Promise.allSettled([
         n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('Clients'),
         n8nClient.fetchTable('Loan Products'),
       ]);
+      
+      // Extract results, using empty arrays as fallback for failed requests
+      const applications = results[0].status === 'fulfilled' ? results[0].value : [];
+      const clients = results[1].status === 'fulfilled' ? results[1].value : [];
+      const loanProducts = results[2].status === 'fulfilled' ? results[2].value : [];
+      
+      // Log any failures
+      if (results[0].status === 'rejected') {
+        console.error('[listApplications] Failed to fetch Loan Application:', results[0].reason);
+      }
+      if (results[1].status === 'rejected') {
+        console.error('[listApplications] Failed to fetch Clients:', results[1].reason);
+      }
+      if (results[2].status === 'rejected') {
+        console.error('[listApplications] Failed to fetch Loan Products:', results[2].reason);
+      }
 
       // Create lookup maps for efficient filtering
       const clientsMap = new Map(clients.map((c: any) => [c['Client ID'] || c.id, c]));

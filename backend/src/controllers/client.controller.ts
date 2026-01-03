@@ -19,11 +19,28 @@ export class ClientController {
       }
 
       // Fetch only the tables we need
-      const [allApplications, allLedgerEntries, allAuditLogs] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const results = await Promise.allSettled([
         n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('Commission Ledger'),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
+      
+      // Extract results, using empty arrays as fallback for failed requests
+      const allApplications = results[0].status === 'fulfilled' ? results[0].value : [];
+      const allLedgerEntries = results[1].status === 'fulfilled' ? results[1].value : [];
+      const allAuditLogs = results[2].status === 'fulfilled' ? results[2].value : [];
+      
+      // Log any failures
+      if (results[0].status === 'rejected') {
+        console.error('[getDashboard] Failed to fetch Loan Application:', results[0].reason);
+      }
+      if (results[1].status === 'rejected') {
+        console.error('[getDashboard] Failed to fetch Commission Ledger:', results[1].reason);
+      }
+      if (results[2].status === 'rejected') {
+        console.error('[getDashboard] Failed to fetch File Auditing Log:', results[2].reason);
+      }
 
       // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');

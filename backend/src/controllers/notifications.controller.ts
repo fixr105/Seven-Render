@@ -16,7 +16,15 @@ export class NotificationsController {
     try {
       const { unreadOnly, limit } = req.query;
       // Fetch only Notifications table
-      const notifications = await n8nClient.fetchTable('Notifications');
+      // Handle timeout gracefully - return empty array if webhook fails
+      let notifications: any[] = [];
+      try {
+        notifications = await n8nClient.fetchTable('Notifications');
+      } catch (error: any) {
+        console.error('[getNotifications] Failed to fetch Notifications:', error.message);
+        // Return empty array instead of failing the entire request
+        notifications = [];
+      }
 
       // Filter by user
       let userNotifications = notifications;

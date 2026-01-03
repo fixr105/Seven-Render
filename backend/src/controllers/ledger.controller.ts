@@ -20,7 +20,15 @@ export class LedgerController {
       }
 
       // Fetch only Commission Ledger table
-      const allLedgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      // Handle timeout gracefully - return empty array if webhook fails
+      let allLedgerEntries: any[] = [];
+      try {
+        allLedgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      } catch (error: any) {
+        console.error('[getClientLedger] Failed to fetch Commission Ledger:', error.message);
+        // Return empty array instead of failing the entire request
+        allLedgerEntries = [];
+      }
 
       // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
@@ -236,7 +244,15 @@ export class LedgerController {
       }
 
       // Fetch only Commission Ledger table
-      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      // Handle timeout gracefully - return empty array if webhook fails
+      let ledgerEntries: any[] = [];
+      try {
+        ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      } catch (error: any) {
+        console.error('[getPayoutRequests] Failed to fetch Commission Ledger:', error.message);
+        // Return empty array instead of failing the entire request
+        ledgerEntries = [];
+      }
 
       const payoutRequests = ledgerEntries
         .filter(
