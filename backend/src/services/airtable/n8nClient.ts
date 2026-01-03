@@ -324,9 +324,16 @@ export class N8nClient {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         if (fetchError.name === 'AbortError') {
-          throw new Error(`Webhook timeout for ${tableName} after ${timeoutMs}ms`);
+          const timeoutError = new Error(`Webhook timeout for ${tableName} after ${timeoutMs}ms`);
+          console.error(`⏱️ [fetchTable] ${timeoutError.message}`);
+          console.error(`⏱️ [fetchTable] Webhook URL: ${url}`);
+          // Return empty array instead of throwing to prevent cascading failures
+          return [];
         }
-        throw fetchError;
+        console.error(`❌ [fetchTable] Fetch error for ${tableName}:`, fetchError.message);
+        console.error(`❌ [fetchTable] Webhook URL: ${url}`);
+        // Return empty array instead of throwing to prevent cascading failures
+        return [];
       }
     } catch (error) {
       console.error(`❌ [fetchTable] Error fetching ${tableName}:`, error);
@@ -336,7 +343,8 @@ export class N8nClient {
         url: url || 'NO URL',
         tableName,
       });
-      throw error;
+      // Return empty array instead of throwing to prevent cascading failures
+      return [];
     }
   }
 
