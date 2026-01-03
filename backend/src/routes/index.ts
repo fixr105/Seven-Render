@@ -110,20 +110,22 @@ router.get('/debug/env', (req, res) => {
   }
 });
 
-// Debug endpoint to check environment and webhook configuration (with async import)
-router.get('/debug/webhook-config', async (req, res) => {
+// Debug endpoint to check environment and webhook configuration (simplified, no async import)
+router.get('/debug/webhook-config', (req, res) => {
   console.log('[DEBUG] /debug/webhook-config endpoint called');
   try {
     const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
-    const { getWebhookUrl } = await import('../config/webhookConfig.js');
+    
+    // Import n8nEndpoints synchronously (it's already a regular import)
+    const { getGetWebhookUrl } = require('../services/airtable/n8nEndpoints.js');
     
     const webhookUrls = {
-      'Loan Products': getWebhookUrl('Loan Products'),
-      'Loan Application': getWebhookUrl('Loan Application'),
-      'Clients': getWebhookUrl('Clients'),
-      'Commission Ledger': getWebhookUrl('Commission Ledger'),
-      'Notifications': getWebhookUrl('Notifications'),
-      'Client Form Mapping': getWebhookUrl('Client Form Mapping'),
+      'Loan Products': getGetWebhookUrl('LOAN_PRODUCTS'),
+      'Loan Application': getGetWebhookUrl('LOAN_APPLICATION'),
+      'Clients': getGetWebhookUrl('CLIENT'),
+      'Commission Ledger': getGetWebhookUrl('COMMISSION_LEDGER'),
+      'Notifications': getGetWebhookUrl('NOTIFICATIONS'),
+      'Client Form Mapping': getGetWebhookUrl('CLIENT_FORM_MAPPING'),
     };
     
     console.log('[DEBUG] Webhook URLs:', webhookUrls);
