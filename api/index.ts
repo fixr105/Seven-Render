@@ -199,7 +199,9 @@ export default async function handlerWrapper(
     }
     
     // Get handler (lazy loaded and cached)
+    console.log(`[Serverless] About to initialize/get Express handler for path: ${path}`);
     const serverlessHandler = await initializeHandler();
+    console.log(`[Serverless] Express handler ready, calling with path: ${path}`);
     
     // Call the serverless handler
     return serverlessHandler(req, res);
