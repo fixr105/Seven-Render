@@ -255,7 +255,7 @@ export class N8nClient {
    * - GET → /webhook/{tablePath} → Airtable: {tableName}
    * - See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
-  async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number, timeoutMs: number = 5000): Promise<ParsedRecord[]> {
+  async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number, timeoutMs: number = 30000): Promise<ParsedRecord[]> {
     const cacheKey = `table:${tableName}`;
     
     // Check cache first

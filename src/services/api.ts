@@ -290,7 +290,16 @@ class ApiService {
       // Login and application creation webhooks need more time, allow up to 60 seconds for Vercel function limit
       const isLoginRequest = endpoint.includes('/auth/login');
       const isApplicationRequest = endpoint.includes('/loan-applications') && options.method === 'POST';
-      const timeoutMs = isLoginRequest || isApplicationRequest ? 60000 : 30000; // 60s for login/app creation (Vercel limit is 60s), 30s for others
+      const isGetRequest = !options.method || options.method === 'GET';
+      
+      // GET requests that fetch data from n8n webhooks need more time (55s to respect Vercel 60s limit)
+      // POST requests for application creation also need more time
+      // Other requests use 30s timeout
+      const timeoutMs = isLoginRequest || isApplicationRequest 
+        ? 60000  // 60s for login/app creation
+        : isGetRequest 
+        ? 55000  // 55s for GET requests (n8n webhooks can be slow)
+        : 30000; // 30s for other POST/PUT/DELETE requests
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
