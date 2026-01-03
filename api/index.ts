@@ -188,15 +188,23 @@ export default async function handlerWrapper(
     console.log(`[Serverless] Original req.url: ${req.url}`);
     console.log(`[Serverless] Normalized path for Express: ${path}`);
     
-    // Update request URL for Express
-    req.url = path;
-    if ('originalUrl' in req) {
-      (req as any).originalUrl = path;
+    // Update request URL for Express - serverless-http needs both url and path
+    // CRITICAL: Set both url and path properties for serverless-http to work correctly
+    (req as any).url = path;
+    (req as any).originalUrl = path;
+    (req as any).path = path;
+    
+    // Also update the query string handling
+    if (req.url && req.url.includes('?')) {
+      const queryString = req.url.split('?')[1];
+      if (queryString) {
+        (req as any).url = `${path}?${queryString}`;
+        (req as any).originalUrl = `${path}?${queryString}`;
+      }
     }
-    // Also update path property if it exists
-    if ('path' in req) {
-      (req as any).path = path;
-    }
+    
+    console.log(`[Serverless] Updated req.url: ${(req as any).url}`);
+    console.log(`[Serverless] Updated req.path: ${(req as any).path}`);
     
     // Get handler (lazy loaded and cached)
     console.log(`[Serverless] About to initialize/get Express handler for path: ${path}`);
