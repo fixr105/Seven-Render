@@ -13,14 +13,18 @@ export class ProductsController {
    * List all loan products
    */
   async listLoanProducts(req: Request, res: Response): Promise<void> {
+    console.log(`[listLoanProducts] START - Request received`);
     try {
       // n8n is fast (~1.08s), so use shorter timeout (5s should be plenty)
       const timeoutMs = 5000; // 5 seconds - n8n responds in ~1.08s
       
       console.log(`[listLoanProducts] Fetching loan products with ${timeoutMs}ms timeout`);
+      console.log(`[listLoanProducts] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
       
       // Fetch only Loan Products table
+      console.log(`[listLoanProducts] Calling n8nClient.fetchTable('Loan Products')...`);
       const products = await n8nClient.fetchTable('Loan Products', true, undefined, timeoutMs);
+      console.log(`[listLoanProducts] fetchTable returned ${products.length} products`);
       
       console.log(`[listLoanProducts] Successfully fetched ${products.length} loan products`);
 
@@ -45,7 +49,9 @@ export class ProductsController {
         })),
       });
     } catch (error: any) {
-      console.error(`[listLoanProducts] Failed to fetch loan products:`, error.message);
+      console.error(`[listLoanProducts] ❌ FAILED to fetch loan products:`, error.message);
+      console.error(`[listLoanProducts] Error stack:`, error.stack);
+      console.error(`[listLoanProducts] Returning empty array to prevent frontend timeout`);
       // Return empty array instead of error to prevent frontend timeout
       // Frontend can handle empty array gracefully
       res.json({

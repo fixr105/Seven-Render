@@ -204,8 +204,8 @@ class N8nResponseParser {
         // (For single table webhooks, there should only be one array)
         const firstArray = responseObj[arrayKeys[0]];
         const parsed = firstArray
-          .map(record => this.normalizeRecord(record))
-          .filter((record): record is ParsedRecord => record !== null);
+          .map((record: any) => this.normalizeRecord(record))
+          .filter((record: ParsedRecord | null): record is ParsedRecord => record !== null);
         
         if (process.env.LOG_WEBHOOK_CALLS === 'true') {
           console.log(`[N8nResponseParser] Parsed ${parsed.length} records from table key: ${arrayKeys[0]}`);
@@ -256,6 +256,7 @@ export class N8nClient {
    * - See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async fetchTable(tableName: string, useCache: boolean = true, cacheTTL?: number, timeoutMs: number = 5000): Promise<ParsedRecord[]> {
+    console.log(`[fetchTable] START - Table: ${tableName}, useCache: ${useCache}, timeoutMs: ${timeoutMs}`);
     const cacheKey = `table:${tableName}`;
     
     // Check cache first
@@ -266,14 +267,15 @@ export class N8nClient {
         console.log(`📦 [CACHE HIT] Using cached data for ${tableName} (${cached.length} records) - GET webhook NOT called`);
         return cached;
       }
+      console.log(`[fetchTable] No cache found for ${tableName}, will fetch from webhook`);
     }
 
     const url = getWebhookUrl(tableName);
+    console.log(`[fetchTable] Webhook URL for ${tableName}: ${url || 'NULL - NO URL CONFIGURED'}`);
     if (!url) {
-      // Only warn in development or when explicitly logging
-      if (process.env.LOG_WEBHOOK_CALLS === 'true' || process.env.NODE_ENV === 'development') {
-        console.warn(`[fetchTable] No webhook URL configured for table: ${tableName}`);
-      }
+      // Always log this error - it's critical for debugging production issues
+      console.error(`❌ [fetchTable] No webhook URL configured for table: ${tableName}`);
+      console.error(`❌ [fetchTable] This means the webhook will NOT be called and empty array will be returned`);
       return [];
     }
 
@@ -303,11 +305,11 @@ export class N8nClient {
           throw new Error(`Webhook failed for ${tableName}: ${response.status} ${response.statusText}`);
         }
 
-        const rawData = await response.json();
+        const rawData: any = await response.json();
         
         // Use type-safe parser to handle n8n response format
         // Parser handles: Airtable format, flattened format, arrays, single records
-        const records = responseParser.parse(rawData);
+        const records = responseParser.parse(rawData as N8nWebhookResponse);
         
         // Always log successful webhook fetches
         console.log(`✅ [WEBHOOK SUCCESS] Fetched and parsed ${records.length} records from ${tableName} webhook`);
@@ -327,7 +329,13 @@ export class N8nClient {
         throw fetchError;
       }
     } catch (error) {
-      console.error(`❌ Error fetching ${tableName}:`, error);
+      console.error(`❌ [fetchTable] Error fetching ${tableName}:`, error);
+      console.error(`❌ [fetchTable] Error details:`, {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        url: url || 'NO URL',
+        tableName,
+      });
       throw error;
     }
   }

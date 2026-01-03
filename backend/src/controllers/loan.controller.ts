@@ -340,9 +340,13 @@ export class LoanController {
    * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async listApplications(req: Request, res: Response): Promise<void> {
+    console.log(`[listApplications] START - Request received`);
     try {
       const { status, dateFrom, dateTo, search } = req.query;
       const user = req.user!;
+      
+      console.log(`[listApplications] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
+      console.log(`[listApplications] Fetching 3 tables in parallel...`);
 
       // Fetch applications and related data from n8n webhooks
       // Use Promise.allSettled to handle partial failures gracefully
@@ -353,6 +357,8 @@ export class LoanController {
         n8nClient.fetchTable('Clients'),
         n8nClient.fetchTable('Loan Products'),
       ]);
+      
+      console.log(`[listApplications] Promise.allSettled completed`);
       
       // Extract results, using empty arrays as fallback for failed requests
       const applications = results[0].status === 'fulfilled' ? results[0].value : [];
