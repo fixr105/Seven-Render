@@ -432,35 +432,46 @@ export class LoanController {
       });
 
       // Transform to API response format
+      console.log(`[listApplications] Transforming ${filteredApplications.length} applications to API format...`);
+      const startTransform = Date.now();
+      
+      const transformedData = filteredApplications.map((app: any) => {
+        const client = clientsMap.get(app.Client || app['Client']);
+        const product = productsMap.get(app['Loan Product'] || app.loanProduct);
+        
+        return {
+          id: app.id,
+          fileId: app['File ID'] || app.fileId,
+          client: client?.['Client Name'] || client?.['Client Name'] || app.Client || app['Client'],
+          clientId: app.Client || app['Client'],
+          applicantName: app['Applicant Name'] || app.applicantName,
+          product: product?.['Product Name'] || product?.['Product Name'] || app['Loan Product'] || app.loanProduct,
+          productId: app['Loan Product'] || app.loanProduct,
+          requestedAmount: app['Requested Loan Amount'] || app.requestedLoanAmount,
+          status: app.Status || app.status,
+          creationDate: app['Creation Date'] || app['Created At'] || app.creationDate,
+          submittedDate: app['Submitted Date'] || app.submittedDate,
+          lastUpdated: app['Last Updated'] || app.updatedAt || app.lastUpdated,
+          assignedCreditAnalyst: app['Assigned Credit Analyst'] || app.assignedCreditAnalyst,
+          assignedNBFC: app['Assigned NBFC'] || app.assignedNBFC,
+          lenderDecisionStatus: app['Lender Decision Status'] || app.lenderDecisionStatus,
+          lenderDecisionDate: app['Lender Decision Date'] || app.lenderDecisionDate,
+          lenderDecisionRemarks: app['Lender Decision Remarks'] || app.lenderDecisionRemarks,
+          approvedAmount: app['Approved Loan Amount'] || app.approvedLoanAmount,
+          formData: app['Form Data'] ? (typeof app['Form Data'] === 'string' ? JSON.parse(app['Form Data']) : app['Form Data']) : {},
+        };
+      });
+      
+      const transformTime = Date.now() - startTransform;
+      console.log(`[listApplications] Transformation completed in ${transformTime}ms`);
+      console.log(`[listApplications] Sending response with ${transformedData.length} applications...`);
+      
       res.json({
         success: true,
-        data: filteredApplications.map((app: any) => {
-          const client = clientsMap.get(app.Client || app['Client']);
-          const product = productsMap.get(app['Loan Product'] || app.loanProduct);
-          
-          return {
-            id: app.id,
-            fileId: app['File ID'] || app.fileId,
-            client: client?.['Client Name'] || client?.['Client Name'] || app.Client || app['Client'],
-            clientId: app.Client || app['Client'],
-            applicantName: app['Applicant Name'] || app.applicantName,
-            product: product?.['Product Name'] || product?.['Product Name'] || app['Loan Product'] || app.loanProduct,
-            productId: app['Loan Product'] || app.loanProduct,
-            requestedAmount: app['Requested Loan Amount'] || app.requestedLoanAmount,
-            status: app.Status || app.status,
-            creationDate: app['Creation Date'] || app['Created At'] || app.creationDate,
-            submittedDate: app['Submitted Date'] || app.submittedDate,
-            lastUpdated: app['Last Updated'] || app.updatedAt || app.lastUpdated,
-            assignedCreditAnalyst: app['Assigned Credit Analyst'] || app.assignedCreditAnalyst,
-            assignedNBFC: app['Assigned NBFC'] || app.assignedNBFC,
-            lenderDecisionStatus: app['Lender Decision Status'] || app.lenderDecisionStatus,
-            lenderDecisionDate: app['Lender Decision Date'] || app.lenderDecisionDate,
-            lenderDecisionRemarks: app['Lender Decision Remarks'] || app.lenderDecisionRemarks,
-            approvedAmount: app['Approved Loan Amount'] || app.approvedLoanAmount,
-            formData: app['Form Data'] ? (typeof app['Form Data'] === 'string' ? JSON.parse(app['Form Data']) : app['Form Data']) : {},
-          };
-        }),
+        data: transformedData,
       });
+      
+      console.log(`[listApplications] Response sent successfully`);
     } catch (error: any) {
       console.error('[LoanController] Error fetching applications:', error);
       res.status(500).json({
