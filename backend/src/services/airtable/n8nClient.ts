@@ -279,7 +279,10 @@ export class N8nClient {
 
     try {
       // Always log when GET webhook is actually called (not cached)
+      // Also log N8N_BASE_URL to help debug environment variable issues
+      const n8nBaseUrl = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
       console.log(`🌐 [WEBHOOK CALL] Fetching ${tableName} from webhook: ${url}`);
+      console.log(`🌐 [WEBHOOK CALL] N8N_BASE_URL: ${n8nBaseUrl}`);
       
       // Add timeout support to prevent hanging requests
       const controller = new AbortController();
