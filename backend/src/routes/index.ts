@@ -26,43 +26,64 @@ const router = Router();
 
 // Health check
 router.get('/health', (req, res) => {
-  res.json({ success: true, message: 'API is running' });
+  console.log('[HEALTH] Health check endpoint called');
+  res.json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
+});
+
+// Debug endpoints - MUST be before other routes to avoid conflicts
+// Test endpoint to verify routes are working
+router.get('/debug/test', (req, res) => {
+  console.log('[DEBUG] /debug/test endpoint called - routes are working!');
+  console.log('[DEBUG] Request headers:', JSON.stringify(req.headers));
+  res.json({ 
+    success: true, 
+    message: 'Routes are working', 
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    url: req.url,
+  });
 });
 
 // Debug endpoint to check environment and webhook configuration
 router.get('/debug/webhook-config', async (req, res) => {
   console.log('[DEBUG] /debug/webhook-config endpoint called');
-  const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
-  const { getWebhookUrl } = await import('../config/webhookConfig.js');
-  
-  const webhookUrls = {
-    'Loan Products': getWebhookUrl('Loan Products'),
-    'Loan Application': getWebhookUrl('Loan Application'),
-    'Clients': getWebhookUrl('Clients'),
-    'Commission Ledger': getWebhookUrl('Commission Ledger'),
-    'Notifications': getWebhookUrl('Notifications'),
-    'Client Form Mapping': getWebhookUrl('Client Form Mapping'),
-  };
-  
-  console.log('[DEBUG] Webhook URLs:', webhookUrls);
-  console.log('[DEBUG] N8N_BASE_URL:', n8nBaseUrl);
-  
-  res.json({
-    success: true,
-    environment: {
-      NODE_ENV: process.env.NODE_ENV || 'not set',
-      VERCEL: process.env.VERCEL || 'not set',
-      N8N_BASE_URL: n8nBaseUrl,
-    },
-    webhookUrls,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Test endpoint to verify routes are working
-router.get('/debug/test', (req, res) => {
-  console.log('[DEBUG] /debug/test endpoint called - routes are working!');
-  res.json({ success: true, message: 'Routes are working', timestamp: new Date().toISOString() });
+  console.log('[DEBUG] Request headers:', JSON.stringify(req.headers));
+  try {
+    const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
+    const { getWebhookUrl } = await import('../config/webhookConfig.js');
+    
+    const webhookUrls = {
+      'Loan Products': getWebhookUrl('Loan Products'),
+      'Loan Application': getWebhookUrl('Loan Application'),
+      'Clients': getWebhookUrl('Clients'),
+      'Commission Ledger': getWebhookUrl('Commission Ledger'),
+      'Notifications': getWebhookUrl('Notifications'),
+      'Client Form Mapping': getWebhookUrl('Client Form Mapping'),
+    };
+    
+    console.log('[DEBUG] Webhook URLs:', webhookUrls);
+    console.log('[DEBUG] N8N_BASE_URL:', n8nBaseUrl);
+    
+    res.json({
+      success: true,
+      environment: {
+        NODE_ENV: process.env.NODE_ENV || 'not set',
+        VERCEL: process.env.VERCEL || 'not set',
+        N8N_BASE_URL: n8nBaseUrl,
+      },
+      webhookUrls,
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      url: req.url,
+    });
+  } catch (error: any) {
+    console.error('[DEBUG] Error in webhook-config:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack,
+    });
+  }
 });
 
 // Mount route modules
