@@ -20,10 +20,11 @@ export class LedgerController {
       }
 
       // Fetch only Commission Ledger table
+      // DISABLE CACHE to ensure webhook is called every time (user requested manual refresh triggers webhooks)
       // Handle timeout gracefully - return empty array if webhook fails
       let allLedgerEntries: any[] = [];
       try {
-        allLedgerEntries = await n8nClient.fetchTable('Commission Ledger');
+        allLedgerEntries = await n8nClient.fetchTable('Commission Ledger', false); // Disable cache
       } catch (error: any) {
         console.error('[getClientLedger] Failed to fetch Commission Ledger:', error.message);
         // Return empty array instead of failing the entire request
@@ -92,7 +93,8 @@ export class LedgerController {
       }
 
       // Fetch only Commission Ledger table
-      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      // DISABLE CACHE to ensure webhook is called every time
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger', false); // Disable cache
       const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
 
       if (!entry || entry.Client !== req.user!.clientId) {
@@ -149,7 +151,8 @@ export class LedgerController {
       const { ledgerEntryId } = req.params;
 
       // Fetch only Commission Ledger table
-      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      // DISABLE CACHE to ensure webhook is called every time
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger', false); // Disable cache
       const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
 
       if (!entry || entry.Client !== req.user!.clientId) {
@@ -417,7 +420,8 @@ export class LedgerController {
       const { ledgerEntryId } = req.params;
 
       // Fetch only Commission Ledger table
-      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+      // DISABLE CACHE to ensure webhook is called every time
+      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger', false); // Disable cache
       const entry = ledgerEntries.find((e) => e.id === ledgerEntryId);
 
       if (!entry) {

@@ -20,10 +20,11 @@ export class ClientController {
 
       // Fetch only the tables we need
       // Use Promise.allSettled to handle partial failures gracefully
+      // DISABLE CACHE to ensure webhooks are called every time (user requested manual refresh triggers webhooks)
       const results = await Promise.allSettled([
-        n8nClient.fetchTable('Loan Application'),
-        n8nClient.fetchTable('Commission Ledger'),
-        n8nClient.fetchTable('File Auditing Log'),
+        n8nClient.fetchTable('Loan Application', false), // Disable cache
+        n8nClient.fetchTable('Commission Ledger', false), // Disable cache
+        n8nClient.fetchTable('File Auditing Log', false), // Disable cache
       ]);
       
       // Extract results, using empty arrays as fallback for failed requests

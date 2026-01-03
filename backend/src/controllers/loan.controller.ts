@@ -353,13 +353,16 @@ export class LoanController {
       console.log(`[listApplications] Fetching 3 tables in parallel...`);
 
       // Fetch applications and related data from n8n webhooks
+      // DISABLE CACHE to ensure webhooks are called every time
+      // User requested that webhooks should trigger on manual refresh
       // Use Promise.allSettled to handle partial failures gracefully
       // All records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
+      console.log(`[listApplications] Fetching tables with cache DISABLED to trigger webhooks...`);
       const results = await Promise.allSettled([
-        n8nClient.fetchTable('Loan Application'),
-        n8nClient.fetchTable('Clients'),
-        n8nClient.fetchTable('Loan Products'),
+        n8nClient.fetchTable('Loan Application', false), // Disable cache
+        n8nClient.fetchTable('Clients', false), // Disable cache
+        n8nClient.fetchTable('Loan Products', false), // Disable cache
       ]);
       
       console.log(`[listApplications] Promise.allSettled completed`);

@@ -16,10 +16,11 @@ export class NotificationsController {
     try {
       const { unreadOnly, limit } = req.query;
       // Fetch only Notifications table
+      // DISABLE CACHE to ensure webhook is called every time (user requested manual refresh triggers webhooks)
       // Handle timeout gracefully - return empty array if webhook fails
       let notifications: any[] = [];
       try {
-        notifications = await n8nClient.fetchTable('Notifications');
+        notifications = await n8nClient.fetchTable('Notifications', false); // Disable cache
       } catch (error: any) {
         console.error('[getNotifications] Failed to fetch Notifications:', error.message);
         // Return empty array instead of failing the entire request
@@ -106,7 +107,8 @@ export class NotificationsController {
   async getUnreadCount(req: Request, res: Response): Promise<void> {
     try {
       // Fetch only Notifications table
-      const notifications = await n8nClient.fetchTable('Notifications');
+      // DISABLE CACHE to ensure webhook is called every time
+      const notifications = await n8nClient.fetchTable('Notifications', false); // Disable cache
 
       let userNotifications = notifications;
       
@@ -146,7 +148,8 @@ export class NotificationsController {
     try {
       const { id } = req.params;
       // Fetch only Notifications table
-      const notifications = await n8nClient.fetchTable('Notifications');
+      // DISABLE CACHE to ensure webhook is called every time
+      const notifications = await n8nClient.fetchTable('Notifications', false); // Disable cache
       
       const notification = notifications.find((n: any) => n.id === id);
       
@@ -202,7 +205,8 @@ export class NotificationsController {
   async markAllAsRead(req: Request, res: Response): Promise<void> {
     try {
       // Fetch only Notifications table
-      const notifications = await n8nClient.fetchTable('Notifications');
+      // DISABLE CACHE to ensure webhook is called every time
+      const notifications = await n8nClient.fetchTable('Notifications', false); // Disable cache
 
       // Filter user's unread notifications
       let userNotifications = notifications;

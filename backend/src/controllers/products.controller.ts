@@ -30,8 +30,9 @@ export class ProductsController {
       console.log(`[listLoanProducts] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
       
       // Fetch only Loan Products table
-      console.log(`[listLoanProducts] Calling n8nClient.fetchTable('Loan Products')...`);
-      const products = await n8nClient.fetchTable('Loan Products', true, undefined, timeoutMs);
+      // DISABLE CACHE to ensure webhook is called every time (user requested manual refresh triggers webhooks)
+      console.log(`[listLoanProducts] Calling n8nClient.fetchTable('Loan Products') with cache DISABLED...`);
+      const products = await n8nClient.fetchTable('Loan Products', false, undefined, timeoutMs);
       console.log(`[listLoanProducts] fetchTable returned ${products.length} products`);
       
       console.log(`[listLoanProducts] Successfully fetched ${products.length} loan products`);
