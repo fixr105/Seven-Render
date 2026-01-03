@@ -113,7 +113,7 @@ export default async function handlerWrapper(
   try {
     // Handle debug endpoints directly in serverless handler (before Express)
     // This bypasses Express routing to test if the issue is with Express
-    if (req.url && (req.url.includes('/debug/test') || req.url.includes('/debug/env'))) {
+    if (req.url && (req.url.includes('/debug/test') || req.url.includes('/debug/env') || req.url.includes('/debug/webhook-config'))) {
       console.log(`[HANDLER] Debug endpoint detected, handling directly`);
       const origin = req.headers.origin || req.headers.referer || '*';
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -131,14 +131,28 @@ export default async function handlerWrapper(
         return;
       }
       
-      if (req.url.includes('/debug/env')) {
+      if (req.url.includes('/debug/env') || req.url.includes('/debug/webhook-config')) {
+        const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
+        const defaultBaseUrl = 'https://fixrrahul.app.n8n.cloud';
+        const baseUrl = n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl;
+        
+        const webhookUrls = {
+          'Loan Products': `${baseUrl}/webhook/loanproducts`,
+          'Loan Application': `${baseUrl}/webhook/loanapplication`,
+          'Clients': `${baseUrl}/webhook/client`,
+          'Commission Ledger': `${baseUrl}/webhook/commisionledger`,
+          'Notifications': `${baseUrl}/webhook/notifications`,
+          'Client Form Mapping': `${baseUrl}/webhook/clientformmapping`,
+        };
+        
         res.json({
           success: true,
           environment: {
             NODE_ENV: process.env.NODE_ENV || 'not set',
             VERCEL: process.env.VERCEL || 'not set',
-            N8N_BASE_URL: process.env.N8N_BASE_URL || 'NOT SET - using default',
+            N8N_BASE_URL: n8nBaseUrl,
           },
+          webhookUrls,
           timestamp: new Date().toISOString(),
           url: req.url,
         });
