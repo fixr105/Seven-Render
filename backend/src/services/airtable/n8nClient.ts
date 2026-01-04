@@ -511,7 +511,7 @@ export class N8nClient {
         console.log(`[postData] Posting to webhook: ${webhookUrl} (attempt ${attempt}/${retries})`);
         console.log(`[postData] Data:`, JSON.stringify(data, null, 2));
         
-        // Add timeout to prevent hanging (55s to respect Vercel Pro limit of 60s)
+        // Add timeout to prevent hanging requests (55 seconds)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
         

@@ -35,7 +35,7 @@ export class ReportsController {
       const { date, emailRecipients } = req.body;
       const reportDate = date || new Date().toISOString().split('T')[0];
 
-      // Use daily summary service with overall timeout (60s)
+      // Use daily summary service with overall timeout (60s to prevent hanging requests)
       const { dailySummaryService } = await import('../services/reports/dailySummary.service.js');
       
       // Generate report with timeout wrapper

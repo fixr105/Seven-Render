@@ -1,0 +1,28 @@
+# Render Blueprint Configuration (Optional)
+# This file can be used with Render's Blueprint feature for infrastructure-as-code
+# Alternatively, configure via Render Dashboard (recommended for simplicity)
+
+services:
+  - type: web
+    name: seven-fincorp-backend
+    env: node
+    region: singapore  # Change to your preferred region
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: N8N_BASE_URL
+        sync: false  # Set manually in dashboard
+      - key: JWT_SECRET
+        sync: false  # Set manually in dashboard (never commit secrets)
+      - key: CORS_ORIGIN
+        sync: false  # Set manually based on frontend URL
+      - key: CRON_SCHEDULE
+        value: "0 0 * * *"  # Daily at midnight UTC
+        sync: false  # Optional, can be overridden
+
+# Note: This is an example configuration
+# For production, configure via Render Dashboard for better security
+# Environment variables with sync: false should be set manually in dashboard
+
