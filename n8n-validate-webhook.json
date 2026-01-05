@@ -21,7 +21,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({\n  \"success\": true,\n  \"user\": {\n    \"id\": \"test-user-123\",\n    \"email\": \"test@example.com\",\n    \"username\": \"test\",\n    \"role\": \"client\",\n    \"name\": \"Test User\"\n  })\n}) }}",
+        "responseBody": "={\n  \"success\": true,\n  \"user\": {\n    \"id\": \"test-user-123\",\n    \"email\": \"test@example.com\",\n    \"username\": \"test\",\n    \"role\": \"client\",\n    \"name\": \"Test User\"\n  }\n}",
         "options": {}
       },
       "id": "respond-to-webhook-node",
