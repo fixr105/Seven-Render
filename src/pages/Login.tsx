@@ -76,33 +76,11 @@ export const Login: React.FC = () => {
               className="w-full max-w-md rounded-2xl shadow-2xl"
             />
           </div>
-          <div className="text-center">
-            <h1 className="text-5xl font-bold mb-4">Seven Fincorp</h1>
-            <p className="text-xl text-white/90 mb-2">Loan Management Dashboard</p>
-            <p className="text-sm text-white/80">Secure access to your financial dashboard</p>
-          </div>
         </div>
 
         {/* Right Side - Login Form */}
         <div className="w-full">
           <div className="bg-white rounded-2xl shadow-2xl p-8 lg:p-10">
-            {/* Mobile Logo */}
-            <div className="lg:hidden text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-brand-primary rounded-xl mb-4 shadow-lg">
-                <span className="text-white font-bold text-2xl">SF</span>
-              </div>
-              <h1 className="text-3xl font-bold text-neutral-900 mb-2">Seven Fincorp</h1>
-              <p className="text-neutral-600">Loan Management Dashboard</p>
-            </div>
-
-            {/* Desktop Logo */}
-            <div className="hidden lg:block text-center mb-8">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-brand-primary rounded-xl mb-6 shadow-lg">
-                <span className="text-white font-bold text-3xl">SF</span>
-              </div>
-              <h2 className="text-3xl font-bold text-neutral-900 mb-2">Welcome Back</h2>
-              <p className="text-neutral-600">Sign in to continue to your dashboard</p>
-            </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Error Message */}
