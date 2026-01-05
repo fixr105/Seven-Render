@@ -9,7 +9,7 @@ import homeGif from '../components/ui/home2.gif?url';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { user, signIn } = useAuthSafe();
+  const { user, signIn, refreshUser } = useAuthSafe();
   const [username, setUsername] = useState('');
   const [passcode, setPasscode] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
@@ -34,20 +34,17 @@ export const Login: React.FC = () => {
       const validateResponse = await apiService.validate(username, passcode);
 
       if (validateResponse.success && validateResponse.data?.success) {
-        // If validation succeeds and token is returned, set it and user data
+        // If validation succeeds and token is returned, set it and user data directly
         if (validateResponse.data?.token && validateResponse.data?.user) {
-          // Set token in apiService
+          // Set token in apiService FIRST (before any API calls)
           apiService.setToken(validateResponse.data.token);
           
-          // Update auth context with user data
-          const loginResult = await signIn(username, passcode);
+          // Refresh user context to load user data using the token we just set
+          // This will call /auth/me which will validate the token and return user data
+          await refreshUser();
           
-          if (loginResult.error) {
-            setError(typeof loginResult.error === 'string' ? loginResult.error : loginResult.error.message || 'Login failed');
-          } else {
-            // Success - navigate will happen automatically via useEffect
-            navigate('/dashboard');
-          }
+          // Success - navigate will happen automatically via useEffect when user is set
+          navigate('/dashboard');
         } else if (validateResponse.data?.validated) {
           // Validation succeeded but no token - user might not be in User Accounts table
           setError(validateResponse.data?.error || 'User validated but could not create session. Please contact support.');
