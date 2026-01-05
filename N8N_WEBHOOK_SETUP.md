@@ -118,12 +118,22 @@ return {
 
 ### Step 5: Connect the Nodes
 
+**IMPORTANT**: All nodes must be properly connected! The webhook won't work if nodes are disconnected.
+
 Connect nodes in this order:
 1. Webhook → Extract Credentials
 2. Extract Credentials → Airtable/Data Source
 3. Airtable → IF Node (check credentials)
 4. IF Node (true) → Success Response
 5. IF Node (false) → Failure Response
+
+**For Simple Test Setup:**
+- Webhook → Respond to Webhook (direct connection, no other nodes in between)
+
+**Common Error**: "Unused Respond to Webhook node found"
+- This means the Respond to Webhook node is not connected to the workflow
+- Make sure there's a connection line from Webhook (or previous node) → Respond to Webhook
+- The connection line should be visible in the workflow canvas
 
 ### Step 6: Activate the Workflow
 
