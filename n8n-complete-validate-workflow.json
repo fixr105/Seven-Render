@@ -1,0 +1,198 @@
+{
+  "name": "User Validation - Complete Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "validate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-400, 300],
+      "id": "webhook-node",
+      "name": "Webhook",
+      "webhookId": "validate"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "list",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7RRcehD5xLiPv7",
+          "mode": "id"
+        },
+        "options": {
+          "filterByFormula": "=LOWER({Username}) = LOWER(\"{{ $json.body.username }}\")"
+        },
+        "returnAll": false,
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [-200, 300],
+      "id": "airtable-list-node",
+      "name": "Airtable: Get User by Username",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7GvicfJT1nu7OUoa",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a user authentication agent. Validate user credentials and return ONLY raw JSON (no markdown, no code blocks).\n\n## Your Task:\n1. You will receive username and passcode from the webhook request\n2. You will receive Airtable user data from the previous node\n3. Validate the credentials and return user information in the exact JSON format specified\n\n## Input Data:\n- Username from request: {{ $json.body.username }}\n- Passcode from request: {{ $json.body.passcode }}\n- Airtable user data: {{ JSON.stringify($('Airtable: Get User by Username').item.json) }}\n\n## Validation Logic:\n1. Check if Airtable returned any data:\n   - If Airtable data is empty or null → return error\n   - If Airtable data exists → continue\n\n2. Compare username (case-insensitive):\n   - Airtable Username: {{ $('Airtable: Get User by Username').item.json.fields.Username }}\n   - Request Username: {{ $json.body.username }}\n   - If they don't match (case-insensitive) → return error\n\n3. Compare password (case-sensitive):\n   - Airtable Password: {{ $('Airtable: Get User by Username').item.json.fields.Password }}\n   - Request Passcode: {{ $json.body.passcode }}\n   - If they don't match exactly (case-sensitive) → return error\n\n4. If both username and password match:\n   - Return success response with user data from Airtable\n\n## Output Format (STRICT - Return ONLY JSON, no markdown):\n\nSuccess Response (ONLY this JSON):\n{\n  \"success\": true,\n  \"user\": {\n    \"id\": \"<airtable_record_id>\",\n    \"email\": \"<airtable_email>\",\n    \"username\": \"<airtable_username>\",\n    \"role\": \"<airtable_role>\",\n    \"clientId\": \"<airtable_client_id_or_null>\",\n    \"kamId\": \"<airtable_kam_id_or_null>\",\n    \"nbfcId\": \"<airtable_nbfc_id_or_null>\",\n    \"name\": \"<airtable_name_or_null>\"\n  }\n}\n\nError Response (ONLY this JSON):\n{\n  \"success\": false,\n  \"error\": \"Invalid username or passcode\"\n}\n\n## Field Mapping:\n- Airtable \"id\" → response \"user.id\"\n- Airtable \"Email\" → response \"user.email\"\n- Airtable \"Username\" → response \"user.username\"\n- Airtable \"Role\" → response \"user.role\"\n- Airtable \"Client ID\" or \"ClientId\" → response \"user.clientId\"\n- Airtable \"KAM ID\" or \"KAMId\" → response \"user.kamId\"\n- Airtable \"NBFC ID\" or \"NBFCId\" → response \"user.nbfcId\"\n- Airtable \"Name\" → response \"user.name\"\n\n## Critical Rules:\n1. Return ONLY the JSON object - NO markdown code blocks, NO ```json```, NO explanations\n2. If any field is missing in Airtable, use null (not empty string)\n3. Password comparison is case-sensitive\n4. Username comparison is case-insensitive\n5. If Airtable returns no data → return error immediately",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [0, 300],
+      "id": "ai-agent-node",
+      "name": "AI Agent: Validate Credentials"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [-144, 500],
+      "id": "openai-model-node",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "JWuuxy0L5XtsVuUU",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"success\": {\n      \"type\": \"boolean\"\n    },\n    \"user\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"id\": {\n          \"type\": \"string\"\n        },\n        \"email\": {\n          \"type\": \"string\",\n          \"nullable\": true\n        },\n        \"username\": {\n          \"type\": \"string\"\n        },\n        \"role\": {\n          \"type\": \"string\",\n          \"enum\": [\"client\", \"kam\", \"credit_team\", \"nbfc\"]\n        },\n        \"clientId\": {\n          \"type\": \"string\",\n          \"nullable\": true\n        },\n        \"kamId\": {\n          \"type\": \"string\",\n          \"nullable\": true\n        },\n        \"nbfcId\": {\n          \"type\": \"string\",\n          \"nullable\": true\n        },\n        \"name\": {\n          \"type\": \"string\",\n          \"nullable\": true\n        }\n      },\n      \"required\": [\"id\", \"username\", \"role\"]\n    },\n    \"error\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\"success\"],\n  \"oneOf\": [\n    {\n      \"properties\": {\n        \"success\": {\n          \"const\": true\n        }\n      },\n      \"required\": [\"user\"]\n    },\n    {\n      \"properties\": {\n        \"success\": {\n          \"const\": false\n        }\n      },\n      \"required\": [\"error\"]\n    }\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [-144, 600],
+      "id": "output-parser-node",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get AI output\nconst aiOutput = $input.item.json;\n\n// Extract JSON from markdown if present\nlet jsonString = '';\n\nif (aiOutput.output) {\n  // If wrapped in markdown code blocks\n  jsonString = aiOutput.output\n    .replace(/```json\\s*/g, '')\n    .replace(/```\\s*/g, '')\n    .trim();\n} else if (typeof aiOutput === 'string') {\n  jsonString = aiOutput\n    .replace(/```json\\s*/g, '')\n    .replace(/```\\s*/g, '')\n    .trim();\n} else {\n  // Already JSON object - validate and format\n  if (aiOutput.success === true && aiOutput.user) {\n    return {\n      json: {\n        success: true,\n        user: {\n          id: aiOutput.user.id || '',\n          email: aiOutput.user.email || null,\n          username: aiOutput.user.username || '',\n          role: aiOutput.user.role || 'client',\n          clientId: aiOutput.user.clientId || null,\n          kamId: aiOutput.user.kamId || null,\n          nbfcId: aiOutput.user.nbfcId || null,\n          name: aiOutput.user.name || null\n        }\n      }\n    };\n  } else {\n    return {\n      json: {\n        success: false,\n        error: aiOutput.error || 'Invalid username or passcode'\n      }\n    };\n  }\n}\n\n// Parse JSON\ntry {\n  const parsed = JSON.parse(jsonString);\n  \n  // Validate and format response\n  if (parsed.success === true && parsed.user) {\n    return {\n      json: {\n        success: true,\n        user: {\n          id: parsed.user.id || '',\n          email: parsed.user.email || null,\n          username: parsed.user.username || '',\n          role: parsed.user.role || 'client',\n          clientId: parsed.user.clientId || null,\n          kamId: parsed.user.kamId || null,\n          nbfcId: parsed.user.nbfcId || null,\n          name: parsed.user.name || null\n        }\n      }\n    };\n  } else {\n    return {\n      json: {\n        success: false,\n        error: parsed.error || 'Invalid username or passcode'\n      }\n    };\n  }\n} catch (error) {\n  return {\n    json: {\n      success: false,\n      error: \"Failed to parse AI response: \" + error.message\n    }\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "id": "code-clean-node",
+      "name": "Code: Clean & Validate Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [400, 300],
+      "id": "respond-webhook-node",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Get User by Username",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Get User by Username": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Validate Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Validate Credentials": {
+      "main": [
+        [
+          {
+            "node": "Code: Clean & Validate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Validate Credentials",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent: Validate Credentials",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Clean & Validate Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2026-01-05T18:00:00.000Z",
+  "versionId": "1"
+}
+
