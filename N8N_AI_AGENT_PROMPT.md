@@ -27,8 +27,7 @@ You will receive:
 
 ## Output Format (STRICT - Must match exactly):
 
-### Success Response:
-```json
+### Success Response (return ONLY this JSON, no markdown):
 {
   "success": true,
   "user": {
@@ -42,20 +41,22 @@ You will receive:
     "name": "<user_name>"
   }
 }
-```
 
-### Error Response:
-```json
+### Error Response (return ONLY this JSON, no markdown):
 {
   "success": false,
   "error": "Invalid username or passcode"
 }
-```
+
+CRITICAL: Return ONLY the JSON object, nothing else. No markdown, no code blocks, no explanations.
 
 ## Important Rules:
-1. ALWAYS return valid JSON in the exact format above
-2. Use the Airtable record ID for the "id" field
-3. Map Airtable fields to response fields:
+1. ALWAYS return ONLY raw JSON - NO markdown code blocks, NO ```json```, NO explanations, JUST the JSON object
+2. The output parser expects pure JSON, so return ONLY: {"success": true, "user": {...}} or {"success": false, "error": "..."}
+3. DO NOT wrap the response in markdown code blocks
+4. DO NOT add any text before or after the JSON
+5. Use the Airtable record ID for the "id" field
+6. Map Airtable fields to response fields:
    - Airtable "Email" → response "email"
    - Airtable "Username" → response "username"
    - Airtable "Role" → response "role"
