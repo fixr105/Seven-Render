@@ -3,7 +3,6 @@
  */
 
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes/index.js';
 import { handleError } from './utils/errors.js';
@@ -14,15 +13,22 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-// CORS configuration - allow credentials (cookies) for authentication
-// For server-based deployment (Render), configure CORS_ORIGIN to your frontend domain
-// Example: CORS_ORIGIN=https://your-app.vercel.app (if frontend on Vercel)
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || true, // Allow all origins in dev, specific origin in prod
-  credentials: true, // Allow cookies to be sent with requests
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+// CORS completely removed - allow all origins without restrictions
+app.use((req, res, next) => {
+  // Allow any origin (dynamically set from request)
+  const origin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Vary', 'Origin');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
