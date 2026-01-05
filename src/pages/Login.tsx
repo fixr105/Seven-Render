@@ -27,19 +27,45 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      // Post to n8n webhook for validation
-      const response = await fetch('https://fixrrahul.app.n8n.cloud/webhook/validate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username,
-          passcode,
-        }),
-      });
+      // Post to n8n webhook for validation with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const data = await response.json();
+      let response: Response;
+      try {
+        response = await fetch('https://fixrrahul.app.n8n.cloud/webhook/validate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username,
+            passcode,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // Handle specific network errors
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Request timed out. Please check your internet connection and try again.');
+        } else if (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('NetworkError')) {
+          throw new Error('Network error: Unable to reach authentication service. Please check your internet connection or try again later.');
+        } else if (fetchError.message?.includes('CORS')) {
+          throw new Error('CORS error: Authentication service is not accessible from this domain. Please contact support.');
+        }
+        throw fetchError;
+      }
+
+      // Check if response is ok before parsing JSON
+      let data: any;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        throw new Error('Invalid response from authentication service. Please try again.');
+      }
 
       if (response.ok && data.success) {
         // If validation succeeds, use the signIn function from auth context
@@ -58,7 +84,14 @@ export const Login: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Failed to connect to authentication service. Please try again.');
+      // Provide user-friendly error messages
+      if (err.message) {
+        setError(err.message);
+      } else if (err.name === 'TypeError' && err.message?.includes('fetch')) {
+        setError('Network error: Unable to connect to authentication service. Please check your internet connection.');
+      } else {
+        setError('Failed to connect to authentication service. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
