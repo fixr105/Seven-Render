@@ -5,7 +5,7 @@ import { apiService } from '../services/api';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import homeGif from '../components/ui/home.gif?url';
+import homeGif from '../components/ui/home2.gif?url';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
