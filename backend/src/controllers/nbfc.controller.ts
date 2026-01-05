@@ -379,7 +379,7 @@ export class NBFCPartnersController {
    */
   async createPartner(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
+      if (!req.user || req.user.role !== 'credit_team') {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
@@ -433,7 +433,7 @@ export class NBFCPartnersController {
    */
   async updatePartner(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
+      if (!req.user || req.user.role !== 'credit_team') {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }

@@ -112,8 +112,8 @@ export async function createAsanaTask(options: {
   kamId?: string;
 }): Promise<{ taskId: string; taskLink: string } | null> {
   try {
-    const authToken = getAsanaAuthToken();
-    if (!authToken) {
+    const asanaAuthToken = getAsanaAuthToken();
+    if (!asanaAuthToken) {
       console.warn('[AsanaService] Asana authentication not configured, skipping Asana task creation');
       return null;
     }
@@ -160,11 +160,10 @@ export async function createAsanaTask(options: {
     console.log(`[AsanaService] Creating Asana task: ${taskName} in project ${projectId}`);
     
     // Create task via Asana API
-    const authToken = getAsanaAuthToken();
     const response = await fetch(`${ASANA_API_BASE}/tasks`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${authToken}`,
+        'Authorization': `Bearer ${asanaAuthToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -178,7 +177,7 @@ export async function createAsanaTask(options: {
       return null;
     }
     
-    const result = await response.json();
+    const result = await response.json() as any;
     const taskId = result.data?.gid || result.data?.id;
     
     if (!taskId) {

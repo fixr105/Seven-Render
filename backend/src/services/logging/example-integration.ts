@@ -97,6 +97,11 @@ export class ExampleLoanController {
       const file = req.file; // From multer
       const user = req.user!;
 
+      if (!file) {
+        res.status(400).json({ success: false, error: 'No file uploaded' });
+        return;
+      }
+
       // ... upload file logic ...
       const documentUrl = `https://example.com/files/${file.filename}`;
 

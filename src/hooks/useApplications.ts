@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
 
@@ -90,7 +90,7 @@ export const useApplications = () => {
     }
   };
 
-  const updateStatus = async (id: string, newStatus: string) => {
+  const updateStatus = async (_id: string, _newStatus: string) => {
     // Status updates should go through specific endpoints (e.g., submit, forward, etc.)
     // For now, just refetch
     await fetchApplications();

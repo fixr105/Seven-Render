@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Clock, CheckCircle, XCircle, Send, Download, Edit, Sparkles, RefreshCw } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Send, Download, Edit, Sparkles, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -69,7 +69,7 @@ interface StatusHistoryItem {
 export const ApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userRole, userRoleId } = useAuthSafe();
+  const { userRole } = useAuthSafe();
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [application, setApplication] = useState<any>(null);
@@ -132,7 +132,7 @@ export const ApplicationDetail: React.FC = () => {
         console.log(`[ApplicationDetail] Application found:`, { id: response.data.id, fileId: response.data.fileId });
         setApplication(response.data);
         // Set AI summary if available
-        setAiSummary(response.data.aiFileSummary || response.data['AI File Summary'] || null);
+        setAiSummary(response.data.aiFileSummary || (response.data as any)['AI File Summary'] || null);
       } else {
         console.error(`[ApplicationDetail] Error fetching application ${id}:`, response.error);
         // Check if it's an authentication error
@@ -214,10 +214,17 @@ export const ApplicationDetail: React.FC = () => {
       // TODO: Implement via backend API - GET /loan-applications/:id/status-history
       const response = await apiService.getFileAuditLog(id!);
       if (response.success && response.data) {
-        // Filter audit log entries that are status changes
-        const statusEntries = response.data.filter((entry: any) => 
-          entry.actionEventType?.toLowerCase().includes('status')
-        );
+        // Filter audit log entries that are status changes and transform to StatusHistoryItem
+        const statusEntries = response.data
+          .filter((entry: any) => entry.actionEventType?.toLowerCase().includes('status'))
+          .map((entry: any) => ({
+            id: entry.id,
+            from_status: null, // Audit log doesn't provide from_status
+            to_status: entry.detailsMessage || entry.actionEventType || 'Unknown',
+            changed_by: entry.actor || null,
+            notes: entry.detailsMessage || null,
+            created_at: entry.timestamp || new Date().toISOString(),
+          })) as StatusHistoryItem[];
         setStatusHistory(statusEntries);
       }
     } catch (error) {
@@ -638,7 +645,7 @@ export const ApplicationDetail: React.FC = () => {
                 <p className="text-center text-neutral-500 py-8">No queries yet</p>
               ) : (
                 <div className="space-y-6">
-                  {queries.map((thread: any, threadIndex: number) => (
+                  {queries.map((thread: any) => (
                     <div key={thread.rootQuery.id} className="border border-neutral-200 rounded-lg p-4">
                       {/* Root Query */}
                       <div className="mb-4 pb-4 border-b border-neutral-200">
@@ -876,12 +883,13 @@ export const ApplicationDetail: React.FC = () => {
                 value={decisionStatus}
                 onChange={(e) => setDecisionStatus(e.target.value)}
                 required
-              >
-                <option value="">Select decision...</option>
-                <option value="Approved">Approve</option>
-                <option value="Rejected">Reject</option>
-                <option value="Needs Clarification">Needs Clarification</option>
-              </Select>
+                options={[
+                  { value: '', label: 'Select decision...' },
+                  { value: 'Approved', label: 'Approve' },
+                  { value: 'Rejected', label: 'Reject' },
+                  { value: 'Needs Clarification', label: 'Needs Clarification' },
+                ]}
+              />
 
               {decisionStatus === 'Approved' && (
                 <div>

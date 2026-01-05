@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { apiService, ApiResponse } from '../services/api';
+import { ApiResponse } from '../services/api';
 
 export function useApiCall<T>() {
   const [loading, setLoading] = useState(false);

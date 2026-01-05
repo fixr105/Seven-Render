@@ -25,10 +25,10 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
   const startTime = Date.now();
 
   // Store original end function
-  const originalEnd = res.end;
+  const originalEnd = res.end.bind(res);
 
   // Override end function to log response
-  res.end = function (chunk?: any, encoding?: any) {
+  res.end = function (chunk?: any, encoding?: any): Response {
     const duration = Date.now() - startTime;
     const statusCode = res.statusCode;
 
@@ -38,7 +38,7 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
     }
 
     // Call original end
-    originalEnd.call(this, chunk, encoding);
+    return originalEnd(chunk, encoding);
   };
 
   next();

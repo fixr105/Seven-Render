@@ -109,10 +109,28 @@ export const NewApplication: React.FC = () => {
         const configData = Array.isArray(response.data) ? response.data : [];
         console.log('NewApplication: Form config data:', configData);
         console.log('NewApplication: Number of categories:', configData.length);
-        configData.forEach((cat: any, idx: number) => {
+        
+        // Handle both nested module format and flat category format
+        let categoriesList: any[] = [];
+        if (configData.length > 0) {
+          // Check if data is nested in modules or flat categories
+          if (configData[0]?.modules) {
+            // Nested format: extract categories from modules
+            configData.forEach((module: any) => {
+              if (module.categories && Array.isArray(module.categories)) {
+                categoriesList.push(...module.categories);
+              }
+            });
+          } else {
+            // Flat format: already categories
+            categoriesList = configData;
+          }
+        }
+        
+        categoriesList.forEach((cat: any, idx: number) => {
           console.log(`NewApplication: Category ${idx + 1}:`, cat.categoryName || cat['Category Name'], 'Fields:', cat.fields?.length || 0);
         });
-        setFormConfig(configData);
+        setFormConfig(categoriesList);
       } else {
         console.warn('NewApplication: No form configuration found. Response:', response);
         if (response.error) {

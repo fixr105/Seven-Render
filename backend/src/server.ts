@@ -26,8 +26,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/', routes);
+// Routes - mount at /api for frontend compatibility
+app.use('/api', routes);
+
+// Also mount at root for health check (for Fly.io health checks)
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API is running',
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Error handling
 app.use(handleError);

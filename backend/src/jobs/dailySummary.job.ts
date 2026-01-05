@@ -8,7 +8,7 @@
  * Can be configured via environment variable CRON_SCHEDULE
  */
 
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 import { dailySummaryService } from '../services/reports/dailySummary.service.js';
 
 /**
@@ -66,9 +66,6 @@ export class DailySummaryJob {
       } finally {
         this.isRunning = false;
       }
-    }, {
-      scheduled: true,
-      timezone: 'UTC',
     });
 
     console.log('[DailySummaryJob] Daily summary job started successfully');

@@ -166,31 +166,35 @@ export class ClientController {
       console.log(`[getFormConfig] Returning configuration for client ${req.user!.clientId} with ${config.modules.length} enabled modules`);
 
       // Transform to match expected frontend format
-      const responseData = {
-        clientId: config.clientId,
-        clientName: config.clientName,
-        enabledModules: config.enabledModules,
-        modules: config.modules.map((module) => ({
-          moduleId: module.moduleId,
-          moduleName: module.moduleName,
-          description: module.description,
-          enabled: module.enabled,
-          categories: module.categories.map((cat) => ({
+      // Frontend expects a flat array of categories with fields, not nested modules
+      const categoriesArray: any[] = [];
+      
+      config.modules.forEach((module) => {
+        module.categories.forEach((cat) => {
+          categoriesArray.push({
             categoryId: cat.categoryId,
             categoryName: cat.categoryName,
             description: cat.description,
             isRequired: cat.isRequired,
             displayOrder: cat.displayOrder,
             fields: cat.fields,
-          })),
-        })),
-        version: config.version,
-        productId: config.productId,
-      };
+          });
+        });
+      });
 
+      // Sort by display order if available
+      categoriesArray.sort((a, b) => {
+        const orderA = parseInt(a.displayOrder || '0') || 0;
+        const orderB = parseInt(b.displayOrder || '0') || 0;
+        return orderA - orderB;
+      });
+
+      console.log(`[getFormConfig] Returning ${categoriesArray.length} categories with fields for client ${req.user!.clientId}`);
+      
+      // Return flat array format expected by frontend
       res.json({
         success: true,
-        data: responseData,
+        data: categoriesArray,
       });
     } catch (error: any) {
       console.error('[getFormConfig] Unexpected error:', error);

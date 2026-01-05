@@ -206,16 +206,13 @@ export class CommissionService {
     await n8nClient.postCommissionLedger(payoutEntry);
 
     // Log payout request
-    await centralizedLogger.logAdminActivity(
-      user,
-      'create_payout_request',
-      `Payout request created: ${requestedAmount} (Balance: ${currentBalance})`,
-      'commission_ledger',
-      undefined,
-      clientId,
-      undefined,
-      { requestedAmount, currentBalance }
-    );
+    await centralizedLogger.logAdminActivity(user, {
+      actionType: 'create_payout_request',
+      description: `Payout request created: ${requestedAmount} (Balance: ${currentBalance})`,
+      targetEntity: 'commission_ledger',
+      relatedClientId: clientId,
+      metadata: { requestedAmount, currentBalance },
+    });
 
     // Log to file audit (if linked to a loan file)
     // Note: Payout requests may not be linked to a specific file
@@ -274,16 +271,14 @@ export class CommissionService {
     });
 
     // Log dispute flagging
-    await centralizedLogger.logAdminActivity(
-      raisedBy,
-      'flag_dispute',
-      `Ledger dispute flagged: ${reason}`,
-      'commission_ledger',
-      entry['Loan File'],
-      entry.Client,
-      undefined,
-      { ledgerEntryId, reason, disputeStatus: DisputeStatus.UNDER_QUERY }
-    );
+    await centralizedLogger.logAdminActivity(raisedBy, {
+      actionType: 'flag_dispute',
+      description: `Ledger dispute flagged: ${reason}`,
+      targetEntity: 'commission_ledger',
+      relatedFileId: entry['Loan File'],
+      relatedClientId: entry.Client,
+      metadata: { ledgerEntryId, reason, disputeStatus: DisputeStatus.UNDER_QUERY },
+    });
 
     // Log to file audit (if linked to a loan file)
     if (entry['Loan File']) {
@@ -353,16 +348,14 @@ export class CommissionService {
     await n8nClient.postCommissionLedger(updateData);
 
     // Log dispute resolution
-    await centralizedLogger.logAdminActivity(
-      user,
-      'resolve_dispute',
-      `Ledger dispute ${resolution.resolved ? 'resolved' : 'rejected'}: ${resolution.notes || ''}`,
-      'commission_ledger',
-      entry['Loan File'],
-      entry.Client,
-      undefined,
-      { ledgerEntryId, resolution }
-    );
+    await centralizedLogger.logAdminActivity(user, {
+      actionType: 'resolve_dispute',
+      description: `Ledger dispute ${resolution.resolved ? 'resolved' : 'rejected'}: ${resolution.notes || ''}`,
+      targetEntity: 'commission_ledger',
+      relatedFileId: entry['Loan File'],
+      relatedClientId: entry.Client,
+      metadata: { ledgerEntryId, resolution },
+    });
 
     // Log to file audit (if linked to a loan file)
     if (entry['Loan File']) {

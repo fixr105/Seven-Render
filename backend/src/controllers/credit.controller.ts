@@ -622,7 +622,7 @@ export class CreditController {
         await notificationService.notifyDisbursement(
           application['File ID'],
           application.Client,
-          loanAmount,
+          disbursedAmount,
           clientEmail
         );
 

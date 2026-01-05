@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
 
@@ -142,7 +142,7 @@ export const useLedger = () => {
     }
   };
 
-  const processPayoutRequest = async (requestId: string, approve: boolean) => {
+  const processPayoutRequest = async (_requestId: string, _approve: boolean) => {
     // This should be handled by credit team endpoint
     // No automatic refresh - user must manually refresh to see updates
   };

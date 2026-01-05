@@ -1,0 +1,57 @@
+# Fly.io Configuration for Seven Fincorp Backend
+# Generated for Express.js server deployment
+
+app = "seven-dash"
+primary_region = "sin"  # Singapore - change to your preferred region
+
+[build]
+  # Build command is handled by fly.toml or can be set in dashboard
+
+[env]
+  PORT = "3001"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = false  # Keep always-on (important for background jobs)
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "5s"
+    interval = "10s"
+    method = "GET"
+    timeout = "2s"
+    path = "/health"
+
+[[services]]
+  processes = ["app"]
+  protocol = "tcp"
+  internal_port = 3001
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 25
+    soft_limit = 20
+
+  [[services.http_checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "5s"
+    method = "GET"
+    path = "/health"
+
+[deploy]
+  strategy = "immediate"
+
+

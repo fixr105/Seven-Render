@@ -13,8 +13,8 @@ export class UsersController {
    */
   async listKAMUsers(req: Request, res: Response): Promise<void> {
     try {
-      // Only credit team and admin can list KAM users
-      if (req.user!.role !== 'credit_team' && req.user!.role !== 'admin') {
+      // Only credit team can list KAM users
+      if (req.user!.role !== 'credit_team') {
         res.status(403).json({
           success: false,
           error: 'Forbidden',
@@ -93,8 +93,8 @@ export class UsersController {
    */
   async listUserAccounts(req: Request, res: Response): Promise<void> {
     try {
-      // Only admin can list all user accounts
-      if (req.user!.role !== 'admin' && req.user!.role !== 'credit_team') {
+      // Only credit team can list all user accounts
+      if (req.user!.role !== 'credit_team') {
         res.status(403).json({
           success: false,
           error: 'Forbidden',
@@ -145,8 +145,8 @@ export class UsersController {
         return;
       }
 
-      // Users can only see their own account unless admin
-      if (req.user!.role !== 'admin' && account.id !== req.user!.id) {
+      // Users can only see their own account unless credit team
+      if (req.user!.role !== 'credit_team' && account.id !== req.user!.id) {
         res.status(403).json({
           success: false,
           error: 'Forbidden',
@@ -183,8 +183,8 @@ export class UsersController {
       const { id } = req.params;
       const { accountStatus, role, associatedProfile } = req.body;
 
-      // Only admin can update user accounts
-      if (req.user!.role !== 'admin') {
+      // Only credit team can update user accounts
+      if (req.user!.role !== 'credit_team') {
         res.status(403).json({
           success: false,
           error: 'Forbidden',

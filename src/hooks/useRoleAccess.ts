@@ -7,7 +7,7 @@ import { useApiAuth } from '../contexts/ApiAuthContext';
 import { UserRole } from '../services/api';
 
 export function useRoleAccess() {
-  const { user, hasRole } = useApiAuth();
+  const { user } = useApiAuth();
 
   const isClient = user?.role === 'client';
   const isKAM = user?.role === 'kam';

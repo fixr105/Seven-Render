@@ -99,6 +99,24 @@ export class LoanController {
       
       validationWarnings.push(...validationResult.warnings);
 
+      // Module 2: Process document uploads - store OneDrive links in Documents field
+      // Format: fieldId:url|fileName,fieldId:url|fileName
+      const documentsArray: string[] = [];
+      const documentLinks: Record<string, string> = {};
+      
+      if (documentUploads && Array.isArray(documentUploads)) {
+        documentUploads.forEach((upload: any) => {
+          if (upload.fieldId && upload.fileUrl) {
+            // Store as fieldId:url|fileName format for Documents field
+            const fileName = upload.fileName || upload.fileUrl.split('/').pop() || 'document';
+            documentsArray.push(`${upload.fieldId}:${upload.fileUrl}|${fileName}`);
+            
+            // Also store in documentLinks for validation
+            documentLinks[upload.fieldId] = upload.fileUrl;
+          }
+        });
+      }
+
       // Generate File ID
       const timestamp = Date.now().toString(36).toUpperCase();
       const fileId = `SF${timestamp.slice(-8)}`;
@@ -185,9 +203,7 @@ export class LoanController {
 
       // Module 2: Process document uploads - store OneDrive links in Documents field
       // Format: fieldId:url|fileName,fieldId:url|fileName
-      const documentsArray: string[] = [];
-      const documentLinks: Record<string, string> = {};
-      
+      // Note: documentsArray and documentLinks are already declared above, reuse them
       if (documentUploads && Array.isArray(documentUploads)) {
         documentUploads.forEach((upload: any) => {
           if (upload.fieldId && upload.fileUrl) {
@@ -509,7 +525,7 @@ export class LoanController {
       }
 
       // Check access permissions
-      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
+      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         console.log(`[LoanController] Access denied for application ${id}. User: ${req.user!.email}, Role: ${req.user!.role}, clientId: ${req.user!.clientId}, Application Client: ${application.Client || application['Client']}`);
         res.status(403).json({ 
@@ -558,7 +574,7 @@ export class LoanController {
 
       // Step 2: Check access permissions BEFORE fetching audit logs
       // Only KAM, Credit Team, or Client (for their own queries) can resolve
-      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
+      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         res.status(403).json({ success: false, error: 'Access denied' });
         return;
@@ -643,7 +659,7 @@ export class LoanController {
       console.log(`[LoanController] Found application: id=${application.id}, File ID=${application['File ID']}, Client=${application.Client || application['Client']}`);
 
       // Step 3: Check access permissions BEFORE fetching audit logs
-      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
+      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         console.log(`[LoanController] Access denied for application ${id}. User: ${req.user!.email}, Role: ${req.user!.role}, clientId: ${req.user!.clientId}, Application Client: ${application.Client || application['Client']}`);
         res.status(403).json({ 

@@ -26,3 +26,6 @@ services:
 # For production, configure via Render Dashboard for better security
 # Environment variables with sync: false should be set manually in dashboard
 
+
+
+

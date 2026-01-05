@@ -4,9 +4,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { Applications } from '../Applications';
-import { apiService } from '../../services/api';
 import { renderWithProviders, mockClientUser, mockKAMUser, mockCreditUser } from '../../test/helpers';
 
 // Mock API service

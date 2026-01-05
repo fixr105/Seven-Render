@@ -3,7 +3,7 @@
  * Shows how to fetch data using the API service
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useApiAuth } from '../contexts/ApiAuthContext';
 import { useRoleAccess } from '../hooks/useRoleAccess';
 import { apiService, DashboardSummary } from '../services/api';

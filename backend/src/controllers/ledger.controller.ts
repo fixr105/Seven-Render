@@ -303,7 +303,9 @@ export class LedgerController {
       }
 
       // Verify this client is managed by this KAM
-      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!);
+      // Fetch user accounts for getKAMManagedClients
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
+      const managedClients = await dataFilterService.getKAMManagedClients(req.user.kamId!, userAccounts);
       if (!managedClients.includes(clientId as string)) {
         res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
         return;

@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { FileUpload } from '../components/ui/FileUpload';
 import { Select } from '../components/ui/Select';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, Send } from 'lucide-react';
+import { Home, FileText, Send } from 'lucide-react';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
 
@@ -187,7 +187,7 @@ export const ClientForm: React.FC = () => {
             // Match categories to modules by name
             const matchedModules: string[] = [];
             categoryIds.forEach(categoryId => {
-              const category = categoriesResponse.data.find((c: any) => 
+              const category = categoriesResponse.data?.find((c: any) => 
                 c.id === categoryId || c['Category ID'] === categoryId
               );
               

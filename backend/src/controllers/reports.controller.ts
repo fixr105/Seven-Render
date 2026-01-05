@@ -152,7 +152,7 @@ export class ReportsController {
    */
   async getLatestDailySummary(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
+      if (!req.user || req.user.role !== 'credit_team') {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
@@ -206,7 +206,7 @@ export class ReportsController {
    */
   async listDailySummaries(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
+      if (!req.user || req.user.role !== 'credit_team') {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }

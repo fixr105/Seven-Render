@@ -40,7 +40,7 @@ export class AIController {
       }
 
       // Step 2: Check access BEFORE fetching clients
-      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
+      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         res.status(403).json({ success: false, error: 'Access denied' });
         return;
@@ -145,7 +145,7 @@ export class AIController {
       }
 
       // Check access
-      const filtered = dataFilterService.filterLoanApplications([application], req.user!);
+      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         res.status(403).json({ success: false, error: 'Access denied' });
         return;

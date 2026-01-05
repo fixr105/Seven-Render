@@ -82,7 +82,7 @@ export class AISummaryService {
         throw new Error(`n8n AI webhook failed: ${response.statusText}`);
       }
 
-      const result = await response.json();
+      const result = await response.json() as any;
       
       // Parse n8n response - could be in various formats
       if (result.summary) {
@@ -152,7 +152,7 @@ export class AISummaryService {
         throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       const content = data.choices[0]?.message?.content;
 
       if (!content) {
