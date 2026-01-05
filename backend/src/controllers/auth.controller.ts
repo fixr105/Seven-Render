@@ -4,7 +4,9 @@
 
 import { Request, Response } from 'express';
 import fetch from 'node-fetch';
+import jwt from 'jsonwebtoken';
 import { authService } from '../services/auth/auth.service.js';
+import { authConfig } from '../config/auth.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { loginSchema } from '../utils/validators.js';
 
@@ -509,7 +511,74 @@ export class AuthController {
         // Parse n8n response
         const data = await response.json();
 
-        // Return the n8n response as-is (it should have success, user, etc.)
+        // If validation succeeds, try to generate a token
+        if (data.success) {
+          try {
+            // Try to login with username as email to get token and user data
+            // This ensures the user exists in User Accounts and we get proper user context
+            const loginResult = await authService.login(username, passcode);
+            
+            // Return token and user data
+            res.json({
+              success: true,
+              token: loginResult.token,
+              user: loginResult.user,
+            });
+            return;
+          } catch (loginError: any) {
+            // If login fails, it means user is not in User Accounts table
+            // But validation succeeded, so we can still create a basic token
+            // using the username and data from n8n response
+            console.warn('[AuthController] Validate succeeded but user not in User Accounts:', loginError.message);
+            
+            // Extract user data from n8n response if available
+            const n8nUser = data.user || data;
+            const userEmail = n8nUser.email || n8nUser.username || username;
+            const userRole = n8nUser.role || 'client';
+            
+            // Generate a basic token with available user data
+            try {
+              const jwtPayload = {
+                userId: n8nUser.id || `validated-${username}`,
+                email: userEmail,
+                role: userRole,
+                clientId: n8nUser.clientId,
+                kamId: n8nUser.kamId,
+                nbfcId: n8nUser.nbfcId,
+              };
+              
+              const token = jwt.sign(
+                jwtPayload,
+                authConfig.jwtSecret,
+                { expiresIn: authConfig.jwtExpiresIn } as jwt.SignOptions
+              );
+              
+              res.json({
+                success: true,
+                token: token,
+                user: {
+                  id: jwtPayload.userId,
+                  email: userEmail,
+                  role: userRole,
+                  clientId: n8nUser.clientId,
+                  kamId: n8nUser.kamId,
+                  nbfcId: n8nUser.nbfcId,
+                  name: n8nUser.name,
+                },
+              });
+              return;
+            } catch (tokenError: any) {
+              console.error('[AuthController] Failed to generate token:', tokenError);
+              res.status(500).json({
+                success: false,
+                error: 'Validation succeeded but could not create session token.',
+              });
+              return;
+            }
+          }
+        }
+
+        // If validation failed, return n8n response as-is
         res.json(data);
       } catch (fetchError: any) {
         clearTimeout(timeoutId);

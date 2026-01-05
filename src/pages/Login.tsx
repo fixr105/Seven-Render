@@ -30,19 +30,30 @@ export const Login: React.FC = () => {
     try {
       // Validate username and passcode via backend (which proxies to n8n)
       // This eliminates CORS issues since backend-to-backend calls don't have CORS restrictions
+      // The validate endpoint now also generates a token if validation succeeds
       const validateResponse = await apiService.validate(username, passcode);
 
       if (validateResponse.success && validateResponse.data?.success) {
-        // If validation succeeds, use the signIn function from auth context
-        // The signIn function expects email and password, so we'll use username as email
-        // and passcode as password
-        const loginResult = await signIn(username, passcode);
-        
-        if (loginResult.error) {
-          setError(typeof loginResult.error === 'string' ? loginResult.error : loginResult.error.message || 'Login failed');
+        // If validation succeeds and token is returned, set it and user data
+        if (validateResponse.data?.token && validateResponse.data?.user) {
+          // Set token in apiService
+          apiService.setToken(validateResponse.data.token);
+          
+          // Update auth context with user data
+          const loginResult = await signIn(username, passcode);
+          
+          if (loginResult.error) {
+            setError(typeof loginResult.error === 'string' ? loginResult.error : loginResult.error.message || 'Login failed');
+          } else {
+            // Success - navigate will happen automatically via useEffect
+            navigate('/dashboard');
+          }
+        } else if (validateResponse.data?.validated) {
+          // Validation succeeded but no token - user might not be in User Accounts table
+          setError(validateResponse.data?.error || 'User validated but could not create session. Please contact support.');
         } else {
-          // Success - navigate will happen automatically via useEffect
-          navigate('/dashboard');
+          // Validation succeeded but unexpected response format
+          setError('Login successful but unexpected response format. Please try again.');
         }
       } else {
         setError(validateResponse.error || validateResponse.data?.error || validateResponse.data?.message || 'Invalid username or passcode');
