@@ -4,7 +4,7 @@ import { useAuthSafe } from '../hooks/useAuthSafe';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import homeGif from '../components/ui/home.gif';
+import homeGif from '../components/ui/home.gif?url';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
