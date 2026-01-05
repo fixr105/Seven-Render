@@ -219,6 +219,12 @@ class ApiService {
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
     this.loadToken();
+    
+    // Log base URL in development to help debug
+    if (typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || import.meta.env.DEV)) {
+      console.log('[ApiService] Initialized with base URL:', this.baseUrl);
+      console.log('[ApiService] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || 'not set');
+    }
   }
 
   // Token Management
@@ -371,7 +377,15 @@ class ApiService {
         if (isLocalhost) {
           errorMessage = `Cannot connect to backend API. Please ensure the backend server is running on port 3001.\n\nTo start the server:\n  cd backend\n  npm run dev`;
         } else {
-          errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration\n- Server is down or unreachable\n\nPlease check your network connection and try again.`;
+          // Check if we're in production and baseUrl is relative (missing VITE_API_BASE_URL)
+          const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+          const isRelativeUrl = this.baseUrl.startsWith('/') || !this.baseUrl.includes('://');
+          
+          if (isProduction && isRelativeUrl) {
+            errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-dash.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
+          } else {
+            errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.`;
+          }
         }
       } else if (error.message?.includes('JSON.parse')) {
         errorMessage = `Invalid response from server. The API may not be responding correctly.`;

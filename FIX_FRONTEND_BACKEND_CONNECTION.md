@@ -1,113 +1,108 @@
-# Fix Frontend-Backend Connection
+# Fix: Frontend Cannot Connect to Backend
 
 ## Problem
+The frontend deployed on Vercel cannot connect to the backend on Fly.io, showing:
+```
+Cannot connect to backend API at https://seven-dash.fly.dev/api/auth/validate
+```
 
-Frontend at `https://lms.sevenfincorp.com` is trying to connect to `/api` (relative path), but backend is on Fly.io at `https://seven-dash.fly.dev`.
+## Root Cause
+The frontend needs the `VITE_API_BASE_URL` environment variable set in Vercel to point to the Fly.io backend.
 
 ## Solution
 
-### Step 1: Start Backend on Fly.io
+### Step 1: Set Environment Variable in Vercel
 
-The backend machines are currently stopped. Start them:
+1. Go to your Vercel project dashboard: https://vercel.com/dashboard
+2. Navigate to your project (likely `seven-render` or similar)
+3. Go to **Settings** → **Environment Variables**
+4. Add/Update the following variable:
+   - **Name**: `VITE_API_BASE_URL`
+   - **Value**: `https://seven-dash.fly.dev`
+   - **Environment**: Production, Preview, Development (select all)
+5. Click **Save**
 
+### Step 2: Redeploy Frontend
+
+After setting the environment variable, you need to redeploy:
+
+1. Go to **Deployments** tab in Vercel
+2. Click the **⋯** (three dots) on the latest deployment
+3. Click **Redeploy**
+4. Or push a new commit to trigger automatic deployment
+
+### Step 3: Verify Backend is Running
+
+Test the backend directly:
 ```bash
-cd backend
-fly scale count 1 --app seven-dash --yes
+curl -X POST https://seven-dash.fly.dev/api/auth/validate \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","passcode":"test"}'
 ```
 
-Wait a few seconds, then verify:
-```bash
-curl https://seven-dash.fly.dev/health
+Expected response (even if n8n webhook isn't registered):
+```json
+{"success":false,"error":"The requested webhook \"POST validate\" is not registered."}
 ```
 
-Should return: `{"success":true,"message":"API is running",...}`
+This confirms the backend is reachable.
 
-### Step 2: Configure CORS on Fly.io Backend
+### Step 4: Activate n8n Webhook
 
-Allow requests from your frontend domain:
+The backend is working, but the n8n webhook needs to be activated:
 
-```bash
-fly secrets set CORS_ORIGIN=https://lms.sevenfincorp.com --app seven-dash
-```
+1. Go to your n8n instance: https://fixrrahul.app.n8n.cloud
+2. Create or find the workflow with webhook path `validate`
+3. Ensure the webhook trigger is set to:
+   - **Path**: `validate`
+   - **Method**: `POST`
+   - **Full URL**: `https://fixrrahul.app.n8n.cloud/webhook/validate`
+4. **Activate the workflow** (toggle in top-right)
+5. Test the webhook:
+   ```bash
+   curl -X POST https://fixrrahul.app.n8n.cloud/webhook/validate \
+     -H "Content-Type: application/json" \
+     -d '{"username":"test","passcode":"test"}'
+   ```
 
-Restart backend:
-```bash
-fly apps restart --app seven-dash
-```
+## Alternative: Use Vercel Serverless Functions
 
-### Step 3: Update Frontend Environment Variable
+If you prefer to keep everything on Vercel, you can:
 
-You need to set `VITE_API_BASE_URL` to point to Fly.io backend.
+1. Remove `VITE_API_BASE_URL` from Vercel environment variables
+2. Ensure `vercel.json` has the correct rewrites
+3. Deploy the backend code to Vercel's serverless functions
 
-**Option A: If Frontend is on Vercel**
+However, the current setup (Fly.io backend) is recommended for better performance and reliability.
 
-1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-2. Add/Update: `VITE_API_BASE_URL` = `https://seven-dash.fly.dev`
-3. **Important**: Do NOT include `/api` - Fly.io serves at root
-4. Redeploy frontend
+## Troubleshooting
 
-**Option B: If Frontend is Self-Hosted**
+### Still seeing connection errors?
 
-1. Set environment variable in your hosting platform
-2. `VITE_API_BASE_URL=https://seven-dash.fly.dev`
-3. Restart/redeploy frontend
-
-**Option C: If Using Custom Domain/Server**
-
-Set the environment variable in your deployment configuration:
-```bash
-export VITE_API_BASE_URL=https://seven-dash.fly.dev
-```
-
-### Step 4: Verify Configuration
-
-After setting the environment variable and redeploying:
-
-1. Check browser console - API calls should go to `seven-dash.fly.dev`
-2. Test health endpoint in browser console:
+1. **Check browser console** for CORS errors
+2. **Verify CORS_ORIGIN** in Fly.io backend:
+   ```bash
+   fly secrets list --app seven-dash
+   ```
+   Should include: `CORS_ORIGIN=https://lms.sevenfincorp.com`
+3. **Test from browser console**:
    ```javascript
-   fetch('https://seven-dash.fly.dev/health')
+   fetch('https://seven-dash.fly.dev/api/health')
      .then(r => r.json())
      .then(console.log)
    ```
-3. Try logging in - should work now
 
-## Important Notes
+### Backend returns 404 from n8n?
 
-1. **No `/api` suffix needed**: Fly.io backend serves at root (`https://seven-dash.fly.dev/health`, not `/api/health`)
+This is expected if the n8n webhook isn't activated. The backend is working correctly; you just need to activate the n8n workflow.
 
-2. **CORS must be configured**: Backend must allow requests from `https://lms.sevenfincorp.com`
-
-3. **Backend must be running**: Check with `fly status --app seven-dash`
-
-## Quick Fix Commands
+## Quick Fix Summary
 
 ```bash
-# 1. Start backend
-cd backend
-fly scale count 1 --app seven-dash --yes
+# 1. Set in Vercel Dashboard → Settings → Environment Variables
+VITE_API_BASE_URL=https://seven-dash.fly.dev
 
-# 2. Set CORS
-fly secrets set CORS_ORIGIN=https://lms.sevenfincorp.com --app seven-dash
+# 2. Redeploy frontend in Vercel
 
-# 3. Restart backend
-fly apps restart --app seven-dash
-
-# 4. Verify backend is working
-curl https://seven-dash.fly.dev/health
-
-# 5. Then update frontend environment variable:
-# VITE_API_BASE_URL=https://seven-dash.fly.dev
-# (Set in your frontend hosting platform - Vercel, custom server, etc.)
+# 3. Activate n8n webhook at https://fixrrahul.app.n8n.cloud
 ```
-
-## After Fix
-
-Once configured correctly:
-- Frontend at `https://lms.sevenfincorp.com` will make requests to `https://seven-dash.fly.dev`
-- All API endpoints will work
-- No more NetworkError
-
-
-
-
