@@ -3,6 +3,7 @@
  */
 
 import { Request, Response } from 'express';
+import fetch from 'node-fetch';
 import { authService } from '../services/auth/auth.service.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { loginSchema } from '../utils/validators.js';
@@ -438,6 +439,107 @@ export class AuthController {
         });
       }
       return;
+    }
+  }
+
+  /**
+   * POST /auth/validate
+   * 
+   * Proxies username/passcode validation to n8n webhook
+   * This endpoint eliminates CORS issues by handling the n8n call server-side
+   * 
+   * Request Body:
+   * {
+   *   username: string
+   *   passcode: string
+   * }
+   * 
+   * Response:
+   * {
+   *   success: boolean
+   *   user?: { ... }
+   *   error?: string
+   * }
+   */
+  async validate(req: Request, res: Response): Promise<void> {
+    try {
+      const { username, passcode } = req.body;
+
+      if (!username || !passcode) {
+        res.status(400).json({
+          success: false,
+          error: 'Username and passcode are required',
+        });
+        return;
+      }
+
+      // Get n8n base URL from environment
+      const n8nBaseUrl = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
+      const validateUrl = `${n8nBaseUrl}/webhook/validate`;
+
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      try {
+        // Proxy the request to n8n webhook (server-to-server, no CORS issues)
+        const response = await fetch(validateUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username,
+            passcode,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        // Check if response is ok
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          res.status(response.status).json({
+            success: false,
+            error: errorData.error || errorData.message || 'Validation failed',
+          });
+          return;
+        }
+
+        // Parse n8n response
+        const data = await response.json();
+
+        // Return the n8n response as-is (it should have success, user, etc.)
+        res.json(data);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // Handle specific error types
+        if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
+          res.status(504).json({
+            success: false,
+            error: 'Request timed out. Please try again.',
+          });
+          return;
+        }
+
+        if (fetchError.message?.includes('fetch') || fetchError.code === 'ECONNREFUSED') {
+          res.status(503).json({
+            success: false,
+            error: 'Unable to reach authentication service. Please try again later.',
+          });
+          return;
+        }
+
+        throw fetchError; // Re-throw to outer catch
+      }
+    } catch (error: any) {
+      console.error('[AuthController] Validate error:', error);
+      
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Internal server error',
+      });
     }
   }
 }

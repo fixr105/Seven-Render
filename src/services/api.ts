@@ -256,7 +256,7 @@ class ApiService {
     };
 
     // Public endpoints that don't require authentication
-    const publicEndpoints = ['/auth/login', '/auth/register', '/health'];
+    const publicEndpoints = ['/auth/login', '/auth/validate', '/auth/register', '/health'];
     const isPublicEndpoint = publicEndpoints.some(publicPath => endpoint.startsWith(publicPath));
 
     // Add auth token if available
@@ -402,6 +402,17 @@ class ApiService {
     }
 
     return response;
+  }
+
+  /**
+   * Validate username and passcode via n8n webhook (proxied through backend)
+   * This eliminates CORS issues by routing through the backend
+   */
+  async validate(username: string, passcode: string): Promise<ApiResponse<any>> {
+    return this.request<any>('/auth/validate', {
+      method: 'POST',
+      body: JSON.stringify({ username, passcode }),
+    });
   }
 
   /**
