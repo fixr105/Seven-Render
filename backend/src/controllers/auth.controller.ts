@@ -464,10 +464,28 @@ export class AuthController {
    * }
    */
   async validate(req: Request, res: Response): Promise<void> {
+    const requestId = `VALIDATE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.logStructured('VALIDATE_REQUEST_STARTED', {
+      requestId,
+      timestamp: new Date().toISOString(),
+    });
+    
     try {
       const { username, passcode } = req.body;
 
+      this.logStructured('VALIDATE_INPUT_RECEIVED', {
+        requestId,
+        hasUsername: !!username,
+        hasPasscode: !!passcode,
+        username: username || 'N/A',
+      });
+
       if (!username || !passcode) {
+        this.logStructured('VALIDATE_INPUT_VALIDATION_FAILED', {
+          requestId,
+          error: 'Missing username or passcode',
+        });
         res.status(400).json({
           success: false,
           error: 'Username and passcode are required',
@@ -478,6 +496,13 @@ export class AuthController {
       // Get n8n base URL from environment
       const n8nBaseUrl = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
       const validateUrl = `${n8nBaseUrl}/webhook/validate`;
+      
+      this.logStructured('VALIDATE_N8N_WEBHOOK_CALL_STARTED', {
+        requestId,
+        n8nBaseUrl,
+        validateUrl,
+        username,
+      });
 
       // Create AbortController for timeout
       const controller = new AbortController();
@@ -501,6 +526,12 @@ export class AuthController {
         // Check if response is ok
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          this.logStructured('VALIDATE_N8N_WEBHOOK_FAILED', {
+            requestId,
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData.error || errorData.message || 'Unknown error',
+          });
           res.status(response.status).json({
             success: false,
             error: errorData.error || errorData.message || 'Validation failed',
@@ -510,6 +541,13 @@ export class AuthController {
 
         // Parse n8n response
         const data = await response.json();
+        
+        this.logStructured('VALIDATE_N8N_WEBHOOK_RESPONSE', {
+          requestId,
+          hasSuccess: !!data.success,
+          hasUser: !!data.user,
+          responseKeys: Object.keys(data),
+        });
 
         // If validation succeeds, try to generate a token
         if (data.success) {
@@ -583,6 +621,13 @@ export class AuthController {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         
+        this.logStructured('VALIDATE_N8N_WEBHOOK_ERROR', {
+          requestId,
+          errorName: fetchError.name,
+          errorMessage: fetchError.message,
+          errorCode: fetchError.code,
+        });
+        
         // Handle specific error types
         if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
           res.status(504).json({
@@ -603,6 +648,13 @@ export class AuthController {
         throw fetchError; // Re-throw to outer catch
       }
     } catch (error: any) {
+      this.logStructured('VALIDATE_ERROR', {
+        requestId,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack?.split('\n').slice(0, 3),
+      });
+      
       console.error('[AuthController] Validate error:', error);
       
       res.status(500).json({
