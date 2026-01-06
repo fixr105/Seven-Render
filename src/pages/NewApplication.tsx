@@ -470,7 +470,7 @@ export const NewApplication: React.FC = () => {
     if (user?.email) {
       return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
-    return 'User';
+    return '';
   };
 
   return (
