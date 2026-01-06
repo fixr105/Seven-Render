@@ -36,8 +36,14 @@ export const Login: React.FC = () => {
       if (validateResponse.success && validateResponse.data?.success) {
         // If validation succeeds and token is returned, set it and user data directly
         if (validateResponse.data?.token && validateResponse.data?.user) {
+          // Ensure name is set - extract from email if missing
+          const userData = validateResponse.data.user;
+          if (!userData.name && userData.email) {
+            userData.name = userData.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          }
+          
           // Set token and user directly from validate response (avoids extra API call)
-          setAuthUserAndToken(validateResponse.data.user, validateResponse.data.token);
+          setAuthUserAndToken(userData, validateResponse.data.token);
     
           // Success - navigate will happen automatically via useEffect when user is set
           navigate('/dashboard');

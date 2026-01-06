@@ -90,7 +90,7 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
               aria-label="User menu"
             >
               <div className="w-8 h-8 bg-brand-primary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-white">{userName.charAt(0).toUpperCase()}</span>
+                <span className="text-sm font-medium text-white">{(userName || 'U').charAt(0).toUpperCase()}</span>
               </div>
             </button>
 

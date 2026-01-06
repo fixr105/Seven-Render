@@ -39,7 +39,12 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
       // For JWT tokens, call the API
       const response = await apiService.getMe();
       if (response.success && response.data) {
-        setUser(response.data);
+        // Ensure name is set - extract from email if missing
+        const userData = response.data;
+        if (!userData.name && userData.email) {
+          userData.name = userData.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+        setUser(userData);
       } else {
         // Token invalid, clear it
         apiService.clearToken();
@@ -83,6 +88,11 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const setAuthUserAndToken = (userData: UserContext, token: string) => {
+    // Ensure name is set - extract from email if missing
+    if (!userData.name && userData.email) {
+      userData.name = userData.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
     // Set token first
     apiService.setToken(token);
     

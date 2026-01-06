@@ -99,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{userName || 'User Name'}</p>
+              <p className="text-sm font-medium text-white truncate">{userName || ''}</p>
               <p className="text-xs text-white/70 truncate">{userRole}</p>
             </div>
           </div>
