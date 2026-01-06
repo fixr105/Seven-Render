@@ -17,7 +17,13 @@ interface DailySummaryReport {
 }
 
 export const Reports: React.FC = () => {
-  const { userRole } = useAuthSafe();
+  const { userRole, user } = useAuthSafe();
+  
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return '';
+  };
   const { unreadCount } = useNotifications();
   const [reports, setReports] = useState<DailySummaryReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +129,7 @@ export const Reports: React.FC = () => {
         onItemClick={handleNavigation}
         pageTitle="Reports"
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-        userName="User"
+        userName={getUserDisplayName()}
         notificationCount={unreadCount}
       >
         <Card>

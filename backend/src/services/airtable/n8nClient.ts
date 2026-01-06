@@ -280,11 +280,11 @@ export class N8nClient {
     }
 
     try {
-      // Always log when GET webhook is actually called (not cached)
-      // Also log N8N_BASE_URL to help debug environment variable issues
-      const n8nBaseUrl = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
-      console.log(`🌐 [WEBHOOK CALL] Fetching ${tableName} from webhook: ${url}`);
-      console.log(`🌐 [WEBHOOK CALL] N8N_BASE_URL: ${n8nBaseUrl}`);
+      // N8N_BASE_URL is required - validate it exists
+      if (!process.env.N8N_BASE_URL) {
+        throw new Error('N8N_BASE_URL environment variable is required. Please set it in your environment configuration.');
+      }
+      const n8nBaseUrl = process.env.N8N_BASE_URL;
       
       // Add timeout support to prevent hanging requests
       const controller = new AbortController();
@@ -406,7 +406,9 @@ export class N8nClient {
       const webhookUrl = n8nConfig.getUserAccountsUrl;
       console.log(`[getUserAccounts] Fetching user accounts with ${timeoutMs}ms timeout`);
       console.log(`[getUserAccounts] Webhook URL: ${webhookUrl}`);
-      console.log(`[getUserAccounts] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud'}`);
+      if (!process.env.N8N_BASE_URL) {
+        throw new Error('N8N_BASE_URL environment variable is required. Please set it in your environment configuration.');
+      }
       const startTime = Date.now();
       
       // Wrap entire fetch + JSON parsing in Promise.race to ensure timeout works

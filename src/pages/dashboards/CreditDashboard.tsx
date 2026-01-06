@@ -37,8 +37,8 @@ export const CreditDashboard: React.FC = () => {
   const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({
     id: app.id,
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
-    clientName: app.client?.company_name || 'Unknown',
-    loanType: app.loan_product?.name || 'N/A',
+    clientName: app.client?.company_name || '',
+    loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
     status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
     lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),

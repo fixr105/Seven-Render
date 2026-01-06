@@ -22,16 +22,12 @@ export const useAuthSafe = () => {
       loading: apiAuthContext.loading,
       signIn: apiAuthContext.login,
       signOut: apiAuthContext.logout,
-      signInAsTestUser: apiAuthContext.signInAsTestUser,
       refreshUser: apiAuthContext.refreshUser,
       setAuthUserAndToken: apiAuthContext.setAuthUserAndToken,
     };
   } else {
     // No provider available - return defaults
     // Only warn in development to avoid console noise in production
-    if (import.meta.env.DEV) {
-      console.warn('No auth provider available, using defaults');
-    }
     return {
       user: null,
       userRole: null,
@@ -39,7 +35,6 @@ export const useAuthSafe = () => {
       loading: false,
       signIn: async () => ({ error: new Error('No auth provider') }),
       signOut: async () => {},
-      signInAsTestUser: () => {},
     };
   }
 };

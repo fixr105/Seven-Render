@@ -48,15 +48,12 @@ export const ClientDashboard: React.FC = () => {
         setLoanProducts(products);
         
         if (products.length === 0) {
-          console.warn('No loan products available');
         }
       } else if (response.error) {
-        console.error('Error fetching loan products:', response.error);
         // If 401/403, the API service already cleared the token
         // The auth context will handle redirect
       }
     } catch (error) {
-      console.error('Exception fetching loan products:', error);
     } finally {
       setLoadingProducts(false);
     }
@@ -68,12 +65,9 @@ export const ClientDashboard: React.FC = () => {
       
       if (response.success && response.data) {
         setConfiguredProductIds(new Set(response.data));
-        console.log('Configured products:', response.data);
       } else if (response.error) {
-        console.error('Error fetching configured products:', response.error);
       }
     } catch (error) {
-      console.error('Exception fetching configured products:', error);
     }
   };
 
@@ -88,7 +82,7 @@ export const ClientDashboard: React.FC = () => {
   const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({
     id: app.id,
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
-    loanType: app.loan_product?.name || 'N/A',
+    loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
     status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
     lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),

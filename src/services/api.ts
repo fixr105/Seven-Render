@@ -7,33 +7,21 @@
 const getApiBaseUrl = () => {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
   
-  // If VITE_API_BASE_URL is explicitly set, use it
-  if (baseUrl) {
-    // If it's a full URL (not localhost), ensure it has /api
-    if (!baseUrl.includes('localhost') && !baseUrl.startsWith('/')) {
-      // It's a production URL - ensure /api is appended
-      if (!baseUrl.endsWith('/api')) {
-        return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
-      }
-      return baseUrl;
+  // VITE_API_BASE_URL is required in production
+  if (!baseUrl) {
+    if (typeof window !== 'undefined') {
+      // In browser, throw error if missing
+      throw new Error('VITE_API_BASE_URL environment variable is required. Please set it in your environment configuration.');
     }
-    // For localhost or relative paths, return as-is
-    return baseUrl;
+    // Fallback for non-browser environments (should not happen in production)
+    return '/api';
   }
   
-  // In production, try to use current origin to avoid relative path issues
-  if (typeof window !== 'undefined' && window.location.origin) {
-    const origin = window.location.origin;
-    // Only use absolute URL if we're not on localhost (production)
-    if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-      return `${origin}/api`;
-    }
+  // Ensure /api is appended if not present
+  if (!baseUrl.endsWith('/api')) {
+    return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
   }
-  
-  // Default: use relative path (works for both dev proxy and Vercel production)
-  // In development, Vite proxy handles /api -> localhost:3001
-  // In production, Vercel rewrites handle /api -> serverless function
-  return '/api';
+  return baseUrl;
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -220,11 +208,6 @@ class ApiService {
     this.baseUrl = baseUrl;
     this.loadToken();
     
-    // Log base URL in development to help debug
-    if (typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || import.meta.env.DEV)) {
-      console.log('[ApiService] Initialized with base URL:', this.baseUrl);
-      console.log('[ApiService] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || 'not set');
-    }
   }
 
   // Token Management
@@ -273,14 +256,8 @@ class ApiService {
     if (tokenToUse) {
       headers['Authorization'] = `Bearer ${tokenToUse}`;
       // Always log in production to debug auth issues
-      console.log(`[ApiService] Sending request to ${endpoint} with Authorization header`);
-      console.log(`[ApiService] Token length: ${tokenToUse.length}, starts with: ${tokenToUse.substring(0, 20)}...`);
     } else if (!isPublicEndpoint) {
       // No token at all - log warning
-      console.warn(`[ApiService] ⚠️ NO TOKEN FOUND for protected endpoint: ${endpoint}`);
-      console.warn(`[ApiService] Token in service: ${this.token ? 'exists' : 'null'}`);
-      console.warn(`[ApiService] Token in localStorage: ${storageToken ? 'exists' : 'null'}`);
-      console.warn(`[ApiService] Request will fail with 401 - user may need to login`);
     }
 
     try {
@@ -373,19 +350,12 @@ class ApiService {
       let errorMessage = 'Network error';
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        const isLocalhost = this.baseUrl.includes('localhost') || this.baseUrl.startsWith('/api');
-        if (isLocalhost) {
-          errorMessage = `Cannot connect to backend API. Please ensure the backend server is running on port 3001.\n\nTo start the server:\n  cd backend\n  npm run dev`;
+        const isRelativeUrl = this.baseUrl.startsWith('/') || !this.baseUrl.includes('://');
+        
+        if (isRelativeUrl) {
+          errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-dash.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
         } else {
-          // Check if we're in production and baseUrl is relative (missing VITE_API_BASE_URL)
-          const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
-          const isRelativeUrl = this.baseUrl.startsWith('/') || !this.baseUrl.includes('://');
-          
-          if (isProduction && isRelativeUrl) {
-            errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-dash.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
-          } else {
-            errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.`;
-          }
+          errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.`;
         }
       } else if (error.message?.includes('JSON.parse')) {
         errorMessage = `Invalid response from server. The API may not be responding correctly.`;

@@ -76,8 +76,8 @@ export const NBFCDashboard: React.FC = () => {
   const tableData: ApplicationRow[] = assignedApplications.map(app => ({
     id: app.id,
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
-    clientName: app.client?.company_name || 'Unknown',
-    loanType: app.loan_product?.name || 'N/A',
+    clientName: app.client?.company_name || '',
+    loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
     status: app.status.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
     sentDate: new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),

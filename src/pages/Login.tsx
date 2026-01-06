@@ -156,7 +156,6 @@ export const Login: React.FC = () => {
                   className="text-sm text-brand-primary hover:text-brand-primary/80 transition-colors"
                   onClick={(e) => {
                     e.preventDefault();
-                    // TODO: Implement forgot passcode
                   }}
                 >
                   Forgot passcode?

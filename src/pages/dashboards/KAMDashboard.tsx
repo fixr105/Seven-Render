@@ -61,7 +61,7 @@ export const KAMDashboard: React.FC = () => {
           });
           return {
             id: clientId,
-            name: client.name || client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
+            name: client.name || client['Client Name'] || client['Primary Contact Name'] || '',
             totalFiles: clientApps.length,
             pendingReview: clientApps.filter(a => a.status === 'pending_kam_review' || a.status === 'under_kam_review').length,
             awaitingResponse: clientApps.filter(a => a.status === 'kam_query_raised' || a.status === 'query_with_client').length,
@@ -90,8 +90,8 @@ export const KAMDashboard: React.FC = () => {
   const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({
     id: app.id,
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
-    clientName: app.client?.company_name || 'Unknown',
-    loanType: app.loan_product?.name || 'N/A',
+    clientName: app.client?.company_name || '',
+    loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
     status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
     lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),

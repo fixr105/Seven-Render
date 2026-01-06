@@ -132,9 +132,14 @@ export default async function handlerWrapper(
       }
       
       if (req.url.includes('/debug/env') || req.url.includes('/debug/webhook-config')) {
-        const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
-        const defaultBaseUrl = 'https://fixrrahul.app.n8n.cloud';
-        const baseUrl = n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl;
+        if (!process.env.N8N_BASE_URL) {
+          res.status(500).json({
+            success: false,
+            error: 'N8N_BASE_URL environment variable is required. Please set it in your environment configuration.',
+          });
+          return;
+        }
+        const baseUrl = process.env.N8N_BASE_URL;
         
         const webhookUrls = {
           'Loan Products': `${baseUrl}/webhook/loanproducts`,

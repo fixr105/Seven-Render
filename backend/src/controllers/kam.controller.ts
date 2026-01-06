@@ -422,10 +422,22 @@ export class KAMController {
         }
       }
       
-      // Fallback: use user ID if KAM ID still not found
+      // Assigned KAM is required - throw error if not found
       if (!assignedKAM) {
-        assignedKAM = req.user!.id || '';
-        console.warn('[createClient] Using User ID as fallback for Assigned KAM:', assignedKAM);
+        res.status(400).json({
+          success: false,
+          error: 'Assigned KAM is required. Please ensure the KAM user exists and has a valid KAM ID.',
+        });
+        return;
+      }
+      
+      // Commission rate is required
+      if (!commissionRate) {
+        res.status(400).json({
+          success: false,
+          error: 'Commission rate is required.',
+        });
+        return;
       }
       
       const clientData = {
@@ -436,7 +448,7 @@ export class KAMController {
         'Contact Email / Phone': `${email} / ${phone || ''}`,
         'Assigned KAM': assignedKAM,
         'Enabled Modules': Array.isArray(enabledModules) ? enabledModules.join(', ') : (enabledModules || ''),
-        'Commission Rate': commissionRate ? commissionRate.toString() : '1.5', // Default 1.5%
+        'Commission Rate': commissionRate.toString(),
         'Status': 'Active',
         'Form Categories': '',
       };

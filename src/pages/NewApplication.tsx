@@ -98,7 +98,6 @@ export const NewApplication: React.FC = () => {
 
     // Check if clientId is available
     if (!user?.clientId) {
-      console.warn('NewApplication: Client ID not available in user context');
       setFormConfigLoading(false);
       setFormConfig([]);
       return;
@@ -106,18 +105,12 @@ export const NewApplication: React.FC = () => {
 
     try {
       setFormConfigLoading(true);
-      console.log('NewApplication: Fetching form config for client:', user.clientId);
-      
       // Fetch form configuration for this client
       const response = await apiService.getFormConfig();
-      
-      console.log('NewApplication: Form config response:', response);
       
       if (response.success && response.data) {
         // The backend returns an array of categories with fields
         const configData = Array.isArray(response.data) ? response.data : [];
-        console.log('NewApplication: Form config data:', configData);
-        console.log('NewApplication: Number of categories:', configData.length);
         
         // Handle both nested module format and flat category format
         let categoriesList: any[] = [];
@@ -135,21 +128,11 @@ export const NewApplication: React.FC = () => {
             categoriesList = configData;
           }
         }
-        
-        categoriesList.forEach((cat: any, idx: number) => {
-          console.log(`NewApplication: Category ${idx + 1}:`, cat.categoryName || cat['Category Name'], 'Fields:', cat.fields?.length || 0);
-        });
         setFormConfig(categoriesList);
       } else {
-        console.warn('NewApplication: No form configuration found. Response:', response);
-        if (response.error) {
-          console.error('NewApplication: Error from API:', response.error);
-        }
         setFormConfig([]);
       }
     } catch (error: any) {
-      console.error('NewApplication: Error fetching form configuration:', error);
-      console.error('NewApplication: Error details:', error.message, error.stack);
       setFormConfig([]);
     } finally {
       setFormConfigLoading(false);
@@ -192,7 +175,6 @@ export const NewApplication: React.FC = () => {
         setLoanProductsError(response.error || 'Failed to load loan products. Please try again.');
       }
     } catch (error: any) {
-      console.error('Error fetching loan products:', error);
       setLoanProductsError(error.message || 'Failed to load loan products. Please try again.');
     } finally {
       setLoanProductsLoading(false);
@@ -208,13 +190,10 @@ export const NewApplication: React.FC = () => {
       if (response.success && response.data) {
         setConfiguredProductIds(new Set(response.data));
         setConfiguredProductsFetched(true);
-        console.log('NewApplication: Configured products:', response.data);
       } else if (response.error) {
-        console.error('NewApplication: Error fetching configured products:', response.error);
         setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
       }
     } catch (error) {
-      console.error('NewApplication: Exception fetching configured products:', error);
       setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
     }
   };
@@ -260,7 +239,6 @@ export const NewApplication: React.FC = () => {
         },
       }));
     } catch (error: any) {
-      console.error(`[NewApplication] Error uploading files for ${fieldId}:`, error);
       // Keep files in state even if upload fails (user can retry)
     } finally {
       setUploadingFiles(prev => ({ ...prev, [fieldId]: false }));
@@ -455,7 +433,6 @@ export const NewApplication: React.FC = () => {
       alert(successMessage);
       navigate('/applications');
     } catch (error: any) {
-      console.error('Error saving application:', error);
       alert(`Failed to ${saveAsDraft ? 'save' : 'submit'} application: ${error.message}`);
     } finally {
       setLoading(false);

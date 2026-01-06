@@ -6,7 +6,6 @@
  * - Typed request/response
  * - Retries + timeouts
  * - Consistent error mapping
- * - Mock mode support
  */
 
 import fetch from 'node-fetch';
@@ -17,9 +16,6 @@ const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 const DEFAULT_MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000; // 1 second between retries
 
-// Mock mode configuration
-const MOCK_MODE = process.env.MOCK_MODE === 'true' || process.env.NODE_ENV === 'test';
-const MOCK_DATA_DIR = process.env.MOCK_DATA_DIR || './mock-data';
 
 /**
  * Error types for consistent error handling
@@ -82,31 +78,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Load mock data from file system
- */
-async function loadMockData(tableName: string): Promise<any[]> {
-  try {
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const mockFilePath = path.join(process.cwd(), MOCK_DATA_DIR, `${tableName.toLowerCase().replace(/\s+/g, '-')}.json`);
-    
-    try {
-      const content = await fs.readFile(mockFilePath, 'utf-8');
-      return JSON.parse(content);
-    } catch (fileError: any) {
-      if (fileError.code === 'ENOENT') {
-        // File doesn't exist, return empty array
-        console.warn(`[MockMode] Mock data file not found: ${mockFilePath}, returning empty array`);
-        return [];
-      }
-      throw fileError;
-    }
-  } catch (error: any) {
-    console.error(`[MockMode] Error loading mock data for ${tableName}:`, error);
-    return [];
-  }
-}
 
 /**
  * Central API Client for n8n Webhooks
@@ -132,15 +103,6 @@ export class N8nApiClient {
       headers = {},
     } = options;
 
-    // Mock mode: return mock data
-    if (MOCK_MODE) {
-      console.log(`[MockMode] GET ${tableName} - returning mock data`);
-      const mockData = await loadMockData(tableName);
-      return {
-        success: true,
-        data: mockData,
-      };
-    }
 
     const webhookUrl = getWebhookUrl(tableName);
     if (!webhookUrl) {
@@ -245,14 +207,6 @@ export class N8nApiClient {
       headers = {},
     } = options;
 
-    // Mock mode: simulate success
-    if (MOCK_MODE) {
-      console.log(`[MockMode] POST ${webhookUrl} - simulating success`);
-      return {
-        success: true,
-        data: { id: `mock-${Date.now()}`, ...data } as T,
-      };
-    }
 
     let lastError: Error | null = null;
 

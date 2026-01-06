@@ -241,7 +241,10 @@ export async function getUserName(userId: string): Promise<string> {
     if (userId.includes('@') || userId.includes('.')) {
       try {
         const { n8nEndpoints } = await import('../airtable/n8nEndpoints.js');
-        const userAccountUrl = `${process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud'}/webhook/useraccount?username=${encodeURIComponent(userId)}`;
+        if (!process.env.N8N_BASE_URL) {
+          throw new Error('N8N_BASE_URL environment variable is required. Please set it in your environment configuration.');
+        }
+        const userAccountUrl = `${process.env.N8N_BASE_URL}/webhook/useraccount?username=${encodeURIComponent(userId)}`;
         
         const response = await fetch(userAccountUrl);
         if (response.ok) {

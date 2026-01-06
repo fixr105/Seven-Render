@@ -493,8 +493,19 @@ export class AuthController {
         return;
       }
 
-      // Get n8n base URL from environment
-      const n8nBaseUrl = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
+      // Get n8n base URL from environment (required)
+      if (!process.env.N8N_BASE_URL) {
+        this.logStructured('VALIDATE_N8N_BASE_URL_MISSING', {
+          requestId,
+          error: 'N8N_BASE_URL environment variable is required',
+        });
+        res.status(500).json({
+          success: false,
+          error: 'Server configuration error: N8N_BASE_URL not configured',
+        });
+        return;
+      }
+      const n8nBaseUrl = process.env.N8N_BASE_URL;
       const validateUrl = `${n8nBaseUrl}/webhook/validate`;
       
       this.logStructured('VALIDATE_N8N_WEBHOOK_CALL_STARTED', {

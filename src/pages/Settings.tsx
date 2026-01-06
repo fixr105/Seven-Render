@@ -12,7 +12,13 @@ import { useNavigation } from '../hooks/useNavigation';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuthSafe();
+  const { userRole, user } = useAuthSafe();
+  
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return '';
+  };
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
@@ -80,7 +86,7 @@ export const Settings: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle="Settings"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName="User"
+      userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       <div className="max-w-4xl mx-auto space-y-6">

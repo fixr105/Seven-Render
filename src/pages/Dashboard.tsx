@@ -53,16 +53,19 @@ export const Dashboard: React.FC = () => {
       case 'kam': return 'Key Account Manager';
       case 'credit_team': return 'Credit Team';
       case 'nbfc': return 'NBFC Partner';
-      default: return 'User';
+      default: return '';
     }
   };
 
   // Get user display name
   const getUserDisplayName = () => {
+    if (user?.name) {
+      return user.name;
+    }
     if (user?.email) {
       return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
-    return 'User';
+    return '';
   };
 
   // Render role-specific dashboard

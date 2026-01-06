@@ -35,7 +35,13 @@ const formatDate = formatDateFull;
 
 export const Clients: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, userRoleId } = useAuthSafe();
+  const { userRole, userRoleId, user } = useAuthSafe();
+  
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return '';
+  };
   const { unreadCount } = useNotifications();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,15 +74,12 @@ export const Clients: React.FC = () => {
   const fetchClients = async (forceRefresh: boolean = false) => {
     try {
       setLoading(true);
-      console.log('[Clients] 📥 Fetching clients, forceRefresh:', forceRefresh);
-      console.log('[Clients] User role:', userRole);
       
       // Use correct endpoint based on user role
       const response = userRole === 'credit_team' 
         ? await apiService.listCreditClients()
         : await apiService.listClients(forceRefresh);
       
-      console.log('[Clients] 📦 API response received:', {
         success: response.success,
         dataLength: response.data?.length || 0,
         error: response.error,
@@ -100,15 +103,9 @@ export const Clients: React.FC = () => {
           kam_id: client.assignedKAM || client['Assigned KAM'] || null,
           is_active: client.status === 'Active' || client.Status === 'Active',
           created_at: client.createdAt || client['Created At'] || new Date().toISOString(),
-          _count: { applications: 0 }, // TODO: Fetch application count if needed
+          _count: { applications: 0 },
         }));
         
-        console.log('[Clients] ✅ Mapped clients:', mappedClients.length);
-        console.log('[Clients] Client list:', mappedClients.map(c => ({
-          name: c.company_name,
-          email: c.email,
-          kam_id: c.kam_id
-        })));
         
         // Set debug info for visual display
         if ((response as any)._debug) {
@@ -127,12 +124,10 @@ export const Clients: React.FC = () => {
         
         setClients(mappedClients);
       } else {
-        console.error('[Clients] ❌ Error fetching clients:', response.error);
         setDebugInfo(`❌ Error: ${response.error || 'Unknown error'}`);
         setClients([]);
       }
     } catch (error: any) {
-      console.error('[Clients] ❌ Exception fetching clients:', error);
       setDebugInfo(`❌ Exception: ${error.message || 'Unknown error'}`);
       setClients([]);
     } finally {
@@ -141,11 +136,8 @@ export const Clients: React.FC = () => {
   };
 
   const handleOnboardClient = async () => {
-    console.log('[Clients] ========== ONBOARD CLIENT STARTED ==========');
-    console.log('[Clients] Form data:', newClient);
     
     if (!newClient.company_name || !newClient.contact_person || !newClient.email) {
-      console.log('[Clients] ❌ Validation failed - missing required fields');
       alert('Please fill in all required fields');
       return;
     }
@@ -153,7 +145,6 @@ export const Clients: React.FC = () => {
     // Check if token is available before making request
     const token = apiService.getToken();
     const tokenFromStorage = localStorage.getItem('auth_token');
-    console.log('[Clients] 🔑 Token check:', {
       fromService: token ? `${token.substring(0, 20)}...` : 'null',
       fromStorage: tokenFromStorage ? `${tokenFromStorage.substring(0, 20)}...` : 'null',
     });
@@ -167,14 +158,11 @@ export const Clients: React.FC = () => {
     
     // If token exists in storage but not in service, reload it
     if (!token && tokenFromStorage) {
-      console.log('[Clients] 🔄 Reloading token from storage...');
       apiService.setToken(tokenFromStorage);
     }
 
-    console.log('[Clients] ✅ Validation passed, submitting...');
     setSubmitting(true);
     try {
-      console.log('[Clients] 📤 Calling API to create client...');
       // Use API service to create client
       const response = await apiService.createClient({
         name: newClient.company_name,
@@ -185,7 +173,6 @@ export const Clients: React.FC = () => {
         enabledModules: newClient.enabled_modules.length > 0 ? newClient.enabled_modules : ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'],
       });
       
-      console.log('[Clients] 📥 API response received:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to onboard client');
@@ -202,15 +189,10 @@ export const Clients: React.FC = () => {
         enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'],
       });
       
-      // Log the created client info
-      console.log('[Clients] Client created successfully:', response.data);
-      console.log('[Clients] Created client email:', newClient.email);
-      console.log('[Clients] Created client ID:', response.data?.id || response.data?.clientId);
       
       // No automatic refresh - user must click Refresh button to see the new client
       alert(`Client onboarded successfully!\n\nEmail: ${newClient.email}\n\nPlease click the Refresh button to see the new client in the list.`);
     } catch (error: any) {
-      console.error('Error onboarding client:', error);
       alert(`Failed to onboard client: ${error.message || 'Unknown error'}`);
     } finally {
       setSubmitting(false);
@@ -293,7 +275,7 @@ export const Clients: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle="Client Management"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName="User"
+      userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       {/* Debug Info Panel */}

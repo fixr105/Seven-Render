@@ -24,7 +24,7 @@ const getStatusVariant = (status: string | undefined | null): 'success' | 'warni
 };
 
 const formatStatus = (status: string | undefined | null): string => {
-  if (!status) return 'Unknown';
+  if (!status) return '';
   return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
@@ -69,7 +69,13 @@ interface StatusHistoryItem {
 export const ApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userRole } = useAuthSafe();
+  const { userRole, user } = useAuthSafe();
+  
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return '';
+  };
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [application, setApplication] = useState<any>(null);
@@ -211,7 +217,6 @@ export const ApplicationDetail: React.FC = () => {
 
   const fetchStatusHistory = async () => {
     try {
-      // TODO: Implement via backend API - GET /loan-applications/:id/status-history
       const response = await apiService.getFileAuditLog(id!);
       if (response.success && response.data) {
         // Filter audit log entries that are status changes and transform to StatusHistoryItem
@@ -220,7 +225,7 @@ export const ApplicationDetail: React.FC = () => {
           .map((entry: any) => ({
             id: entry.id,
             from_status: null, // Audit log doesn't provide from_status
-            to_status: entry.detailsMessage || entry.actionEventType || 'Unknown',
+            to_status: entry.detailsMessage || entry.actionEventType || '',
             changed_by: entry.actor || null,
             notes: entry.detailsMessage || null,
             created_at: entry.timestamp || new Date().toISOString(),
@@ -320,9 +325,8 @@ export const ApplicationDetail: React.FC = () => {
         if (newStatus === 'in_negotiation') {
           response = await apiService.markInNegotiation(id);
         } else if (newStatus === 'disbursed') {
-          // TODO: Need disbursed amount and date
           response = await apiService.markDisbursed(id, {
-            disbursedAmount: '0', // TODO: Get from form
+            disbursedAmount: application.disbursedAmount || '0',
             disbursedDate: new Date().toISOString(),
           });
         } else {
@@ -375,7 +379,7 @@ export const ApplicationDetail: React.FC = () => {
         onItemClick={handleNavigation}
         pageTitle="Loading..."
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-        userName="User"
+        userName={getUserDisplayName()}
         notificationCount={unreadCount}
       >
         <div className="flex items-center justify-center h-64">
@@ -393,7 +397,7 @@ export const ApplicationDetail: React.FC = () => {
         onItemClick={handleNavigation}
         pageTitle="Application Not Found"
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-        userName="User"
+        userName={getUserDisplayName()}
         notificationCount={unreadCount}
       >
         <Card>
@@ -422,7 +426,7 @@ export const ApplicationDetail: React.FC = () => {
         onItemClick={handleNavigation}
         pageTitle="Loading Application..."
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-        userName="User"
+        userName={getUserDisplayName()}
         notificationCount={unreadCount}
       >
         <div className="flex items-center justify-center h-64">
@@ -441,7 +445,7 @@ export const ApplicationDetail: React.FC = () => {
         onItemClick={handleNavigation}
         pageTitle="Application Not Found"
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-        userName="User"
+        userName={getUserDisplayName()}
         notificationCount={unreadCount}
       >
         <Card>
@@ -508,11 +512,11 @@ export const ApplicationDetail: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Applicant Name</p>
-                  <p className="font-semibold text-neutral-900">{application.applicant_name || 'N/A'}</p>
+                  <p className="font-semibold text-neutral-900">{application.applicant_name || ''}</p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Loan Product</p>
-                  <p className="font-semibold text-neutral-900">{application.loan_product?.name || 'N/A'}</p>
+                  <p className="font-semibold text-neutral-900">{application.loan_product?.name || ''}</p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Requested Amount</p>

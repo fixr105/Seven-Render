@@ -114,17 +114,23 @@ router.get('/debug/env', (req, res) => {
 router.get('/debug/webhook-config', (req, res) => {
   console.log('[DEBUG] /debug/webhook-config endpoint called at', new Date().toISOString());
   try {
-    const n8nBaseUrl = process.env.N8N_BASE_URL || 'NOT SET - using default';
-    const defaultBaseUrl = 'https://fixrrahul.app.n8n.cloud';
+    if (!process.env.N8N_BASE_URL) {
+      res.status(500).json({
+        success: false,
+        error: 'N8N_BASE_URL environment variable is required. Please set it in your environment configuration.',
+      });
+      return;
+    }
+    const n8nBaseUrl = process.env.N8N_BASE_URL;
     
     // Manually construct webhook URLs without importing modules (to avoid timeout)
     const webhookUrls = {
-      'Loan Products': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/loanproducts`,
-      'Loan Application': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/loanapplication`,
-      'Clients': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/client`,
-      'Commission Ledger': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/commisionledger`,
-      'Notifications': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/notifications`,
-      'Client Form Mapping': `${n8nBaseUrl === 'NOT SET - using default' ? defaultBaseUrl : n8nBaseUrl}/webhook/clientformmapping`,
+      'Loan Products': `${n8nBaseUrl}/webhook/loanproducts`,
+      'Loan Application': `${n8nBaseUrl}/webhook/loanapplication`,
+      'Clients': `${n8nBaseUrl}/webhook/client`,
+      'Commission Ledger': `${n8nBaseUrl}/webhook/commisionledger`,
+      'Notifications': `${n8nBaseUrl}/webhook/notifications`,
+      'Client Form Mapping': `${n8nBaseUrl}/webhook/clientformmapping`,
     };
     
     console.log('[DEBUG] N8N_BASE_URL:', n8nBaseUrl);

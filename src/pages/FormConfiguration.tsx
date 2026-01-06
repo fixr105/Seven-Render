@@ -130,7 +130,13 @@ const FORM_MODULES: FormModule[] = [
 
 export const FormConfiguration: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, userRoleId } = useAuthSafe();
+  const { userRole, userRoleId, user } = useAuthSafe();
+  
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return '';
+  };
   const { unreadCount } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string>('');
@@ -309,7 +315,7 @@ export const FormConfiguration: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle="Configure Forms"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName="User"
+      userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       <div className="max-w-6xl mx-auto space-y-6">
@@ -349,7 +355,7 @@ export const FormConfiguration: React.FC = () => {
                       ...managedClients.map((client: any) => {
                         // Handle different client data formats
                         const clientId = client.id || client.clientId || client['Client ID'];
-                        const clientName = client.clientName || client['Client Name'] || client.company_name || client['Primary Contact Name'] || 'Unknown';
+                        const clientName = client.clientName || client['Client Name'] || client.company_name || client['Primary Contact Name'] || '';
                         return {
                           value: clientId,
                           label: `${clientName}${clientId ? ` (${clientId})` : ''}`,

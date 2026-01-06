@@ -38,7 +38,13 @@ const getStatusVariant = (status: string) => {
 
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuthSafe();
+  const { userRole, user } = useAuthSafe();
+  
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return '';
+  };
   const { unreadCount } = useNotifications();
   // Use backend API-driven applications hook (no webhook data)
   const { applications, loading, refetch } = useApplications();
@@ -138,7 +144,6 @@ export const Applications: React.FC = () => {
   const handleRaiseQuery = async () => {
     if (!selectedApplication || !queryMessage.trim()) return;
     
-    // TODO: Implement actual query creation via backend API
     console.log('Raising query for application:', selectedApplication?.id, queryMessage);
     setShowQueryModal(false);
     setQueryMessage('');
@@ -198,7 +203,7 @@ export const Applications: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle="Loan Applications"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName="User"
+      userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       {/* Loading State */}

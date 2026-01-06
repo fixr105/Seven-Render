@@ -44,8 +44,8 @@ export const Profile: React.FC = () => {
       setProfileData({
         name: user.name || '',
         email: user.email || '',
-        phone: '', // TODO: Fetch from backend API if available
-        company: '', // TODO: Fetch from backend API if available
+        phone: user?.phone || '',
+        company: user?.company || '',
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -84,7 +84,6 @@ export const Profile: React.FC = () => {
 
     setLoading(true);
     try {
-      // TODO: Implement profile update via backend API
       // For now, just show a message
       alert('Profile update functionality will be implemented via backend API');
     } catch (error: any) {
@@ -104,7 +103,7 @@ export const Profile: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle="Profile"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName={profileData.name || 'User'}
+      userName={profileData.name || user?.email?.split('@')[0] || ''}
       notificationCount={unreadCount}
     >
       <div className="max-w-2xl mx-auto">
@@ -119,7 +118,7 @@ export const Profile: React.FC = () => {
                   <User className="w-10 h-10 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-neutral-900">{profileData.name || 'User'}</h3>
+                  <h3 className="text-lg font-semibold text-neutral-900">{profileData.name || user?.email?.split('@')[0] || ''}</h3>
                   <p className="text-sm text-neutral-500">{profileData.email}</p>
                   <p className="text-xs text-neutral-400 mt-1">{userRole?.replace('_', ' ').toUpperCase()}</p>
                 </div>

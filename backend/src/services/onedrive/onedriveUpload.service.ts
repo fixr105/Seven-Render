@@ -29,14 +29,9 @@ export async function uploadToOneDrive(
   fileName: string,
   folderPath?: string
 ): Promise<{ shareLink: string; fileId: string; webUrl: string }> {
-  // If no OneDrive config, return mock link for development
-  if (!ONEDRIVE_CONFIG.uploadUrl && process.env.MOCK_MODE === 'true') {
-    console.log('[OneDriveUpload] Mock mode: returning mock OneDrive link');
-    return {
-      shareLink: `https://onedrive.live.com/mock/${Date.now()}/${fileName}`,
-      fileId: `mock-${Date.now()}`,
-      webUrl: `https://onedrive.live.com/mock/${Date.now()}/${fileName}`,
-    };
+  // OneDrive upload URL is required
+  if (!ONEDRIVE_CONFIG.uploadUrl) {
+    throw new Error('ONEDRIVE_UPLOAD_URL environment variable is required. Please set it in your environment configuration.');
   }
 
   if (!ONEDRIVE_CONFIG.uploadUrl) {

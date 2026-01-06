@@ -10,7 +10,7 @@ interface TopBarProps {
   userName?: string;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificationCount = 0, userName = 'User' }) => {
+export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificationCount = 0, userName = '' }) => {
   const navigate = useNavigate();
   const { signOut } = useAuthSafe();
   const [showProfileMenu, setShowProfileMenu] = useState(false);

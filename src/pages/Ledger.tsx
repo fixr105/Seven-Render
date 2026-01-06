@@ -13,7 +13,13 @@ import { apiService } from '../services/api';
 
 export const Ledger: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuthSafe();
+  const { userRole, user } = useAuthSafe();
+  
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return '';
+  };
   const { entries, balance, loading, requestPayout, raiseQuery, flagPayout, refetch } = useLedger();
   const { unreadCount } = useNotifications();
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -144,7 +150,7 @@ export const Ledger: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle="Commission Ledger"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName="User"
+      userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       <div className="space-y-6">

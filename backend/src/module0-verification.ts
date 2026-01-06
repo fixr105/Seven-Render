@@ -13,7 +13,6 @@ import { AuthUser } from './services/auth/auth.service.js';
 import { AdminActionType, logAdminActivity } from './utils/adminLogger.js';
 import { canPerformAction, requireActionPermission } from './middleware/rbac.middleware.js';
 import { n8nApiClient } from './services/airtable/n8nApiClient.js';
-import { isMockMode } from './utils/mockData.js';
 
 console.log('🔍 Module 0: Foundation Verification\n');
 console.log('=' .repeat(60));
@@ -158,7 +157,7 @@ if (isMockMode()) {
   console.log(`Role-based navigation: ${navigationTestsPassed}/${roleNavigationTests.length} ✓`);
   console.log(`Admin activity logging: ${loggingTestsPassed}/${Object.keys(testUsers).length} ✓`);
   console.log(`RBAC guards: ${rbacTestsPassed}/4 ✓`);
-  console.log(`Mock mode: ${isMockMode() ? 'Enabled' : 'Disabled'}`);
+  console.log(`Mock mode: ${process.env.MOCK_MODE === 'true' ? 'Enabled' : 'Disabled'}`);
   
   const totalTests = roleNavigationTests.length + Object.keys(testUsers).length + 4;
   const totalPassed = navigationTestsPassed + loggingTestsPassed + rbacTestsPassed;
