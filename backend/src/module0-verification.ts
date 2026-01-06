@@ -139,7 +139,7 @@ console.log(`\n✅ RBAC guards: ${rbacTestsPassed}/4 tests passed`);
 // Test 4: Mock Mode
 console.log('\n📋 Test 4: Mock Mode\n');
 
-if (isMockMode()) {
+if (process.env.MOCK_MODE === 'true') {
   console.log('✓ Mock mode is enabled');
   console.log('  - n8nApiClient will return mock data');
   console.log('  - POST operations will be simulated');

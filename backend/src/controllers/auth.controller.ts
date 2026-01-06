@@ -535,29 +535,29 @@ export class AuthController {
         clearTimeout(timeoutId);
 
         // Check if response is ok
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          this.logStructured('VALIDATE_N8N_WEBHOOK_FAILED', {
-            requestId,
-            status: response.status,
-            statusText: response.statusText,
-            error: errorData.error || errorData.message || 'Unknown error',
-          });
-          res.status(response.status).json({
-            success: false,
-            error: errorData.error || errorData.message || 'Validation failed',
-          });
-          return;
-        }
+              if (!response.ok) {
+                const errorData: any = await response.json().catch(() => ({ error: 'Unknown error' }));
+                this.logStructured('VALIDATE_N8N_WEBHOOK_FAILED', {
+                  requestId,
+                  status: response.status,
+                  statusText: response.statusText,
+                  error: errorData?.error || errorData?.message || 'Unknown error',
+                });
+                res.status(response.status).json({
+                  success: false,
+                  error: errorData?.error || errorData?.message || 'Validation failed',
+                });
+                return;
+              }
 
         // Parse n8n response
-        const rawData = await response.json();
+        const rawData: any = await response.json();
         
         this.logStructured('VALIDATE_N8N_WEBHOOK_RESPONSE', {
           requestId,
           isArray: Array.isArray(rawData),
           responseType: typeof rawData,
-          responseKeys: Array.isArray(rawData) ? 'array' : Object.keys(rawData),
+          responseKeys: Array.isArray(rawData) ? 'array' : Object.keys(rawData || {}),
         });
 
         // Handle different response formats from n8n
@@ -565,15 +565,15 @@ export class AuthController {
         
         // Format 1: Array with output field containing JSON string
         // [ { "output": "{\"username\": \"Sagar\", \"role\": \"kam\", \"Associated profile\": \"Sagar\"}" } ]
-        if (Array.isArray(rawData) && rawData.length > 0 && rawData[0].output) {
+        if (Array.isArray(rawData) && rawData.length > 0 && rawData[0]?.output) {
           try {
             const outputString = rawData[0].output;
             profileData = typeof outputString === 'string' ? JSON.parse(outputString) : outputString;
             this.logStructured('VALIDATE_PARSED_OUTPUT', {
               requestId,
-              username: profileData.username,
-              role: profileData.role,
-              associatedProfile: profileData['Associated profile'],
+              username: profileData?.username,
+              role: profileData?.role,
+              associatedProfile: profileData?.['Associated profile'],
             });
           } catch (parseError: any) {
             console.error('[AuthController] Failed to parse output JSON:', parseError);
@@ -585,11 +585,11 @@ export class AuthController {
           }
         }
         // Format 2: Direct object with success/user fields
-        else if (rawData.success && rawData.user) {
+        else if (rawData?.success && rawData?.user) {
           profileData = rawData.user;
         }
         // Format 3: Direct object with user fields
-        else if (rawData.username || rawData.role) {
+        else if (rawData?.username || rawData?.role) {
           profileData = rawData;
         }
 
