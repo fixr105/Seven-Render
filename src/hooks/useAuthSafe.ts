@@ -24,6 +24,7 @@ export const useAuthSafe = () => {
       signOut: apiAuthContext.logout,
       signInAsTestUser: apiAuthContext.signInAsTestUser,
       refreshUser: apiAuthContext.refreshUser,
+      setAuthUserAndToken: apiAuthContext.setAuthUserAndToken,
     };
   } else {
     // No provider available - return defaults

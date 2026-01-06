@@ -9,7 +9,7 @@ import homeGif from '../components/ui/home2.gif?url';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { user, signIn, refreshUser } = useAuthSafe();
+  const { user, signIn, refreshUser, setAuthUserAndToken } = useAuthSafe();
   const [username, setUsername] = useState('');
   const [passcode, setPasscode] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
@@ -36,13 +36,9 @@ export const Login: React.FC = () => {
       if (validateResponse.success && validateResponse.data?.success) {
         // If validation succeeds and token is returned, set it and user data directly
         if (validateResponse.data?.token && validateResponse.data?.user) {
-          // Set token in apiService FIRST (before any API calls)
-          apiService.setToken(validateResponse.data.token);
-          
-          // Refresh user context to load user data using the token we just set
-          // This will call /auth/me which will validate the token and return user data
-          await refreshUser();
-          
+          // Set token and user directly from validate response (avoids extra API call)
+          setAuthUserAndToken(validateResponse.data.user, validateResponse.data.token);
+    
           // Success - navigate will happen automatically via useEffect when user is set
           navigate('/dashboard');
         } else if (validateResponse.data?.validated) {
@@ -142,7 +138,7 @@ export const Login: React.FC = () => {
                     ) : (
                       <Eye className="w-5 h-5" />
                     )}
-                  </button>
+              </button>
                 </div>
               </div>
 
@@ -165,7 +161,7 @@ export const Login: React.FC = () => {
                 >
                   Forgot passcode?
                 </a>
-              </div>
+        </div>
 
               {/* Submit Button */}
               <Button

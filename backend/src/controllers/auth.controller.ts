@@ -540,17 +540,50 @@ export class AuthController {
         }
 
         // Parse n8n response
-        const data = await response.json();
+        const rawData = await response.json();
         
         this.logStructured('VALIDATE_N8N_WEBHOOK_RESPONSE', {
           requestId,
-          hasSuccess: !!data.success,
-          hasUser: !!data.user,
-          responseKeys: Object.keys(data),
+          isArray: Array.isArray(rawData),
+          responseType: typeof rawData,
+          responseKeys: Array.isArray(rawData) ? 'array' : Object.keys(rawData),
         });
 
-        // If validation succeeds, try to generate a token
-        if (data.success) {
+        // Handle different response formats from n8n
+        let profileData: any = null;
+        
+        // Format 1: Array with output field containing JSON string
+        // [ { "output": "{\"username\": \"Sagar\", \"role\": \"kam\", \"Associated profile\": \"Sagar\"}" } ]
+        if (Array.isArray(rawData) && rawData.length > 0 && rawData[0].output) {
+          try {
+            const outputString = rawData[0].output;
+            profileData = typeof outputString === 'string' ? JSON.parse(outputString) : outputString;
+            this.logStructured('VALIDATE_PARSED_OUTPUT', {
+              requestId,
+              username: profileData.username,
+              role: profileData.role,
+              associatedProfile: profileData['Associated profile'],
+            });
+          } catch (parseError: any) {
+            console.error('[AuthController] Failed to parse output JSON:', parseError);
+            res.status(500).json({
+              success: false,
+              error: 'Invalid response format from authentication service.',
+            });
+            return;
+          }
+        }
+        // Format 2: Direct object with success/user fields
+        else if (rawData.success && rawData.user) {
+          profileData = rawData.user;
+        }
+        // Format 3: Direct object with user fields
+        else if (rawData.username || rawData.role) {
+          profileData = rawData;
+        }
+
+        // If we have profile data, proceed with authentication
+        if (profileData && (profileData.username || profileData.role)) {
           try {
             // Try to login with username as email to get token and user data
             // This ensures the user exists in User Accounts and we get proper user context
@@ -569,20 +602,30 @@ export class AuthController {
             // using the username and data from n8n response
             console.warn('[AuthController] Validate succeeded but user not in User Accounts:', loginError.message);
             
-            // Extract user data from n8n response if available
-            const n8nUser = data.user || data;
-            const userEmail = n8nUser.email || n8nUser.username || username;
-            const userRole = n8nUser.role || 'client';
+            // Extract user data from profile data
+            const userEmail = profileData.email || profileData.username || username;
+            const userRole = profileData.role || 'client';
+            const userName = profileData['Associated profile'] || profileData.name || profileData.username || username;
+            
+            // Map role to valid role format
+            const roleMap: Record<string, string> = {
+              'kam': 'kam',
+              'client': 'client',
+              'credit_team': 'credit_team',
+              'credit team': 'credit_team',
+              'nbfc': 'nbfc',
+            };
+            const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
             
             // Generate a basic token with available user data
             try {
               const jwtPayload = {
-                userId: n8nUser.id || `validated-${username}`,
+                userId: profileData.id || `validated-${username}`,
                 email: userEmail,
-                role: userRole,
-                clientId: n8nUser.clientId,
-                kamId: n8nUser.kamId,
-                nbfcId: n8nUser.nbfcId,
+                role: normalizedRole,
+                clientId: profileData.clientId || null,
+                kamId: profileData.kamId || null,
+                nbfcId: profileData.nbfcId || null,
               };
               
               const token = jwt.sign(
@@ -597,11 +640,11 @@ export class AuthController {
                 user: {
                   id: jwtPayload.userId,
                   email: userEmail,
-                  role: userRole,
-                  clientId: n8nUser.clientId,
-                  kamId: n8nUser.kamId,
-                  nbfcId: n8nUser.nbfcId,
-                  name: n8nUser.name,
+                  role: normalizedRole,
+                  clientId: profileData.clientId || null,
+                  kamId: profileData.kamId || null,
+                  nbfcId: profileData.nbfcId || null,
+                  name: userName,
                 },
               });
               return;
@@ -616,8 +659,11 @@ export class AuthController {
           }
         }
 
-        // If validation failed, return n8n response as-is
-        res.json(data);
+        // If validation failed or no profile data, return error
+        res.status(401).json({
+          success: false,
+          error: 'Invalid username or passcode',
+        });
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         

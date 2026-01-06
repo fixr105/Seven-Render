@@ -14,6 +14,7 @@ interface ApiAuthContextType {
   refreshUser: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
   signInAsTestUser: (role: UserRole, email: string) => void;
+  setAuthUserAndToken: (user: UserContext, token: string) => void;
 }
 
 export const ApiAuthContext = createContext<ApiAuthContextType | undefined>(undefined);
@@ -138,6 +139,21 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
     return user?.role === role;
   };
 
+  const setAuthUserAndToken = (userData: UserContext, token: string) => {
+    // Set token first
+    apiService.setToken(token);
+    
+    // Set user directly (bypass API call)
+    setUser(userData);
+    setLoading(false);
+    console.log('[ApiAuthContext] User and token set from validate response:', {
+      userId: userData.id,
+      email: userData.email,
+      role: userData.role,
+      name: userData.name,
+    });
+  };
+
   const signInAsTestUser = (role: UserRole, email: string) => {
     console.log('[ApiAuthContext] signInAsTestUser called with:', { role, email });
     
@@ -215,6 +231,7 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         refreshUser,
         hasRole,
         signInAsTestUser,
+        setAuthUserAndToken,
       }}
     >
       {children}
