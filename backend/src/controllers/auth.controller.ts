@@ -371,8 +371,8 @@ export class AuthController {
 
       console.log('[AuthController] getMe: Fetching user info for:', req.user.email);
 
-      // Step 2: Get default name from email
-      let name = req.user.email.split('@')[0];
+      // Step 2: Get name from JWT token first, then fallback to email
+      let name = req.user.name || req.user.email.split('@')[0];
 
       // Step 3: Try to get name from role-specific table (with error handling)
       try {
@@ -628,16 +628,17 @@ export class AuthController {
             };
             const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
             
-            // Generate a basic token with available user data
-            try {
-              const jwtPayload = {
-                userId: profileData.id || `validated-${username}`,
-                email: userEmail,
-                role: normalizedRole,
-                clientId: profileData.clientId || null,
-                kamId: profileData.kamId || null,
-                nbfcId: profileData.nbfcId || null,
-              };
+              // Generate a basic token with available user data
+              try {
+                const jwtPayload = {
+                  userId: profileData.id || `validated-${username}`,
+                  email: userEmail,
+                  role: normalizedRole,
+                  name: userName,
+                  clientId: profileData.clientId || null,
+                  kamId: profileData.kamId || null,
+                  nbfcId: profileData.nbfcId || null,
+                };
               
               const token = jwt.sign(
                 jwtPayload,
