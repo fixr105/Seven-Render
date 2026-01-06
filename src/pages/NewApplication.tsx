@@ -41,6 +41,8 @@ export const NewApplication: React.FC = () => {
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
   const [loanProductsLoading, setLoanProductsLoading] = useState(true);
   const [loanProductsError, setLoanProductsError] = useState<string | null>(null);
+  const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
+  const [configuredProductsFetched, setConfiguredProductsFetched] = useState(false);
   const [formConfig, setFormConfig] = useState<any[]>([]); // Form configuration from backend
   const [currentStep, setCurrentStep] = useState(0); // Module 2: Stepper current step
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]); // Module 2: Soft validation warnings
@@ -67,10 +69,17 @@ export const NewApplication: React.FC = () => {
   useEffect(() => {
     if (userRole === 'client') {
       fetchClientId();
-      fetchLoanProducts();
       fetchFormConfig();
+      fetchConfiguredProducts();
     }
   }, [userRoleId, userRole]);
+
+  // Fetch loan products when configured product IDs have been fetched
+  useEffect(() => {
+    if (userRole === 'client' && configuredProductsFetched) {
+      fetchLoanProducts();
+    }
+  }, [configuredProductIds, configuredProductsFetched, userRole]);
 
   const fetchClientId = async () => {
     if (userRole !== 'client' || !userRoleId) return;
@@ -163,11 +172,21 @@ export const NewApplication: React.FC = () => {
             productsMap.set(id, { id, name });
           }
         });
-        const products = Array.from(productsMap.values());
-        setLoanProducts(products);
+        const allProducts = Array.from(productsMap.values());
         
-        if (products.length === 0) {
-          setLoanProductsError('No loan products are currently available. Please contact your KAM or administrator.');
+        // Filter to only show configured products
+        const configuredProducts = allProducts.filter(product => 
+          configuredProductIds.has(product.id)
+        );
+        
+        setLoanProducts(configuredProducts);
+        
+        if (configuredProducts.length === 0) {
+          if (allProducts.length === 0) {
+            setLoanProductsError('No loan products are currently available. Please contact your KAM or administrator.');
+          } else {
+            setLoanProductsError('No loan products are configured for your account. Please contact your KAM.');
+          }
         }
       } else {
         setLoanProductsError(response.error || 'Failed to load loan products. Please try again.');
@@ -177,6 +196,26 @@ export const NewApplication: React.FC = () => {
       setLoanProductsError(error.message || 'Failed to load loan products. Please try again.');
     } finally {
       setLoanProductsLoading(false);
+    }
+  };
+
+  const fetchConfiguredProducts = async () => {
+    if (userRole !== 'client') return;
+    
+    try {
+      const response = await apiService.getConfiguredProducts();
+      
+      if (response.success && response.data) {
+        setConfiguredProductIds(new Set(response.data));
+        setConfiguredProductsFetched(true);
+        console.log('NewApplication: Configured products:', response.data);
+      } else if (response.error) {
+        console.error('NewApplication: Error fetching configured products:', response.error);
+        setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
+      }
+    } catch (error) {
+      console.error('NewApplication: Exception fetching configured products:', error);
+      setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
     }
   };
 
@@ -536,7 +575,7 @@ export const NewApplication: React.FC = () => {
                 required
                 error={fieldErrors.loan_product_id || loanProductsError || undefined}
                 disabled={loanProductsLoading || loanProducts.length === 0}
-                helperText={loanProductsError || (loanProducts.length === 0 ? 'Please contact your KAM to configure loan products' : undefined)}
+                helperText={loanProductsError || (loanProducts.length === 0 ? 'No loan products are configured for your account. Please contact your KAM.' : undefined)}
               />
               <Input
                 id="requested_loan_amount"

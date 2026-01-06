@@ -461,6 +461,13 @@ class ApiService {
   }
 
   /**
+   * Get list of product IDs that have configured forms for the client
+   */
+  async getConfiguredProducts(): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>('/client/configured-products');
+  }
+
+  /**
    * Reply to a query
    */
   async replyToQuery(

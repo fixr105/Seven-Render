@@ -26,10 +26,12 @@ export const ClientDashboard: React.FC = () => {
   const { unreadCount } = useNotifications();
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
 
-  // Load loan products on initial mount (when dashboard first loads)
+  // Load loan products and configured products on initial mount (when dashboard first loads)
   useEffect(() => {
     fetchLoanProducts();
+    fetchConfiguredProducts();
   }, []);
 
   const fetchLoanProducts = async () => {
@@ -57,6 +59,21 @@ export const ClientDashboard: React.FC = () => {
       console.error('Exception fetching loan products:', error);
     } finally {
       setLoadingProducts(false);
+    }
+  };
+
+  const fetchConfiguredProducts = async () => {
+    try {
+      const response = await apiService.getConfiguredProducts();
+      
+      if (response.success && response.data) {
+        setConfiguredProductIds(new Set(response.data));
+        console.log('Configured products:', response.data);
+      } else if (response.error) {
+        console.error('Error fetching configured products:', response.error);
+      }
+    } catch (error) {
+      console.error('Exception fetching configured products:', error);
     }
   };
 
@@ -170,17 +187,35 @@ export const ClientDashboard: React.FC = () => {
             <div className="text-center py-4 text-neutral-500">No loan products available</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {loanProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="p-4 border border-neutral-200 rounded-lg hover:border-brand-primary/50 hover:shadow-md transition-all"
-                >
-                  <h4 className="font-semibold text-neutral-900 mb-1">{product.name}</h4>
-                  {product.description && (
-                    <p className="text-sm text-neutral-600 line-clamp-2">{product.description}</p>
-                  )}
-                </div>
-              ))}
+              {loanProducts.map((product) => {
+                const isConfigured = configuredProductIds.has(product.id);
+                return (
+                  <div
+                    key={product.id}
+                    className={`p-4 border rounded-lg transition-all ${
+                      isConfigured
+                        ? 'border-neutral-200 hover:border-brand-primary/50 hover:shadow-md cursor-pointer'
+                        : 'border-neutral-300 bg-neutral-100 opacity-50 cursor-not-allowed pointer-events-none'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-1">
+                      <h4 className={`font-semibold ${isConfigured ? 'text-neutral-900' : 'text-neutral-500'}`}>
+                        {product.name}
+                      </h4>
+                      {!isConfigured && (
+                        <Badge variant="neutral" className="ml-2 flex-shrink-0">
+                          Not Available
+                        </Badge>
+                      )}
+                    </div>
+                    {product.description && (
+                      <p className={`text-sm line-clamp-2 ${isConfigured ? 'text-neutral-600' : 'text-neutral-400'}`}>
+                        {product.description}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>

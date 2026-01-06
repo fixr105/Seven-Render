@@ -208,6 +208,61 @@ export class ClientController {
   }
 
   /**
+   * GET /client/configured-products
+   * Get list of product IDs that have configured forms for the authenticated client
+   */
+  async getConfiguredProducts(req: Request, res: Response): Promise<void> {
+    try {
+      // Check if user is authenticated
+      if (!req.user || !req.user.clientId) {
+        res.status(401).json({
+          success: false,
+          error: 'Authentication required. Client ID not found.',
+        });
+        return;
+      }
+
+      // Fetch ClientFormMapping table
+      const mappings = await n8nClient.fetchTable('Client Form Mapping');
+
+      // Filter mappings for this client
+      const clientMappings = mappings.filter((m: any) => {
+        const mappingClientId = m.Client || m.client || m['Client ID'];
+        return (
+          mappingClientId === req.user!.clientId ||
+          mappingClientId === req.user!.clientId?.toString() ||
+          req.user!.clientId === mappingClientId?.toString()
+        );
+      });
+
+      // Extract unique Product IDs (where Product ID is not null/empty)
+      const productIds = new Set<string>();
+      clientMappings.forEach((m: any) => {
+        const productId = m['Product ID'] || m.productId;
+        if (productId && productId.trim() !== '') {
+          productIds.add(productId.toString());
+        }
+      });
+
+      console.log(
+        `[getConfiguredProducts] Client ${req.user!.clientId} has ${productIds.size} configured products:`,
+        Array.from(productIds)
+      );
+
+      res.json({
+        success: true,
+        data: Array.from(productIds),
+      });
+    } catch (error: any) {
+      console.error('[getConfiguredProducts] Error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch configured products',
+      });
+    }
+  }
+
+  /**
    * POST /loan-applications/:id/queries/:queryId/reply
    * Respond to query (CLIENT only)
    */
