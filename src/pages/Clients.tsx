@@ -138,10 +138,7 @@ export const Clients: React.FC = () => {
 
     // Check if token is available before making request
     const token = apiService.getToken();
-    const tokenFromStorage = localStorage.getItem('auth_token');
-      fromService: token ? `${token.substring(0, 20)}...` : 'null',
-      fromStorage: tokenFromStorage ? `${tokenFromStorage.substring(0, 20)}...` : 'null',
-    });
+      const tokenFromStorage = localStorage.getItem('auth_token');
     
     if (!token && !tokenFromStorage) {
       console.error('[Clients] ❌ No token available! User needs to login.');
