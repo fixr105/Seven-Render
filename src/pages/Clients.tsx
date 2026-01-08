@@ -80,12 +80,6 @@ export const Clients: React.FC = () => {
         ? await apiService.listCreditClients()
         : await apiService.listClients(forceRefresh);
       
-        success: response.success,
-        dataLength: response.data?.length || 0,
-        error: response.error,
-        debug: (response as any)._debug
-      });
-      
       // Show debug info if present
       if ((response as any)._debug) {
         const debug = (response as any)._debug;
