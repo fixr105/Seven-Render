@@ -150,7 +150,17 @@ export async function httpClient(
     timeout = 30000,
   } = retryOptions;
 
-  const baseUrl = new URL(url).origin;
+  let baseUrl: string;
+  try {
+    baseUrl = new URL(url).origin;
+  } catch (urlError: any) {
+    defaultLogger.error('Invalid URL in httpClient', {
+      url,
+      error: urlError.message,
+    });
+    throw new Error(`Invalid URL: ${url}`);
+  }
+  
   const circuitBreaker = getCircuitBreaker(baseUrl);
 
   // Check circuit breaker
@@ -335,17 +345,50 @@ export async function httpPost(
   options: RequestInit = {},
   retryOptions?: RetryOptions
 ): Promise<Response> {
-  return httpClient(
+  defaultLogger.info('httpPost called', {
     url,
-    {
-      ...options,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
+    bodyKeys: typeof body === 'object' ? Object.keys(body) : 'string',
+    hasRetryOptions: !!retryOptions,
+  });
+
+  const requestBody = typeof body === 'string' ? body : JSON.stringify(body);
+  
+  defaultLogger.debug('httpPost request details', {
+    url,
+    method: 'POST',
+    bodyLength: requestBody.length,
+    bodyPreview: requestBody.substring(0, 200),
+  });
+
+  try {
+    const response = await httpClient(
+      url,
+      {
+        ...options,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        body: requestBody,
       },
-      body: typeof body === 'string' ? body : JSON.stringify(body),
-    },
-    retryOptions
-  );
+      retryOptions
+    );
+
+    defaultLogger.info('httpPost completed', {
+      url,
+      status: response.status,
+      statusText: response.statusText,
+    });
+
+    return response;
+  } catch (error: any) {
+    defaultLogger.error('httpPost failed', {
+      url,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack?.split('\n').slice(0, 5),
+    });
+    throw error;
+  }
 }
