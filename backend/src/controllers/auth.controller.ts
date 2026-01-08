@@ -506,14 +506,29 @@ export class AuthController {
           requestId,
           error: 'N8N_BASE_URL environment variable is required',
         });
+        defaultLogger.error('N8N_BASE_URL environment variable is missing', {
+          requestId,
+          envKeys: Object.keys(process.env).filter(k => k.includes('N8N')),
+        });
         res.status(500).json({
           success: false,
           error: 'Server configuration error: N8N_BASE_URL not configured',
         });
         return;
       }
-      const n8nBaseUrl = process.env.N8N_BASE_URL;
+      const n8nBaseUrl = process.env.N8N_BASE_URL.trim();
       const validateUrl = `${n8nBaseUrl}/webhook/validate`;
+      
+      // Log detailed webhook configuration
+      defaultLogger.info('VALIDATE: Webhook configuration', {
+        requestId,
+        n8nBaseUrl,
+        validateUrl,
+        n8nBaseUrlLength: n8nBaseUrl.length,
+        validateUrlLength: validateUrl.length,
+        username,
+        envVarSet: !!process.env.N8N_BASE_URL,
+      });
       
       this.logStructured('VALIDATE_N8N_WEBHOOK_CALL_STARTED', {
         requestId,
@@ -522,22 +537,32 @@ export class AuthController {
         username,
       });
 
-      // Use resilient HTTP client with retry logic and circuit breaker
+        // Use resilient HTTP client with retry logic and circuit breaker
       try {
         // Proxy the request to n8n webhook (server-to-server, no CORS issues)
         // Using httpPost with retry logic and circuit breaker for better reliability
+        const payload = {
+          username,
+          passcode,
+        };
+        
+        defaultLogger.info('VALIDATE: Making webhook call', {
+          requestId,
+          validateUrl,
+          payload: { username, passcode: '***REDACTED***' },
+          timestamp: new Date().toISOString(),
+        });
+        
         this.logStructured('VALIDATE_HTTP_POST_CALL', {
           requestId,
           validateUrl,
           payload: { username, passcode: '***' },
         });
         
+        const webhookStartTime = Date.now();
         const response = await httpPost(
           validateUrl,
-          {
-            username,
-            passcode,
-          },
+          payload,
           {},
           {
             maxRetries: 0, // No retries for validate - must complete quickly
@@ -546,6 +571,16 @@ export class AuthController {
             timeout: 45000, // 45 seconds timeout for n8n webhook (Fly.io has no 30s limit)
           }
         );
+        
+        const webhookDuration = Date.now() - webhookStartTime;
+        defaultLogger.info('VALIDATE: Webhook call completed', {
+          requestId,
+          validateUrl,
+          status: response.status,
+          statusText: response.statusText,
+          duration: `${webhookDuration}ms`,
+          headers: Object.fromEntries(response.headers.entries()),
+        });
 
         this.logStructured('VALIDATE_HTTP_POST_SUCCESS', {
           requestId,
@@ -629,17 +664,140 @@ export class AuthController {
           };
           const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
           
-          // Generate token directly from n8n response (no need for second webhook call)
+          // Fetch full user profile to get IDs (clientId, kamId, nbfcId)
+          let clientId: string | null = profileData.clientId || null;
+          let kamId: string | null = profileData.kamId || null;
+          let nbfcId: string | null = profileData.nbfcId || null;
+          
+          try {
+            // Fetch User Accounts to get full profile
+            const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000);
+            const userAccount = userAccounts.find((u: any) => {
+              const accountUsername = (u['Username'] || u['Email'] || '').toLowerCase();
+              const accountName = (u['Name'] || u['Associated profile'] || '').toLowerCase();
+              return accountUsername === userEmail.toLowerCase() || 
+                     accountUsername === username.toLowerCase() ||
+                     accountName === userName.toLowerCase();
+            });
+            
+            if (userAccount) {
+              defaultLogger.info('VALIDATE: Found user account', {
+                requestId,
+                userId: userAccount.id,
+                username: userAccount['Username'] || userAccount['Email'],
+              });
+              
+              // Based on role, fetch additional data to get IDs
+              if (normalizedRole === 'client') {
+                // Fetch Clients table to find clientId
+                try {
+                  const clients = await n8nClient.fetchTable('Clients', true, undefined, 5000);
+                  const client = clients.find((c: any) => {
+                    const contactInfo = (c['Contact Email / Phone'] || c['Contact Email'] || c['Email'] || '').toLowerCase();
+                    const clientName = (c['Client Name'] || '').toLowerCase();
+                    return contactInfo.includes(userEmail.toLowerCase()) ||
+                           contactInfo.includes(username.toLowerCase()) ||
+                           clientName === userName.toLowerCase();
+                  });
+                  
+                  if (client) {
+                    clientId = client['Client ID'] || client.id || null;
+                    defaultLogger.info('VALIDATE: Found client ID', {
+                      requestId,
+                      clientId,
+                      clientName: client['Client Name'],
+                    });
+                  }
+                } catch (clientError: any) {
+                  defaultLogger.warn('VALIDATE: Failed to fetch client ID', {
+                    requestId,
+                    error: clientError.message,
+                  });
+                }
+              } else if (normalizedRole === 'kam') {
+                // Fetch KAM Users table to find kamId
+                try {
+                  const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 5000);
+                  const kamUser = kamUsers.find((k: any) => {
+                    const kamEmail = (k['Email'] || '').toLowerCase();
+                    const kamName = (k['Name'] || '').toLowerCase();
+                    return kamEmail === userEmail.toLowerCase() ||
+                           kamEmail === username.toLowerCase() ||
+                           kamName === userName.toLowerCase();
+                  });
+                  
+                  if (kamUser) {
+                    kamId = kamUser['KAM ID'] || kamUser.id || null;
+                    defaultLogger.info('VALIDATE: Found KAM ID', {
+                      requestId,
+                      kamId,
+                      kamName: kamUser['Name'],
+                    });
+                  }
+                } catch (kamError: any) {
+                  defaultLogger.warn('VALIDATE: Failed to fetch KAM ID', {
+                    requestId,
+                    error: kamError.message,
+                  });
+                }
+              } else if (normalizedRole === 'nbfc') {
+                // Fetch NBFC Partners table to find nbfcId
+                try {
+                  const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 5000);
+                  const nbfcPartner = nbfcPartners.find((n: any) => {
+                    const nbfcEmail = (n['Email'] || '').toLowerCase();
+                    const nbfcName = (n['Partner Name'] || n['Name'] || '').toLowerCase();
+                    return nbfcEmail === userEmail.toLowerCase() ||
+                           nbfcEmail === username.toLowerCase() ||
+                           nbfcName === userName.toLowerCase();
+                  });
+                  
+                  if (nbfcPartner) {
+                    nbfcId = nbfcPartner['NBFC Partner ID'] || nbfcPartner.id || null;
+                    defaultLogger.info('VALIDATE: Found NBFC ID', {
+                      requestId,
+                      nbfcId,
+                      nbfcName: nbfcPartner['Partner Name'] || nbfcPartner['Name'],
+                    });
+                  }
+                } catch (nbfcError: any) {
+                  defaultLogger.warn('VALIDATE: Failed to fetch NBFC ID', {
+                    requestId,
+                    error: nbfcError.message,
+                  });
+                }
+              }
+            }
+          } catch (profileError: any) {
+            // Log error but don't fail authentication - IDs will be null
+            defaultLogger.warn('VALIDATE: Failed to fetch full user profile', {
+              requestId,
+              error: profileError.message,
+              note: 'Continuing with basic profile data',
+            });
+          }
+          
+          // Generate token directly from n8n response with fetched IDs
           try {
             const jwtPayload = {
               userId: profileData.id || `validated-${username}`,
               email: userEmail,
               role: normalizedRole,
               name: userName,
-              clientId: profileData.clientId || null,
-              kamId: profileData.kamId || null,
-              nbfcId: profileData.nbfcId || null,
+              clientId,
+              kamId,
+              nbfcId,
             };
+            
+            defaultLogger.info('VALIDATE: JWT payload prepared', {
+              requestId,
+              userId: jwtPayload.userId,
+              email: userEmail,
+              role: normalizedRole,
+              clientId,
+              kamId,
+              nbfcId,
+            });
             
             this.logStructured('VALIDATE_TOKEN_GENERATION', {
               requestId,
@@ -667,9 +825,9 @@ export class AuthController {
                 id: jwtPayload.userId,
                 email: userEmail,
                 role: normalizedRole,
-                clientId: profileData.clientId || null,
-                kamId: profileData.kamId || null,
-                nbfcId: profileData.nbfcId || null,
+                clientId,
+                kamId,
+                nbfcId,
                 name: userName,
               },
             });
@@ -697,6 +855,16 @@ export class AuthController {
           error: 'Invalid username or passcode',
         });
       } catch (fetchError: any) {
+        defaultLogger.error('VALIDATE: Webhook call failed', {
+          requestId,
+          validateUrl,
+          errorName: fetchError.name,
+          errorMessage: fetchError.message,
+          errorCode: fetchError.code,
+          errorStack: fetchError.stack?.split('\n').slice(0, 10),
+          cause: fetchError.cause,
+        });
+        
         this.logStructured('VALIDATE_N8N_WEBHOOK_ERROR', {
           requestId,
           errorName: fetchError.name,
@@ -706,6 +874,11 @@ export class AuthController {
         
         // Handle specific error types
         if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError' || fetchError.message?.includes('timeout')) {
+          defaultLogger.error('VALIDATE: Webhook timeout', {
+            requestId,
+            validateUrl,
+            timeout: '45s',
+          });
           res.status(504).json({
             success: false,
             error: 'Request timed out. Please try again.',
