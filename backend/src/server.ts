@@ -5,7 +5,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
-import cors from 'cors';
 import routes from './routes/index.js';
 import { handleError } from './utils/errors.js';
 import { defaultLogger } from './utils/logger.js';
@@ -57,42 +56,6 @@ app.use(helmet({
     preload: true,
   },
 }));
-
-// CORS Configuration - Environment-based allowlist
-const corsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Allow requests with no origin (mobile apps, Postman, etc.) in development
-    if (!origin && process.env.NODE_ENV === 'development') {
-      return callback(null, true);
-    }
-
-    // Get allowed origins from environment variable
-    const allowedOrigins = process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-      : [];
-
-    // If CORS_ORIGIN is not set, allow all in development, deny in production
-    if (allowedOrigins.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        return callback(null, true);
-      }
-      return callback(new Error('CORS_ORIGIN not configured for production'));
-    }
-
-    // Check if origin is in allowed list
-    if (origin && allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Request-ID'],
-};
-
-app.use(cors(corsOptions));
 
 // APM middleware for performance monitoring
 app.use(apmMiddleware);
