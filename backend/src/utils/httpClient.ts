@@ -199,6 +199,13 @@ export async function httpClient(
 
         clearTimeout(timeoutId);
 
+        defaultLogger.debug('HTTP client received response', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+        });
+
         // Check if we should retry based on status code
         if (retryOn.includes(response.status) && attempt < maxRetries) {
           const backoffDelay = calculateBackoff(attempt, retryDelay);
@@ -223,10 +230,45 @@ export async function httpClient(
         return response;
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
-        throw fetchError;
+        
+        defaultLogger.error('HTTP client fetch error', {
+          url,
+          errorName: fetchError.name,
+          errorMessage: fetchError.message,
+          errorCode: fetchError.code,
+          attempt: attempt + 1,
+        });
+        
+        // Handle timeout
+        if (fetchError.name === 'AbortError') {
+          const timeoutError = new Error(`Request timed out after ${timeout}ms`);
+          timeoutError.name = 'TimeoutError';
+          lastError = timeoutError;
+          
+          // Don't retry on timeout if this is the last attempt
+          if (attempt === maxRetries) {
+            circuitBreaker.recordFailure();
+            defaultLogger.error('Request timed out after all retries', {
+              url,
+              timeout,
+              attempts: attempt + 1,
+            });
+            throw timeoutError;
+          }
+        } else {
+          lastError = fetchError;
+        }
       }
     } catch (error: any) {
       lastError = error;
+
+      defaultLogger.error('HTTP client outer catch error', {
+        url,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorCode: error.code,
+        attempt: attempt + 1,
+      });
 
       // Don't retry on certain errors
       if (error.name === 'AbortError' || error.name === 'TypeError') {
