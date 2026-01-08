@@ -534,10 +534,10 @@ export class AuthController {
           },
           {},
           {
-            maxRetries: 2,
+            maxRetries: 1, // Single retry to stay within timeout limits
             retryDelay: 1000,
             retryOn: [408, 429, 500, 502, 503, 504],
-            timeout: 20000, // 20 seconds per attempt, with retries
+            timeout: 10000, // 10 seconds per attempt (10s + 1s delay + 10s = 21s max)
           }
         );
 

@@ -247,6 +247,11 @@ class ApiService {
     // Public endpoints that don't require authentication
     const publicEndpoints = ['/auth/login', '/auth/validate', '/auth/register', '/health'];
     const isPublicEndpoint = publicEndpoints.some(publicPath => endpoint.startsWith(publicPath));
+    
+    // Set timeout for requests (25 seconds to stay under Vercel's 30s limit)
+    const timeoutMs = 25000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     // Add auth token if available
     // ALWAYS check localStorage first to ensure we have the latest token
@@ -262,16 +267,20 @@ class ApiService {
 
     try {
       // Add timeout for fetch requests
-      // Login and application creation webhooks need more time, allow up to 60 seconds for Vercel function limit
+      // Validate endpoint needs shorter timeout to avoid Vercel 30s limit
+      const isValidateRequest = endpoint.includes('/auth/validate');
       const isLoginRequest = endpoint.includes('/auth/login');
       const isApplicationRequest = endpoint.includes('/loan-applications') && options.method === 'POST';
       const isGetRequest = !options.method || options.method === 'GET';
       
-      // GET requests that fetch data from n8n webhooks need more time (55s to respect Vercel 60s limit)
-      // POST requests for application creation also need more time
-      // Other requests use 30s timeout
-      const timeoutMs = isLoginRequest || isApplicationRequest 
-        ? 60000  // 60s for login/app creation
+      // Validate endpoint: 25s timeout (stays under Vercel's 30s limit)
+      // Login and application creation webhooks: 60s (if going directly to Fly.io)
+      // GET requests: 55s for n8n webhooks
+      // Other requests: 30s timeout
+      const timeoutMs = isValidateRequest
+        ? 25000  // 25s for validate (must stay under Vercel 30s limit)
+        : isLoginRequest || isApplicationRequest 
+        ? 60000  // 60s for login/app creation (if going to Fly.io directly)
         : isGetRequest 
         ? 55000  // 55s for GET requests (n8n webhooks can be slow)
         : 30000; // 30s for other POST/PUT/DELETE requests
