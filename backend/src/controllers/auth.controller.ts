@@ -614,79 +614,80 @@ export class AuthController {
 
         // If we have profile data, proceed with authentication
         if (profileData && (profileData.username || profileData.role)) {
+          // Extract user data from profile data
+          const userEmail = profileData.email || profileData.username || username;
+          const userRole = profileData.role || 'client';
+          const userName = profileData['Associated profile'] || profileData.name || profileData.username || username;
+          
+          // Map role to valid role format
+          const roleMap: Record<string, string> = {
+            'kam': 'kam',
+            'client': 'client',
+            'credit_team': 'credit_team',
+            'credit team': 'credit_team',
+            'nbfc': 'nbfc',
+          };
+          const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
+          
+          // Generate token directly from n8n response (no need for second webhook call)
           try {
-            // Try to login with username as email to get token and user data
-            // This ensures the user exists in User Accounts and we get proper user context
-            const loginResult = await authService.login(username, passcode);
+            const jwtPayload = {
+              userId: profileData.id || `validated-${username}`,
+              email: userEmail,
+              role: normalizedRole,
+              name: userName,
+              clientId: profileData.clientId || null,
+              kamId: profileData.kamId || null,
+              nbfcId: profileData.nbfcId || null,
+            };
             
-            // Return token and user data
+            this.logStructured('VALIDATE_TOKEN_GENERATION', {
+              requestId,
+              userId: jwtPayload.userId,
+              email: userEmail,
+              role: normalizedRole,
+            });
+            
+            const token = jwt.sign(
+              jwtPayload,
+              authConfig.jwtSecret,
+              { expiresIn: authConfig.jwtExpiresIn } as jwt.SignOptions
+            );
+            
+            this.logStructured('VALIDATE_SUCCESS', {
+              requestId,
+              username,
+              role: normalizedRole,
+            });
+            
             res.json({
               success: true,
-              token: loginResult.token,
-              user: loginResult.user,
+              token: token,
+              user: {
+                id: jwtPayload.userId,
+                email: userEmail,
+                role: normalizedRole,
+                clientId: profileData.clientId || null,
+                kamId: profileData.kamId || null,
+                nbfcId: profileData.nbfcId || null,
+                name: userName,
+              },
             });
             return;
-          } catch (loginError: any) {
-            // If login fails, it means user is not in User Accounts table
-            // But validation succeeded, so we can still create a basic token
-            // using the username and data from n8n response
-            console.warn('[AuthController] Validate succeeded but user not in User Accounts:', loginError.message);
-            
-            // Extract user data from profile data
-            const userEmail = profileData.email || profileData.username || username;
-            const userRole = profileData.role || 'client';
-            const userName = profileData['Associated profile'] || profileData.name || profileData.username || username;
-            
-            // Map role to valid role format
-            const roleMap: Record<string, string> = {
-              'kam': 'kam',
-              'client': 'client',
-              'credit_team': 'credit_team',
-              'credit team': 'credit_team',
-              'nbfc': 'nbfc',
-            };
-            const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
-            
-              // Generate a basic token with available user data
-              try {
-                const jwtPayload = {
-                  userId: profileData.id || `validated-${username}`,
-                  email: userEmail,
-                  role: normalizedRole,
-                  name: userName,
-                  clientId: profileData.clientId || null,
-                  kamId: profileData.kamId || null,
-                  nbfcId: profileData.nbfcId || null,
-                };
-              
-              const token = jwt.sign(
-                jwtPayload,
-                authConfig.jwtSecret,
-                { expiresIn: authConfig.jwtExpiresIn } as jwt.SignOptions
-              );
-              
-              res.json({
-                success: true,
-                token: token,
-                user: {
-                  id: jwtPayload.userId,
-                  email: userEmail,
-                  role: normalizedRole,
-                  clientId: profileData.clientId || null,
-                  kamId: profileData.kamId || null,
-                  nbfcId: profileData.nbfcId || null,
-                  name: userName,
-                },
-              });
-              return;
-            } catch (tokenError: any) {
-              console.error('[AuthController] Failed to generate token:', tokenError);
-              res.status(500).json({
-                success: false,
-                error: 'Validation succeeded but could not create session token.',
-              });
-              return;
-            }
+          } catch (tokenError: any) {
+            this.logStructured('VALIDATE_TOKEN_ERROR', {
+              requestId,
+              error: tokenError.message,
+            });
+            defaultLogger.error('Failed to generate token', {
+              requestId,
+              error: tokenError.message,
+            });
+            res.status(500).json({
+              success: false,
+              error: 'Validation succeeded but could not create session token.',
+            });
+            return;
           }
         }
 

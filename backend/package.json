@@ -29,6 +29,7 @@
     "daily:summary": "node scripts/generate-daily-summary-notification.js",
     "sync:asana": "node scripts/sync-loans-to-asana.js",
     "pre-deploy": "tsx scripts/pre-deployment-check.ts",
+    "test:webhook": "tsx scripts/test-validate-webhook.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
