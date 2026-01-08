@@ -164,6 +164,13 @@ export async function httpClient(
     throw new Error(`Circuit breaker is open for ${baseUrl}. Service is unavailable.`);
   }
 
+  defaultLogger.debug('HTTP client making request', {
+    url,
+    method: options.method || 'GET',
+    timeout,
+    maxRetries,
+  });
+
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -172,10 +179,22 @@ export async function httpClient(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+      defaultLogger.debug('HTTP client attempting request', {
+        url,
+        attempt: attempt + 1,
+        maxRetries: maxRetries + 1,
+      });
+
       try {
         const response = await fetch(url, {
           ...options,
           signal: controller.signal,
+        });
+
+        defaultLogger.debug('HTTP client received response', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
         });
 
         clearTimeout(timeoutId);

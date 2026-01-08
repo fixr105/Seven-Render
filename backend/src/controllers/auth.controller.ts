@@ -526,6 +526,12 @@ export class AuthController {
       try {
         // Proxy the request to n8n webhook (server-to-server, no CORS issues)
         // Using httpPost with retry logic and circuit breaker for better reliability
+        this.logStructured('VALIDATE_HTTP_POST_CALL', {
+          requestId,
+          validateUrl,
+          payload: { username, passcode: '***' },
+        });
+        
         const response = await httpPost(
           validateUrl,
           {
@@ -540,6 +546,12 @@ export class AuthController {
             timeout: 45000, // 45 seconds timeout for n8n webhook (Fly.io has no 30s limit)
           }
         );
+
+        this.logStructured('VALIDATE_HTTP_POST_SUCCESS', {
+          requestId,
+          status: response.status,
+          statusText: response.statusText,
+        });
 
         // Check if response is ok
               if (!response.ok) {
