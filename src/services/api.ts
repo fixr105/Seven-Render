@@ -3,6 +3,9 @@
  * Wraps all backend endpoints, handles JWT auth, and provides role-based access
  */
 
+import { defaultLogger } from '../utils/logger.js';
+import { errorTracker } from '../utils/errorTracker.js';
+
 // Ensure API_BASE_URL includes /api prefix for Vercel deployment
 const getApiBaseUrl = () => {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
@@ -322,7 +325,11 @@ class ApiService {
         data = JSON.parse(text);
       } catch (parseError) {
         // If not JSON, return the text as error
-        console.error('Failed to parse JSON response:', text.substring(0, 200));
+        defaultLogger.error('Failed to parse JSON response', {
+          endpoint,
+          status: response.status,
+          responsePreview: text.substring(0, 200),
+        });
         return {
           success: false,
           error: `Invalid JSON response from server: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
@@ -350,10 +357,24 @@ class ApiService {
         data: data.data || data,
       };
     } catch (error: any) {
-      console.error('API request error:', error);
-      console.error('Request URL:', url);
-      console.error('Base URL:', this.baseUrl);
-      console.error('Endpoint:', endpoint);
+      defaultLogger.error('API request error', {
+        endpoint,
+        url,
+        baseUrl: this.baseUrl,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      // Track error for monitoring
+      if (error instanceof Error) {
+        errorTracker.captureException(error, {
+          url: window.location.href,
+          metadata: {
+            endpoint,
+            baseUrl: this.baseUrl,
+          },
+        });
+      }
       
       // Provide more specific error messages
       let errorMessage = 'Network error';
@@ -550,7 +571,22 @@ class ApiService {
         data: data.data || data,
       };
     } catch (error: any) {
-      console.error('Document upload error:', error);
+      defaultLogger.error('Document upload error', {
+        applicationId,
+        fieldId,
+        error: error.message,
+      });
+
+      if (error instanceof Error) {
+        errorTracker.captureException(error, {
+          metadata: {
+            applicationId,
+            fieldId,
+            operation: 'document_upload',
+          },
+        });
+      }
+
       return {
         success: false,
         error: error.message || 'Failed to upload document',

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { UserRole } from '../services/api';
+import { defaultLogger } from '../utils/logger';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -23,8 +24,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (!user) {
-    console.log('[ProtectedRoute] No user found, redirecting to /login');
-    console.log('[ProtectedRoute] Token in localStorage:', localStorage.getItem('auth_token') ? 'exists' : 'null');
+    defaultLogger.debug('ProtectedRoute: No user found, redirecting to login', {
+      hasToken: !!localStorage.getItem('auth_token'),
+    });
     return <Navigate to="/login" replace />;
   }
 
