@@ -122,7 +122,7 @@ export const authenticate = async (
     
     // Verify real JWT token
     logger.debug('Verifying JWT token');
-    const user = authService.verifyToken(token);
+    const user = await authService.verifyToken(token);
     logger.info('Token verified', { email: user.email, role: user.role, userId: user.id });
     req.user = user;
     

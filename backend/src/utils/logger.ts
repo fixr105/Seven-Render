@@ -68,15 +68,16 @@ const logger = winston.createLogger({
 
 // Add file transport in production (optional)
 if (process.env.NODE_ENV === 'production' && process.env.LOG_FILE) {
-  transports.push(
+  const fileTransports = [
     new winston.transports.File({
       filename: process.env.LOG_FILE,
       level: 'error',
     }),
     new winston.transports.File({
       filename: process.env.LOG_FILE?.replace('.log', '-combined.log') || 'combined.log',
-    })
-  );
+    }),
+  ];
+  transports.push(...fileTransports);
 }
 
 /**

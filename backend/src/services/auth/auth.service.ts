@@ -611,7 +611,7 @@ export class AuthService {
   /**
    * Verify JWT token
    */
-  verifyToken(token: string): AuthUser {
+  async verifyToken(token: string): Promise<AuthUser> {
     try {
       // Check if token is blacklisted
       const { tokenBlacklist } = await import('./tokenBlacklist.service.js');
