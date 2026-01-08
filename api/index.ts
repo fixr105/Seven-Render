@@ -155,7 +155,7 @@ export default async function handlerWrapper(
           environment: {
             NODE_ENV: process.env.NODE_ENV || 'not set',
             VERCEL: process.env.VERCEL || 'not set',
-            N8N_BASE_URL: n8nBaseUrl,
+            N8N_BASE_URL: baseUrl,
           },
           webhookUrls,
           timestamp: new Date().toISOString(),
