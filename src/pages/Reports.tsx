@@ -157,7 +157,7 @@ export const Reports: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle="Daily Summary Reports"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName="User"
+      userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       <div className="space-y-6">

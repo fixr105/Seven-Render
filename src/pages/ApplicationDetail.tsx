@@ -467,7 +467,7 @@ export const ApplicationDetail: React.FC = () => {
       onItemClick={handleNavigation}
       pageTitle={`Application ${application.file_number || application.fileId || id}`}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-      userName="User"
+      userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       {/* Header Actions */}
