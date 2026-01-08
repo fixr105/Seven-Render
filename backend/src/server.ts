@@ -9,8 +9,33 @@ import cors from 'cors';
 import routes from './routes/index.js';
 import { handleError } from './utils/errors.js';
 import { defaultLogger } from './utils/logger.js';
+import { setupErrorHandlers } from './utils/errorTracker.js';
+import { apmMiddleware } from './utils/apm.js';
+import { setupUptimeMonitoring } from './utils/uptimeMonitor.js';
+import { validateEnvironment } from './utils/envValidation.js';
 
 dotenv.config();
+
+// Validate environment variables (warn only, don't exit in production)
+if (process.env.NODE_ENV === 'production') {
+  const envResult = validateEnvironment();
+  if (envResult.errors.length > 0) {
+    defaultLogger.error('Environment validation failed', { errors: envResult.errors });
+    // In production, log but don't exit (to avoid breaking deployments)
+    // The validation script can be run separately for pre-deployment checks
+  }
+  if (envResult.warnings.length > 0) {
+    defaultLogger.warn('Environment validation warnings', { warnings: envResult.warnings });
+  }
+}
+
+// Setup global error handlers (unhandled rejections, uncaught exceptions)
+setupErrorHandlers();
+
+// Setup uptime monitoring (if configured)
+if (process.env.UPTIME_NOTIFY_URL) {
+  setupUptimeMonitoring();
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,6 +93,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// APM middleware for performance monitoring
+app.use(apmMiddleware);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

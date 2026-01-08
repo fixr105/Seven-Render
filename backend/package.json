@@ -27,7 +27,12 @@
     "auto:commission": "node scripts/auto-create-commission-ledger.js",
     "auto:commission:nbfc": "node scripts/auto-create-commission-from-nbfc-payout.js",
     "daily:summary": "node scripts/generate-daily-summary-notification.js",
-    "sync:asana": "node scripts/sync-loans-to-asana.js"
+    "sync:asana": "node scripts/sync-loans-to-asana.js",
+    "pre-deploy": "tsx scripts/pre-deployment-check.ts",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",
@@ -44,6 +49,7 @@
     "node-fetch": "^3.3.2",
     "sanitize-html": "^2.17.0",
     "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0",
     "xlsx": "^0.18.5",
     "zod": "^3.22.4"
   },
@@ -58,7 +64,11 @@
     "@types/node": "^20.10.6",
     "@types/node-fetch": "^2.6.11",
     "@types/supertest": "^6.0.2",
+    "@typescript-eslint/eslint-plugin": "^8.52.0",
+    "@typescript-eslint/parser": "^8.52.0",
+    "eslint": "^9.39.2",
     "jest": "^29.7.0",
+    "prettier": "^3.7.4",
     "supertest": "^6.3.4",
     "ts-jest": "^29.1.2",
     "tsx": "^4.7.0",

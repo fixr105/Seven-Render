@@ -4,6 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import { defaultLogger } from '../utils/logger.js';
+import { performHealthCheck } from '../utils/uptimeMonitor.js';
 import fetch from 'node-fetch';
 
 const router = Router();
@@ -199,6 +200,32 @@ router.get('/metrics/json', (req: Request, res: Response) => {
     defaultLogger.error('Metrics JSON error', { error: error.message });
     res.status(500).json({
       success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /uptime
+ * Uptime monitoring endpoint (for external services like UptimeRobot, Pingdom)
+ */
+router.get('/uptime', async (req: Request, res: Response) => {
+  try {
+    const result = await performHealthCheck();
+    const statusCode = result.status === 'up' ? 200 : result.status === 'degraded' ? 200 : 503;
+    
+    res.status(statusCode).json({
+      success: result.status === 'up',
+      status: result.status,
+      responseTime: result.responseTime,
+      timestamp: result.timestamp.toISOString(),
+      message: result.message,
+    });
+  } catch (error: any) {
+    defaultLogger.error('Uptime check error', { error: error.message });
+    res.status(503).json({
+      success: false,
+      status: 'down',
       error: error.message,
     });
   }
