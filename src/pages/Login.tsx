@@ -5,6 +5,7 @@ import { apiService } from '../services/api';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { defaultLogger } from '../utils/logger';
 import homeGif from '../components/ui/home2.gif?url';
 
 export const Login: React.FC = () => {
@@ -58,7 +59,10 @@ export const Login: React.FC = () => {
         setError(validateResponse.error || validateResponse.data?.error || validateResponse.data?.message || 'Invalid username or passcode');
       }
     } catch (err: any) {
-      console.error('Login error:', err);
+      defaultLogger.error('Login error', {
+        error: err.message,
+        stack: err.stack,
+      });
       // Provide user-friendly error messages
       if (err.message) {
         setError(err.message);

@@ -189,26 +189,39 @@ export const errorTracker = createErrorTracker();
  * Setup global error handlers
  */
 export function setupErrorHandlers() {
-  // Capture unhandled errors
-  window.addEventListener('error', (event) => {
-    errorTracker.captureException(event.error || new Error(event.message), {
-      url: event.filename,
-      metadata: {
-        lineno: event.lineno,
-        colno: event.colno,
-      },
+  try {
+    // Capture unhandled errors
+    window.addEventListener('error', (event) => {
+      try {
+        errorTracker.captureException(event.error || new Error(event.message), {
+          url: event.filename,
+          metadata: {
+            lineno: event.lineno,
+            colno: event.colno,
+          },
+        });
+      } catch (err) {
+        // Silently fail - don't break error handling
+      }
     });
-  });
 
-  // Capture unhandled promise rejections
-  window.addEventListener('unhandledrejection', (event) => {
-    const error = event.reason instanceof Error 
-      ? event.reason 
-      : new Error(String(event.reason));
-    errorTracker.captureException(error, {
-      metadata: {
-        type: 'unhandledRejection',
-      },
+    // Capture unhandled promise rejections
+    window.addEventListener('unhandledrejection', (event) => {
+      try {
+        const error = event.reason instanceof Error 
+          ? event.reason 
+          : new Error(String(event.reason));
+        errorTracker.captureException(error, {
+          metadata: {
+            type: 'unhandledRejection',
+          },
+        });
+      } catch (err) {
+        // Silently fail - don't break error handling
+      }
     });
-  });
+  } catch (err) {
+    // Silently fail - don't break app initialization
+    console.warn('Failed to setup error handlers:', err);
+  }
 }
