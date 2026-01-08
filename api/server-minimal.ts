@@ -47,8 +47,8 @@ async function loadRoutes(): Promise<void> {
       const routesModule = await import('../backend/src/routes/index.js');
       const routes = routesModule.default;
       
-      // Type assertion for Router compatibility
-      app.use('/', routes as express.Router);
+      // Type assertion for Router compatibility (using unknown to avoid type conflicts)
+      app.use('/', routes as unknown as express.Router);
       routesLoaded = true;
       routesLoading = false;
       
