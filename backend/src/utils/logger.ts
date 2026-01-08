@@ -48,13 +48,26 @@ const level = () => {
   return isDevelopment ? 'debug' : 'warn';
 };
 
-// Create transports
-const transports = [
+// Create transports array with proper typing
+const transports: winston.transport[] = [
   // Console transport
   new winston.transports.Console({
     format: process.env.NODE_ENV === 'production' ? format : consoleFormat,
   }),
 ];
+
+// Add file transport in production (optional)
+if (process.env.NODE_ENV === 'production' && process.env.LOG_FILE) {
+  transports.push(
+    new winston.transports.File({
+      filename: process.env.LOG_FILE,
+      level: 'error',
+    }),
+    new winston.transports.File({
+      filename: process.env.LOG_FILE?.replace('.log', '-combined.log') || 'combined.log',
+    })
+  );
+}
 
 // Create logger instance
 const logger = winston.createLogger({
@@ -65,20 +78,6 @@ const logger = winston.createLogger({
   // Don't exit on handled exceptions
   exitOnError: false,
 });
-
-// Add file transport in production (optional)
-if (process.env.NODE_ENV === 'production' && process.env.LOG_FILE) {
-  const fileTransports = [
-    new winston.transports.File({
-      filename: process.env.LOG_FILE,
-      level: 'error',
-    }),
-    new winston.transports.File({
-      filename: process.env.LOG_FILE?.replace('.log', '-combined.log') || 'combined.log',
-    }),
-  ];
-  transports.push(...fileTransports);
-}
 
 /**
  * Logger interface
