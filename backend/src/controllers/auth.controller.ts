@@ -9,6 +9,7 @@ import { authService } from '../services/auth/auth.service.js';
 import { authConfig } from '../config/auth.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { loginSchema, validateSchema } from '../utils/validators.js';
+import { httpPost } from '../utils/httpClient.js';
 
 export class AuthController {
   /**
@@ -521,24 +522,24 @@ export class AuthController {
         username,
       });
 
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
+      // Use resilient HTTP client with retry logic and circuit breaker
       try {
         // Proxy the request to n8n webhook (server-to-server, no CORS issues)
-        const response = await fetch(validateUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        // Using httpPost with retry logic and circuit breaker for better reliability
+        const response = await httpPost(
+          validateUrl,
+          {
             username,
             passcode,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+          },
+          {},
+          {
+            maxRetries: 2,
+            retryDelay: 1000,
+            retryOn: [408, 429, 500, 502, 503, 504],
+            timeout: 20000, // 20 seconds per attempt, with retries
+          }
+        );
 
         // Check if response is ok
               if (!response.ok) {
@@ -683,8 +684,6 @@ export class AuthController {
           error: 'Invalid username or passcode',
         });
       } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        
         this.logStructured('VALIDATE_N8N_WEBHOOK_ERROR', {
           requestId,
           errorName: fetchError.name,
@@ -693,10 +692,18 @@ export class AuthController {
         });
         
         // Handle specific error types
-        if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
+        if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError' || fetchError.message?.includes('timeout')) {
           res.status(504).json({
             success: false,
             error: 'Request timed out. Please try again.',
+          });
+          return;
+        }
+
+        if (fetchError.message?.includes('Circuit breaker') || fetchError.message?.includes('unavailable')) {
+          res.status(503).json({
+            success: false,
+            error: 'Authentication service is temporarily unavailable. Please try again later.',
           });
           return;
         }
