@@ -276,12 +276,12 @@ class ApiService {
       const isApplicationRequest = endpoint.includes('/loan-applications') && options.method === 'POST';
       const isGetRequest = !options.method || options.method === 'GET';
       
-      // Validate endpoint: 25s timeout (stays under Vercel's 30s limit)
+      // Validate endpoint: 50s timeout (Fly.io backend has no 30s limit, n8n webhook can be slow)
       // Login and application creation webhooks: 60s (if going directly to Fly.io)
       // GET requests: 55s for n8n webhooks
       // Other requests: 30s timeout
       const timeoutMs = isValidateRequest
-        ? 25000  // 25s for validate (must stay under Vercel 30s limit)
+        ? 50000  // 50s for validate (Fly.io backend, n8n webhook can be slow)
         : isLoginRequest || isApplicationRequest 
         ? 60000  // 60s for login/app creation (if going to Fly.io directly)
         : isGetRequest 

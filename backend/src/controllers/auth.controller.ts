@@ -537,7 +537,7 @@ export class AuthController {
             maxRetries: 0, // No retries for validate - must complete quickly
             retryDelay: 1000,
             retryOn: [408, 429, 500, 502, 503, 504],
-            timeout: 20000, // 20 seconds total timeout (stays under Vercel's 30s limit)
+            timeout: 45000, // 45 seconds timeout for n8n webhook (Fly.io has no 30s limit)
           }
         );
 
