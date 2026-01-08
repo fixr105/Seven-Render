@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { authService, AuthUser } from '../services/auth/auth.service.js';
+import { createLogger } from '../utils/logger.js';
 
 // Extend Express Request to include user
 declare global {
@@ -20,32 +21,28 @@ export const authenticate = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  console.log(`[AUTH] Authentication middleware called for ${req.method} ${req.path}`);
+  const logger = createLogger({ requestId: req.headers['x-request-id'] as string });
+  logger.debug('Authentication middleware called', { method: req.method, path: req.path });
   try {
     const authHeader = req.headers.authorization;
-    console.log(`[AUTH] Auth header present: ${!!authHeader}`);
+    logger.debug('Auth header check', { hasAuthHeader: !!authHeader });
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log(`[AUTH] No valid auth header, returning 401 immediately`);
-      console.log(`[AUTH] Response headers sent: ${res.headersSent}`);
+      logger.warn('No valid auth header', { headersSent: res.headersSent });
       
       // Ensure response is sent properly in serverless environment
       // CRITICAL: In serverless-http, we must ensure the response is fully sent
       // before returning from middleware, otherwise the function may timeout
       if (!res.headersSent) {
-        console.log(`[AUTH] Setting status 401 and sending JSON response`);
         try {
           // Send response and ensure it's completed
           res.status(401).json({
             success: false,
             error: 'No token provided',
           });
-          
-          // In serverless-http, we need to ensure the response stream is finished
-          // The json() method should handle this, but we'll verify
-          console.log(`[AUTH] 401 response sent, headersSent: ${res.headersSent}`);
+          logger.debug('401 response sent', { headersSent: res.headersSent });
         } catch (error: any) {
-          console.error(`[AUTH] Error sending 401 response:`, error);
+          logger.error('Error sending 401 response', { error: error.message });
           if (!res.headersSent) {
             res.status(500).json({
               success: false,
@@ -54,20 +51,23 @@ export const authenticate = async (
           }
         }
       } else {
-        console.warn(`[AUTH] Response already sent, cannot send 401`);
+        logger.warn('Response already sent, cannot send 401');
       }
       // Return immediately - don't call next() when sending error response
       return;
     }
 
     const token = authHeader.substring(7);
-    console.log(`[AUTH] Token extracted, length: ${token.length}, starts with test-token: ${token.startsWith('test-token-')}`);
+    logger.debug('Token extracted', { 
+      tokenLength: token.length, 
+      isTestToken: token.startsWith('test-token-') 
+    });
     
     // Allow test tokens (bypass authentication for development/testing)
     // Token format: test-token-{role}@{timestamp}
     // This format allows roles with underscores (e.g., credit_team)
     if (token.startsWith('test-token-')) {
-      console.log(`[AUTH] Processing test token`);
+      logger.debug('Processing test token');
       // Extract role from token: test-token-{role}@{timestamp}
       // Split by '@' first to separate role from timestamp
       const roleAndTimestamp = token.replace('test-token-', '');
@@ -112,29 +112,29 @@ export const authenticate = async (
           nbfcId: testUser.nbfcId,
           name: testUser.name,
         };
-        console.log(`[AuthMiddleware] Test token authenticated: ${testUser.email} (${testUser.role})`);
+        logger.info('Test token authenticated', { email: testUser.email, role: testUser.role });
         next();
         return;
       } else {
-        console.warn(`[AuthMiddleware] Unknown test role: ${role}`);
+        logger.warn('Unknown test role', { role });
       }
     }
     
     // Verify real JWT token
-    console.log(`[AUTH] Verifying JWT token...`);
+    logger.debug('Verifying JWT token');
     const user = authService.verifyToken(token);
-    console.log(`[AUTH] Token verified, user: ${user.email}, role: ${user.role}`);
+    logger.info('Token verified', { email: user.email, role: user.role, userId: user.id });
     req.user = user;
     
     // Debug logging for client role
     if (user.role === 'client') {
-      console.log(`[AuthMiddleware] Authenticated client: ${user.email}, clientId: ${user.clientId}`);
+      logger.debug('Authenticated client', { email: user.email, clientId: user.clientId });
     }
     
-    console.log(`[AUTH] Calling next() to continue to route handler`);
+    logger.debug('Authentication successful, continuing to route handler');
     next();
   } catch (error: any) {
-    console.error(`[AUTH] Authentication error:`, error.message);
+    logger.error('Authentication error', { error: error.message, stack: error.stack });
     res.status(401).json({
       success: false,
       error: error.message || 'Invalid token',

@@ -8,7 +8,7 @@ import jwt from 'jsonwebtoken';
 import { authService } from '../services/auth/auth.service.js';
 import { authConfig } from '../config/auth.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { loginSchema } from '../utils/validators.js';
+import { loginSchema, validateSchema } from '../utils/validators.js';
 
 export class AuthController {
   /**
@@ -472,23 +472,29 @@ export class AuthController {
     });
     
     try {
-      const { username, passcode } = req.body;
-
-      this.logStructured('VALIDATE_INPUT_RECEIVED', {
-        requestId,
-        hasUsername: !!username,
-        hasPasscode: !!passcode,
-        username: username || 'N/A',
-      });
-
-      if (!username || !passcode) {
+      // Validate input with schema
+      let username: string;
+      let passcode: string;
+      
+      try {
+        const validated = validateSchema.parse(req.body);
+        username = validated.username;
+        passcode = validated.passcode;
+        
+        this.logStructured('VALIDATE_INPUT_VALIDATION_COMPLETED', {
+          requestId,
+          username,
+          hasPasscode: !!passcode,
+        });
+      } catch (validationError: any) {
         this.logStructured('VALIDATE_INPUT_VALIDATION_FAILED', {
           requestId,
-          error: 'Missing username or passcode',
+          error: validationError.message,
         });
+        
         res.status(400).json({
           success: false,
-          error: 'Username and passcode are required',
+          error: 'Invalid input: ' + (validationError.message || 'Username and passcode are required'),
         });
         return;
       }
@@ -718,6 +724,81 @@ export class AuthController {
       res.status(500).json({
         success: false,
         error: error.message || 'Internal server error',
+      });
+    }
+  }
+
+  /**
+   * POST /auth/refresh
+   * Refresh access token using refresh token
+   */
+  async refresh(req: Request, res: Response): Promise<void> {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        res.status(400).json({
+          success: false,
+          error: 'Refresh token is required',
+        });
+        return;
+      }
+
+      // Verify refresh token
+      const tokenData = authService.verifyRefreshToken(refreshToken);
+      
+      // Get user data (simplified - in production, fetch from database)
+      const user: any = {
+        id: tokenData.userId,
+        email: tokenData.email,
+        role: tokenData.role,
+      };
+
+      // Generate new access token
+      const newToken = authService.generateToken(user);
+      const newRefreshToken = authService.generateRefreshToken(user);
+
+      res.json({
+        success: true,
+        data: {
+          token: newToken,
+          refreshToken: newRefreshToken,
+        },
+      });
+    } catch (error: any) {
+      res.status(401).json({
+        success: false,
+        error: error.message || 'Invalid refresh token',
+      });
+    }
+  }
+
+  /**
+   * POST /auth/logout
+   * Logout user by blacklisting token
+   */
+  async logout(req: Request, res: Response): Promise<void> {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        
+        // Decode token to get expiration
+        const decoded = jwt.decode(token) as any;
+        if (decoded && decoded.exp) {
+          const { tokenBlacklist } = await import('../services/auth/tokenBlacklist.service.js');
+          tokenBlacklist.addToken(token, decoded.exp, 'logout');
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Logged out successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Logout failed',
       });
     }
   }

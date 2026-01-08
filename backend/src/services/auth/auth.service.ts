@@ -540,11 +540,7 @@ export class AuthService {
     let token: string;
     try {
       console.log('[AuthService] Calling jwt.sign()...');
-      token = jwt.sign(
-        jwtPayload,
-        jwtSecret,
-        { expiresIn: jwtExpiresIn } as jwt.SignOptions
-      );
+      token = this.generateToken(authUser);
       
       if (!token || token.length === 0) {
         console.error('[AuthService] ❌ JWT sign returned empty token');
@@ -589,10 +585,40 @@ export class AuthService {
   }
 
   /**
+   * Generate JWT token
+   */
+  generateToken(user: AuthUser): string {
+    const jwtSecret = authConfig.jwtSecret || 'default-secret';
+    const jwtExpiresIn: string = authConfig.jwtExpiresIn || '7d';
+    
+    const jwtPayload = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      clientId: user.clientId,
+      kamId: user.kamId,
+      nbfcId: user.nbfcId,
+    };
+    
+    return jwt.sign(
+      jwtPayload,
+      jwtSecret,
+      { expiresIn: jwtExpiresIn } as jwt.SignOptions
+    );
+  }
+
+  /**
    * Verify JWT token
    */
   verifyToken(token: string): AuthUser {
     try {
+      // Check if token is blacklisted
+      const { tokenBlacklist } = await import('./tokenBlacklist.service.js');
+      if (tokenBlacklist.isBlacklisted(token)) {
+        throw new Error('Token has been revoked');
+      }
+
       const decoded = jwt.verify(token, authConfig.jwtSecret) as any;
       return {
         id: decoded.userId,
@@ -603,9 +629,67 @@ export class AuthService {
         kamId: decoded.kamId,
         nbfcId: decoded.nbfcId,
       };
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message === 'Token has been revoked') {
+        throw error;
+      }
       throw new Error('Invalid or expired token');
     }
+  }
+
+  /**
+   * Generate refresh token (longer expiration)
+   */
+  generateRefreshToken(user: AuthUser): string {
+    const refreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+    return jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        type: 'refresh',
+      },
+      authConfig.jwtSecret,
+      { expiresIn: refreshExpiresIn } as jwt.SignOptions
+    );
+  }
+
+  /**
+   * Verify refresh token
+   */
+  verifyRefreshToken(token: string): { userId: string; email: string; role: UserRole } {
+    try {
+      const decoded = jwt.verify(token, authConfig.jwtSecret) as any;
+      if (decoded.type !== 'refresh') {
+        throw new Error('Invalid token type');
+      }
+      return {
+        userId: decoded.userId,
+        email: decoded.email,
+        role: decoded.role,
+      };
+    } catch (error) {
+      throw new Error('Invalid or expired refresh token');
+    }
+  }
+
+  /**
+   * Rotate token (generate new token, blacklist old one)
+   */
+  async rotateToken(oldToken: string, user: AuthUser): Promise<string> {
+    // Blacklist old token
+    const { tokenBlacklist } = await import('./tokenBlacklist.service.js');
+    try {
+      const decoded = jwt.decode(oldToken) as any;
+      if (decoded && decoded.exp) {
+        tokenBlacklist.addToken(oldToken, decoded.exp, 'rotation');
+      }
+    } catch (error) {
+      // If we can't decode, token is already invalid
+    }
+
+    // Generate new token
+    return this.generateToken(user);
   }
 
   /**

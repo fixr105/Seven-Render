@@ -4,6 +4,8 @@
 
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { apiRateLimiter } from '../middleware/rateLimit.middleware.js';
+import healthRoutes, { trackMetrics } from './health.routes.js';
 import authRoutes from './auth.routes.js';
 import clientRoutes from './client.routes.js';
 import loanRoutes from './loan.routes.js';
@@ -25,17 +27,12 @@ import documentsRoutes from './documents.routes.js';
 
 const router = Router();
 
-// Request logging middleware - logs ALL requests to help debug routing
-router.use((req, res, next) => {
-  console.log(`[ROUTE LOGGER] ${req.method} ${req.path} - req.url: ${req.url} - originalUrl: ${(req as any).originalUrl || 'N/A'}`);
-  next();
-});
+// Request logging and metrics tracking middleware
+router.use(trackMetrics);
 
-// Health check
-router.get('/health', (req, res) => {
-  console.log('[HEALTH] Health check endpoint called');
-  res.json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
-});
+// Health and metrics routes (no rate limiting)
+router.use('/health', healthRoutes);
+router.use('/metrics', healthRoutes);
 
 // Simple test endpoint to verify Express routing works (no webhooks, no auth)
 router.get('/test-express', (req, res) => {
@@ -162,25 +159,25 @@ router.get('/debug/webhook-config', (req, res) => {
   }
 });
 
-// Mount route modules
+// Mount route modules with rate limiting
 router.use('/auth', authRoutes);
-router.use('/client', clientRoutes);
-router.use('/loan-applications', loanRoutes);
-router.use('/kam', kamRoutes);
-router.use('/credit', creditRoutes);
-router.use('/nbfc', nbfcRoutes);
-router.use('/clients', ledgerRoutes); // Client ledger routes
-router.use('/reports', reportsRoutes);
-router.use('/credit-team-users', creditTeamUsersRoutes);
-router.use('/form-categories', formCategoryRoutes);
-router.use('/queries', queriesRoutes); // Threaded queries routes
-router.use('/notifications', notificationsRoutes); // Notifications routes
-router.use('/', productsRoutes); // Products routes (loan-products, nbfc-partners)
-router.use('/', usersRoutes); // Users routes (kam-users, user-accounts)
-router.use('/', auditRoutes); // Audit routes (mounted at root for /loan-applications/:id/audit-log)
-router.use('/', aiRoutes); // AI routes (mounted at root for /loan-applications/:id/summary)
-router.use('/public', publicRoutes); // Public routes (form links, etc.)
-router.use('/documents', documentsRoutes); // Module 2: Document upload routes (OneDrive)
+router.use('/client', apiRateLimiter, clientRoutes);
+router.use('/loan-applications', apiRateLimiter, loanRoutes);
+router.use('/kam', apiRateLimiter, kamRoutes);
+router.use('/credit', apiRateLimiter, creditRoutes);
+router.use('/nbfc', apiRateLimiter, nbfcRoutes);
+router.use('/clients', apiRateLimiter, ledgerRoutes); // Client ledger routes
+router.use('/reports', apiRateLimiter, reportsRoutes);
+router.use('/credit-team-users', apiRateLimiter, creditTeamUsersRoutes);
+router.use('/form-categories', apiRateLimiter, formCategoryRoutes);
+router.use('/queries', apiRateLimiter, queriesRoutes); // Threaded queries routes
+router.use('/notifications', apiRateLimiter, notificationsRoutes); // Notifications routes
+router.use('/', apiRateLimiter, productsRoutes); // Products routes (loan-products, nbfc-partners)
+router.use('/', apiRateLimiter, usersRoutes); // Users routes (kam-users, user-accounts)
+router.use('/', apiRateLimiter, auditRoutes); // Audit routes (mounted at root for /loan-applications/:id/audit-log)
+router.use('/', apiRateLimiter, aiRoutes); // AI routes (mounted at root for /loan-applications/:id/summary)
+router.use('/public', publicRoutes); // Public routes (form links, etc.) - no rate limit for public access
+router.use('/documents', documentsRoutes); // Module 2: Document upload routes (OneDrive) - rate limit applied in route file
 
 // Catch-all route for debugging - MUST be last
 router.use('*', (req, res, next) => {

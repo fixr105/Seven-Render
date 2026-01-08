@@ -7,6 +7,7 @@
  */
 
 import fetch from 'node-fetch';
+import { httpGet, httpPost } from '../../utils/httpClient.js';
 import { n8nConfig } from '../../config/airtable.js';
 import { N8nGetResponse, UserAccount } from '../../types/entities.js';
 import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';

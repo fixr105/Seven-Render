@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireClient } from '../middleware/rbac.middleware.js';
+import { uploadRateLimiter } from '../middleware/rateLimit.middleware.js';
 import multer from 'multer';
 import { uploadToOneDrive } from '../services/onedrive/onedriveUpload.service.js';
 
@@ -20,6 +21,8 @@ const upload = multer({
 // All document routes require authentication and CLIENT role
 router.use(authenticate);
 router.use(requireClient);
+// Apply upload rate limiting
+router.use(uploadRateLimiter);
 
 /**
  * POST /documents/upload
