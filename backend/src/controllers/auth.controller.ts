@@ -10,6 +10,7 @@ import { authConfig } from '../config/auth.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { loginSchema, validateSchema } from '../utils/validators.js';
 import { httpPost } from '../utils/httpClient.js';
+import { defaultLogger } from '../utils/logger.js';
 
 export class AuthController {
   /**
