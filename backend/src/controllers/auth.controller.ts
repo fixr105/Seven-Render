@@ -648,6 +648,67 @@ export class AuthController {
           profileData = rawData;
         }
 
+        // Check if webhook returned test data (indicating it didn't find the real user)
+        const isTestData = profileData && (
+          profileData.id === 'test-user-123' ||
+          profileData.email === 'test@example.com' ||
+          profileData.username === 'test' ||
+          (profileData.name === 'Test User' && profileData.role === 'client')
+        );
+
+        // If webhook returned test data, fetch real user from Airtable
+        if (isTestData) {
+          defaultLogger.warn('VALIDATE: Webhook returned test data, fetching real user from Airtable', {
+            requestId,
+            username,
+            webhookResponse: profileData,
+          });
+          
+          try {
+            // Fetch User Accounts to find the real user
+            const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000);
+            const realUserAccount = userAccounts.find((u: any) => {
+              const accountUsername = (u['Username'] || u['Email'] || '').toLowerCase();
+              const accountName = (u['Name'] || u['Associated profile'] || '').toLowerCase();
+              const searchUsername = username.toLowerCase();
+              return accountUsername === searchUsername ||
+                     accountName === searchUsername ||
+                     accountUsername.includes(searchUsername) ||
+                     accountName.includes(searchUsername);
+            });
+            
+            if (realUserAccount) {
+              defaultLogger.info('VALIDATE: Found real user in Airtable', {
+                requestId,
+                userId: realUserAccount.id,
+                username: realUserAccount['Username'] || realUserAccount['Email'],
+                role: realUserAccount['Role'],
+              });
+              
+              // Use real user data instead of test data
+              profileData = {
+                id: realUserAccount.id,
+                username: realUserAccount['Username'] || realUserAccount['Email'],
+                email: realUserAccount['Email'] || realUserAccount['Username'],
+                role: realUserAccount['Role'],
+                name: realUserAccount['Name'] || realUserAccount['Associated profile'] || realUserAccount['Username'],
+                'Associated profile': realUserAccount['Associated profile'] || realUserAccount['Name'],
+              };
+            } else {
+              defaultLogger.warn('VALIDATE: Real user not found in Airtable, using webhook response', {
+                requestId,
+                username,
+              });
+            }
+          } catch (fetchError: any) {
+            defaultLogger.error('VALIDATE: Failed to fetch real user from Airtable', {
+              requestId,
+              error: fetchError.message,
+            });
+            // Continue with webhook response (test data)
+          }
+        }
+
         // If we have profile data, proceed with authentication
         if (profileData && (profileData.username || profileData.role)) {
           // Extract user data from profile data
@@ -671,15 +732,16 @@ export class AuthController {
           let nbfcId: string | null = profileData.nbfcId || null;
           
           try {
-            // Fetch User Accounts to get full profile
-            const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000);
-            const userAccount = userAccounts.find((u: any) => {
-              const accountUsername = (u['Username'] || u['Email'] || '').toLowerCase();
-              const accountName = (u['Name'] || u['Associated profile'] || '').toLowerCase();
-              return accountUsername === userEmail.toLowerCase() || 
-                     accountUsername === username.toLowerCase() ||
-                     accountName === userName.toLowerCase();
-            });
+            // Fetch User Accounts to get full profile (if not already fetched)
+            if (!isTestData) {
+              const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000);
+              const userAccount = userAccounts.find((u: any) => {
+                const accountUsername = (u['Username'] || u['Email'] || '').toLowerCase();
+                const accountName = (u['Name'] || u['Associated profile'] || '').toLowerCase();
+                return accountUsername === userEmail.toLowerCase() || 
+                       accountUsername === username.toLowerCase() ||
+                       accountName === userName.toLowerCase();
+              });
             
             if (userAccount) {
               defaultLogger.info('VALIDATE: Found user account', {

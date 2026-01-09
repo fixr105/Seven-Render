@@ -10,7 +10,7 @@
       "name": "Test User"
     },
     "statusCode": 200,
-    "duration": 8963,
+    "duration": 4067,
     "details": {
       "responseFormat": "success/user",
       "hasUser": true
@@ -20,13 +20,130 @@
     "phase": "Phase 1.2",
     "testCase": "Login via backend API",
     "passed": false,
-    "statusCode": 502,
-    "duration": 173955,
+    "statusCode": 200,
+    "duration": 5821,
     "error": "Missing token, user data, or IDs",
     "details": {
-      "hasToken": false,
-      "hasUser": false,
-      "hasId": false
+      "hasToken": true,
+      "hasUser": true,
+      "hasId": false,
+      "role": "client"
+    }
+  },
+  {
+    "phase": "Phase 2.1",
+    "testCase": "Client data filtering",
+    "passed": false,
+    "statusCode": 403,
+    "duration": 65,
+    "error": "Failed to fetch filtered data",
+    "details": {
+      "recordCount": 0
+    }
+  },
+  {
+    "phase": "Phase 2.2",
+    "testCase": "JWT token contains IDs",
+    "passed": null,
+    "error": "Missing required fields or IDs in JWT",
+    "details": {
+      "hasUserId": true,
+      "hasEmail": true,
+      "hasRole": true,
+      "hasName": true,
+      "hasClientId": false,
+      "hasKamId": false,
+      "hasNbfcId": false,
+      "role": "client"
+    }
+  },
+  {
+    "phase": "Phase 2.3",
+    "testCase": "Get current user (/auth/me)",
+    "passed": "client",
+    "statusCode": 200,
+    "duration": 38,
+    "details": {
+      "hasId": true,
+      "hasEmail": true,
+      "hasRole": true,
+      "hasName": true
+    }
+  },
+  {
+    "phase": "Phase 3.1",
+    "testCase": "Upload endpoint configuration",
+    "passed": false,
+    "error": "ONEDRIVE_UPLOAD_URL not set",
+    "details": {
+      "urlSet": false,
+      "url": "Not set"
+    }
+  },
+  {
+    "phase": "Phase 3.2",
+    "testCase": "Upload endpoint availability",
+    "passed": false,
+    "statusCode": 403,
+    "duration": 47,
+    "details": {
+      "status": 403,
+      "note": "Unexpected status"
+    }
+  },
+  {
+    "phase": "Phase 4",
+    "testCase": "GET /health",
+    "passed": true,
+    "statusCode": 401,
+    "duration": 37,
+    "details": {
+      "requiresAuth": false,
+      "status": 401
+    }
+  },
+  {
+    "phase": "Phase 4",
+    "testCase": "GET /auth/me",
+    "passed": true,
+    "statusCode": 200,
+    "duration": 37,
+    "details": {
+      "requiresAuth": true,
+      "status": 200
+    }
+  },
+  {
+    "phase": "Phase 4",
+    "testCase": "GET /client/dashboard",
+    "passed": true,
+    "statusCode": 200,
+    "duration": 1296,
+    "details": {
+      "requiresAuth": true,
+      "status": 200
+    }
+  },
+  {
+    "phase": "Phase 4",
+    "testCase": "GET /loans",
+    "passed": false,
+    "statusCode": 403,
+    "duration": 52,
+    "details": {
+      "requiresAuth": true,
+      "status": 403
+    }
+  },
+  {
+    "phase": "Phase 4",
+    "testCase": "GET /products/loan-products",
+    "passed": false,
+    "statusCode": 403,
+    "duration": 44,
+    "details": {
+      "requiresAuth": true,
+      "status": 403
     }
   }
 ]
