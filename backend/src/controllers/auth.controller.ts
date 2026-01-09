@@ -742,92 +742,93 @@ export class AuthController {
                        accountUsername === username.toLowerCase() ||
                        accountName === userName.toLowerCase();
               });
-            
-            if (userAccount) {
-              defaultLogger.info('VALIDATE: Found user account', {
-                requestId,
-                userId: userAccount.id,
-                username: userAccount['Username'] || userAccount['Email'],
-              });
               
-              // Based on role, fetch additional data to get IDs
-              if (normalizedRole === 'client') {
-                // Fetch Clients table to find clientId
-                try {
-                  const clients = await n8nClient.fetchTable('Clients', true, undefined, 5000);
-                  const client = clients.find((c: any) => {
-                    const contactInfo = (c['Contact Email / Phone'] || c['Contact Email'] || c['Email'] || '').toLowerCase();
-                    const clientName = (c['Client Name'] || '').toLowerCase();
-                    return contactInfo.includes(userEmail.toLowerCase()) ||
-                           contactInfo.includes(username.toLowerCase()) ||
-                           clientName === userName.toLowerCase();
-                  });
-                  
-                  if (client) {
-                    clientId = client['Client ID'] || client.id || null;
-                    defaultLogger.info('VALIDATE: Found client ID', {
+              if (userAccount) {
+                defaultLogger.info('VALIDATE: Found user account', {
+                  requestId,
+                  userId: userAccount.id,
+                  username: userAccount['Username'] || userAccount['Email'],
+                });
+              
+                // Based on role, fetch additional data to get IDs
+                if (normalizedRole === 'client') {
+                  // Fetch Clients table to find clientId
+                  try {
+                    const clients = await n8nClient.fetchTable('Clients', true, undefined, 5000);
+                    const client = clients.find((c: any) => {
+                      const contactInfo = (c['Contact Email / Phone'] || c['Contact Email'] || c['Email'] || '').toLowerCase();
+                      const clientName = (c['Client Name'] || '').toLowerCase();
+                      return contactInfo.includes(userEmail.toLowerCase()) ||
+                             contactInfo.includes(username.toLowerCase()) ||
+                             clientName === userName.toLowerCase();
+                    });
+                    
+                    if (client) {
+                      clientId = client['Client ID'] || client.id || null;
+                      defaultLogger.info('VALIDATE: Found client ID', {
+                        requestId,
+                        clientId,
+                        clientName: client['Client Name'],
+                      });
+                    }
+                  } catch (clientError: any) {
+                    defaultLogger.warn('VALIDATE: Failed to fetch client ID', {
                       requestId,
-                      clientId,
-                      clientName: client['Client Name'],
+                      error: clientError.message,
                     });
                   }
-                } catch (clientError: any) {
-                  defaultLogger.warn('VALIDATE: Failed to fetch client ID', {
-                    requestId,
-                    error: clientError.message,
-                  });
-                }
-              } else if (normalizedRole === 'kam') {
-                // Fetch KAM Users table to find kamId
-                try {
-                  const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 5000);
-                  const kamUser = kamUsers.find((k: any) => {
-                    const kamEmail = (k['Email'] || '').toLowerCase();
-                    const kamName = (k['Name'] || '').toLowerCase();
-                    return kamEmail === userEmail.toLowerCase() ||
-                           kamEmail === username.toLowerCase() ||
-                           kamName === userName.toLowerCase();
-                  });
-                  
-                  if (kamUser) {
-                    kamId = kamUser['KAM ID'] || kamUser.id || null;
-                    defaultLogger.info('VALIDATE: Found KAM ID', {
+                } else if (normalizedRole === 'kam') {
+                  // Fetch KAM Users table to find kamId
+                  try {
+                    const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 5000);
+                    const kamUser = kamUsers.find((k: any) => {
+                      const kamEmail = (k['Email'] || '').toLowerCase();
+                      const kamName = (k['Name'] || '').toLowerCase();
+                      return kamEmail === userEmail.toLowerCase() ||
+                             kamEmail === username.toLowerCase() ||
+                             kamName === userName.toLowerCase();
+                    });
+                    
+                    if (kamUser) {
+                      kamId = kamUser['KAM ID'] || kamUser.id || null;
+                      defaultLogger.info('VALIDATE: Found KAM ID', {
+                        requestId,
+                        kamId,
+                        kamName: kamUser['Name'],
+                      });
+                    }
+                  } catch (kamError: any) {
+                    defaultLogger.warn('VALIDATE: Failed to fetch KAM ID', {
                       requestId,
-                      kamId,
-                      kamName: kamUser['Name'],
+                      error: kamError.message,
                     });
                   }
-                } catch (kamError: any) {
-                  defaultLogger.warn('VALIDATE: Failed to fetch KAM ID', {
-                    requestId,
-                    error: kamError.message,
-                  });
-                }
-              } else if (normalizedRole === 'nbfc') {
-                // Fetch NBFC Partners table to find nbfcId
-                try {
-                  const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 5000);
-                  const nbfcPartner = nbfcPartners.find((n: any) => {
-                    const nbfcEmail = (n['Email'] || '').toLowerCase();
-                    const nbfcName = (n['Partner Name'] || n['Name'] || '').toLowerCase();
-                    return nbfcEmail === userEmail.toLowerCase() ||
-                           nbfcEmail === username.toLowerCase() ||
-                           nbfcName === userName.toLowerCase();
-                  });
-                  
-                  if (nbfcPartner) {
-                    nbfcId = nbfcPartner['NBFC Partner ID'] || nbfcPartner.id || null;
-                    defaultLogger.info('VALIDATE: Found NBFC ID', {
+                } else if (normalizedRole === 'nbfc') {
+                  // Fetch NBFC Partners table to find nbfcId
+                  try {
+                    const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 5000);
+                    const nbfcPartner = nbfcPartners.find((n: any) => {
+                      const nbfcEmail = (n['Email'] || '').toLowerCase();
+                      const nbfcName = (n['Partner Name'] || n['Name'] || '').toLowerCase();
+                      return nbfcEmail === userEmail.toLowerCase() ||
+                             nbfcEmail === username.toLowerCase() ||
+                             nbfcName === userName.toLowerCase();
+                    });
+                    
+                    if (nbfcPartner) {
+                      nbfcId = nbfcPartner['NBFC Partner ID'] || nbfcPartner.id || null;
+                      defaultLogger.info('VALIDATE: Found NBFC ID', {
+                        requestId,
+                        nbfcId,
+                        nbfcName: nbfcPartner['Partner Name'] || nbfcPartner['Name'],
+                      });
+                    }
+                  } catch (nbfcError: any) {
+                    defaultLogger.warn('VALIDATE: Failed to fetch NBFC ID', {
                       requestId,
-                      nbfcId,
-                      nbfcName: nbfcPartner['Partner Name'] || nbfcPartner['Name'],
+                      error: nbfcError.message,
                     });
                   }
-                } catch (nbfcError: any) {
-                  defaultLogger.warn('VALIDATE: Failed to fetch NBFC ID', {
-                    requestId,
-                    error: nbfcError.message,
-                  });
                 }
               }
             }
