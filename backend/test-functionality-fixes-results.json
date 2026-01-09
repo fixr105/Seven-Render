@@ -1,0 +1,32 @@
+[
+  {
+    "phase": "Phase 1.1",
+    "testCase": "Validate webhook direct call",
+    "passed": {
+      "id": "test-user-123",
+      "email": "test@example.com",
+      "username": "test",
+      "role": "client",
+      "name": "Test User"
+    },
+    "statusCode": 200,
+    "duration": 8963,
+    "details": {
+      "responseFormat": "success/user",
+      "hasUser": true
+    }
+  },
+  {
+    "phase": "Phase 1.2",
+    "testCase": "Login via backend API",
+    "passed": false,
+    "statusCode": 502,
+    "duration": 173955,
+    "error": "Missing token, user data, or IDs",
+    "details": {
+      "hasToken": false,
+      "hasUser": false,
+      "hasId": false
+    }
+  }
+]

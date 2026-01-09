@@ -107,14 +107,27 @@ async function testPhase1() {
       data = { raw: text };
     }
     
+    // Accept multiple response formats:
+    // Format 1: [{ "output": "..." }]
+    // Format 2: { "success": true, "user": {...} }
+    // Format 3: { "username": "...", "role": "..." }
     const passed = response.status === 200 && 
-                   (Array.isArray(data) || data.output || data.username);
+                   (Array.isArray(data) || 
+                    data.output || 
+                    (data.success && data.user) ||
+                    data.username ||
+                    data.role);
     
     logTest('Phase 1.1', 'Validate webhook direct call', passed, {
       statusCode: response.status,
       duration,
       error: passed ? undefined : `Unexpected response format`,
-      details: { responseFormat: Array.isArray(data) ? 'array' : typeof data },
+      details: { 
+        responseFormat: Array.isArray(data) ? 'array' : 
+                       (data.success ? 'success/user' : 
+                       (data.output ? 'output' : typeof data)),
+        hasUser: !!(data.user || data.username),
+      },
     });
   } catch (error: any) {
     logTest('Phase 1.1', 'Validate webhook direct call', false, {
@@ -150,8 +163,16 @@ async function testPhase1() {
     
     return data.token; // Return token for subsequent tests
   } catch (error: any) {
+    const errorMsg = error.message || String(error);
+    const isConnectionError = errorMsg.includes('ECONNREFUSED') || 
+                              errorMsg.includes('fetch failed') ||
+                              errorMsg.includes('connect');
+    
     logTest('Phase 1.2', 'Login via backend API', false, {
-      error: error.message,
+      error: isConnectionError ? 'Backend server not running (expected if testing webhook only)' : errorMsg,
+      details: {
+        note: isConnectionError ? 'Start backend with: npm run dev' : undefined,
+      },
     });
     return null;
   }

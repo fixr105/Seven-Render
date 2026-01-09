@@ -60,78 +60,30 @@ const level = () => {
 };
 
 /**
- * Custom transport for external log shipping (HTTP-based)
+ * External log shipping function (HTTP-based)
+ * Called asynchronously to avoid blocking the main application
  */
-class HttpLogTransport extends winston.transport {
-  private url: string;
-  private sourceToken?: string;
-  private batchSize: number;
-  private batchTimeout: number;
-  private logBuffer: any[] = [];
-  private flushTimer?: NodeJS.Timeout;
+async function shipLogs(logs: any[], url: string, sourceToken?: string) {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
 
-  constructor(options: {
-    url: string;
-    sourceToken?: string;
-    batchSize?: number;
-    batchTimeout?: number;
-  }) {
-    super();
-    this.url = options.url;
-    this.sourceToken = options.sourceToken;
-    this.batchSize = options.batchSize || 10;
-    this.batchTimeout = options.batchTimeout || 5000;
-  }
-
-  log(info: any, callback: () => void) {
-    // Add to buffer
-    this.logBuffer.push(info);
-
-    // Flush if buffer is full
-    if (this.logBuffer.length >= this.batchSize) {
-      this.flush();
-    } else {
-      // Set timer for timeout-based flushing
-      if (!this.flushTimer) {
-        this.flushTimer = setTimeout(() => this.flush(), this.batchTimeout);
-      }
+    if (sourceToken) {
+      headers['Authorization'] = `Bearer ${sourceToken}`;
     }
 
-    callback();
-  }
-
-  private async flush() {
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = undefined;
-    }
-
-    if (this.logBuffer.length === 0) return;
-
-    const logs = [...this.logBuffer];
-    this.logBuffer = [];
-
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (this.sourceToken) {
-        headers['Authorization'] = `Bearer ${this.sourceToken}`;
-      }
-
-      await fetch(this.url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(logs),
-      }).catch((err) => {
-        // Silently fail - don't break application if log shipping fails
-        console.error('[HttpLogTransport] Failed to ship logs:', err.message);
-      });
-    } catch (err) {
-      // Silently fail
-      console.error('[HttpLogTransport] Error shipping logs:', err);
-    }
+    await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(logs),
+    }).catch((err) => {
+      // Silently fail - don't break application if log shipping fails
+      console.error('[LogShipping] Failed to ship logs:', err.message);
+    });
+  } catch (err) {
+    // Silently fail
+    console.error('[LogShipping] Error shipping logs:', err);
   }
 }
 
@@ -175,30 +127,6 @@ if (process.env.NODE_ENV === 'production' && process.env.LOG_FILE) {
   );
 }
 
-// Add external log shipping transport if configured
-if (process.env.LOG_SHIPPING_URL) {
-  transports.push(
-    new HttpLogTransport({
-      url: process.env.LOG_SHIPPING_URL,
-      sourceToken: process.env.LOG_SHIPPING_TOKEN,
-      batchSize: parseInt(process.env.LOG_SHIPPING_BATCH_SIZE || '10', 10),
-      batchTimeout: parseInt(process.env.LOG_SHIPPING_BATCH_TIMEOUT || '5000', 10),
-    }) as any
-  );
-}
-
-// Add Logtail transport if configured
-if (process.env.LOGTAIL_SOURCE_TOKEN) {
-  transports.push(
-    new HttpLogTransport({
-      url: 'https://in.logtail.com',
-      sourceToken: process.env.LOGTAIL_SOURCE_TOKEN,
-      batchSize: parseInt(process.env.LOG_SHIPPING_BATCH_SIZE || '10', 10),
-      batchTimeout: parseInt(process.env.LOG_SHIPPING_BATCH_TIMEOUT || '5000', 10),
-    }) as any
-  );
-}
-
 // Create logger instance
 const logger = winston.createLogger({
   level: level(),
@@ -208,6 +136,27 @@ const logger = winston.createLogger({
   // Don't exit on handled exceptions
   exitOnError: false,
 });
+
+// Add external log shipping if configured (async, non-blocking)
+if (process.env.LOG_SHIPPING_URL || process.env.LOGTAIL_SOURCE_TOKEN) {
+  // Create a custom format that ships logs externally
+  const logShippingFormat = winston.format((info) => {
+    // Ship logs asynchronously (don't block)
+    if (process.env.LOG_SHIPPING_URL) {
+      shipLogs([info], process.env.LOG_SHIPPING_URL, process.env.LOG_SHIPPING_TOKEN).catch(() => {});
+    }
+    if (process.env.LOGTAIL_SOURCE_TOKEN) {
+      shipLogs([info], 'https://in.logtail.com', process.env.LOGTAIL_SOURCE_TOKEN).catch(() => {});
+    }
+    return info;
+  });
+  
+  // Add format to logger (this will be called for each log entry)
+  logger.format = winston.format.combine(
+    logShippingFormat(),
+    format
+  );
+}
 
 /**
  * Logger interface
