@@ -8,6 +8,7 @@ import { n8nClient } from '../services/airtable/n8nClient.js';
 import { dataFilterService } from '../services/airtable/dataFilter.service.js';
 import { LoanStatus } from '../config/constants.js';
 import { logApplicationAction, AdminActionType } from '../utils/adminLogger.js';
+import { defaultLogger } from '../utils/logger.js';
 
 export class LoanController {
   /**
