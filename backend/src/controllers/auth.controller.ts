@@ -763,15 +763,27 @@ export class AuthController {
           const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
           
           // Extract IDs from webhook response (prefer camelCase, fallback to snake_case)
-          let clientId: string | null = profileData.clientId || profileData.client_id || null;
-          let kamId: string | null = profileData.kamId || profileData.kam_id || null;
-          let nbfcId: string | null = profileData.nbfcId || profileData.nbfc_id || null;
-          let creditTeamId: string | null = profileData.creditTeamId || profileData.credit_team_id || null;
+          // Only one ID should be set based on the user's role
+          let clientId: string | null = null;
+          let kamId: string | null = null;
+          let nbfcId: string | null = null;
+          let creditTeamId: string | null = null;
           
-          // Use IDs from webhook if available, otherwise fetch from Airtable
-          const hasIdsFromWebhook = !!(clientId || kamId || nbfcId || creditTeamId);
+          // Set the appropriate ID based on role - only one ID should be present
+          if (normalizedRole === 'client') {
+            clientId = profileData.clientId || profileData.client_id || null;
+          } else if (normalizedRole === 'kam') {
+            kamId = profileData.kamId || profileData.kam_id || null;
+          } else if (normalizedRole === 'nbfc') {
+            nbfcId = profileData.nbfcId || profileData.nbfc_id || null;
+          } else if (normalizedRole === 'credit_team') {
+            creditTeamId = profileData.creditTeamId || profileData.credit_team_id || null;
+          }
           
-          defaultLogger.info('VALIDATE: Extracted IDs from webhook', {
+          // Ensure only one ID is set - if multiple are provided, use the one matching the role
+          const hasIdFromWebhook = !!(clientId || kamId || nbfcId || creditTeamId);
+          
+          defaultLogger.info('VALIDATE: Extracted ID from webhook', {
             requestId,
             username,
             role: normalizedRole,
@@ -779,12 +791,12 @@ export class AuthController {
             kamId,
             nbfcId,
             creditTeamId,
-            hasIdsFromWebhook,
+            hasIdFromWebhook,
           });
           
           try {
-            // Only fetch from Airtable if IDs weren't provided by webhook
-            if (!hasIdsFromWebhook && !isTestData) {
+            // Only fetch from Airtable if ID wasn't provided by webhook
+            if (!hasIdFromWebhook && !isTestData) {
               // Fetch User Accounts to get full profile
               const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000);
               const userAccount = userAccounts.find((u: any) => {
@@ -908,16 +920,17 @@ export class AuthController {
                     });
                   }
                 }
-              } else if (!hasIdsFromWebhook) {
-                defaultLogger.info('VALIDATE: IDs not provided by webhook and user account not found, using webhook IDs', {
+              } else if (!hasIdFromWebhook) {
+                defaultLogger.info('VALIDATE: ID not provided by webhook and user account not found, using webhook data', {
                   requestId,
                   username,
                 });
               }
-            } else if (hasIdsFromWebhook) {
-              defaultLogger.info('VALIDATE: Using IDs provided by webhook, skipping Airtable lookup', {
+            } else if (hasIdFromWebhook) {
+              defaultLogger.info('VALIDATE: Using ID provided by webhook, skipping Airtable lookup', {
                 requestId,
                 username,
+                role: normalizedRole,
                 clientId,
                 kamId,
                 nbfcId,
