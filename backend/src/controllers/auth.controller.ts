@@ -398,7 +398,10 @@ export class AuthController {
           try {
             const creditUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 5000);
             // Use case-insensitive comparison to match login flow behavior
-            const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === req.user.email?.toLowerCase());
+            const creditUser = creditUsers.find((c) => 
+              c.id === req.user.creditTeamId || 
+              c.Email?.toLowerCase() === req.user.email?.toLowerCase()
+            );
             if (creditUser) {
               name = creditUser.Name || name;
               console.log('[AuthController] getMe: Found Credit user name:', name);
@@ -426,6 +429,7 @@ export class AuthController {
           clientId: req.user.clientId,
           kamId: req.user.kamId,
           nbfcId: req.user.nbfcId,
+          creditTeamId: req.user.creditTeamId,
           name,
         },
       });
@@ -726,10 +730,11 @@ export class AuthController {
           };
           const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
           
-          // Fetch full user profile to get IDs (clientId, kamId, nbfcId)
+          // Fetch full user profile to get IDs (clientId, kamId, nbfcId, creditTeamId)
           let clientId: string | null = profileData.clientId || null;
           let kamId: string | null = profileData.kamId || null;
           let nbfcId: string | null = profileData.nbfcId || null;
+          let creditTeamId: string | null = profileData.creditTeamId || null;
           
           try {
             // Fetch User Accounts to get full profile (if not already fetched)
@@ -829,6 +834,32 @@ export class AuthController {
                       error: nbfcError.message,
                     });
                   }
+                } else if (normalizedRole === 'credit_team') {
+                  // Fetch Credit Team Users table to find creditTeamId
+                  try {
+                    const creditTeamUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 5000);
+                    const creditTeamUser = creditTeamUsers.find((ct: any) => {
+                      const ctEmail = (ct['Email'] || ct['Username'] || '').toLowerCase();
+                      const ctName = (ct['Name'] || '').toLowerCase();
+                      return ctEmail === userEmail.toLowerCase() ||
+                             ctEmail === username.toLowerCase() ||
+                             ctName === userName.toLowerCase();
+                    });
+                    
+                    if (creditTeamUser) {
+                      creditTeamId = creditTeamUser['Credit Team ID'] || creditTeamUser.id || null;
+                      defaultLogger.info('VALIDATE: Found Credit Team ID', {
+                        requestId,
+                        creditTeamId,
+                        creditTeamName: creditTeamUser['Name'],
+                      });
+                    }
+                  } catch (creditTeamError: any) {
+                    defaultLogger.warn('VALIDATE: Failed to fetch Credit Team ID', {
+                      requestId,
+                      error: creditTeamError.message,
+                    });
+                  }
                 }
               }
             }
@@ -851,6 +882,7 @@ export class AuthController {
               clientId,
               kamId,
               nbfcId,
+              creditTeamId,
             };
             
             defaultLogger.info('VALIDATE: JWT payload prepared', {
@@ -861,6 +893,7 @@ export class AuthController {
               clientId,
               kamId,
               nbfcId,
+              creditTeamId,
             });
             
             this.logStructured('VALIDATE_TOKEN_GENERATION', {
@@ -892,6 +925,7 @@ export class AuthController {
                 clientId,
                 kamId,
                 nbfcId,
+                creditTeamId,
                 name: userName,
               },
             });

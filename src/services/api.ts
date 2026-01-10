@@ -48,9 +48,10 @@ export interface LoginResponse {
     id: string;
     email: string;
     role: UserRole;
-    clientId?: string;
-    kamId?: string;
-    nbfcId?: string;
+    clientId?: string | null;
+    kamId?: string | null;
+    nbfcId?: string | null;
+    creditTeamId?: string | null;
     name?: string;
   };
   token: string;
@@ -60,9 +61,10 @@ export interface UserContext {
   id: string;
   email: string;
   role: UserRole;
-  clientId?: string;
-  kamId?: string;
-  nbfcId?: string;
+  clientId?: string | null;
+  kamId?: string | null;
+  nbfcId?: string | null;
+  creditTeamId?: string | null;
   name?: string;
 }
 

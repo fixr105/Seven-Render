@@ -15,10 +15,35 @@ export const useAuthSafe = () => {
   
   if (apiAuthContext !== undefined) {
     // ApiAuthProvider is available
+    const user = apiAuthContext.user;
+    const userRole = user?.role || null;
+    
+    // Get role-specific ID based on user role
+    let userRoleId: string | null = null;
+    if (user) {
+      if (userRole === 'client' && user.clientId) {
+        userRoleId = user.clientId;
+      } else if (userRole === 'kam' && user.kamId) {
+        userRoleId = user.kamId;
+      } else if (userRole === 'nbfc' && user.nbfcId) {
+        userRoleId = user.nbfcId;
+      } else if (userRole === 'credit_team' && user.creditTeamId) {
+        userRoleId = user.creditTeamId;
+      } else {
+        // Fallback to user ID if role-specific ID not available
+        userRoleId = user.id || null;
+      }
+    }
+    
     return {
-      user: apiAuthContext.user,
-      userRole: apiAuthContext.user?.role || null,
-      userRoleId: apiAuthContext.user?.id || null,
+      user,
+      userRole,
+      userRoleId,
+      // Expose individual IDs for direct access
+      clientId: user?.clientId || null,
+      kamId: user?.kamId || null,
+      nbfcId: user?.nbfcId || null,
+      creditTeamId: user?.creditTeamId || null,
       loading: apiAuthContext.loading,
       signIn: apiAuthContext.login,
       signOut: apiAuthContext.logout,

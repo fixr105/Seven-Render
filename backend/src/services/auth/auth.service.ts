@@ -15,9 +15,10 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
-  clientId?: string;
-  kamId?: string;
-  nbfcId?: string;
+  clientId?: string | null;
+  kamId?: string | null;
+  nbfcId?: string | null;
+  creditTeamId?: string | null;
   name?: string;
 }
 
@@ -436,6 +437,7 @@ export class AuthService {
               
               const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
               if (creditUser) {
+                authUser.creditTeamId = creditUser['Credit Team ID'] || creditUser.id;
                 authUser.name = creditUser.Name || authUser.name;
               }
             } catch (error: any) {
@@ -628,6 +630,7 @@ export class AuthService {
         clientId: decoded.clientId,
         kamId: decoded.kamId,
         nbfcId: decoded.nbfcId,
+        creditTeamId: decoded.creditTeamId,
       };
     } catch (error: any) {
       if (error.message === 'Token has been revoked') {
