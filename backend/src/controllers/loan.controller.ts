@@ -524,10 +524,20 @@ export class LoanController {
         return;
       }
 
-      // Check access permissions
-      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
+      // Check access permissions using RBAC filter service
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
-        console.log(`[LoanController] Access denied for application ${id}. User: ${req.user!.email}, Role: ${req.user!.role}, clientId: ${req.user!.clientId}, Application Client: ${application.Client || application['Client']}`);
+        defaultLogger.warn('Access denied for application', {
+          applicationId: id,
+          userEmail: req.user!.email,
+          userRole: req.user!.role,
+          clientId: req.user!.clientId,
+          kamId: req.user!.kamId,
+          nbfcId: req.user!.nbfcId,
+          creditTeamId: req.user!.creditTeamId,
+          applicationClient: application.Client || application['Client'],
+        });
         res.status(403).json({ 
           success: false, 
           error: 'Access denied. You do not have permission to view this application.' 
@@ -574,8 +584,15 @@ export class LoanController {
 
       // Step 2: Check access permissions BEFORE fetching audit logs
       // Only KAM, Credit Team, or Client (for their own queries) can resolve
-      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
+        defaultLogger.warn('Access denied for query resolution', {
+          applicationId: id,
+          queryId,
+          userEmail: req.user!.email,
+          userRole: req.user!.role,
+        });
         res.status(403).json({ success: false, error: 'Access denied' });
         return;
       }
@@ -659,7 +676,8 @@ export class LoanController {
       console.log(`[LoanController] Found application: id=${application.id}, File ID=${application['File ID']}, Client=${application.Client || application['Client']}`);
 
       // Step 3: Check access permissions BEFORE fetching audit logs
-      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         console.log(`[LoanController] Access denied for application ${id}. User: ${req.user!.email}, Role: ${req.user!.role}, clientId: ${req.user!.clientId}, Application Client: ${application.Client || application['Client']}`);
         res.status(403).json({ 
