@@ -622,20 +622,52 @@ export class AuthController {
         // Handle different response formats from n8n
         let profileData: any = null;
         
-        // Format 1: Array with output field containing JSON string
-        // [ { "output": "{\"username\": \"Sagar\", \"role\": \"kam\", \"Associated profile\": \"Sagar\"}" } ]
+        // Format 1: Array with output field (can be object or JSON string)
+        // [ { "output": { "username": "Sagar", "role": "kam", "kam_id": "...", ... } } ]
+        // or [ { "output": "{\"username\": \"Sagar\", ...}" } ]
         if (Array.isArray(rawData) && rawData.length > 0 && rawData[0]?.output) {
           try {
-            const outputString = rawData[0].output;
-            profileData = typeof outputString === 'string' ? JSON.parse(outputString) : outputString;
-            this.logStructured('VALIDATE_PARSED_OUTPUT', {
-              requestId,
-              username: profileData?.username,
-              role: profileData?.role,
-              associatedProfile: profileData?.['Associated profile'],
-            });
+            const outputValue = rawData[0].output;
+            
+            // Handle both object and string formats
+            if (typeof outputValue === 'string') {
+              profileData = JSON.parse(outputValue);
+            } else if (typeof outputValue === 'object' && outputValue !== null) {
+              profileData = outputValue;
+            } else {
+              throw new Error('Invalid output format: expected object or JSON string');
+            }
+            
+            // Map snake_case fields to camelCase for consistency
+            if (profileData) {
+              profileData.username = profileData.username || profileData.Username;
+              profileData.role = profileData.role || profileData.Role;
+              profileData.name = profileData.associated_profile || profileData['Associated profile'] || profileData.name || profileData.Name;
+              
+              // Map snake_case IDs to camelCase
+              if (profileData.kam_id !== undefined) profileData.kamId = profileData.kam_id;
+              if (profileData.client_id !== undefined) profileData.clientId = profileData.client_id;
+              if (profileData.nbfc_id !== undefined) profileData.nbfcId = profileData.nbfc_id;
+              if (profileData.credit_team_id !== undefined) profileData.creditTeamId = profileData.credit_team_id;
+              
+              this.logStructured('VALIDATE_PARSED_OUTPUT', {
+                requestId,
+                username: profileData.username,
+                role: profileData.role,
+                kamId: profileData.kamId || profileData.kam_id,
+                clientId: profileData.clientId || profileData.client_id,
+                nbfcId: profileData.nbfcId || profileData.nbfc_id,
+                creditTeamId: profileData.creditTeamId || profileData.credit_team_id,
+                associatedProfile: profileData.name,
+              });
+            }
           } catch (parseError: any) {
             console.error('[AuthController] Failed to parse output JSON:', parseError);
+            defaultLogger.error('Failed to parse n8n webhook output', {
+              requestId,
+              error: parseError.message,
+              outputType: typeof rawData[0]?.output,
+            });
             res.status(500).json({
               success: false,
               error: 'Invalid response format from authentication service.',
@@ -715,10 +747,10 @@ export class AuthController {
 
         // If we have profile data, proceed with authentication
         if (profileData && (profileData.username || profileData.role)) {
-          // Extract user data from profile data
+          // Extract user data from profile data (handle both camelCase and snake_case)
           const userEmail = profileData.email || profileData.username || username;
           const userRole = profileData.role || 'client';
-          const userName = profileData['Associated profile'] || profileData.name || profileData.username || username;
+          const userName = profileData['Associated profile'] || profileData.associated_profile || profileData.name || profileData.username || username;
           
           // Map role to valid role format
           const roleMap: Record<string, string> = {
@@ -730,15 +762,30 @@ export class AuthController {
           };
           const normalizedRole = roleMap[userRole.toLowerCase()] || 'client';
           
-          // Fetch full user profile to get IDs (clientId, kamId, nbfcId, creditTeamId)
-          let clientId: string | null = profileData.clientId || null;
-          let kamId: string | null = profileData.kamId || null;
-          let nbfcId: string | null = profileData.nbfcId || null;
-          let creditTeamId: string | null = profileData.creditTeamId || null;
+          // Extract IDs from webhook response (prefer camelCase, fallback to snake_case)
+          let clientId: string | null = profileData.clientId || profileData.client_id || null;
+          let kamId: string | null = profileData.kamId || profileData.kam_id || null;
+          let nbfcId: string | null = profileData.nbfcId || profileData.nbfc_id || null;
+          let creditTeamId: string | null = profileData.creditTeamId || profileData.credit_team_id || null;
+          
+          // Use IDs from webhook if available, otherwise fetch from Airtable
+          const hasIdsFromWebhook = !!(clientId || kamId || nbfcId || creditTeamId);
+          
+          defaultLogger.info('VALIDATE: Extracted IDs from webhook', {
+            requestId,
+            username,
+            role: normalizedRole,
+            clientId,
+            kamId,
+            nbfcId,
+            creditTeamId,
+            hasIdsFromWebhook,
+          });
           
           try {
-            // Fetch User Accounts to get full profile (if not already fetched)
-            if (!isTestData) {
+            // Only fetch from Airtable if IDs weren't provided by webhook
+            if (!hasIdsFromWebhook && !isTestData) {
+              // Fetch User Accounts to get full profile
               const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000);
               const userAccount = userAccounts.find((u: any) => {
                 const accountUsername = (u['Username'] || u['Email'] || '').toLowerCase();
@@ -755,8 +802,8 @@ export class AuthController {
                   username: userAccount['Username'] || userAccount['Email'],
                 });
               
-                // Based on role, fetch additional data to get IDs
-                if (normalizedRole === 'client') {
+                // Based on role, fetch additional data to get IDs (only if not provided by webhook)
+                if (normalizedRole === 'client' && !clientId) {
                   // Fetch Clients table to find clientId
                   try {
                     const clients = await n8nClient.fetchTable('Clients', true, undefined, 5000);
@@ -782,8 +829,8 @@ export class AuthController {
                       error: clientError.message,
                     });
                   }
-                } else if (normalizedRole === 'kam') {
-                  // Fetch KAM Users table to find kamId
+                } else if (normalizedRole === 'kam' && !kamId) {
+                  // Fetch KAM Users table to find kamId (only if not provided by webhook)
                   try {
                     const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 5000);
                     const kamUser = kamUsers.find((k: any) => {
@@ -796,7 +843,7 @@ export class AuthController {
                     
                     if (kamUser) {
                       kamId = kamUser['KAM ID'] || kamUser.id || null;
-                      defaultLogger.info('VALIDATE: Found KAM ID', {
+                      defaultLogger.info('VALIDATE: Found KAM ID from Airtable', {
                         requestId,
                         kamId,
                         kamName: kamUser['Name'],
@@ -808,7 +855,7 @@ export class AuthController {
                       error: kamError.message,
                     });
                   }
-                } else if (normalizedRole === 'nbfc') {
+                } else if (normalizedRole === 'nbfc' && !nbfcId) {
                   // Fetch NBFC Partners table to find nbfcId
                   try {
                     const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 5000);
@@ -834,8 +881,8 @@ export class AuthController {
                       error: nbfcError.message,
                     });
                   }
-                } else if (normalizedRole === 'credit_team') {
-                  // Fetch Credit Team Users table to find creditTeamId
+                } else if (normalizedRole === 'credit_team' && !creditTeamId) {
+                  // Fetch Credit Team Users table to find creditTeamId (only if not provided by webhook)
                   try {
                     const creditTeamUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 5000);
                     const creditTeamUser = creditTeamUsers.find((ct: any) => {
@@ -848,7 +895,7 @@ export class AuthController {
                     
                     if (creditTeamUser) {
                       creditTeamId = creditTeamUser['Credit Team ID'] || creditTeamUser.id || null;
-                      defaultLogger.info('VALIDATE: Found Credit Team ID', {
+                      defaultLogger.info('VALIDATE: Found Credit Team ID from Airtable', {
                         requestId,
                         creditTeamId,
                         creditTeamName: creditTeamUser['Name'],
@@ -861,7 +908,21 @@ export class AuthController {
                     });
                   }
                 }
+              } else if (!hasIdsFromWebhook) {
+                defaultLogger.info('VALIDATE: IDs not provided by webhook and user account not found, using webhook IDs', {
+                  requestId,
+                  username,
+                });
               }
+            } else if (hasIdsFromWebhook) {
+              defaultLogger.info('VALIDATE: Using IDs provided by webhook, skipping Airtable lookup', {
+                requestId,
+                username,
+                clientId,
+                kamId,
+                nbfcId,
+                creditTeamId,
+              });
             }
           } catch (profileError: any) {
             // Log error but don't fail authentication - IDs will be null
