@@ -4,7 +4,6 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { dataFilterService } from '../services/airtable/dataFilter.service.js';
 import { LoanStatus, Module } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 

@@ -5,7 +5,6 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { dataFilterService } from '../services/airtable/dataFilter.service.js';
 
 export class ProductsController {
   /**

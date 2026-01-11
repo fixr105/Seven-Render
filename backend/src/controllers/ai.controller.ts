@@ -14,7 +14,7 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { dataFilterService } from '../services/airtable/dataFilter.service.js';
+import { rbacFilterService } from '../services/rbac/rbacFilter.service.js';
 import { aiSummaryService } from '../services/ai/aiSummary.service.js';
 
 export class AIController {
@@ -40,7 +40,7 @@ export class AIController {
       }
 
       // Step 2: Check access BEFORE fetching clients
-      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         res.status(403).json({ success: false, error: 'Access denied' });
         return;
@@ -145,7 +145,7 @@ export class AIController {
       }
 
       // Check access
-      const filtered = dataFilterService.filterLoanApplications([application as any], req.user!);
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
       if (filtered.length === 0) {
         res.status(403).json({ success: false, error: 'Access denied' });
         return;
