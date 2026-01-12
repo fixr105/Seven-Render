@@ -34,6 +34,7 @@ export const KAMDashboard: React.FC = () => {
   const { applications, loading } = useApplications();
   const [clients, setClients] = useState<ClientStats[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const [clientsError, setClientsError] = useState<string | null>(null);
 
   // Load clients on initial mount (when page is first loaded/refreshed)
   // This ensures data loads when user first visits the page
@@ -41,38 +42,54 @@ export const KAMDashboard: React.FC = () => {
   useEffect(() => {
     if (userRoleId) {
       fetchClients();
+    } else {
+      setLoadingClients(false);
+      setClientsError('KAM ID not found. Please contact support.');
     }
   }, []); // Empty dependency array - only runs once on mount (userRoleId checked inside)
 
   const fetchClients = async () => {
-    if (!userRoleId) return;
+    if (!userRoleId) {
+      setClientsError('KAM ID not found. Please contact support.');
+      setLoadingClients(false);
+      return;
+    }
     try {
       setLoadingClients(true);
+      setClientsError(null);
       // Use API service to fetch clients
       const response = await apiService.listClients();
       
       if (response.success && response.data) {
         const clientsData = response.data as any[];
-        const clientStats = clientsData.map((client: any) => {
-          const clientId = client.id || client['Client ID'];
-          const clientApps = applications.filter(a => {
-            const appClientId = a.client_id || (a as any).Client;
-            return appClientId === clientId;
+        if (clientsData.length === 0) {
+          setClientsError('No clients assigned to you yet. Please contact your administrator to get clients assigned.');
+        } else {
+          const clientStats = clientsData.map((client: any) => {
+            const clientId = client.id || client['Client ID'];
+            const clientApps = applications.filter(a => {
+              const appClientId = a.client_id || (a as any).Client;
+              return appClientId === clientId;
+            });
+            return {
+              id: clientId,
+              name: client.name || client['Client Name'] || client['Primary Contact Name'] || '',
+              totalFiles: clientApps.length,
+              pendingReview: clientApps.filter(a => a.status === 'pending_kam_review' || a.status === 'under_kam_review').length,
+              awaitingResponse: clientApps.filter(a => a.status === 'kam_query_raised' || a.status === 'query_with_client').length,
+            };
           });
-          return {
-            id: clientId,
-            name: client.name || client['Client Name'] || client['Primary Contact Name'] || '',
-            totalFiles: clientApps.length,
-            pendingReview: clientApps.filter(a => a.status === 'pending_kam_review' || a.status === 'under_kam_review').length,
-            awaitingResponse: clientApps.filter(a => a.status === 'kam_query_raised' || a.status === 'query_with_client').length,
-          };
-        });
-        setClients(clientStats);
+          setClients(clientStats);
+        }
       } else {
+        const errorMessage = response.error || 'Failed to fetch clients. Please try again or contact support.';
+        setClientsError(errorMessage);
         console.error('Error fetching clients:', response.error);
         setClients([]);
       }
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.message || 'An unexpected error occurred. Please try again or contact support.';
+      setClientsError(errorMessage);
       console.error('Exception in fetchClients:', error);
       setClients([]);
     } finally {
@@ -214,40 +231,61 @@ export const KAMDashboard: React.FC = () => {
       </Card>
 
       {/* Client Overview */}
-      {totalClients > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Client Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingClients ? (
-              <div className="text-center py-4 text-neutral-500">Loading clients...</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {clients.map((client) => (
-                  <div key={client.id} className="p-4 border border-neutral-200 rounded-lg hover:border-brand-primary transition-colors">
-                    <h4 className="font-semibold text-neutral-900 mb-2">{client.name}</h4>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Total Files:</span>
-                        <span className="font-medium">{client.totalFiles}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Pending Review:</span>
-                        <Badge variant={client.pendingReview > 0 ? 'warning' : 'neutral'}>{client.pendingReview}</Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Awaiting Response:</span>
-                        <Badge variant={client.awaitingResponse > 0 ? 'warning' : 'neutral'}>{client.awaitingResponse}</Badge>
-                      </div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Client Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingClients ? (
+            <div className="text-center py-8">
+              <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-neutral-500">Loading clients...</p>
+            </div>
+          ) : clientsError ? (
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
+              <p className="text-error font-medium mb-2">Error Loading Clients</p>
+              <p className="text-neutral-600 text-sm mb-4">{clientsError}</p>
+              <Button variant="primary" onClick={fetchClients}>
+                Retry
+              </Button>
+            </div>
+          ) : totalClients === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+              <p className="text-neutral-600 font-medium mb-2">No Clients Assigned</p>
+              <p className="text-neutral-500 text-sm mb-4">
+                You don't have any clients assigned to you yet. Please contact your administrator to get clients assigned.
+              </p>
+              <Button variant="primary" icon={Plus} onClick={() => navigate('/clients')}>
+                Onboard Your First Client
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {clients.map((client) => (
+                <div key={client.id} className="p-4 border border-neutral-200 rounded-lg hover:border-brand-primary transition-colors">
+                  <h4 className="font-semibold text-neutral-900 mb-2">{client.name}</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Total Files:</span>
+                      <span className="font-medium">{client.totalFiles}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Pending Review:</span>
+                      <Badge variant={client.pendingReview > 0 ? 'warning' : 'neutral'}>{client.pendingReview}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Awaiting Response:</span>
+                      <Badge variant={client.awaitingResponse > 0 ? 'warning' : 'neutral'}>{client.awaitingResponse}</Badge>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent Applications */}
       <Card>

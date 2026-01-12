@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { productsController } from '../controllers/products.controller.js';
 import { nbfcPartnersController } from '../controllers/nbfc.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { requireCredit } from '../middleware/rbac.middleware.js';
+import { requireCredit, requireCreditOrNBFC } from '../middleware/rbac.middleware.js';
 
 const router = Router();
 
@@ -32,9 +32,9 @@ router.get('/loan-products', async (req, res, next) => {
 });
 router.get('/loan-products/:id', productsController.getLoanProduct.bind(productsController));
 
-// NBFC Partners
-router.get('/nbfc-partners', productsController.listNBFCPartners.bind(productsController));
-router.get('/nbfc-partners/:id', productsController.getNBFCPartner.bind(productsController));
+// NBFC Partners - Credit Team and NBFC only
+router.get('/nbfc-partners', requireCreditOrNBFC, productsController.listNBFCPartners.bind(productsController));
+router.get('/nbfc-partners/:id', requireCreditOrNBFC, productsController.getNBFCPartner.bind(productsController));
 router.post('/nbfc-partners', requireCredit, nbfcPartnersController.createPartner.bind(nbfcPartnersController));
 router.patch('/nbfc-partners/:id', requireCredit, nbfcPartnersController.updatePartner.bind(nbfcPartnersController));
 

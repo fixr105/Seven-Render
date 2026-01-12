@@ -116,13 +116,20 @@ export const Clients: React.FC = () => {
           }
         });
         
+        // Clear any previous errors on success
+        if (mappedClients.length === 0 && userRole === 'kam') {
+          setDebugInfo(`⚠️ No clients found. If you're expecting clients, please contact your administrator to ensure clients are assigned to you.`);
+        }
+        
         setClients(mappedClients);
       } else {
-        setDebugInfo(`❌ Error: ${response.error || 'Unknown error'}`);
+        const errorMsg = response.error || 'Failed to fetch clients. Please try again or contact support.';
+        setDebugInfo(`❌ Error: ${errorMsg}`);
         setClients([]);
       }
     } catch (error: any) {
-      setDebugInfo(`❌ Exception: ${error.message || 'Unknown error'}`);
+      const errorMsg = error.message || 'An unexpected error occurred. Please try again or contact support.';
+      setDebugInfo(`❌ Exception: ${errorMsg}`);
       setClients([]);
     } finally {
       setLoading(false);

@@ -114,4 +114,5 @@ export const requireKAM = requireRole(UserRole.KAM);
 export const requireCredit = requireRole(UserRole.CREDIT);
 export const requireNBFC = requireRole(UserRole.NBFC);
 export const requireCreditOrKAM = requireRole(UserRole.CREDIT, UserRole.KAM);
+export const requireCreditOrNBFC = requireRole(UserRole.CREDIT, UserRole.NBFC);
 
