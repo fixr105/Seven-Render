@@ -68,9 +68,6 @@ export const Clients: React.FC = () => {
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
   ];
 
-  // Removed automatic fetching - data will only load on manual refresh or page load
-  // Users must click the Refresh button to fetch data
-
   const fetchClients = async (forceRefresh: boolean = false) => {
     try {
       setLoading(true);
@@ -135,6 +132,11 @@ export const Clients: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Fetch clients on mount (page load)
+  useEffect(() => {
+    fetchClients();
+  }, []); // Empty dependency array - only runs once on mount
 
   const handleOnboardClient = async () => {
     
