@@ -1,5 +1,7 @@
 # Seven Fincorp Loan Management Dashboard
 
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/fixr105/Seven-Render?utm_source=oss&utm_medium=github&utm_campaign=fixr105%2FSeven-Render&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
 A comprehensive multi-role fintech dashboard for loan management, built with React, TypeScript, and Tailwind CSS following the Boltt design system specification.
 
 ## Overview
