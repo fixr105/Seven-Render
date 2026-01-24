@@ -92,7 +92,16 @@ export class AuthService {
           if (!response.ok) {
             throw new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
           }
-          rawWebhookResponse = await response.json();
+          const text = await response.text();
+          if (!text || text.trim().length === 0) {
+            throw new Error('Authentication service returned an empty response.');
+          }
+          try {
+            rawWebhookResponse = JSON.parse(text);
+          } catch (parseErr: any) {
+            console.error('[AuthService] ❌ Webhook response is not valid JSON:', parseErr?.message || parseErr);
+            throw new Error('Authentication service temporarily unavailable. Please try again later.');
+          }
           console.log('[AuthService] ✅ Raw webhook response received');
         } catch (fetchError: any) {
           clearTimeout(timeoutId);
@@ -139,11 +148,18 @@ export class AuthService {
       } catch (webhookError: any) {
         console.error('[AuthService] ❌ Failed to fetch or validate user accounts from webhook');
         console.error('[AuthService] Webhook error details:', { name: webhookError.name, message: webhookError.message });
-        if (webhookError.message.includes('No user accounts found') || webhookError.message.includes('Invalid webhook response') || webhookError.message.includes('missing required')) {
+        if (webhookError.message?.includes('No user accounts found') || webhookError.message?.includes('Invalid webhook response') || webhookError.message?.includes('missing required')) {
           throw new Error('Invalid email or password');
         }
-        if (webhookError.message.includes('timeout') || webhookError.message.includes('timed out')) {
+        if (webhookError.message?.includes('timeout') || webhookError.message?.includes('timed out')) {
           throw new Error(`Authentication service timeout: ${webhookError.message}`);
+        }
+        // Never surface raw JSON parse errors (e.g. "Unexpected end of JSON input") to the client
+        if (webhookError.message?.includes('Unexpected end of JSON input') ||
+            webhookError.message?.includes('Authentication service returned') ||
+            webhookError.message?.includes('temporarily unavailable') ||
+            (webhookError.name === 'SyntaxError' && webhookError.message?.includes('JSON'))) {
+          throw new Error('Authentication service temporarily unavailable. Please try again later.');
         }
         throw new Error(`Failed to connect to authentication service: ${webhookError.message}`);
       }

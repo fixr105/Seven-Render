@@ -4,11 +4,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, TrendingUp } from 'lucide-react';
+import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, TrendingUp, RefreshCw } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { apiService } from '../../services/api';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { useState, useEffect } from 'react';
+import { isPageReload } from '../../utils/isPageReload';
 
 interface ApplicationRow {
   id: string;
@@ -31,22 +32,24 @@ interface ClientStats {
 export const KAMDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { userRoleId } = useAuthSafe();
-  const { applications, loading } = useApplications();
+  const { applications, loading, refetch } = useApplications();
   const [clients, setClients] = useState<ClientStats[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [clientsError, setClientsError] = useState<string | null>(null);
 
-  // Load clients on initial mount (when page is first loaded/refreshed)
-  // This ensures data loads when user first visits the page
-  // No automatic refetch on role changes - user must manually refresh
+  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
   useEffect(() => {
-    if (userRoleId) {
+    if (isPageReload() && userRoleId) {
       fetchClients();
-    } else {
+    } else if (!userRoleId) {
       setLoadingClients(false);
       setClientsError('KAM ID not found. Please contact support.');
+    } else {
+      setLoadingClients(false);
+      setClients([]);
+      setClientsError(null);
     }
-  }, []); // Empty dependency array - only runs once on mount (userRoleId checked inside)
+  }, []);
 
   const fetchClients = async () => {
     if (!userRoleId) {
@@ -201,8 +204,11 @@ export const KAMDashboard: React.FC = () => {
 
       {/* Action Center */}
       <Card className="mb-6">
-        <CardHeader>
+        <CardHeader className="flex items-center justify-between">
           <CardTitle>Action Center</CardTitle>
+          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => { refetch(); fetchClients(); }}>
+            Refresh
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">

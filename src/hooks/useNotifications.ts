@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
+import { isPageReload } from '../utils/isPageReload';
 
 export const useNotifications = () => {
   const { userRoleId } = useAuthSafe();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Load notifications on initial mount (when page is first loaded/refreshed)
-  // This ensures notification count loads when user first visits the page
-  // No automatic refetch on role changes - user must manually refresh
+  // Fetch only on page refresh (F5) or via explicit refetch. No auto-fetch on SPA navigation.
   useEffect(() => {
-    if (userRoleId) {
+    if (isPageReload() && userRoleId) {
       fetchNotifications();
+    } else {
+      setUnreadCount(0);
     }
-  }, []); // Empty dependency array - only runs once on mount (userRoleId checked inside)
+  }, []);
 
   const fetchNotifications = async () => {
     if (!userRoleId) return;
@@ -30,5 +31,5 @@ export const useNotifications = () => {
     }
   };
 
-  return { unreadCount, notifications: [], loading: false, markAsRead: async () => {}, markAllAsRead: async () => {} };
+  return { unreadCount, notifications: [], loading: false, refetch: fetchNotifications, markAsRead: async () => {}, markAllAsRead: async () => {} };
 };

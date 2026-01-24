@@ -13,6 +13,7 @@ import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
+import { isPageReload } from '../utils/isPageReload';
 
 interface Client {
   id: string;
@@ -133,10 +134,15 @@ export const Clients: React.FC = () => {
     }
   };
 
-  // Fetch clients on mount (page load)
+  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
   useEffect(() => {
-    fetchClients();
-  }, []); // Empty dependency array - only runs once on mount
+    if (isPageReload()) {
+      fetchClients();
+    } else {
+      setLoading(false);
+      setClients([]);
+    }
+  }, []);
 
   const handleOnboardClient = async () => {
     

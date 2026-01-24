@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
+import { isPageReload } from '../utils/isPageReload';
 
 export interface LoanApplication {
   id: string;
@@ -32,12 +33,15 @@ export const useApplications = () => {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load applications on initial mount (when page is first loaded/refreshed)
-  // This ensures data loads when user first visits the page
-  // No automatic refetch on user/role changes - user must manually refresh
+  // Fetch only on page refresh (F5) or via explicit refetch. No auto-fetch on SPA navigation.
   useEffect(() => {
-    fetchApplications();
-  }, []); // Empty dependency array - only runs once on mount
+    if (isPageReload()) {
+      fetchApplications();
+    } else {
+      setLoading(false);
+      setApplications([]);
+    }
+  }, []);
 
   const fetchApplications = async () => {
     try {

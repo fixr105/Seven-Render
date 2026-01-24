@@ -45,7 +45,10 @@ export const useAuthSafe = () => {
       nbfcId: user?.nbfcId || null,
       creditTeamId: user?.creditTeamId || null,
       loading: apiAuthContext.loading,
-      signIn: apiAuthContext.login,
+      /** Username + passcode (used by Login page) → /auth/validate */
+      signIn: apiAuthContext.validate,
+      /** Email + password → /auth/login */
+      login: apiAuthContext.login,
       signOut: apiAuthContext.logout,
       refreshUser: apiAuthContext.refreshUser,
       setAuthUserAndToken: apiAuthContext.setAuthUserAndToken,

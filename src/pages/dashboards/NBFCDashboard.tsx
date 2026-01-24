@@ -4,11 +4,11 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { FileText, Clock, CheckCircle, XCircle, Download, AlertCircle } from 'lucide-react';
-import { useApplications } from '../../hooks/useApplications';
+import { FileText, Clock, CheckCircle, XCircle, Download, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { apiService } from '../../services/api';
 import { useState, useEffect } from 'react';
+import { isPageReload } from '../../utils/isPageReload';
 
 interface ApplicationRow {
   id: string;
@@ -26,14 +26,15 @@ export const NBFCDashboard: React.FC = () => {
   const [assignedApplications, setAssignedApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load applications on initial mount (when page is first loaded/refreshed)
-  // This ensures data loads when user first visits the page
-  // No automatic refetch on role changes - user must manually refresh
+  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
   useEffect(() => {
-    if (userRoleId) {
+    if (isPageReload() && userRoleId) {
       fetchAssignedApplications();
+    } else {
+      setLoading(false);
+      setAssignedApplications([]);
     }
-  }, []); // Empty dependency array - only runs once on mount (userRoleId checked inside)
+  }, []);
 
   const fetchAssignedApplications = async () => {
     if (!userRoleId) return;
@@ -195,8 +196,13 @@ export const NBFCDashboard: React.FC = () => {
       {/* Assigned Applications */}
       <Card>
         <CardHeader className="flex items-center justify-between">
-          <CardTitle>Assigned Applications</CardTitle>
-          <Badge variant="neutral">{assignedApplications.length} Total</Badge>
+          <div className="flex items-center gap-3">
+            <CardTitle>Assigned Applications</CardTitle>
+            <Badge variant="neutral">{assignedApplications.length} Total</Badge>
+          </div>
+          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={fetchAssignedApplications}>
+            Refresh
+          </Button>
         </CardHeader>
         <CardContent>
           {loading ? (

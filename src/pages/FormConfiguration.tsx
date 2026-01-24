@@ -6,11 +6,12 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 // Checkbox is handled inline with native input
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, CheckCircle } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, CheckCircle, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
+import { isPageReload } from '../utils/isPageReload';
 
 // Form Modules Configuration
 interface FormModule {
@@ -154,60 +155,61 @@ export const FormConfiguration: React.FC = () => {
   // Fetch form mappings from API (will be fetched per client as needed)
   const [formMappings, setFormMappings] = useState<any[]>([]);
 
-  // Fetch clients for KAM
+  const fetchClientsForForm = async () => {
+    if (userRole !== 'kam' || !userRoleId) {
+      setClients([]);
+      setClientsLoading(false);
+      return;
+    }
+    try {
+      setClientsLoading(true);
+      const response = await apiService.listClients();
+      if (response.success && response.data) {
+        setClients(response.data || []);
+      } else {
+        setClients([]);
+      }
+    } catch (error: any) {
+      setClients([]);
+    } finally {
+      setClientsLoading(false);
+    }
+  };
+
+  const fetchLoanProductsForForm = async () => {
+    try {
+      setLoadingProducts(true);
+      const response = await apiService.listLoanProducts(true);
+      if (response.success && response.data) {
+        const products = response.data.map((product: any) => ({
+          id: product.productId || product.id,
+          name: product.productName || product['Product Name'] || product.name,
+        }));
+        setLoanProducts(products);
+      }
+    } catch (error) {
+      console.error('Error fetching loan products:', error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
   useEffect(() => {
-    const fetchClients = async () => {
-      if (userRole !== 'kam' || !userRoleId) {
-        setClients([]);
-        setClientsLoading(false);
-        return;
-      }
-
-      try {
-        setClientsLoading(true);
-        console.log('FormConfiguration: Fetching clients for KAM:', userRoleId);
-        const response = await apiService.listClients();
-        console.log('FormConfiguration: API response:', response);
-        if (response.success && response.data) {
-          console.log('FormConfiguration: Clients received:', response.data.length);
-          setClients(response.data || []);
-        } else {
-          console.error('FormConfiguration: Error fetching clients:', response.error);
-          setClients([]);
-        }
-      } catch (error: any) {
-        console.error('FormConfiguration: Exception fetching clients:', error);
-        setClients([]);
-      } finally {
-        setClientsLoading(false);
-      }
-    };
-
-    fetchClients();
+    if (isPageReload() && userRole === 'kam' && userRoleId) {
+      fetchClientsForForm();
+    } else {
+      setClients([]);
+      setClientsLoading(false);
+    }
   }, [userRole, userRoleId]);
 
-  // Module 1: Fetch loan products
   useEffect(() => {
-    const fetchLoanProducts = async () => {
-      try {
-        setLoadingProducts(true);
-        const response = await apiService.listLoanProducts(true); // activeOnly = true
-        
-        if (response.success && response.data) {
-          const products = response.data.map((product: any) => ({
-            id: product.productId || product.id,
-            name: product.productName || product['Product Name'] || product.name,
-          }));
-          setLoanProducts(products);
-        }
-      } catch (error) {
-        console.error('Error fetching loan products:', error);
-      } finally {
-        setLoadingProducts(false);
-      }
-    };
-
-    fetchLoanProducts();
+    if (isPageReload()) {
+      fetchLoanProductsForForm();
+    } else {
+      setLoadingProducts(false);
+    }
   }, []);
 
   // Filter clients for KAM (only managed clients) - API already filters, but we use all returned clients
@@ -321,8 +323,11 @@ export const FormConfiguration: React.FC = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex items-center justify-between">
             <CardTitle>Configure Client Forms</CardTitle>
+            <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => { fetchClientsForForm(); fetchLoanProductsForForm(); }}>
+              Refresh
+            </Button>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-neutral-600 mb-4">

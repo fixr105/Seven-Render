@@ -5,7 +5,6 @@
 import { Router, Request, Response } from 'express';
 import { defaultLogger } from '../utils/logger.js';
 import { performHealthCheck } from '../utils/uptimeMonitor.js';
-import fetch from 'node-fetch';
 
 const router = Router();
 
@@ -56,32 +55,7 @@ router.get('/health', async (req: Request, res: Response) => {
       message: `Heap used: ${memoryUsageMB.heapUsed}MB / ${memoryUsageMB.heapTotal}MB`,
     };
 
-    // n8n webhook availability check
-    if (process.env.N8N_BASE_URL) {
-      try {
-        const startTime = Date.now();
-        const response = await fetch(`${process.env.N8N_BASE_URL}/health`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000), // 5 second timeout
-        });
-        const latency = Date.now() - startTime;
-        checks.n8n = {
-          status: response.ok ? 'healthy' : 'unhealthy',
-          message: response.ok ? 'n8n webhook is reachable' : `n8n returned ${response.status}`,
-          latency,
-        };
-      } catch (error: any) {
-        checks.n8n = {
-          status: 'unhealthy',
-          message: `n8n webhook unreachable: ${error.message}`,
-        };
-      }
-    } else {
-      checks.n8n = {
-        status: 'warning',
-        message: 'N8N_BASE_URL not configured',
-      };
-    }
+    // n8n health check removed to avoid automated GET calls and exhausting n8n executions
 
     // Determine overall status
     const overallStatus = Object.values(checks).every(c => c.status === 'healthy')

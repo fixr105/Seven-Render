@@ -10,6 +10,8 @@ interface ApiAuthContextType {
   user: UserContext | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ error?: string }>;
+  /** Username + passcode → /auth/validate (used by Login page) */
+  validate: (username: string, passcode: string) => Promise<{ error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
@@ -78,6 +80,22 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  /** Username + passcode → POST /auth/validate. Use for Login page (Username/Passcode form). */
+  const validate = async (username: string, passcode: string) => {
+    try {
+      const response = await apiService.validate(username, passcode);
+      if (response.success && response.data) {
+        const { token, user: userData } = response.data as { token?: string; user?: UserContext };
+        if (token) apiService.setToken(token);
+        if (userData) setUser(userData);
+        return {};
+      }
+      return { error: response.error || 'Validation failed' };
+    } catch (error: any) {
+      return { error: error.message || 'Validation failed' };
+    }
+  };
+
   const logout = () => {
     apiService.logout();
     setUser(null);
@@ -108,6 +126,7 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         user,
         loading,
         login,
+        validate,
         logout,
         refreshUser,
         hasRole,

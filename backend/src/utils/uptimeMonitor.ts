@@ -34,33 +34,7 @@ export async function performHealthCheck(): Promise<UptimeCheckResult> {
       };
     }
 
-    // Check n8n webhook availability if configured
-    if (process.env.N8N_BASE_URL) {
-      try {
-        const n8nStartTime = Date.now();
-        const response = await fetch(`${process.env.N8N_BASE_URL}/health`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000),
-        });
-        const n8nResponseTime = Date.now() - n8nStartTime;
-        
-        if (!response.ok) {
-          return {
-            status: 'degraded',
-            responseTime: Date.now() - startTime,
-            timestamp: new Date(),
-            message: `n8n webhook returned ${response.status}`,
-          };
-        }
-      } catch (error: any) {
-        return {
-          status: 'degraded',
-          responseTime: Date.now() - startTime,
-          timestamp: new Date(),
-          message: `n8n webhook unreachable: ${error.message}`,
-        };
-      }
-    }
+    // n8n health check removed to avoid automated GET calls and exhausting n8n executions
 
     return {
       status: 'up',
@@ -126,40 +100,10 @@ export async function notifyUptimeService(
 }
 
 /**
- * Setup periodic uptime checks and notifications
+ * Setup periodic uptime checks and notifications.
+ * Disabled: no setInterval or initial notify, to avoid automated GET/POST that exhaust n8n executions.
+ * Health checks remain available on-demand via GET /api/health and GET /api/uptime.
  */
 export function setupUptimeMonitoring() {
-  const checkInterval = parseInt(process.env.UPTIME_CHECK_INTERVAL || '60000', 10); // Default: 1 minute
-  const notifyUrl = process.env.UPTIME_NOTIFY_URL;
-  const notifyApiKey = process.env.UPTIME_NOTIFY_API_KEY;
-
-  if (!notifyUrl) {
-    defaultLogger.info('Uptime monitoring notifications disabled (UPTIME_NOTIFY_URL not set)');
-    return;
-  }
-
-  defaultLogger.info('Uptime monitoring enabled', {
-    checkInterval,
-    notifyUrl,
-  });
-
-  // Perform initial check
-  performHealthCheck().then((result) => {
-    if (notifyUrl) {
-      notifyUptimeService(notifyUrl, notifyApiKey, result);
-    }
-  });
-
-  // Set up periodic checks
-  setInterval(async () => {
-    const result = await performHealthCheck();
-    defaultLogger.debug('Uptime check performed', {
-      status: result.status,
-      responseTime: result.responseTime,
-    });
-
-    if (notifyUrl) {
-      await notifyUptimeService(notifyUrl, notifyApiKey, result);
-    }
-  }, checkInterval);
+  return; // No-op: no periodic checks or notifications
 }

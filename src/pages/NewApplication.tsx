@@ -6,12 +6,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { FileUpload } from '../components/ui/FileUpload';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, Send, AlertTriangle } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, Send, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { Stepper } from '../components/ui/Stepper';
+import { isPageReload } from '../utils/isPageReload';
 
 interface UploadedFile {
   id: string;
@@ -66,20 +67,31 @@ export const NewApplication: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
+  // Fetch only on page refresh (F5) or via Load form. No auto-fetch on SPA navigation.
   useEffect(() => {
-    if (userRole === 'client') {
+    if (isPageReload() && userRole === 'client') {
       fetchClientId();
       fetchFormConfig();
       fetchConfiguredProducts();
+    } else {
+      setFormConfigLoading(false);
+      setLoanProductsLoading(false);
     }
   }, [userRoleId, userRole]);
 
-  // Fetch loan products when configured product IDs have been fetched
+  // Fetch loan products when configured product IDs have been fetched (from reload or Load form)
   useEffect(() => {
     if (userRole === 'client' && configuredProductsFetched) {
       fetchLoanProducts();
     }
   }, [configuredProductIds, configuredProductsFetched, userRole]);
+
+  const loadForm = () => {
+    if (userRole !== 'client') return;
+    fetchClientId();
+    fetchFormConfig();
+    fetchConfiguredProducts();
+  };
 
   const fetchClientId = async () => {
     if (userRole !== 'client' || !userRoleId) return;
@@ -538,8 +550,13 @@ export const NewApplication: React.FC = () => {
 
         {/* Core Required Fields per JSON Specification */}
         <Card id="application-details" className="mb-6">
-          <CardHeader>
+          <CardHeader className="flex items-center justify-between">
             <CardTitle>Application Details</CardTitle>
+            {userRole === 'client' && (
+              <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
+                Load form
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -818,14 +835,19 @@ export const NewApplication: React.FC = () => {
           ))
         ) : (
           <Card className="mb-6">
-            <CardHeader>
+            <CardHeader className="flex items-center justify-between">
               <CardTitle>Form Configuration</CardTitle>
+              {userRole === 'client' && (
+                <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
+                  Load form
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <p className="text-sm text-neutral-600 mb-4">
-                {formConfigLoading 
+                {formConfigLoading
                   ? 'Loading form configuration...'
-                  : 'No form configuration found. Please contact your KAM to configure your form.'}
+                  : 'No form configuration loaded. Click "Load form" to fetch your configuration, or contact your KAM to configure your form.'}
               </p>
             </CardContent>
           </Card>

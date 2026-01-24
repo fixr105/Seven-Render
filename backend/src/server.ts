@@ -113,17 +113,12 @@ app.get('/health', (req, res) => {
 // Error handling
 app.use(handleError);
 
-// Start background jobs
-// Note: Background jobs are enabled for server-based deployment (Render, self-hosted)
-// They were disabled in serverless environments (Vercel) but are now enabled
-try {
-  const { dailySummaryJob } = await import('./jobs/dailySummary.job.js');
-  dailySummaryJob.start();
-  defaultLogger.info('Daily summary job started');
-} catch (error: any) {
-  defaultLogger.warn('Failed to start daily summary job', { error: error.message });
-  // Don't fail server startup if job fails to start
-}
+// Daily summary job disabled: it uses n8nClient.fetchTable (n8n) on a cron and would exhaust n8n executions.
+// Reports "Generate" button still triggers the report via API when the user clicks (user-initiated).
+// try {
+//   const { dailySummaryJob } = await import('./jobs/dailySummary.job.js');
+//   dailySummaryJob.start();
+// } catch (error: any) { defaultLogger.warn('Failed to start daily summary job', { error: error.message }); }
 
 // Start server
 app.listen(PORT, () => {

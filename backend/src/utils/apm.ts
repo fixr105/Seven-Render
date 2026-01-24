@@ -54,9 +54,7 @@ class HttpAPM implements APM {
     this.serviceName = options.serviceName || 'seven-fincorp-backend';
     this.environment = options.environment || process.env.NODE_ENV || 'development';
     
-    // Flush metrics every 10 seconds
-    const interval = options.flushInterval || 10000;
-    this.flushInterval = setInterval(() => this.flushMetrics(), interval);
+    // No setInterval: flush only when buffer >= 100 (in recordMetric) or on destroy to avoid automated POST
   }
 
   startTransaction(name: string, type: APMTransaction['type'] = 'web'): APMTransaction {

@@ -7,6 +7,7 @@ import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
+import { isPageReload } from '../utils/isPageReload';
 
 interface DailySummaryReport {
   id: string;
@@ -40,14 +41,15 @@ export const Reports: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Load reports on initial mount (when page is first loaded/refreshed)
-  // This ensures data loads when user first visits the page
-  // No automatic refetch on role changes - user must manually refresh
+  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
   useEffect(() => {
-    if (userRole === 'credit_team' || userRole === 'admin') {
+    if (isPageReload() && (userRole === 'credit_team' || userRole === 'admin')) {
       fetchReports();
+    } else {
+      setLoading(false);
+      setReports([]);
     }
-  }, []); // Empty dependency array - only runs once on mount (userRole checked inside)
+  }, []);
 
   const fetchReports = async () => {
     try {

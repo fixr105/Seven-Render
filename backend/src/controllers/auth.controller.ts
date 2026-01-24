@@ -72,6 +72,29 @@ export class AuthController {
     console.log(`[AuthController] ${step}:`, JSON.stringify(logEntry, null, 2));
   }
 
+  /**
+   * Format Zod (or similar) validation errors to a readable string.
+   * Avoids surfacing raw JSON like [ { "code": "invalid_string", "message": "Invalid email", "path": ["email"] } ].
+   */
+  private formatValidationError(validationError: any, fallback: string): string {
+    if (!validationError) return fallback;
+    // Zod: error.issues[].message
+    if (validationError.name === 'ZodError' && Array.isArray(validationError.issues) && validationError.issues.length > 0) {
+      const messages = validationError.issues.map((i: any) => i?.message).filter(Boolean);
+      return messages.length ? messages.join('. ') : fallback;
+    }
+    // If message looks like a JSON array, try to extract first .message
+    const msg = validationError.message;
+    if (typeof msg === 'string' && msg.trim().startsWith('[')) {
+      try {
+        const arr = JSON.parse(msg);
+        if (Array.isArray(arr) && arr[0]?.message) return arr[0].message;
+      } catch { /* ignore */ }
+    }
+    if (typeof msg === 'string' && msg.length > 0 && msg.length < 200) return msg;
+    return fallback;
+  }
+
   async login(req: Request, res: Response): Promise<void> {
     const startTime = Date.now();
     const requestId = `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -97,14 +120,14 @@ export class AuthController {
           hasPassword: !!password,
         }, email);
       } catch (validationError: any) {
+        const errMsg = this.formatValidationError(validationError, 'Email and password are required');
         this.logStructured('INPUT_VALIDATION_FAILED', {
           requestId,
-          error: validationError.message,
+          error: validationError?.message ?? errMsg,
         });
-        
         res.status(400).json({
           success: false,
-          error: 'Invalid input: ' + (validationError.message || 'Email and password are required'),
+          error: errMsg.startsWith('Invalid') ? errMsg : 'Invalid input: ' + errMsg,
         });
         return;
       }
@@ -186,6 +209,15 @@ export class AuthController {
           errorMessage = 'Unable to connect to authentication service. Please try again in a moment.';
           console.error('[AuthController] Webhook timeout error detected, returning 504');
         } else if (
+          errorMessage.includes('temporarily unavailable') ||
+          errorMessage.includes('Unexpected end of JSON input') ||
+          errorMessage.includes('Authentication service returned') ||
+          (errorMessage.includes('Failed to connect to authentication service') && errorMessage.includes('JSON'))
+        ) {
+          statusCode = 503; // Service Unavailable — auth provider (n8n) returned invalid/empty data
+          errorMessage = 'Authentication service temporarily unavailable. Please try again later.';
+          console.error('[AuthController] Auth provider invalid/empty or JSON parse error, returning 503');
+        } else if (
           errorMessage.includes('Invalid email or password') || 
           errorMessage.includes('Account is not active') ||
           errorMessage.includes('no role assigned') ||
@@ -193,14 +225,14 @@ export class AuthController {
           errorMessage.includes('No user accounts found') ||
           errorMessage.includes('missing required') ||
           errorMessage.includes('malformed') ||
-          errorMessage.includes('empty')
+          (errorMessage.includes('empty') && !errorMessage.includes('Authentication service returned'))
         ) {
           statusCode = 401; // Unauthorized
           // Provide helpful error message for validation failures
           if (errorMessage.includes('Invalid webhook response') || 
               errorMessage.includes('missing required') ||
               errorMessage.includes('malformed') ||
-              errorMessage.includes('empty')) {
+              (errorMessage.includes('empty') && !errorMessage.includes('Authentication service returned'))) {
             errorMessage = 'Invalid email or password';
           }
           console.error('[AuthController] Invalid credentials, validation error, or account issue, returning 401');
@@ -493,14 +525,14 @@ export class AuthController {
           hasPasscode: !!passcode,
         });
       } catch (validationError: any) {
+        const errMsg = this.formatValidationError(validationError, 'Username and passcode are required');
         this.logStructured('VALIDATE_INPUT_VALIDATION_FAILED', {
           requestId,
-          error: validationError.message,
+          error: validationError?.message ?? errMsg,
         });
-        
         res.status(400).json({
           success: false,
-          error: 'Invalid input: ' + (validationError.message || 'Username and passcode are required'),
+          error: errMsg.startsWith('Invalid') ? errMsg : 'Invalid input: ' + errMsg,
         });
         return;
       }
@@ -593,24 +625,56 @@ export class AuthController {
           statusText: response.statusText,
         });
 
-        // Check if response is ok
-              if (!response.ok) {
-                const errorData: any = await response.json().catch(() => ({ error: 'Unknown error' }));
-                this.logStructured('VALIDATE_N8N_WEBHOOK_FAILED', {
-                  requestId,
-                  status: response.status,
-                  statusText: response.statusText,
-                  error: errorData?.error || errorData?.message || 'Unknown error',
-                });
-                res.status(response.status).json({
-                  success: false,
-                  error: errorData?.error || errorData?.message || 'Validation failed',
-                });
-                return;
-              }
+        // Read body once (avoids "Unexpected end of JSON input" when n8n returns empty/non-JSON)
+        const text = await response.text();
 
-        // Parse n8n response
-        const rawData: any = await response.json();
+        // Check if response is ok
+        if (!response.ok) {
+          let errorData: any = { error: 'Unknown error' };
+          if (text?.trim()) {
+            try {
+              errorData = JSON.parse(text);
+            } catch {
+              /* keep default */
+            }
+          }
+          this.logStructured('VALIDATE_N8N_WEBHOOK_FAILED', {
+            requestId,
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData?.error || errorData?.message || 'Unknown error',
+          });
+          res.status(response.status).json({
+            success: false,
+            error: errorData?.error || errorData?.message || 'Validation failed',
+          });
+          return;
+        }
+
+        // Parse n8n response (empty or invalid JSON → 503)
+        let rawData: any = null;
+        if (!text || !text.trim()) {
+          defaultLogger.error('VALIDATE: Webhook returned empty body', { requestId });
+          res.status(503).json({
+            success: false,
+            error: 'Authentication service temporarily unavailable. Please try again later.',
+          });
+          return;
+        }
+        try {
+          rawData = JSON.parse(text);
+        } catch (parseErr: any) {
+          defaultLogger.error('VALIDATE: Webhook response is not valid JSON', {
+            requestId,
+            error: parseErr?.message,
+            preview: text.substring(0, 100),
+          });
+          res.status(503).json({
+            success: false,
+            error: 'Authentication service temporarily unavailable. Please try again later.',
+          });
+          return;
+        }
         
         this.logStructured('VALIDATE_N8N_WEBHOOK_RESPONSE', {
           requestId,

@@ -4,11 +4,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { Plus, FileText, Clock, CheckCircle, DollarSign, Package } from 'lucide-react';
+import { Plus, FileText, Clock, CheckCircle, DollarSign, Package, RefreshCw } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { useNotifications } from '../../hooks/useNotifications';
 import { apiService } from '../../services/api';
+import { isPageReload } from '../../utils/isPageReload';
 
 interface ApplicationRow {
   id: string;
@@ -21,18 +22,29 @@ interface ApplicationRow {
 
 export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { applications, loading } = useApplications();
-  const { balance, loading: ledgerLoading } = useLedger();
+  const { applications, loading, refetch: refetchApplications } = useApplications();
+  const { balance, loading: ledgerLoading, refetch: refetchLedger } = useLedger();
   const { unreadCount } = useNotifications();
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
 
-  // Load loan products and configured products on initial mount (when dashboard first loads)
+  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
   useEffect(() => {
+    if (isPageReload()) {
+      fetchLoanProducts();
+      fetchConfiguredProducts();
+    } else {
+      setLoadingProducts(false);
+    }
+  }, []);
+
+  const refreshAll = () => {
+    refetchApplications();
+    refetchLedger();
     fetchLoanProducts();
     fetchConfiguredProducts();
-  }, []);
+  };
 
   const fetchLoanProducts = async () => {
     try {
@@ -217,8 +229,11 @@ export const ClientDashboard: React.FC = () => {
 
       {/* Action Center */}
       <Card className="mb-6">
-        <CardHeader>
+        <CardHeader className="flex items-center justify-between">
           <CardTitle>Action Center</CardTitle>
+          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={refreshAll}>
+            Refresh
+          </Button>
         </CardHeader>
         <CardContent>
           <Button
