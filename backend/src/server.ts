@@ -59,18 +59,21 @@ app.use(helmet({
 }));
 
 // CORS configuration
+// In production, default to lms.sevenfincorp.com when CORS_ORIGIN is unset (e.g. Fly.io without secret)
+const corsOriginRaw =
+  process.env.CORS_ORIGIN ||
+  (process.env.NODE_ENV === 'production' ? 'https://lms.sevenfincorp.com' : undefined);
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    const allowedOrigins = process.env.CORS_ORIGIN 
-      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-      : ['*']; // Allow all origins if not specified (for development)
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
+    const allowedOrigins = corsOriginRaw
+      ? corsOriginRaw.split(',').map((o) => o.trim()).filter(Boolean)
+      : ['*'];
+
+    // Allow requests with no origin (curl, Postman, mobile, etc.)
     if (!origin) {
       return callback(null, true);
     }
-    
-    // Check if origin is allowed
+
     if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -81,6 +84,7 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204,
 };
 
 app.use(cors(corsOptions));
