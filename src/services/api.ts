@@ -9,17 +9,15 @@ import { errorTracker } from '../utils/errorTracker.js';
 // Ensure API_BASE_URL includes /api prefix for Vercel deployment
 const getApiBaseUrl = () => {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
-  
-  // VITE_API_BASE_URL is required in production
+
+  // In development (including E2E), use /api so Vite proxy works when VITE_API_BASE_URL is unset
   if (!baseUrl) {
-    if (typeof window !== 'undefined') {
-      // In browser, throw error if missing
+    if (typeof window !== 'undefined' && !import.meta.env.DEV) {
       throw new Error('VITE_API_BASE_URL environment variable is required. Please set it in your environment configuration.');
     }
-    // Fallback for non-browser environments (should not happen in production)
     return '/api';
   }
-  
+
   // Ensure /api is appended if not present
   if (!baseUrl.endsWith('/api')) {
     return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
@@ -439,6 +437,16 @@ class ApiService {
   }
 
   /**
+   * Update current user's settings
+   */
+  async updateUserSettings(userId: string, settings: object): Promise<ApiResponse> {
+    return this.request(`/user-accounts/${userId}/settings`, {
+      method: 'PATCH',
+      body: JSON.stringify({ settings }),
+    });
+  }
+
+  /**
    * Logout (clear token)
    */
   logout(): void {
@@ -507,6 +515,7 @@ class ApiService {
     status?: string;
     warnings?: string[]; // Module 2: Validation warnings
     duplicateFound?: { fileId: string; status: string } | null; // Module 2: Duplicate detection
+    missingFields?: Array<{ fieldId: string; label: string }>; // Validation errors for missing required fields
   }>> {
     return this.request('/loan-applications', {
       method: 'POST',

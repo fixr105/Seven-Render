@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -338,7 +338,7 @@ export const FormConfiguration: React.FC = () => {
                 <div className="text-sm text-neutral-500 py-2">Loading clients...</div>
               ) : managedClients.length === 0 ? (
                 <div className="text-sm text-neutral-500 py-2">
-                  No clients found. Please onboard a client first from the <a href="/clients" className="text-brand-primary hover:underline">Clients page</a>.
+                  No clients found. Please onboard a client first from the <Link to="/clients" className="text-brand-primary hover:underline">Clients page</Link>.
                   <br />
                   <span className="text-xs">Debug: userRole={userRole}, userRoleId={userRoleId}, clients.length={clients.length}</span>
                 </div>
@@ -467,7 +467,7 @@ export const FormConfiguration: React.FC = () => {
                   variant="primary"
                   onClick={handleSaveForm}
                   loading={saving}
-                  disabled={!selectedClient || selectedModules.size === 0}
+                  disabled={!selectedClient || selectedModules.size === 0 || saving}
                 >
                   Save Form Configuration
                 </Button>

@@ -178,9 +178,8 @@ export const ApplicationDetail: React.FC = () => {
         // Handle both structured and plain summary formats
         const summary = response.data.summary || response.data.structured?.fullSummary || '';
         setAiSummary(summary);
-        // No automatic refresh - user must manually refresh to see updates
         if (summary) {
-          alert('AI summary generated successfully! Please refresh the page to see the updated summary.');
+          alert('AI summary generated successfully!');
         } else {
           alert('AI summary generation completed, but no summary was returned.');
         }
@@ -298,8 +297,8 @@ export const ApplicationDetail: React.FC = () => {
     try {
       const response = await apiService.resolveQuery(id, queryId);
       if (response.success) {
-        // No automatic refresh - user must manually refresh to see updates
-        alert('Query resolved successfully! Please refresh the page to see the updated query status.');
+        fetchQueries();
+        alert('Query resolved successfully!');
       } else {
         throw new Error(response.error || 'Failed to resolve query');
       }
@@ -679,6 +678,7 @@ export const ApplicationDetail: React.FC = () => {
                               size="sm"
                               onClick={() => handleResolveQuery(thread.rootQuery.id)}
                               disabled={submitting}
+                              loading={submitting}
                             >
                               Mark Resolved
                             </Button>
@@ -964,8 +964,9 @@ export const ApplicationDetail: React.FC = () => {
                     setDecisionStatus('');
                     setDecisionRemarks('');
                     setApprovedAmount('');
-                    // No automatic refresh - user must manually refresh to see updates
-                    alert('Decision recorded successfully! Please refresh the page to see the updated decision.');
+                    fetchApplicationDetails();
+                    fetchStatusHistory();
+                    alert('Decision recorded successfully!');
                   } else {
                     throw new Error(response.error || 'Failed to record decision');
                   }

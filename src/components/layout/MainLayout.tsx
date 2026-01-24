@@ -56,7 +56,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         </div>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto min-h-[calc(100vh-8rem)]">
+          <div className="max-w-7xl mx-auto min-h-[calc(100vh-8rem)] animate-fade-in">
             {children}
           </div>
         </main>

@@ -5,25 +5,34 @@
 
 import { Page } from '@playwright/test';
 
+// Load test credentials from environment variables with fallback for backward compatibility
+const getEnvVar = (key: string, fallback: string): string => {
+  const value = process.env[key];
+  if (!value && process.env.CI) {
+    throw new Error(`Required environment variable ${key} is not set. Please set it in CI secrets or .env file.`);
+  }
+  return value || fallback;
+};
+
 export const TEST_USERS = {
   client: {
-    email: 'client@test.com',
-    password: 'Test@123456',
+    email: getEnvVar('E2E_CLIENT_USERNAME', 'client@test.com'),
+    password: getEnvVar('E2E_CLIENT_PASSWORD', 'Test@123456'),
     role: 'client',
   },
   kam: {
-    email: 'kam@test.com',
-    password: 'Test@123456',
+    email: getEnvVar('E2E_KAM_USERNAME', 'kam@test.com'),
+    password: getEnvVar('E2E_KAM_PASSWORD', 'Test@123456'),
     role: 'kam',
   },
   credit: {
-    email: 'credit@test.com',
-    password: 'Test@123456',
+    email: getEnvVar('E2E_CREDIT_USERNAME', 'credit@test.com'),
+    password: getEnvVar('E2E_CREDIT_PASSWORD', 'Test@123456'),
     role: 'credit_team',
   },
   nbfc: {
-    email: 'nbfc@test.com',
-    password: 'Test@123456',
+    email: getEnvVar('E2E_NBFC_USERNAME', 'nbfc@test.com'),
+    password: getEnvVar('E2E_NBFC_PASSWORD', 'Test@123456'),
     role: 'nbfc',
   },
 };
@@ -33,16 +42,24 @@ export const TEST_USERS = {
  */
 export async function loginAs(page: Page, user: keyof typeof TEST_USERS) {
   const credentials = TEST_USERS[user];
-  
-  // Navigate to login page
-  await page.goto('/login');
-  
-  // Wait for login form
-  await page.waitForSelector('input[type="email"], input[name="email"]');
-  
-  // Fill in credentials
-  const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-  const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
+
+  // Capture JS errors to help diagnose blank page (e.g. React not mounting)
+  page.on('pageerror', (err) => {
+    console.error('[E2E pageerror]', err.message);
+    if (err.stack) console.error(err.stack);
+  });
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.error('[E2E console]', msg.text());
+  });
+
+  // Navigate to login page and wait for app to be ready
+  await page.goto('/login', { waitUntil: 'load', timeout: 60000 });
+
+  // Wait for login form - prefer data-testid, fallback to placeholder
+  const emailInput = page.getByTestId('login-username').or(page.getByPlaceholder(/enter your username|username/i)).first();
+  await emailInput.waitFor({ state: 'visible', timeout: 45000 });
+
+  const passwordInput = page.getByTestId('login-password').or(page.getByPlaceholder(/enter your passcode|passcode/i)).first();
   
   await emailInput.fill(credentials.email);
   await passwordInput.fill(credentials.password);
@@ -52,9 +69,9 @@ export async function loginAs(page: Page, user: keyof typeof TEST_USERS) {
   await submitButton.click();
   
   // Wait for navigation to dashboard or applications page
-  await page.waitForURL(/\/(dashboard|applications)/, { timeout: 10000 });
-  
-  // Verify we're logged in (check for user-specific content)
+  await page.waitForURL(/\/(dashboard|applications)/, { timeout: 15000 });
+  // Ensure we're in the app (nav/sidebar exists); if we were redirected to /login, this will timeout
+  await page.locator('nav').first().waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForLoadState('networkidle');
 }
 

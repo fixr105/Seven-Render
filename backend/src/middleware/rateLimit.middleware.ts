@@ -4,64 +4,164 @@
  */
 
 import rateLimit from 'express-rate-limit';
+import { Request, Response, NextFunction } from 'express';
 
-// Rate limit for authentication endpoints (stricter)
-export const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window
+// Rate limit configuration from environment variables with sensible defaults
+const RATE_LIMIT_CONFIG = {
+  // Authentication rate limits
+  AUTH_PER_IP_MAX: parseInt(process.env.AUTH_RATE_LIMIT_PER_IP || '20', 10),
+  AUTH_PER_ACCOUNT_MAX: parseInt(process.env.AUTH_RATE_LIMIT_PER_ACCOUNT || '5', 10),
+  AUTH_WINDOW_MS: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000), 10),
+  
+  // API rate limits
+  API_MAX: parseInt(process.env.API_RATE_LIMIT_MAX || '100', 10),
+  API_WINDOW_MS: parseInt(process.env.API_RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000), 10),
+  
+  // Upload rate limits
+  UPLOAD_MAX: parseInt(process.env.UPLOAD_RATE_LIMIT_MAX || '10', 10),
+  UPLOAD_WINDOW_MS: parseInt(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS || String(60 * 60 * 1000), 10),
+  
+  // Webhook rate limits
+  WEBHOOK_MAX: parseInt(process.env.WEBHOOK_RATE_LIMIT_MAX || '20', 10),
+  WEBHOOK_WINDOW_MS: parseInt(process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000), 10),
+};
+
+// Helper to determine if rate limiting should be skipped
+// Only skip in true development mode, and allow override via environment variable
+const shouldSkipRateLimit = (): boolean => {
+  // Allow explicit override via environment variable
+  if (process.env.ENABLE_RATE_LIMITS === 'true') {
+    return false;
+  }
+  // Skip only in development, not in staging/test
+  return process.env.NODE_ENV === 'development' && process.env.ENABLE_RATE_LIMITS !== 'false';
+};
+
+// Helper to extract identifier from request
+const getIdentifier = (req: Request): string => {
+  const body = (req.body || {}) as Record<string, any>;
+  const rawIdentifier = body.email || body.username || '';
+  return typeof rawIdentifier === 'string' ? rawIdentifier.trim().toLowerCase() : 'anonymous';
+};
+
+// Per-IP rate limiter for authentication
+const authRateLimiterPerIP = rateLimit({
+  windowMs: RATE_LIMIT_CONFIG.AUTH_WINDOW_MS,
+  max: RATE_LIMIT_CONFIG.AUTH_PER_IP_MAX,
   message: {
     success: false,
-    error: 'Too many login attempts, please try again after 15 minutes',
+    error: 'Too many login attempts from this IP, please try again after 15 minutes',
   },
-  standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
-  legacyHeaders: false, // Disable `X-RateLimit-*` headers
-  skip: (req) => {
-    // Skip rate limiting in development
-    return process.env.NODE_ENV === 'development';
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.ip || 'unknown';
   },
+  validate: { keyGeneratorIpFallback: false },
+  skip: shouldSkipRateLimit,
 });
+
+// Per-IP:identifier rate limiter for authentication
+const authRateLimiterPerAccount = rateLimit({
+  windowMs: RATE_LIMIT_CONFIG.AUTH_WINDOW_MS,
+  max: RATE_LIMIT_CONFIG.AUTH_PER_ACCOUNT_MAX,
+  message: {
+    success: false,
+    error: 'Too many login attempts for this account, please try again after 15 minutes',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const identifier = getIdentifier(req);
+    return `${req.ip || 'unknown'}:${identifier || 'anonymous'}`;
+  },
+  validate: { keyGeneratorIpFallback: false },
+  skip: shouldSkipRateLimit,
+});
+
+// Composite rate limiter that enforces both per-IP and per-IP:identifier limits
+// Both limits must pass for the request to proceed
+export const authRateLimiter = (req: Request, res: Response, next: NextFunction): void => {
+  // Skip in development (using same logic as individual limiters)
+  if (shouldSkipRateLimit()) {
+    return next();
+  }
+
+  let perIPPassed = false;
+  let perAccountPassed = false;
+  let errorMessage = 'Too many login attempts, please try again after 15 minutes';
+
+  // Check per-IP limit
+  authRateLimiterPerIP(req, res, (err?: Error) => {
+    if (err || res.statusCode === 429) {
+      // Per-IP limit exceeded
+      if (!res.headersSent) {
+        return res.status(429).json({
+          success: false,
+          error: 'Too many login attempts from this IP, please try again after 15 minutes',
+        });
+      }
+      return;
+    }
+    perIPPassed = true;
+
+    // Check per-account limit
+    authRateLimiterPerAccount(req, res, (err2?: Error) => {
+      if (err2 || res.statusCode === 429) {
+        // Per-account limit exceeded
+        if (!res.headersSent) {
+          return res.status(429).json({
+            success: false,
+            error: 'Too many login attempts for this account, please try again after 15 minutes',
+          });
+        }
+        return;
+      }
+      perAccountPassed = true;
+
+      // Both limits passed, proceed
+      if (perIPPassed && perAccountPassed) {
+        next();
+      }
+    });
+  });
+};
 
 // Rate limit for general API endpoints
 export const apiRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  windowMs: RATE_LIMIT_CONFIG.API_WINDOW_MS,
+  max: RATE_LIMIT_CONFIG.API_MAX,
   message: {
     success: false,
     error: 'Too many requests, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
-    return process.env.NODE_ENV === 'development';
-  },
+  skip: shouldSkipRateLimit,
 });
 
 // Rate limit for file upload endpoints (stricter)
 export const uploadRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 uploads per hour
+  windowMs: RATE_LIMIT_CONFIG.UPLOAD_WINDOW_MS,
+  max: RATE_LIMIT_CONFIG.UPLOAD_MAX,
   message: {
     success: false,
     error: 'Too many file uploads, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
-    return process.env.NODE_ENV === 'development';
-  },
+  skip: shouldSkipRateLimit,
 });
 
 // Rate limit for webhook endpoints (very strict)
 export const webhookRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 requests per window
+  windowMs: RATE_LIMIT_CONFIG.WEBHOOK_WINDOW_MS,
+  max: RATE_LIMIT_CONFIG.WEBHOOK_MAX,
   message: {
     success: false,
     error: 'Too many webhook requests, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
-    return process.env.NODE_ENV === 'development';
-  },
+  skip: shouldSkipRateLimit,
 });

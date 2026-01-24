@@ -9,6 +9,7 @@ import { Home, FileText, Users, DollarSign, BarChart3, Settings as SettingsIcon,
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
+import { apiService } from '../services/api';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -48,18 +49,22 @@ export const Settings: React.FC = () => {
   ];
 
   const handleSave = async () => {
+    if (!user?.id) {
+      alert('You must be logged in to save settings.');
+      return;
+    }
     setLoading(true);
     try {
-      // Save settings to localStorage or backend
-      localStorage.setItem('userSettings', JSON.stringify(settings));
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      alert('Settings saved successfully!');
+      const response = await apiService.updateUserSettings(user.id, settings);
+      if (response.success) {
+        localStorage.setItem('userSettings', JSON.stringify(settings));
+        alert('Settings saved successfully!');
+      } else {
+        throw new Error(response.error || 'Failed to save settings');
+      }
     } catch (error: any) {
       console.error('Error saving settings:', error);
-      alert(`Failed to save settings: ${error.message}`);
+      alert(`Failed to save settings: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -246,7 +251,7 @@ export const Settings: React.FC = () => {
           <Button variant="secondary" onClick={() => navigate('/dashboard')}>
             Cancel
           </Button>
-          <Button variant="primary" icon={SettingsIcon} onClick={handleSave} loading={loading}>
+          <Button variant="primary" icon={SettingsIcon} onClick={handleSave} loading={loading} disabled={loading}>
             Save Settings
           </Button>
         </div>

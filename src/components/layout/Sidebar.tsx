@@ -71,10 +71,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
                   if (window.innerWidth < 1024) onToggle();
                 }}
                 className={`
-                  w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-none-hover
+                  w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-pointer border-l-4
                   ${isActive
-                    ? 'bg-brand-primary/90 text-white border-l-4 border-white'
-                    : 'text-white/80 hover:bg-brand-primary/80 hover:text-white hover:translate-x-1 hover:shadow-md'
+                    ? 'bg-white/10 text-white border-brand-secondary'
+                    : 'border-transparent text-white/85 hover:bg-white/10 hover:text-white hover:border-white/40'
                   }
                 `}
               >

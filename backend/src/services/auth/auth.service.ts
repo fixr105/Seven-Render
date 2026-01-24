@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fetch from 'node-fetch';
 import { authConfig } from '../../config/auth.js';
-import { UserRole } from '../../config/constants.js';
+import { UserRole, AccountStatus } from '../../config/constants.js';
 import { n8nClient } from '../airtable/n8nClient.js';
 import { UserAccount, KAMUser, CreditTeamUser, NBFCPartner } from '../../types/entities.js';
 
@@ -56,123 +56,75 @@ export class AuthService {
     console.log('[AuthService] ========== LOGIN SERVICE STARTED ==========');
     console.log('[AuthService] Email:', email);
     
-    // Step 1: Fetch user accounts from webhook and validate response structure
-    console.log('[AuthService] Step 1: Fetching user accounts from webhook...');
-    console.log('[AuthService] Webhook URL: /webhook/useraccount');
-    console.log('[AuthService] Table: User Accounts');
-    
+    // Step 1: Fetch user accounts from webhook and validate response structure (or use E2E mock)
     let userAccounts: UserAccount[];
     let rawWebhookResponse: any;
-    
-    try {
-      // Fetch raw webhook response directly to validate structure
-      const { n8nEndpoints } = await import('../airtable/n8nEndpoints.js');
-      const webhookUrl = n8nEndpoints.get.userAccount;
-      console.log('[AuthService] Fetching from:', webhookUrl);
-      
-      const controller = new AbortController();
-      // Increase timeout to 15 seconds for production (webhook may be slower)
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-      
+
+    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS === '1') {
+      // E2E: use in-memory users matching e2e/helpers/auth.ts TEST_USERS (no n8n webhook)
+      const mock: UserAccount[] = [
+        { id: 'recE2EClient01', createdTime: '', Username: 'client@test.com', Password: 'Test@123456', Role: UserRole.CLIENT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E Client', 'Last Login': '' },
+        { id: 'recE2EKAM01', createdTime: '', Username: 'kam@test.com', Password: 'Test@123456', Role: UserRole.KAM, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E KAM', 'Last Login': '' },
+        { id: 'recE2ECredit01', createdTime: '', Username: 'credit@test.com', Password: 'Test@123456', Role: UserRole.CREDIT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E Credit', 'Last Login': '' },
+        { id: 'recE2ENBFC01', createdTime: '', Username: 'nbfc@test.com', Password: 'Test@123456', Role: UserRole.NBFC, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E NBFC', 'Last Login': '' },
+      ];
+      userAccounts = mock;
+      rawWebhookResponse = undefined;
+      console.log('[AuthService] Using E2E mock user accounts (skipping n8n webhook)');
+    } else {
+      console.log('[AuthService] Step 1: Fetching user accounts from webhook...');
+      console.log('[AuthService] Webhook URL: /webhook/useraccount');
+      console.log('[AuthService] Table: User Accounts');
       try {
-        const response = await fetch(webhookUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          throw new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
-        }
-        
-        // Get raw response before parsing
-        rawWebhookResponse = await response.json();
-        console.log('[AuthService] ✅ Raw webhook response received');
-        console.log('[AuthService] Response type:', Array.isArray(rawWebhookResponse) ? 'Array' : typeof rawWebhookResponse);
-        console.log('[AuthService] Response keys:', typeof rawWebhookResponse === 'object' && rawWebhookResponse !== null ? Object.keys(rawWebhookResponse).slice(0, 5) : 'N/A');
-        
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        if (fetchError.name === 'AbortError') {
-          console.error('[AuthService] ❌ Webhook request timed out after 15 seconds');
-          throw new Error('Authentication service timeout: Webhook request timed out. Please try again.');
-        }
-        console.error('[AuthService] ❌ Webhook fetch error:', fetchError.message);
-        throw fetchError;
-      }
-      
-      // Step 1.1: Validate webhook response structure
-      console.log('[AuthService] Step 1.1: Validating webhook response structure...');
-      
-      // Check if response is an array
-      if (!Array.isArray(rawWebhookResponse)) {
-        console.error('[AuthService] ❌ Webhook response is not an array');
-        console.error('[AuthService] Response type:', typeof rawWebhookResponse);
-        console.error('[AuthService] Response value:', JSON.stringify(rawWebhookResponse).substring(0, 200));
-        throw new Error('Invalid webhook response format: Expected an array of user records');
-      }
-      
-      // Check if array has at least one object
-      if (rawWebhookResponse.length === 0) {
-        console.error('[AuthService] ❌ Webhook response array is empty');
-        throw new Error('No user accounts found in database');
-      }
-      
-      console.log(`[AuthService] ✅ Response is array with ${rawWebhookResponse.length} records`);
-      
-      // Step 1.2: Validate each record has required structure (id and either fields or direct properties)
-      console.log('[AuthService] Step 1.2: Validating record structure...');
+        const { n8nEndpoints } = await import('../airtable/n8nEndpoints.js');
+        const webhookUrl = n8nEndpoints.get.userAccount;
+        console.log('[AuthService] Fetching from:', webhookUrl);
 
-      const invalidRecords: number[] = [];
-      rawWebhookResponse.forEach((record: any, index: number) => {
-        if (!record || typeof record !== 'object') {
-          console.error(`[AuthService] ❌ Record ${index} is not an object:`, typeof record);
-          invalidRecords.push(index);
-          return;
-        }
-
-        if (!record.id || typeof record.id !== 'string') {
-          console.error(`[AuthService] ❌ Record ${index} missing or invalid 'id' field`);
-          invalidRecords.push(index);
-          return;
-        }
-
-        // Check if record has fields property OR direct Username property (both formats are valid)
-        const hasFields = record.fields && typeof record.fields === 'object' && record.fields !== null;
-        const hasDirectUsername = record.Username && typeof record.Username === 'string';
-        
-        if (!hasFields && !hasDirectUsername) {
-          console.error(`[AuthService] ❌ Record ${index} missing 'fields' property or direct 'Username' field`);
-          console.error(`[AuthService] Record ${index} structure:`, Object.keys(record));
-          invalidRecords.push(index);
-          return;
-        }
-      });
-
-      if (invalidRecords.length > 0) {
-        console.error(`[AuthService] ❌ Found ${invalidRecords.length} invalid records at indices:`, invalidRecords);
-        throw new Error(`Invalid webhook response: ${invalidRecords.length} record(s) missing required 'id' or user data properties`);
-      }
-
-      console.log('[AuthService] ✅ All records have valid structure');
-      
-      // Step 1.3: Extract and normalize user data from fields or direct properties
-      console.log('[AuthService] Step 1.3: Extracting user data...');
-
-      userAccounts = rawWebhookResponse.map((record: any, index: number) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         try {
-          // Handle both formats:
-          // Format 1: { id: "...", fields: { Username: "...", ... } }
-          // Format 2: { id: "...", Username: "...", Password: "...", ... }
+          const response = await fetch(webhookUrl, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (!response.ok) {
+            throw new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
+          }
+          rawWebhookResponse = await response.json();
+          console.log('[AuthService] ✅ Raw webhook response received');
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          if (fetchError.name === 'AbortError') {
+            console.error('[AuthService] ❌ Webhook request timed out after 15 seconds');
+            throw new Error('Authentication service timeout: Webhook request timed out. Please try again.');
+          }
+          console.error('[AuthService] ❌ Webhook fetch error:', fetchError.message);
+          throw fetchError;
+        }
+        if (!Array.isArray(rawWebhookResponse)) {
+          console.error('[AuthService] ❌ Webhook response is not an array');
+          throw new Error('Invalid webhook response format: Expected an array of user records');
+        }
+        if (rawWebhookResponse.length === 0) {
+          throw new Error('No user accounts found in database');
+        }
+        const invalidRecords: number[] = [];
+        rawWebhookResponse.forEach((record: any, index: number) => {
+          if (!record || typeof record !== 'object') { invalidRecords.push(index); return; }
+          if (!record.id || typeof record.id !== 'string') { invalidRecords.push(index); return; }
+          const hasFields = record.fields && typeof record.fields === 'object' && record.fields !== null;
+          const hasDirectUsername = record.Username && typeof record.Username === 'string';
+          if (!hasFields && !hasDirectUsername) invalidRecords.push(index);
+        });
+        if (invalidRecords.length > 0) {
+          throw new Error(`Invalid webhook response: ${invalidRecords.length} record(s) missing required 'id' or user data properties`);
+        }
+        userAccounts = rawWebhookResponse.map((record: any) => {
           const hasFields = record.fields && typeof record.fields === 'object';
           const source = hasFields ? record.fields : record;
-
-          // Extract data from fields (if nested) or directly from record
-          const normalized: UserAccount = {
+          return {
             id: record.id,
             createdTime: record.createdTime || '',
             Username: source.Username || source['Username'] || '',
@@ -181,62 +133,20 @@ export class AuthService {
             'Account Status': source['Account Status'] || source.AccountStatus || source.status || 'Unknown',
             'Associated Profile': source['Associated Profile'] || source.AssociatedProfile || source.profile || '',
             'Last Login': source['Last Login'] || source.LastLogin || source.lastLogin || '',
-          };
-          
-          // Validate required fields
-          if (!normalized.Username) {
-            console.warn(`[AuthService] ⚠️ Record ${index} (id: ${normalized.id}) missing Username field`);
-          }
-          if (!normalized.Password) {
-            console.warn(`[AuthService] ⚠️ Record ${index} (id: ${normalized.id}) missing Password field`);
-          }
-          if (!normalized.Role) {
-            console.warn(`[AuthService] ⚠️ Record ${index} (id: ${normalized.id}) missing Role field`);
-          }
-          
-          return normalized;
-        } catch (extractError: any) {
-          console.error(`[AuthService] ❌ Failed to extract data from record ${index}:`, extractError.message);
-          throw new Error(`Failed to extract user data from record ${index}: ${extractError.message}`);
-        }
-      });
-      
-      console.log(`[AuthService] ✅ Successfully extracted ${userAccounts.length} user accounts`);
-      
-      // Log sample of first account structure for debugging
-      if (userAccounts.length > 0) {
-        const sampleAccount = userAccounts[0];
-        console.log(`[AuthService] Sample account structure:`, {
-          id: sampleAccount.id,
-          hasUsername: !!sampleAccount.Username,
-          hasPassword: !!sampleAccount.Password,
-          hasRole: !!sampleAccount.Role,
-          hasAccountStatus: !!sampleAccount['Account Status'],
-          accountStatus: sampleAccount['Account Status'],
+          } as UserAccount;
         });
+        console.log(`[AuthService] ✅ Successfully extracted ${userAccounts.length} user accounts`);
+      } catch (webhookError: any) {
+        console.error('[AuthService] ❌ Failed to fetch or validate user accounts from webhook');
+        console.error('[AuthService] Webhook error details:', { name: webhookError.name, message: webhookError.message });
+        if (webhookError.message.includes('No user accounts found') || webhookError.message.includes('Invalid webhook response') || webhookError.message.includes('missing required')) {
+          throw new Error('Invalid email or password');
+        }
+        if (webhookError.message.includes('timeout') || webhookError.message.includes('timed out')) {
+          throw new Error(`Authentication service timeout: ${webhookError.message}`);
+        }
+        throw new Error(`Failed to connect to authentication service: ${webhookError.message}`);
       }
-      
-    } catch (webhookError: any) {
-      console.error('[AuthService] ❌ Failed to fetch or validate user accounts from webhook');
-      console.error('[AuthService] Webhook error details:', {
-        name: webhookError.name,
-        message: webhookError.message,
-        stack: webhookError.stack?.split('\n').slice(0, 5),
-      });
-      
-      // Return 401 for authentication-related errors
-      if (webhookError.message.includes('No user accounts found') ||
-          webhookError.message.includes('Invalid webhook response') ||
-          webhookError.message.includes('missing required')) {
-        throw new Error('Invalid email or password');
-      }
-      
-      // For connection/timeout errors, throw a more specific error
-      if (webhookError.message.includes('timeout') || webhookError.message.includes('timed out')) {
-        throw new Error(`Authentication service timeout: ${webhookError.message}`);
-      }
-      
-      throw new Error(`Failed to connect to authentication service: ${webhookError.message}`);
     }
 
     // Step 2: Find user by email (Username field in Airtable)
@@ -355,6 +265,15 @@ export class AuthService {
     // Set default name immediately (don't wait for role data)
     // Role data fetching is now completely non-blocking to prevent Vercel timeouts
     authUser.name = userAccount['Associated Profile'] || email.split('@')[0];
+
+    // E2E mock: set placeholder role IDs so routes that require them don't 401
+    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS === '1') {
+      if (role === UserRole.CLIENT) authUser.clientId = 'E2E-CLIENT-01';
+      if (role === UserRole.KAM) authUser.kamId = 'E2E-KAM-01';
+      if (role === UserRole.NBFC) authUser.nbfcId = 'E2E-NBFC-01';
+      if (role === UserRole.CREDIT) authUser.creditTeamId = 'E2E-CREDIT-01';
+    }
+
     console.log('[AuthService] Initial user object:', {
       id: authUser.id,
       email: authUser.email,
@@ -363,9 +282,8 @@ export class AuthService {
     });
 
     // Fetch role-specific data in background (completely non-blocking)
-    // This ensures login completes immediately even if webhooks are very slow
-    // Role data will be fetched after login completes, and can be updated on next request
-    // All errors are caught and logged, but don't block login
+    // Skip in E2E mock mode to avoid n8n calls
+    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS !== '1') {
     (async () => {
       try {
         switch (role) {
@@ -471,14 +389,13 @@ export class AuthService {
         console.error(`[AuthService] Background fetch error stack:`, error.stack?.split('\n').slice(0, 5));
       }
     })().catch((error: any) => {
-      // Catch any unhandled promise rejections from the background IIFE
       console.error(`[AuthService] Unhandled error in background role data fetch for ${email}:`, error.message);
-      console.error(`[AuthService] Unhandled error stack:`, error.stack?.split('\n').slice(0, 5));
       // Don't throw - this is intentionally non-blocking
     });
+    }
 
-    // Update last login (non-blocking - don't wait for it)
-    // Wrap in try/catch to ensure errors are properly logged
+    // Update last login (non-blocking - don't wait for it). Skip in E2E mock mode.
+    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS !== '1') {
     (async () => {
       try {
         await n8nClient.postUserAccount({
@@ -497,11 +414,10 @@ export class AuthService {
         console.error(`[AuthService] Last login update error stack:`, error.stack?.split('\n').slice(0, 3));
       }
     })().catch((error: any) => {
-      // Catch any unhandled promise rejections
       console.error(`[AuthService] Unhandled error updating last login for ${email}:`, error.message);
-      console.error(`[AuthService] Unhandled last login error stack:`, error.stack?.split('\n').slice(0, 3));
       // Don't throw - this is intentionally non-blocking
     });
+    }
 
     // Step 7: Generate JWT token
     console.log('[AuthService] Step 7: Generating JWT token...');
@@ -528,6 +444,7 @@ export class AuthService {
       clientId: authUser.clientId,
       kamId: authUser.kamId,
       nbfcId: authUser.nbfcId,
+      creditTeamId: authUser.creditTeamId,
     };
     
     console.log('[AuthService] JWT Payload:', {
@@ -601,6 +518,7 @@ export class AuthService {
       clientId: user.clientId,
       kamId: user.kamId,
       nbfcId: user.nbfcId,
+      creditTeamId: user.creditTeamId,
     };
     
     return jwt.sign(

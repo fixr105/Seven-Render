@@ -157,14 +157,15 @@ export const NewApplication: React.FC = () => {
         });
         const allProducts = Array.from(productsMap.values());
         
-        // Filter to only show configured products
-        const configuredProducts = allProducts.filter(product => 
-          configuredProductIds.has(product.id)
-        );
+        // Filter to only show configured products when explicit mappings exist
+        const hasConfiguredProducts = configuredProductIds.size > 0;
+        const visibleProducts = hasConfiguredProducts
+          ? allProducts.filter(product => configuredProductIds.has(product.id))
+          : allProducts;
         
-        setLoanProducts(configuredProducts);
+        setLoanProducts(visibleProducts);
         
-        if (configuredProducts.length === 0) {
+        if (visibleProducts.length === 0) {
           if (allProducts.length === 0) {
             setLoanProductsError('No loan products are currently available. Please contact your KAM or administrator.');
           } else {
@@ -239,7 +240,26 @@ export const NewApplication: React.FC = () => {
         },
       }));
     } catch (error: any) {
-      // Keep files in state even if upload fails (user can retry)
+      // Log error for debugging
+      console.error(`[NewApplication] File upload failed for field ${fieldId}:`, error);
+      
+      // Show user-friendly error message
+      const errorMessage = error.message || 'Failed to upload files. Please try again.';
+      alert(`Upload failed: ${errorMessage}`);
+      
+      // Remove failed files from state to allow retry
+      setUploadedFiles(prev => {
+        const updated = { ...prev };
+        delete updated[fieldId];
+        return updated;
+      });
+      
+      // Clear document links for this field
+      setDocumentLinks(prev => {
+        const updated = { ...prev };
+        delete updated[fieldId];
+        return updated;
+      });
     } finally {
       setUploadingFiles(prev => ({ ...prev, [fieldId]: false }));
     }
@@ -820,6 +840,7 @@ export const NewApplication: React.FC = () => {
             icon={Save}
             onClick={(e) => handleSubmit(e as any, true)}
             loading={loading}
+            disabled={loading}
           >
             Save as Draft
           </Button>
@@ -828,6 +849,7 @@ export const NewApplication: React.FC = () => {
             variant="primary"
             icon={Send}
             loading={loading}
+            disabled={loading}
           >
             Submit Application
           </Button>

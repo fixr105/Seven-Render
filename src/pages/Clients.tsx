@@ -190,8 +190,9 @@ export const Clients: React.FC = () => {
       });
       
       
-      // No automatic refresh - user must click Refresh button to see the new client
-      alert(`Client onboarded successfully!\n\nEmail: ${newClient.email}\n\nPlease click the Refresh button to see the new client in the list.`);
+      // Refresh list so the new client appears immediately
+      await fetchClients(true);
+      alert(`Client onboarded successfully!\n\nEmail: ${newClient.email}`);
     } catch (error: any) {
       alert(`Failed to onboard client: ${error.message || 'Unknown error'}`);
     } finally {

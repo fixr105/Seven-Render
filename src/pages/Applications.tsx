@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
@@ -36,8 +36,20 @@ const getStatusVariant = (status: string) => {
   }
 };
 
+const URL_STATUS_TO_FILTER: Record<string, string> = {
+  pending_kam_review: 'pending',
+  forwarded_to_credit: 'credit',
+  kam_query_raised: 'query',
+  in_negotiation: 'negotiation',
+  sent_to_nbfc: 'nbfc',
+  approved: 'approved',
+  rejected: 'rejected',
+  disbursed: 'disbursed',
+};
+
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { userRole, user } = useAuthSafe();
   
   const getUserDisplayName = () => {
@@ -55,6 +67,11 @@ export const Applications: React.FC = () => {
   const [showQueryModal, setShowQueryModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<any | null>(null);
   const [queryMessage, setQueryMessage] = useState('');
+
+  useEffect(() => {
+    const param = searchParams.get('status');
+    setStatusFilter(param && URL_STATUS_TO_FILTER[param] ? URL_STATUS_TO_FILTER[param] : 'all');
+  }, [searchParams]);
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },

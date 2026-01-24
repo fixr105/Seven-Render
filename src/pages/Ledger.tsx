@@ -360,6 +360,7 @@ export const Ledger: React.FC = () => {
                     variant="primary"
                     onClick={handleRequestPayout}
                     loading={submitting}
+                    disabled={submitting}
                   >
                     {selectedEntry ? 'Flag for Payout' : 'Request Payout'}
                   </Button>
@@ -427,7 +428,7 @@ export const Ledger: React.FC = () => {
                     variant="primary"
                     onClick={handleRaiseQuery}
                     loading={submitting}
-                    disabled={!queryMessage.trim()}
+                    disabled={!queryMessage.trim() || submitting}
                   >
                     Raise Query
                   </Button>

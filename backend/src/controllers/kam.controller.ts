@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus, Module } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
+import { matchIds } from '../utils/idMatcher.js';
 
 export class KAMController {
   /**
@@ -137,7 +138,6 @@ export class KAMController {
       console.log('[listClients] Total clients in database:', clients.length);
       
       let kamId = req.user.kamId || '';
-      let userId = req.user.id || '';
       
       // If KAM ID is not set, try to get it from KAM Users table by email
       if (!kamId && req.user.email) {
@@ -146,6 +146,7 @@ export class KAMController {
           const kamUser = kamUsers.find((k: any) => k.Email?.toLowerCase() === req.user.email?.toLowerCase());
           if (kamUser) {
             kamId = kamUser.id || kamUser['KAM ID'] || '';
+            req.user.kamId = kamId;
             console.log('[listClients] Found KAM ID from KAM Users table:', kamId);
           }
         } catch (error) {
@@ -153,109 +154,21 @@ export class KAMController {
         }
       }
       
-      console.log('[listClients] Filtering with KAM ID:', kamId, 'User ID:', userId);
-      
-      // Log all clients and their Assigned KAM for debugging (always log for now)
-      console.log('[listClients] All clients in database:');
-      clients.forEach((client: any) => {
-        const assignedKAM = client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '';
-        console.log(`  - ${client['Client Name']} (ID: ${client.id}), Assigned KAM: "${assignedKAM}"`);
-      });
-      
-      // Filter clients managed by this KAM
-      // Directly filter by 'Assigned KAM' field in Clients table
-      const managedClients = clients.filter((client: any) => {
-        // Handle different possible field names and formats
-        let assignedKAM = client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '';
-        
-        // If assignedKAM is an array (Airtable link field), get the first value
-        if (Array.isArray(assignedKAM)) {
-          assignedKAM = assignedKAM[0] || '';
-        }
-        
-        // Convert to string and normalize
-        const assignedKAMStr = String(assignedKAM || '').trim();
-        const kamIdStr = String(kamId || '').trim();
-        const userIdStr = String(userId || '').trim();
-        
-        // Try multiple matching strategies - be very flexible
-        const matches = 
-          assignedKAMStr === kamIdStr || 
-          assignedKAMStr === userIdStr ||
-          kamIdStr === assignedKAMStr ||
-          userIdStr === assignedKAMStr ||
-          (assignedKAMStr && kamIdStr && assignedKAMStr.toLowerCase() === kamIdStr.toLowerCase()) ||
-          (assignedKAMStr && userIdStr && assignedKAMStr.toLowerCase() === userIdStr.toLowerCase()) ||
-          (assignedKAMStr && kamIdStr && assignedKAMStr.includes(kamIdStr)) ||
-          (assignedKAMStr && userIdStr && assignedKAMStr.includes(userIdStr)) ||
-          (kamIdStr && assignedKAMStr.includes(kamIdStr)) ||
-          (userIdStr && assignedKAMStr.includes(userIdStr));
-        
-        if (matches) {
-          console.log(`[listClients] ✅ MATCHED: ${client['Client Name']} (ID: ${client.id}, Assigned KAM: "${assignedKAMStr}")`);
-        } else {
-          console.log(`[listClients] ❌ NOT MATCHED: ${client['Client Name']} (Assigned KAM: "${assignedKAMStr}" vs KAM ID: "${kamIdStr}" vs User ID: "${userIdStr}")`);
-        }
-        return matches;
-      });
-
-      console.log(`[listClients] Managed clients found: ${managedClients.length}`);
-      
-      // DEBUG: Always log what we're returning vs what's in database
-      if (clients.length > managedClients.length) {
-        console.warn(`[listClients] ⚠️  Database has ${clients.length} clients, but only ${managedClients.length} matched the filter.`);
-        console.warn(`[listClients] Filtered out clients:`);
-        clients.forEach((c: any) => {
-          const assignedKAM = c['Assigned KAM'] || c['KAM ID'] || c['KAM'] || '';
-          const isMatched = managedClients.some(mc => mc.id === c.id);
-          if (!isMatched) {
-            console.warn(`  - ${c['Client Name']} (ID: ${c.id}): Assigned KAM = "${assignedKAM}" (type: ${typeof assignedKAM})`);
-            console.warn(`    Filter KAM ID: "${kamId}", Filter User ID: "${userId}"`);
-          }
-        });
-      }
-      
-      // TEMPORARY DEBUG: If no clients found, show all clients with debug info
-      if (managedClients.length === 0 && clients.length > 0) {
-        console.warn('[listClients] ⚠️  No clients matched filter, but database has clients. Showing all clients for debugging.');
-        console.warn('[listClients] KAM ID used for filtering:', kamId);
-        console.warn('[listClients] User ID used for filtering:', userId);
-        console.warn('[listClients] All clients in database with their Assigned KAM:');
-        clients.forEach((c: any) => {
-          const assignedKAM = c['Assigned KAM'] || c['KAM ID'] || c['KAM'] || '';
-          console.warn(`  - ${c['Client Name']}: Assigned KAM = "${assignedKAM}" (type: ${typeof assignedKAM})`);
-        });
-        
-        // TEMPORARY: Return all clients with a debug flag
-        const debugClientList = clients.map((client: any) => ({
-          id: client.id,
-          clientId: client['Client ID'] || client.id,
-          clientName: client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
-          primaryContactName: client['Primary Contact Name'],
-          contactEmailPhone: client['Contact Email / Phone'],
-          assignedKAM: client['Assigned KAM'],
-          status: client['Status'] || 'Active',
-          _debug: {
-            assignedKAM: client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '',
-            kamIdFilter: kamId,
-            userIdFilter: userId,
-            matched: false,
-          },
-        }));
-        
+      if (!kamId) {
+        console.warn('[listClients] Missing KAM ID for user, returning empty client list');
         res.json({
           success: true,
-          data: debugClientList,
-          _debug: {
-            message: 'No clients matched filter - showing all clients for debugging',
-            kamIdFilter: kamId,
-            userIdFilter: userId,
-            totalClients: clients.length,
-            matchedClients: 0,
-          },
+          data: [],
         });
         return;
       }
+
+      console.log('[listClients] Filtering with KAM ID:', kamId);
+
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const managedClients = await rbacFilterService.filterClients(clients, { ...req.user, kamId });
+
+      console.log(`[listClients] Managed clients found: ${managedClients.length}`);
 
       // Transform to API response format
       const clientList = managedClients.map((client: any) => ({
@@ -268,12 +181,6 @@ export class KAMController {
         enabledModules: client['Enabled Modules'] ? client['Enabled Modules'].split(',').map((m: string) => m.trim()) : [],
         commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
         status: client.Status,
-        _debug: {
-          assignedKAM: client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || '',
-          kamIdFilter: kamId,
-          userIdFilter: userId,
-          matched: true,
-        },
       }));
 
       // Add debug info if there are filtered clients
@@ -281,17 +188,6 @@ export class KAMController {
         success: true,
         data: clientList,
       };
-      
-      if (clients.length > managedClients.length) {
-        responseData._debug = {
-          message: `Found ${managedClients.length} matched clients out of ${clients.length} total clients`,
-          kamIdFilter: kamId,
-          userIdFilter: userId,
-          totalClients: clients.length,
-          matchedClients: managedClients.length,
-          filteredOutClients: clients.length - managedClients.length,
-        };
-      }
 
       console.log('[listClients] ✅ Sending response with', clientList.length, 'clients');
       console.log('[listClients] Response data:', JSON.stringify(responseData, null, 2).substring(0, 500));
@@ -405,7 +301,7 @@ export class KAMController {
       // Create client record with commission rate
       // Use the User Account ID as the Client ID to maintain consistency
       // Get KAM ID - try multiple sources to ensure we have it
-      let assignedKAM = kamId || req.user!.kamId || req.user!.id || '';
+      let assignedKAM = kamId || req.user!.kamId || '';
       
       // If KAM ID is not set, try to get it from KAM Users table by email
       if (!assignedKAM && req.user!.email) {
@@ -599,17 +495,7 @@ export class KAMController {
       const assignedKAMStr = String(assignedKAM || '').trim();
       const kamIdStr = String(kamId || '').trim();
       
-      // Helper function for flexible ID matching
-      const matchIds = (id1: any, id2: any): boolean => {
-        if (!id1 || !id2) return false;
-        const str1 = String(id1).trim();
-        const str2 = String(id2).trim();
-        if (str1 === str2) return true;
-        if (str1.toLowerCase() === str2.toLowerCase()) return true;
-        if (str1.includes(str2) || str2.includes(str1)) return true;
-        return false;
-      };
-      
+      // Use shared matchIds utility for consistent ID matching
       // Check if assigned KAM matches KAM ID directly
       if (!matchIds(assignedKAMStr, kamIdStr)) {
         // Try to match by KAM Users table
@@ -821,17 +707,7 @@ export class KAMController {
       const assignedKAMStr = String(assignedKAM || '').trim();
       const kamIdStr = String(kamId || '').trim();
       
-      // Helper function for flexible ID matching
-      const matchIds = (id1: any, id2: any): boolean => {
-        if (!id1 || !id2) return false;
-        const str1 = String(id1).trim();
-        const str2 = String(id2).trim();
-        if (str1 === str2) return true;
-        if (str1.toLowerCase() === str2.toLowerCase()) return true;
-        if (str1.includes(str2) || str2.includes(str1)) return true;
-        return false;
-      };
-      
+      // Use shared matchIds utility for consistent ID matching
       // Check if assigned KAM matches KAM ID directly
       if (!matchIds(assignedKAMStr, kamIdStr)) {
         // Try to match by KAM Users table

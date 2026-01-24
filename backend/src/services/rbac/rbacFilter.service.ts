@@ -14,6 +14,60 @@
 import { AuthUser } from '../auth/auth.service.js';
 import { UserRole } from '../../config/constants.js';
 import { n8nClient } from '../airtable/n8nClient.js';
+import { matchIds } from '../../utils/idMatcher.js';
+
+/**
+ * Request-level cache for RBAC queries
+ * Cache TTL: 5 seconds (to balance performance and data freshness)
+ */
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+class RequestCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  private readonly CACHE_TTL = 5000; // 5 seconds
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return null;
+    }
+    
+    // Check if cache entry is still valid
+    if (Date.now() - entry.timestamp > this.CACHE_TTL) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data as T;
+  }
+
+  set<T>(key: string, data: T): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  // Clear expired entries (can be called periodically)
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > this.CACHE_TTL) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+// Singleton cache instance (shared across requests)
+const requestCache = new RequestCache();
 
 /**
  * RBAC Filter Service
@@ -39,7 +93,7 @@ export class RBACFilterService {
         }
         return applications.filter((app: any) => {
           const appClient = app.Client || app['Client'] || app['Client ID'] || app.clientId;
-          return this.matchIds(appClient, user.clientId);
+          return matchIds(appClient, user.clientId);
         });
 
       case UserRole.KAM:
@@ -55,7 +109,7 @@ export class RBACFilterService {
         }
         return applications.filter((app: any) => {
           const appClient = app.Client || app['Client'] || app['Client ID'] || app.clientId;
-          return managedClientIds.some((clientId) => this.matchIds(appClient, clientId));
+          return managedClientIds.some((clientId) => matchIds(appClient, clientId));
         });
 
       case UserRole.NBFC:
@@ -66,7 +120,7 @@ export class RBACFilterService {
         }
         return applications.filter((app: any) => {
           const assignedNBFC = app['Assigned NBFC'] || app['Assigned NBFC ID'] || app.assignedNbfcId || app.assignedNBFC;
-          return this.matchIds(assignedNBFC, user.nbfcId);
+          return matchIds(assignedNBFC, user.nbfcId);
         });
 
       case UserRole.CREDIT:
@@ -99,7 +153,7 @@ export class RBACFilterService {
         }
         return entries.filter((entry: any) => {
           const entryClient = entry.Client || entry['Client'] || entry['Client ID'] || entry.clientId;
-          return this.matchIds(entryClient, user.clientId);
+          return matchIds(entryClient, user.clientId);
         });
 
       case UserRole.KAM:
@@ -115,7 +169,7 @@ export class RBACFilterService {
         }
         return entries.filter((entry: any) => {
           const entryClient = entry.Client || entry['Client'] || entry['Client ID'] || entry.clientId;
-          return managedClientIds.some((clientId) => this.matchIds(entryClient, clientId));
+          return managedClientIds.some((clientId) => matchIds(entryClient, clientId));
         });
 
       case UserRole.CREDIT:
@@ -173,7 +227,7 @@ export class RBACFilterService {
         const managedFileIds = allApplications
           .filter((app: any) => {
             const appClient = app.Client || app['Client'] || app['Client ID'] || app.clientId;
-            return managedClientIds.some((clientId) => this.matchIds(appClient, clientId));
+            return managedClientIds.some((clientId) => matchIds(appClient, clientId));
           })
           .map((app: any) => app['File ID'] || app['fileId'] || app.id);
         return entries.filter((entry: any) => {
@@ -226,7 +280,7 @@ export class RBACFilterService {
           const relatedFileId = entry['Related File ID'] || entry['Related File'] || entry.relatedFileId;
           
           // If entry is related to client, include it
-          if (relatedClientId && this.matchIds(relatedClientId, user.clientId)) {
+          if (relatedClientId && matchIds(relatedClientId, user.clientId)) {
             return true;
           }
           
@@ -251,7 +305,7 @@ export class RBACFilterService {
         return entries.filter((entry: any) => {
           const relatedClientId = entry['Related Client ID'] || entry['Related Client'] || entry.relatedClientId;
           return relatedClientId && managedClientIds.some((clientId) => 
-            this.matchIds(relatedClientId, clientId)
+            matchIds(relatedClientId, clientId)
           );
         });
 
@@ -297,7 +351,7 @@ export class RBACFilterService {
         }
         return clients.filter((client: any) => {
           const clientId = client.id || client['Client ID'] || client['ID'];
-          return this.matchIds(clientId, user.clientId);
+          return matchIds(clientId, user.clientId);
         });
 
       case UserRole.KAM:
@@ -308,7 +362,7 @@ export class RBACFilterService {
         const managedClientIds = await this.getKAMManagedClientIds(user.kamId);
         return clients.filter((client: any) => {
           const clientId = client.id || client['Client ID'] || client['ID'];
-          return managedClientIds.some((id) => this.matchIds(clientId, id));
+          return managedClientIds.some((id) => matchIds(clientId, id));
         });
 
       case UserRole.CREDIT:
@@ -331,6 +385,13 @@ export class RBACFilterService {
    * @returns Array of client IDs managed by this KAM
    */
   async getKAMManagedClientIds(kamId: string): Promise<string[]> {
+    // Check cache first
+    const cacheKey = `kam-managed-clients-${kamId}`;
+    const cached = requestCache.get<string[]>(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
     try {
       const clients = await n8nClient.fetchTable('Clients');
       
@@ -339,13 +400,18 @@ export class RBACFilterService {
         const assignedKAM = client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || client['Assigned KAM ID'] || '';
         
         // Match by exact ID or by KAM ID field
-        return this.matchIds(assignedKAM, kamId);
+        return matchIds(assignedKAM, kamId);
       });
       
       // Return client IDs
-      return managedClients.map((client: any) => 
+      const result = managedClients.map((client: any) => 
         client.id || client['Client ID'] || client['ID']
       ).filter(Boolean);
+      
+      // Cache the result
+      requestCache.set(cacheKey, result);
+      
+      return result;
     } catch (error: any) {
       console.error('[RBACFilter] Error fetching managed clients:', error);
       return [];
@@ -363,7 +429,7 @@ export class RBACFilterService {
       const applications = await n8nClient.fetchTable('Loan Application');
       return applications.filter((app: any) => {
         const appClient = app.Client || app['Client'] || app['Client ID'] || app.clientId;
-        return this.matchIds(appClient, clientId);
+        return matchIds(appClient, clientId);
       });
     } catch (error: any) {
       console.error('[RBACFilter] Error fetching client applications:', error);
@@ -382,7 +448,7 @@ export class RBACFilterService {
       const applications = await n8nClient.fetchTable('Loan Application');
       return applications.filter((app: any) => {
         const assignedNBFC = app['Assigned NBFC'] || app['Assigned NBFC ID'] || app.assignedNbfcId || app.assignedNBFC;
-        return this.matchIds(assignedNBFC, nbfcId);
+        return matchIds(assignedNBFC, nbfcId);
       });
     } catch (error: any) {
       console.error('[RBACFilter] Error fetching NBFC applications:', error);
@@ -390,39 +456,6 @@ export class RBACFilterService {
     }
   }
 
-  /**
-   * Match two IDs (handles string/number conversion and variations)
-   * 
-   * @param id1 - First ID
-   * @param id2 - Second ID
-   * @returns true if IDs match
-   */
-  private matchIds(id1: any, id2: any): boolean {
-    if (!id1 || !id2) {
-      return false;
-    }
-    
-    // Convert both to strings for comparison
-    const str1 = String(id1).trim();
-    const str2 = String(id2).trim();
-    
-    // Exact match
-    if (str1 === str2) {
-      return true;
-    }
-    
-    // Case-insensitive match
-    if (str1.toLowerCase() === str2.toLowerCase()) {
-      return true;
-    }
-    
-    // Check if one contains the other (for partial matches)
-    if (str1.includes(str2) || str2.includes(str1)) {
-      return true;
-    }
-    
-    return false;
-  }
 
   /**
    * Verify user can access a specific resource
@@ -443,7 +476,7 @@ export class RBACFilterService {
         if (!user.clientId || !resourceClientId) {
           return false;
         }
-        return this.matchIds(resourceClientId, user.clientId);
+        return matchIds(resourceClientId, user.clientId);
 
       case UserRole.KAM:
         // KAMs can access resources of their managed clients
@@ -452,7 +485,7 @@ export class RBACFilterService {
         }
         const managedClientIds = await this.getKAMManagedClientIds(user.kamId);
         return managedClientIds.some((clientId) => 
-          this.matchIds(resourceClientId, clientId)
+          matchIds(resourceClientId, clientId)
         );
 
       case UserRole.NBFC:
@@ -460,7 +493,7 @@ export class RBACFilterService {
         if (!user.nbfcId || !resourceNbfcId) {
           return false;
         }
-        return this.matchIds(resourceNbfcId, user.nbfcId);
+        return matchIds(resourceNbfcId, user.nbfcId);
 
       case UserRole.CREDIT:
         // Credit Team can access all resources

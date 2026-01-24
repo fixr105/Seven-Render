@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // Use unified auth provider for API-based authentication
 import { UnifiedAuthProvider } from './contexts/UnifiedAuthProvider';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Applications } from './pages/Applications';
@@ -57,18 +58,22 @@ function AppRoutes() {
       <Route
         path="/applications/:id"
         element={
-          <ProtectedRoute>
-            <ApplicationDetail />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <ApplicationDetail />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
       <Route
         path="/applications/new"
         element={
-          <ProtectedRoute allowedRoles={['client']}>
-            <NewApplication />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['client']}>
+              <NewApplication />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
@@ -120,9 +125,11 @@ function AppRoutes() {
       <Route
         path="/form-configuration"
         element={
-          <ProtectedRoute allowedRoles={['kam']}>
-            <FormConfiguration />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['kam']}>
+              <FormConfiguration />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 

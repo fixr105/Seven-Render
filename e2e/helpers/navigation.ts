@@ -9,9 +9,9 @@ import { Page } from '@playwright/test';
  * Navigate to a specific page by clicking sidebar item
  */
 export async function navigateToPage(page: Page, pageName: string) {
-  // Common page names: 'dashboard', 'applications', 'ledger', 'clients', 'new-application'
+  // Common page names: 'dashboard', 'applications', 'ledger', 'clients', 'new-application', 'form-configuration', 'reports', 'settings'
   const sidebarItem = page.locator(`[data-testid="sidebar-${pageName}"], a:has-text("${pageName}"), button:has-text("${pageName}")`).first();
-  
+
   if (await sidebarItem.isVisible({ timeout: 2000 })) {
     await sidebarItem.click();
     await page.waitForLoadState('networkidle');
@@ -22,9 +22,12 @@ export async function navigateToPage(page: Page, pageName: string) {
       'applications': '/applications',
       'ledger': '/ledger',
       'clients': '/clients',
-      'new-application': '/new-application',
+      'new-application': '/applications/new',
+      'form-configuration': '/form-configuration',
+      'reports': '/reports',
+      'settings': '/settings',
     };
-    
+
     const url = pageMap[pageName.toLowerCase()] || `/${pageName}`;
     await page.goto(url);
     await page.waitForLoadState('networkidle');

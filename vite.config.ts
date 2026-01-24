@@ -11,8 +11,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        // Rewrite /api to / since backend routes are mounted at root
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        // Forward /api as-is; backend mounts routes at app.use('/api', routes)
       },
     },
   },

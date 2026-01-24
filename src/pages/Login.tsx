@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSafe } from '../hooks/useAuthSafe';
-import { apiService } from '../services/api';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { defaultLogger } from '../utils/logger';
 import homeGif from '../components/ui/home2.gif?url';
+import logo from '../components/ui/logo.png';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { user, signIn, refreshUser, setAuthUserAndToken } = useAuthSafe();
+  const { user, signIn } = useAuthSafe();
   const [username, setUsername] = useState('');
   const [passcode, setPasscode] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
@@ -29,35 +29,19 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      // Validate username and passcode via backend (which proxies to n8n)
-      // This eliminates CORS issues since backend-to-backend calls don't have CORS restrictions
-      // The validate endpoint now also generates a token if validation succeeds
-      const validateResponse = await apiService.validate(username, passcode);
-
-      if (validateResponse.success && validateResponse.data?.success) {
-        // If validation succeeds and token is returned, set it and user data directly
-        if (validateResponse.data?.token && validateResponse.data?.user) {
-          // Ensure name is set - extract from email if missing
-          const userData = validateResponse.data.user;
-          if (!userData.name && userData.email) {
-            userData.name = userData.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          }
-          
-          // Set token and user directly from validate response (avoids extra API call)
-          setAuthUserAndToken(userData, validateResponse.data.token);
-    
-          // Success - navigate will happen automatically via useEffect when user is set
-          navigate('/dashboard');
-        } else if (validateResponse.data?.validated) {
-          // Validation succeeded but no token - user might not be in User Accounts table
-          setError(validateResponse.data?.error || 'User validated but could not create session. Please contact support.');
-        } else {
-          // Validation succeeded but unexpected response format
-          setError('Login successful but unexpected response format. Please try again.');
-        }
-      } else {
-        setError(validateResponse.error || validateResponse.data?.error || validateResponse.data?.message || 'Invalid username or passcode');
+      const result = await signIn(username, passcode);
+      if (result?.error) {
+        // Handle both Error objects and string errors
+        const errorMessage = result.error instanceof Error 
+          ? result.error.message 
+          : typeof result.error === 'string' 
+          ? result.error 
+          : 'Login failed';
+        setError(errorMessage);
+        return;
       }
+
+      navigate('/dashboard');
     } catch (err: any) {
       defaultLogger.error('Login error', {
         error: err.message,
@@ -75,7 +59,7 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-primary via-brand-primary/95 to-brand-primary/90 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#06084a] via-brand-primary to-[#0a0d6e] flex items-center justify-center p-4">
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
         {/* Left Side - GIF and Branding */}
         <div className="hidden lg:flex flex-col items-center justify-center text-white">
@@ -83,16 +67,24 @@ export const Login: React.FC = () => {
             <img 
               src={homeGif} 
               alt="Seven Fincorp" 
-              className="w-full max-w-md rounded-2xl shadow-2xl"
+              className="w-full max-w-md rounded-2xl shadow-2xl ring-2 ring-white/10"
             />
           </div>
+          <p className="text-white/80 text-sm mt-2">Loan management &amp; credit dashboard</p>
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="w-full">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 lg:p-10">
+        <div className="w-full flex justify-center lg:justify-end">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 lg:p-10 w-full max-w-md border border-neutral-100 animate-fade-in-up">
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Logo and title - visible on all viewports (needed when GIF is hidden on mobile) */}
+            <div className="text-center mb-6">
+              <img src={logo} alt="Seven Fincorp" className="h-10 mx-auto mb-4 object-contain" />
+              <h1 className="text-xl font-semibold text-neutral-900">Welcome back</h1>
+              <p className="text-sm text-neutral-500 mt-1">Sign in to your account</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
               {/* Error Message */}
               {error && (
                 <div className="bg-error/10 border border-error/20 rounded-lg p-4 flex items-start gap-3">
@@ -106,6 +98,7 @@ export const Login: React.FC = () => {
               {/* Username Field */}
               <div>
                 <Input
+                  data-testid="login-username"
                   label="Username"
                   type="text"
                   value={username}
@@ -127,6 +120,7 @@ export const Login: React.FC = () => {
                 </label>
                 <div className="relative">
                   <Input
+                    data-testid="login-password"
                     type={showPasscode ? 'text' : 'password'}
                     value={passcode}
                     onChange={(e) => setPasscode(e.target.value)}
@@ -161,16 +155,7 @@ export const Login: React.FC = () => {
                   />
                   <span className="text-sm text-neutral-600">Remember me</span>
                 </label>
-                <a
-                  href="#"
-                  className="text-sm text-brand-primary hover:text-brand-primary/80 transition-colors"
-                  onClick={(e) => {
-                    e.preventDefault();
-                  }}
-                >
-                  Forgot passcode?
-                </a>
-        </div>
+              </div>
 
               {/* Submit Button */}
               <Button

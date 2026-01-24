@@ -17,7 +17,7 @@ export const useLedger = () => {
       fetchLedger();
       fetchPayoutRequests();
     } else if (userRole === 'credit_team') {
-      fetchPayoutRequests();
+      fetchPayoutRequests().finally(() => setLoading(false));
     }
   }, []); // Empty dependency array - only runs once on mount (userRole checked inside)
 
@@ -83,8 +83,12 @@ export const useLedger = () => {
 
   const fetchPayoutRequests = async () => {
     try {
-      const response = await apiService.getClientPayoutRequests();
-      
+      // Credit team uses /credit/payout-requests; client uses /clients/me/payout-requests
+      const response =
+        userRole === 'credit_team'
+          ? await apiService.getPayoutRequests()
+          : await apiService.getClientPayoutRequests();
+
       if (response.success && response.data) {
         setPayoutRequests(response.data || []);
       } else {

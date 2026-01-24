@@ -245,6 +245,61 @@ export class UsersController {
       });
     }
   }
+
+  /**
+   * PATCH /user-accounts/:id/settings
+   * Update current user's own settings (user can only update their own record)
+   */
+  async updateUserSettings(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { settings } = req.body;
+
+      // User can only update their own settings
+      if (req.user!.id !== id) {
+        res.status(403).json({
+          success: false,
+          error: 'Forbidden: you can only update your own settings',
+        });
+        return;
+      }
+
+      if (!settings || typeof settings !== 'object') {
+        res.status(400).json({
+          success: false,
+          error: 'Request body must include a settings object',
+        });
+        return;
+      }
+
+      const userAccounts = await n8nClient.fetchTable('User Accounts');
+      const account = userAccounts.find((a: any) => a.id === id);
+
+      if (!account) {
+        res.status(404).json({
+          success: false,
+          error: 'User account not found',
+        });
+        return;
+      }
+
+      // Merge settings into record; store as JSON string in Settings or Preferences field
+      const updateData: any = { ...account };
+      updateData['Settings'] = JSON.stringify(settings);
+
+      await n8nClient.postUserAccount(updateData);
+
+      res.json({
+        success: true,
+        message: 'Settings saved successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to save settings',
+      });
+    }
+  }
 }
 
 export const usersController = new UsersController();

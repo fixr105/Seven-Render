@@ -15,6 +15,7 @@ vi.mock('../../services/api', () => {
   const mockApiService = {
     getFormConfig: vi.fn(),
     listLoanProducts: vi.fn(),
+    getConfiguredProducts: vi.fn(),
     createApplication: vi.fn(),
     uploadDocument: vi.fn(),
   };
@@ -101,6 +102,11 @@ describe('NewApplication Page - P0 Tests', () => {
       success: true,
       data: mockLoanProducts,
     });
+
+    (apiService.getConfiguredProducts as any).mockResolvedValue({
+      success: true,
+      data: [],
+    });
     
     (apiService.createApplication as any).mockResolvedValue({
       success: true,
@@ -110,6 +116,27 @@ describe('NewApplication Page - P0 Tests', () => {
     (apiService.uploadDocument as any).mockResolvedValue({
       success: true,
       data: { shareLink: 'https://onedrive.com/file1', fileName: 'test.pdf' },
+    });
+  });
+
+  describe('M2-FE-004: Loan Product Visibility', () => {
+    it('should show all active products when no configured products exist', async () => {
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(),
+          setAuthUserAndToken: vi.fn(),
+        },
+      });
+
+      const loanProductSelect = await screen.findByRole('combobox');
+      expect(loanProductSelect).toBeInTheDocument();
+      expect(loanProductSelect).toHaveTextContent('Business Loan');
+      expect(loanProductSelect).toHaveTextContent('Personal Loan');
     });
   });
 

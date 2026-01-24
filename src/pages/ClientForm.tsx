@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -129,6 +129,7 @@ const FORM_MODULES: FormModule[] = [
 
 export const ClientForm: React.FC = () => {
   const { clientId } = useParams<{ clientId: string }>();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const modulesParam = searchParams.get('modules') || '';
   
@@ -391,7 +392,7 @@ export const ClientForm: React.FC = () => {
               <p className="text-neutral-600 mb-6">
                 Your loan application has been submitted. Your KAM will review it and get back to you soon.
               </p>
-              <Button variant="primary" onClick={() => window.location.href = '/dashboard'}>
+              <Button variant="primary" onClick={() => navigate('/dashboard')}>
                 Go to Dashboard
               </Button>
             </div>
@@ -509,7 +510,7 @@ export const ClientForm: React.FC = () => {
             })}
 
             <div className="flex justify-end gap-4 pt-4 border-t border-neutral-200">
-              <Button variant="secondary" onClick={() => window.location.href = '/dashboard'}>
+              <Button variant="secondary" onClick={() => navigate('/dashboard')}>
                 Cancel
               </Button>
               <Button
