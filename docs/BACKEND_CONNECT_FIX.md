@@ -8,15 +8,17 @@ The frontend at `https://lms.sevenfincorp.com` calls `https://seven-dash.fly.dev
 
 Common causes:
 
-1. **Backend not running at seven-dash.fly.dev** – Fly app `seven-dash` may be serving the frontend or another app instead of the Node/Express API.
+1. **Wrong image on Fly (goStatic)** – The app `seven-dash` was previously deployed with the **root** `Dockerfile` (goStatic on 8080) instead of the **backend** Node/Express API. The root `fly.toml` and `Dockerfile` have been removed; you must deploy from `backend/`.
 2. **CORS** – Backend must allow `https://lms.sevenfincorp.com` in `Access-Control-Allow-Origin`.
 3. **Vercel env** – Frontend needs `VITE_API_BASE_URL=https://seven-dash.fly.dev` and a redeploy.
 
 ---
 
-## 1. Deploy (or redeploy) the backend to Fly.io
+## 1. Deploy the backend to Fly.io (from `backend/`)
 
-The API must run on Fly. From the repo root:
+**Important:** Deploy only from the `backend/` directory so Fly uses `backend/Dockerfile` (Node) and `backend/fly.toml` (port 3001). **Do not** run `fly deploy` from the repo root.
+
+From the repo root:
 
 ```bash
 cd backend
@@ -63,6 +65,14 @@ After changing secrets, Fly restarts the app automatically.
 ---
 
 ## 4. Check the backend
+
+**Confirm it’s Node, not goStatic:**
+
+```bash
+fly logs -a seven-dash
+```
+
+You should see Node/Express logs (e.g. `Server started`, `Daily summary job started`). If you see `goStatic` or `Listening at http://0.0.0.0:8080`, the wrong image is still deployed — deploy again from `backend/` as in step 1.
 
 **Health:**
 
