@@ -136,15 +136,17 @@ export class KAMController {
       console.log('[listClients] Total clients in database:', clients.length);
       
       let kamId = req.user.kamId || '';
-      
+      let kamIdSource: 'jwt' | 'KAM Users fallback' = req.user.kamId ? 'jwt' : 'KAM Users fallback';
+
       // If KAM ID is not set, try to get it from KAM Users table by email
       if (!kamId && req.user.email) {
         try {
           const kamUsers = await n8nClient.fetchTable('KAM Users');
-          const kamUser = kamUsers.find((k: any) => k.Email?.toLowerCase() === req.user.email?.toLowerCase());
+          const kamUser = kamUsers.find((k: any) => (k['Email'] || k['Username'] || '').toLowerCase() === (req.user!.email || '').toLowerCase());
           if (kamUser) {
             kamId = kamUser.id || kamUser['KAM ID'] || '';
             req.user.kamId = kamId;
+            kamIdSource = 'KAM Users fallback';
             console.log('[listClients] Found KAM ID from KAM Users table:', kamId);
           }
         } catch (error) {
@@ -153,10 +155,10 @@ export class KAMController {
       }
       
       if (!kamId) {
-        console.warn('[listClients] Missing KAM ID for user, returning empty client list');
-        res.json({
-          success: true,
-          data: [],
+        console.warn('[listClients] Missing KAM ID for user, returning 400');
+        res.status(400).json({
+          success: false,
+          error: 'KAM ID not found. Please contact support.',
         });
         return;
       }
@@ -167,6 +169,9 @@ export class KAMController {
       const managedClients = await rbacFilterService.filterClients(clients, { ...req.user, kamId });
 
       console.log(`[listClients] Managed clients found: ${managedClients.length}`);
+      if (managedClients.length === 0) {
+        console.warn('[listClients] Managed clients: 0', { kamId, kamIdSource });
+      }
 
       // Transform to API response format
       const clientList = managedClients.map((client: any) => ({

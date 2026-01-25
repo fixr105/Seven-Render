@@ -62,7 +62,8 @@ export const KAMDashboard: React.FC = () => {
       if (response.success && response.data) {
         const clientsData = response.data as any[];
         if (clientsData.length === 0) {
-          setClientsError('No clients assigned to you yet. Please contact your administrator to get clients assigned.');
+          setClients([]);
+          setClientsError(null);
         } else {
           const clientStats = clientsData.map((client: any) => {
             const clientId = client.id || client['Client ID'];

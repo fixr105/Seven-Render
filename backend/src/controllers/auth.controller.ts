@@ -921,7 +921,7 @@ export class AuthController {
                   try {
                     const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 5000);
                     const kamUser = kamUsers.find((k: any) => {
-                      const kamEmail = (k['Email'] || '').toLowerCase();
+                      const kamEmail = (k['Email'] || k['Username'] || '').toLowerCase();
                       const kamName = (k['Name'] || '').toLowerCase();
                       return kamEmail === userEmail.toLowerCase() ||
                              kamEmail === username.toLowerCase() ||
