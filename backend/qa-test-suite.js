@@ -7,12 +7,12 @@ import fetch from 'node-fetch';
 
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
 
-// Test users (would need to exist in Airtable)
+// Test users: always use Sagar@gmail.com / pass@123 (must exist in Airtable or use E2E_USE_MOCK_USER_ACCOUNTS=1)
 const TEST_USERS = {
-  client: { email: 'client@test.com', password: 'Test@123456' },
-  kam: { email: 'kam@test.com', password: 'Test@123456' },
-  credit: { email: 'credit@test.com', password: 'Test@123456' },
-  nbfc: { email: 'nbfc@test.com', password: 'Test@123456' },
+  client: { email: 'Sagar@gmail.com', password: 'pass@123' },
+  kam: { email: 'Sagar@gmail.com', password: 'pass@123' },
+  credit: { email: 'Sagar@gmail.com', password: 'pass@123' },
+  nbfc: { email: 'Sagar@gmail.com', password: 'pass@123' },
 };
 
 let authTokens = {};

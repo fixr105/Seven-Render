@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
+import { mapClientFromApi } from '../utils/applicationTransform';
 
 export interface LoanApplication {
   id: string;
@@ -25,7 +26,34 @@ export interface LoanApplication {
   loan_product?: { name: string; code: string };
 }
 
-// Removed helper functions - no longer needed with API service
+/**
+ * Transform API application shape to UI LoanApplication.
+ * Handles client as string, { name }, { 'Client Name' }, or null/undefined. See docs/ID_AND_RBAC_CONTRACT.md.
+ */
+export function transformApplicationFromApi(app: any): LoanApplication {
+  return {
+    id: app.id,
+    file_number: app.fileId || app['File ID'] || (app.id ? `SF${String(app.id).slice(0, 8)}` : ''),
+    client_id: app.clientId || app.Client || '',
+    applicant_name: app.applicantName || app['Applicant Name'] || '',
+    loan_product_id: app.productId || app['Loan Product'] || null,
+    requested_loan_amount: (app.requestedAmount ?? parseFloat(app['Requested Loan Amount'] || '0')) || null,
+    status: app.status || app.Status || 'draft',
+    assigned_credit_analyst: app.assignedCreditAnalyst || app['Assigned Credit Analyst'] || null,
+    assigned_nbfc_id: app.assignedNBFC || app['Assigned NBFC'] || null,
+    lender_decision_status: app.lenderDecisionStatus || app['Lender Decision Status'] || null,
+    lender_decision_date: app.lenderDecisionDate || app['Lender Decision Date'] || null,
+    lender_decision_remarks: app.lenderDecisionRemarks || app['Lender Decision Remarks'] || null,
+    approved_loan_amount: (app.approvedAmount ?? parseFloat(app['Approved Loan Amount'] || '0')) || null,
+    ai_file_summary: app.aiFileSummary || app['AI File Summary'] || null,
+    form_data: app.formData || (typeof app['Form Data'] === 'string' ? JSON.parse(app['Form Data'] || '{}') : app['Form Data']) || {},
+    created_at: app.creationDate || app['Creation Date'] || app.createdAt || new Date().toISOString(),
+    submitted_at: app.submittedDate || app['Submitted Date'] || null,
+    updated_at: app.lastUpdated || app['Last Updated'] || app.updatedAt || new Date().toISOString(),
+    client: mapClientFromApi(app.client),
+    loan_product: app.loanProduct ? { name: app.loanProduct.name || app.loanProduct['Product Name'], code: app.loanProduct.id || app.loanProduct['Product ID'] } : undefined,
+  };
+}
 
 export const useApplications = () => {
   const { userRole, user } = useAuthSafe();
@@ -47,30 +75,7 @@ export const useApplications = () => {
       if (response.success && response.data) {
         // Transform API response to match expected format
         const appsArray = Array.isArray(response.data) ? response.data : [];
-        const transformed = appsArray.map((app: any) => ({
-          id: app.id,
-          file_number: app.fileId || app['File ID'] || `SF${app.id.slice(0, 8)}`,
-          client_id: app.clientId || app.Client || '',
-          applicant_name: app.applicantName || app['Applicant Name'] || '',
-          loan_product_id: app.productId || app['Loan Product'] || null,
-          requested_loan_amount: app.requestedAmount || parseFloat(app['Requested Loan Amount'] || '0') || null,
-          status: app.status || app.Status || 'draft',
-          assigned_credit_analyst: app.assignedCreditAnalyst || app['Assigned Credit Analyst'] || null,
-          assigned_nbfc_id: app.assignedNBFC || app['Assigned NBFC'] || null,
-          lender_decision_status: app.lenderDecisionStatus || app['Lender Decision Status'] || null,
-          lender_decision_date: app.lenderDecisionDate || app['Lender Decision Date'] || null,
-          lender_decision_remarks: app.lenderDecisionRemarks || app['Lender Decision Remarks'] || null,
-          approved_loan_amount: app.approvedAmount || parseFloat(app['Approved Loan Amount'] || '0') || null,
-          ai_file_summary: app.aiFileSummary || app['AI File Summary'] || null,
-          form_data: app.formData || (typeof app['Form Data'] === 'string' ? JSON.parse(app['Form Data'] || '{}') : app['Form Data']) || {},
-          created_at: app.creationDate || app['Creation Date'] || app.createdAt || new Date().toISOString(),
-          submitted_at: app.submittedDate || app['Submitted Date'] || null,
-          updated_at: app.lastUpdated || app['Last Updated'] || app.updatedAt || new Date().toISOString(),
-          client: app.client != null
-            ? { company_name: typeof app.client === 'string' ? app.client : (app.client?.name || app.client?.['Client Name']) }
-            : undefined,
-          loan_product: app.loanProduct ? { name: app.loanProduct.name || app.loanProduct['Product Name'], code: app.loanProduct.id || app.loanProduct['Product ID'] } : undefined,
-        }));
+        const transformed = appsArray.map((app: any) => transformApplicationFromApi(app));
         
         setApplications(transformed);
       } else {

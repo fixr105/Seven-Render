@@ -31,30 +31,30 @@ function test(name: string, fn: () => void): void {
   }
 }
 
-// Test data
+// Test data (tests use Sagar@gmail.com / pass@123)
 const clientUser: AuthUser = {
   id: 'user-1',
-  email: 'client@test.com',
+  email: 'Sagar@gmail.com',
   role: UserRole.CLIENT,
   clientId: 'client-1',
 };
 
 const kamUser: AuthUser = {
   id: 'user-2',
-  email: 'kam@test.com',
+  email: 'Sagar@gmail.com',
   role: UserRole.KAM,
   kamId: 'kam-1',
 };
 
 const creditUser: AuthUser = {
   id: 'user-3',
-  email: 'credit@test.com',
+  email: 'Sagar@gmail.com',
   role: UserRole.CREDIT,
 };
 
 const nbfcUser: AuthUser = {
   id: 'user-4',
-  email: 'nbfc@test.com',
+  email: 'Sagar@gmail.com',
   role: UserRole.NBFC,
   nbfcId: 'nbfc-1',
 };

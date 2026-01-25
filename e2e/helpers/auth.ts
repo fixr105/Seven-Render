@@ -16,23 +16,23 @@ const getEnvVar = (key: string, fallback: string): string => {
 
 export const TEST_USERS = {
   client: {
-    email: getEnvVar('E2E_CLIENT_USERNAME', 'client@test.com'),
-    password: getEnvVar('E2E_CLIENT_PASSWORD', 'Test@123456'),
+    email: getEnvVar('E2E_CLIENT_USERNAME', 'Sagar@gmail.com'),
+    password: getEnvVar('E2E_CLIENT_PASSWORD', 'pass@123'),
     role: 'client',
   },
   kam: {
-    email: getEnvVar('E2E_KAM_USERNAME', 'kam@test.com'),
-    password: getEnvVar('E2E_KAM_PASSWORD', 'Test@123456'),
+    email: getEnvVar('E2E_KAM_USERNAME', 'Sagar@gmail.com'),
+    password: getEnvVar('E2E_KAM_PASSWORD', 'pass@123'),
     role: 'kam',
   },
   credit: {
-    email: getEnvVar('E2E_CREDIT_USERNAME', 'credit@test.com'),
-    password: getEnvVar('E2E_CREDIT_PASSWORD', 'Test@123456'),
+    email: getEnvVar('E2E_CREDIT_USERNAME', 'Sagar@gmail.com'),
+    password: getEnvVar('E2E_CREDIT_PASSWORD', 'pass@123'),
     role: 'credit_team',
   },
   nbfc: {
-    email: getEnvVar('E2E_NBFC_USERNAME', 'nbfc@test.com'),
-    password: getEnvVar('E2E_NBFC_PASSWORD', 'Test@123456'),
+    email: getEnvVar('E2E_NBFC_USERNAME', 'Sagar@gmail.com'),
+    password: getEnvVar('E2E_NBFC_PASSWORD', 'pass@123'),
     role: 'nbfc',
   },
 };

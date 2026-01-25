@@ -80,35 +80,35 @@ export const renderWithProviders = (
   });
 };
 
-// Mock user data
+// Mock user data (tests use Sagar@gmail.com / pass@123)
 export const mockClientUser: UserContext = {
   id: 'user-1',
-  email: 'client@test.com',
+  email: 'Sagar@gmail.com',
   role: 'client',
   clientId: 'CLIENT001',
-  name: 'Test Client',
+  name: 'Sagar',
 };
 
 export const mockKAMUser: UserContext = {
   id: 'user-2',
-  email: 'kam@test.com',
+  email: 'Sagar@gmail.com',
   role: 'kam',
   kamId: 'KAM001',
-  name: 'Test KAM',
+  name: 'Sagar',
 };
 
 export const mockCreditUser: UserContext = {
   id: 'user-3',
-  email: 'credit@test.com',
+  email: 'Sagar@gmail.com',
   role: 'credit_team',
-  name: 'Test Credit',
+  name: 'Sagar',
 };
 
 export const mockNBFCUser: UserContext = {
   id: 'user-4',
-  email: 'nbfc@test.com',
+  email: 'Sagar@gmail.com',
   role: 'nbfc',
   nbfcId: 'NBFC001',
-  name: 'Test NBFC',
+  name: 'Sagar',
 };
 

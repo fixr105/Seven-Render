@@ -50,8 +50,8 @@ async function runLoginTests() {
   // Test 1: Successful Login with Client ID
   console.log('📋 Test 1: Successful Login with Client ID Extraction\n');
   
-  const testEmail = 'test@example.com';
-  const testPassword = 'Test@123';
+  const testEmail = 'Sagar@gmail.com';
+  const testPassword = 'pass@123';
   const hashedPassword = await bcrypt.hash(testPassword, 10);
 
   const webhookResponse = [

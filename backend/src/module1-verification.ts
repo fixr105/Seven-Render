@@ -18,10 +18,10 @@ import { AuthUser } from './services/auth/auth.service.js';
 console.log('🔍 Module 1: M2 Master Form Builder + Client Dashboard Config Verification\n');
 console.log('='.repeat(60));
 
-// Test data
+// Test data (Sagar@gmail.com / pass@123)
 const testKAMUser: AuthUser = {
   id: 'kam-1',
-  email: 'kam@test.com',
+  email: 'Sagar@gmail.com',
   role: UserRole.KAM,
   kamId: 'kam-1',
 };

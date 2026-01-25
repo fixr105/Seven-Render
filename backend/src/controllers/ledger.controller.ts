@@ -5,6 +5,7 @@
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { rbacFilterService } from '../services/rbac/rbacFilter.service.js';
+import { matchIds } from '../utils/idMatcher.js';
 import { DisputeStatus } from '../config/constants.js';
 
 export class LedgerController {
@@ -304,7 +305,7 @@ export class LedgerController {
 
       // Verify this client is managed by this KAM
       const managedClientIds = await rbacFilterService.getKAMManagedClientIds(req.user.kamId!);
-      if (!managedClientIds.some(id => id === clientId || String(id) === String(clientId))) {
+      if (!managedClientIds.some((id) => matchIds(id, clientId as string))) {
         res.status(403).json({ success: false, error: 'Access denied: Client not managed by this KAM' });
         return;
       }

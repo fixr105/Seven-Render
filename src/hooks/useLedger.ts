@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
-import { isPageReload } from '../utils/isPageReload';
 
 export const useLedger = () => {
   const { userRole } = useAuthSafe();
@@ -10,22 +9,15 @@ export const useLedger = () => {
   const [payoutRequests, setPayoutRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch only on page refresh (F5) or via explicit refetch. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation to Ledger) and via explicit refetch. See docs/ID_AND_RBAC_CONTRACT.md.
   useEffect(() => {
-    if (isPageReload()) {
-      if (userRole === 'client') {
-        fetchLedger();
-        fetchPayoutRequests();
-      } else if (userRole === 'credit_team') {
-        fetchPayoutRequests().finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
+    if (userRole === 'client') {
+      fetchLedger();
+      fetchPayoutRequests();
+    } else if (userRole === 'credit_team') {
+      fetchPayoutRequests().finally(() => setLoading(false));
     } else {
       setLoading(false);
-      setEntries([]);
-      setBalance(0);
-      setPayoutRequests([]);
     }
   }, []);
 

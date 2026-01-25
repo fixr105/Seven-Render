@@ -22,27 +22,27 @@ describe('RBAC Guards', () => {
   beforeEach(() => {
     clientUser = {
       id: 'user-1',
-      email: 'client@test.com',
+      email: 'Sagar@gmail.com',
       role: UserRole.CLIENT,
       clientId: 'client-1',
     };
 
     kamUser = {
       id: 'user-2',
-      email: 'kam@test.com',
+      email: 'Sagar@gmail.com',
       role: UserRole.KAM,
       kamId: 'kam-1',
     };
 
     creditUser = {
       id: 'user-3',
-      email: 'credit@test.com',
+      email: 'Sagar@gmail.com',
       role: UserRole.CREDIT,
     };
 
     nbfcUser = {
       id: 'user-4',
-      email: 'nbfc@test.com',
+      email: 'Sagar@gmail.com',
       role: UserRole.NBFC,
       nbfcId: 'nbfc-1',
     };

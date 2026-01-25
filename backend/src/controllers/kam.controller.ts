@@ -11,6 +11,7 @@ import { matchIds } from '../utils/idMatcher.js';
 export class KAMController {
   /**
    * GET /kam/dashboard
+   * Uses getKAMManagedClientIds + matchIds for all "managed" logic. No User Account ids.
    */
   async getDashboard(req: Request, res: Response): Promise<void> {
     try {
@@ -19,32 +20,29 @@ export class KAMController {
         return;
       }
 
-      // Fetch only the tables we need
-      const [userAccounts, allApplications] = await Promise.all([
-        n8nClient.fetchTable('User Accounts'),
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const managedClientIds = await rbacFilterService.getKAMManagedClientIds(req.user.kamId!);
+
+      // Fetch only the tables we need (no User Accounts; managed clients from Clients + getKAMManagedClientIds)
+      const [clients, allApplications, allLedgerEntries, allAuditLogs] = await Promise.all([
+        n8nClient.fetchTable('Clients'),
         n8nClient.fetchTable('Loan Application'),
-      ]);
-      const [allLedgerEntries, allAuditLogs] = await Promise.all([
         n8nClient.fetchTable('Commission Ledger'),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
 
-      // Apply RBAC filtering using centralized service
-      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
       const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
       const ledgerEntries = await rbacFilterService.filterCommissionLedger(allLedgerEntries, req.user!);
       const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
 
-      // Get managed clients (clients with this KAM)
-      const managedClients = userAccounts.filter(
-        (u) => u.Role === 'client' // Simplified - adjust based on actual schema
-      );
+      // Managed clients from Clients table; filter by getKAMManagedClientIds (Client IDs only)
+      const managedClients = clients.filter((c: any) => {
+        const cid = c.id || c['Client ID'] || c['ID'];
+        return managedClientIds.some((id) => matchIds(cid, id));
+      });
 
-      // Get applications for managed clients
-      const managedClientIds = managedClients.map((c) => c.id);
-      const clientApplications = applications.filter((app) =>
-        managedClientIds.includes(app.Client)
-      );
+      // applications already KAM-scoped by rbacFilterService
+      const clientApplications = applications;
 
       // Files by stage
       const filesByStage = {
@@ -73,11 +71,11 @@ export class KAMController {
           message: log['Details/Message'],
         }));
 
-      // Ledger disputes for managed clients
+      // Ledger disputes for managed clients (use matchIds; entry.Client is Client ID)
       const ledgerDisputes = ledgerEntries
         .filter(
           (entry) =>
-            managedClientIds.includes(entry.Client) &&
+            managedClientIds.some((id) => matchIds(entry.Client, id)) &&
             entry['Dispute Status'] !== 'None'
         )
         .map((entry) => ({
@@ -90,12 +88,12 @@ export class KAMController {
       res.json({
         success: true,
         data: {
-          clients: managedClients.map((c) => ({
+          clients: managedClients.map((c: any) => ({
             id: c.id,
-            name: c['Associated Profile'] || c.Username,
-            email: c.Username,
+            name: c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
+            email: c['Contact Email / Phone'] || '',
             activeApplications: clientApplications.filter(
-              (app) => app.Client === c.id && app.Status !== LoanStatus.CLOSED
+              (app) => matchIds(app.Client, c.id) && app.Status !== LoanStatus.CLOSED
             ).length,
           })),
           filesByStage,
@@ -976,6 +974,7 @@ export class KAMController {
    *
    * Uses rbacFilterService.filterLoanApplications (same as GET /loan-applications):
    * - KAM: getKAMManagedClientIds(kamId) from Clients where Assigned KAM matches; filter app.Client.
+   * Uses same RBAC as GET /loan-applications; do not reintroduce User-Account–based filtering.
    *
    * Webhook Mapping:
    * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications

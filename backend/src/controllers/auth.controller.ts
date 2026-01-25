@@ -654,7 +654,11 @@ export class AuthController {
         // Parse n8n response (empty or invalid JSON → 503)
         let rawData: any = null;
         if (!text || !text.trim()) {
-          defaultLogger.error('VALIDATE: Webhook returned empty body', { requestId });
+          defaultLogger.error('VALIDATE: Webhook returned empty body', {
+            requestId,
+            validateUrl,
+            responseStatus: response.status,
+          });
           res.status(503).json({
             success: false,
             error: 'Authentication service temporarily unavailable. Please try again later.',
@@ -664,11 +668,18 @@ export class AuthController {
         try {
           rawData = JSON.parse(text);
         } catch (parseErr: any) {
+          const preview = text.substring(0, 500);
+          const looksLikeHtml = /^\s*</.test(text.trim()) || text.trim().toLowerCase().startsWith('<!');
           defaultLogger.error('VALIDATE: Webhook response is not valid JSON', {
             requestId,
+            validateUrl,
+            responseStatus: response.status,
             error: parseErr?.message,
-            preview: text.substring(0, 100),
+            preview,
           });
+          if (looksLikeHtml) {
+            defaultLogger.error('VALIDATE: Body looks like HTML — n8n may be returning an error page. Check /webhook/validate exists and the n8n workflow is active.', { requestId });
+          }
           res.status(503).json({
             success: false,
             error: 'Authentication service temporarily unavailable. Please try again later.',

@@ -53,7 +53,7 @@ test.describe('P0 E2E: Form Configuration Workflow', () => {
         await kamPage.waitForLoadState('networkidle');
 
         // Find the test client and click to edit/view
-        const clientLink = kamPage.locator('text=/Test Corporation|client@test.com/i').first();
+        const clientLink = kamPage.locator('text=/Test Corporation|Sagar@gmail.com/i').first();
         
         if (await clientLink.isVisible({ timeout: 5000 })) {
           await clientLink.click();

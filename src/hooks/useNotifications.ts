@@ -7,7 +7,7 @@ export const useNotifications = () => {
   const { userRoleId } = useAuthSafe();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch only on page refresh (F5) or via explicit refetch. No auto-fetch on SPA navigation.
+  // Fetch only on full reload (F5). Intentional: avoid refetch on every SPA nav. See docs/ID_AND_RBAC_CONTRACT.md.
   useEffect(() => {
     if (isPageReload() && userRoleId) {
       fetchNotifications();

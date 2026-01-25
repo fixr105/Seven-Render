@@ -71,8 +71,8 @@ describe('Login Flow - Comprehensive Test', () => {
 
   describe('Successful Login Flow', () => {
     it('should complete login flow with webhook response containing Client ID', async () => {
-      const testEmail = 'test@example.com';
-      const testPassword = 'Test@123';
+      const testEmail = 'Sagar@gmail.com';
+      const testPassword = 'pass@123';
       const hashedPassword = await bcrypt.hash(testPassword, 10);
 
       // Mock webhook response with Client ID
@@ -230,8 +230,8 @@ describe('Login Flow - Comprehensive Test', () => {
     }, 10000); // 10 second timeout for test
 
     it('should handle Client ID extraction from webhook response fields', async () => {
-      const testEmail = 'client@test.com';
-      const testPassword = 'Test@123';
+      const testEmail = 'Sagar@gmail.com';
+      const testPassword = 'pass@123';
       const hashedPassword = await bcrypt.hash(testPassword, 10);
 
       // Mock webhook response with Client ID in fields
@@ -420,9 +420,9 @@ describe('Login Flow - Comprehensive Test', () => {
     }, 10000);
 
     it('should return 401 when password is incorrect', async () => {
-      const testEmail = 'test@example.com';
+      const testEmail = 'Sagar@gmail.com';
       const testPassword = 'WrongPassword';
-      const correctPassword = 'Test@123';
+      const correctPassword = 'pass@123';
       const hashedPassword = await bcrypt.hash(correctPassword, 10);
 
       // Mock webhook response with correct user but wrong password
@@ -484,8 +484,8 @@ describe('Login Flow - Comprehensive Test', () => {
 
   describe('Timeout Handling', () => {
     it('should complete request within 3 seconds', async () => {
-      const testEmail = 'test@example.com';
-      const testPassword = 'Test@123';
+      const testEmail = 'Sagar@gmail.com';
+      const testPassword = 'pass@123';
       const hashedPassword = await bcrypt.hash(testPassword, 10);
 
       const webhookResponse = [
@@ -563,8 +563,8 @@ describe('Login Flow - Comprehensive Test', () => {
 
   describe('Webhook Response Format Validation', () => {
     it('should handle webhook response with Client ID in fields', async () => {
-      const testEmail = 'test@example.com';
-      const testPassword = 'Test@123';
+      const testEmail = 'Sagar@gmail.com';
+      const testPassword = 'pass@123';
       const hashedPassword = await bcrypt.hash(testPassword, 10);
 
       // Mock webhook response matching the exact format from user query

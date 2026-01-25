@@ -7,11 +7,8 @@ You're seeing "No token provided" errors because you're not logged in. The token
 
 1. **Go to the Login Page**: Navigate to `http://localhost:3000/login` (or just `/login`)
 
-2. **Select Your Role**: Click on one of the role buttons:
-   - **Client** (for client@test.com)
-   - **KAM** (for kam@test.com) - Use this for onboarding clients
-   - **Credit Team** (for credit@test.com)
-   - **NBFC** (for nbfc@test.com)
+2. **Enter credentials**: Use **Sagar@gmail.com** / **pass@123** for all roles.
+   - **Client**, **KAM**, **Credit Team**, **NBFC** — same login; role is determined by your User Account in Airtable.
 
 3. **After Login**: You'll be redirected to the dashboard and the token will be stored in localStorage.
 

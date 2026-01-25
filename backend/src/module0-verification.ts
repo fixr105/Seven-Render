@@ -17,28 +17,28 @@ import { n8nApiClient } from './services/airtable/n8nApiClient.js';
 console.log('🔍 Module 0: Foundation Verification\n');
 console.log('=' .repeat(60));
 
-// Test users for each role
+// Test users for each role (Sagar@gmail.com / pass@123)
 const testUsers: Record<string, AuthUser> = {
   client: {
     id: 'user-1',
-    email: 'client@test.com',
+    email: 'Sagar@gmail.com',
     role: UserRole.CLIENT,
     clientId: 'client-1',
   },
   kam: {
     id: 'user-2',
-    email: 'kam@test.com',
+    email: 'Sagar@gmail.com',
     role: UserRole.KAM,
     kamId: 'kam-1',
   },
   credit: {
     id: 'user-3',
-    email: 'credit@test.com',
+    email: 'Sagar@gmail.com',
     role: UserRole.CREDIT,
   },
   nbfc: {
     id: 'user-4',
-    email: 'nbfc@test.com',
+    email: 'Sagar@gmail.com',
     role: UserRole.NBFC,
     nbfcId: 'nbfc-1',
   },

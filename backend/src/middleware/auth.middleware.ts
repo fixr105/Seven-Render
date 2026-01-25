@@ -74,30 +74,30 @@ export const authenticate = async (
       const atIndex = roleAndTimestamp.indexOf('@');
       const role = atIndex > 0 ? roleAndTimestamp.substring(0, atIndex) : roleAndTimestamp;
       
-      // Map test user emails to roles
+      // Map test user emails to roles (tests use Sagar@gmail.com / pass@123)
       const testUsers: Record<string, { email: string; role: any; clientId?: string; kamId?: string; nbfcId?: string; name: string }> = {
         'client': {
-          email: 'client@test.com',
+          email: 'Sagar@gmail.com',
           role: 'client',
           clientId: 'TEST-CLIENT-001',
-          name: 'Test Client',
+          name: 'Sagar',
         },
         'kam': {
-          email: 'kam@test.com',
+          email: 'Sagar@gmail.com',
           role: 'kam',
           kamId: 'TEST-KAM-001',
-          name: 'Test KAM',
+          name: 'Sagar',
         },
         'credit_team': {
-          email: 'credit@test.com',
+          email: 'Sagar@gmail.com',
           role: 'credit_team',
-          name: 'Test Credit',
+          name: 'Sagar',
         },
         'nbfc': {
-          email: 'nbfc@test.com',
+          email: 'Sagar@gmail.com',
           role: 'nbfc',
           nbfcId: 'TEST-NBFC-001',
-          name: 'Test NBFC',
+          name: 'Sagar',
         },
       };
       

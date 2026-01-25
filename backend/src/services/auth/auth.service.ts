@@ -63,10 +63,10 @@ export class AuthService {
     if (process.env.E2E_USE_MOCK_USER_ACCOUNTS === '1') {
       // E2E: use in-memory users matching e2e/helpers/auth.ts TEST_USERS (no n8n webhook)
       const mock: UserAccount[] = [
-        { id: 'recE2EClient01', createdTime: '', Username: 'client@test.com', Password: 'Test@123456', Role: UserRole.CLIENT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E Client', 'Last Login': '' },
-        { id: 'recE2EKAM01', createdTime: '', Username: 'kam@test.com', Password: 'Test@123456', Role: UserRole.KAM, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E KAM', 'Last Login': '' },
-        { id: 'recE2ECredit01', createdTime: '', Username: 'credit@test.com', Password: 'Test@123456', Role: UserRole.CREDIT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E Credit', 'Last Login': '' },
-        { id: 'recE2ENBFC01', createdTime: '', Username: 'nbfc@test.com', Password: 'Test@123456', Role: UserRole.NBFC, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'E2E NBFC', 'Last Login': '' },
+        { id: 'recE2EClient01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.CLIENT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
+        { id: 'recE2EKAM01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.KAM, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
+        { id: 'recE2ECredit01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.CREDIT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
+        { id: 'recE2ENBFC01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.NBFC, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
       ];
       userAccounts = mock;
       rawWebhookResponse = undefined;
@@ -94,12 +94,20 @@ export class AuthService {
           }
           const text = await response.text();
           if (!text || text.trim().length === 0) {
+            console.error('[AuthService] ❌ Webhook returned empty body. status:', response.status, 'url:', webhookUrl);
             throw new Error('Authentication service returned an empty response.');
           }
           try {
             rawWebhookResponse = JSON.parse(text);
           } catch (parseErr: any) {
+            const preview = text.substring(0, 500);
+            const looksLikeHtml = /^\s*</.test(text.trim()) || text.trim().toLowerCase().startsWith('<!');
             console.error('[AuthService] ❌ Webhook response is not valid JSON:', parseErr?.message || parseErr);
+            console.error('[AuthService] ❌ Response status:', response.status, 'url:', webhookUrl);
+            console.error('[AuthService] ❌ Body preview:', preview + (text.length > 500 ? '...' : ''));
+            if (looksLikeHtml) {
+              console.error('[AuthService] ❌ Body looks like HTML — n8n may be returning an error page. Check n8n workflow is active and /webhook/useraccount exists.');
+            }
             throw new Error('Authentication service temporarily unavailable. Please try again later.');
           }
           console.log('[AuthService] ✅ Raw webhook response received');
@@ -153,6 +161,11 @@ export class AuthService {
         }
         if (webhookError.message?.includes('timeout') || webhookError.message?.includes('timed out')) {
           throw new Error(`Authentication service timeout: ${webhookError.message}`);
+        }
+        // n8n/webhook returned 5xx (503, 502, 504, 500) — treat as temporarily unavailable
+        if (webhookError.message?.match(/Webhook returned status 5\d\d/)) {
+          console.error('[AuthService] ❌ Webhook 5xx — n8n or upstream (Airtable) may be down. Check N8N_BASE_URL and n8n workflow.');
+          throw new Error('Authentication service temporarily unavailable. Please try again later.');
         }
         // Never surface raw JSON parse errors (e.g. "Unexpected end of JSON input") to the client
         if (webhookError.message?.includes('Unexpected end of JSON input') ||

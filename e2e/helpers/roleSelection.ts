@@ -14,10 +14,10 @@ export const ROLE_BUTTONS = {
 
 // Alternative selectors in case button text changes
 export const ROLE_SELECTORS = {
-  client: ['Test Client', 'Client (DSA Partner)', 'client@test.com'],
-  kam: ['Test KAM', 'Key Account Manager', 'kam@test.com'],
-  credit_team: ['Test Credit', 'Credit Team', 'credit@test.com'],
-  nbfc: ['Test NBFC', 'NBFC Partner', 'nbfc@test.com'],
+  client: ['Test Client', 'Client (DSA Partner)', 'Sagar@gmail.com'],
+  kam: ['Test KAM', 'Key Account Manager', 'Sagar@gmail.com'],
+  credit_team: ['Test Credit', 'Credit Team', 'Sagar@gmail.com'],
+  nbfc: ['Test NBFC', 'NBFC Partner', 'Sagar@gmail.com'],
 };
 
 /**

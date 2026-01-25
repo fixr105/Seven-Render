@@ -19,32 +19,12 @@ const N8N_POST_KAM_USERS_URL = process.env.N8N_POST_KAM_USERS_URL || 'https://fi
 const N8N_POST_CREDIT_TEAM_USERS_URL = process.env.N8N_POST_CREDIT_TEAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS';
 const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners';
 
-// Test users that should exist
+// Test user: always use Sagar@gmail.com / pass@123
 const requiredTestUsers = [
-  {
-    email: 'client@test.com',
-    password: 'Test@123',
-    role: 'client',
-    name: 'Test Client',
-  },
-  {
-    email: 'kam@test.com',
-    password: 'Test@123',
-    role: 'kam',
-    name: 'Test KAM',
-  },
-  {
-    email: 'credit@test.com',
-    password: 'Test@123',
-    role: 'credit_team',
-    name: 'Test Credit',
-  },
-  {
-    email: 'nbfc@test.com',
-    password: 'Test@123',
-    role: 'nbfc',
-    name: 'Test NBFC',
-  },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'client', name: 'Sagar' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'kam', name: 'Sagar' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Sagar' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'nbfc', name: 'Sagar' },
 ];
 
 /**

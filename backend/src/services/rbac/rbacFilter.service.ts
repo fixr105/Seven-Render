@@ -384,6 +384,8 @@ export class RBACFilterService {
    * Supports both KAM Users record id and KAM ID: Assigned KAM in Clients may store
    * either. We fetch KAM Users, resolve kamId to [kamId, k['KAM ID']], and match
    * client['Assigned KAM'] against any of those.
+   * Callers must not assume user.kamId is in the same format as Clients['Assigned KAM'];
+   * resolution is done here.
    *
    * @param kamId - KAM identifier (KAM Users record id or KAM ID from auth)
    * @returns Array of client IDs managed by this KAM

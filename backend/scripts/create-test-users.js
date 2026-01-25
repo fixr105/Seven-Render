@@ -8,33 +8,12 @@ import fetch from 'node-fetch';
 const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
 const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
 
-// Test users to create
-// Note: Passwords match QA test suite expectations (Test@123)
+// Test user: Sagar@gmail.com / pass@123 (for tests always use these credentials)
 const testUsers = [
-  {
-    email: 'client@test.com',
-    password: 'Test@123',
-    role: 'client',
-    name: 'Test Client',
-  },
-  {
-    email: 'kam@test.com',
-    password: 'Test@123',
-    role: 'kam',
-    name: 'Test KAM',
-  },
-  {
-    email: 'credit@test.com',
-    password: 'Test@123',
-    role: 'credit_team',
-    name: 'Test Credit',
-  },
-  {
-    email: 'nbfc@test.com',
-    password: 'Test@123',
-    role: 'nbfc',
-    name: 'Test NBFC',
-  },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'client', name: 'Sagar' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'kam', name: 'Sagar' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Sagar' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'nbfc', name: 'Sagar' },
 ];
 
 async function createUserAccount(user) {

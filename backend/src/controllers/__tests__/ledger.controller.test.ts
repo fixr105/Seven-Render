@@ -49,7 +49,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should return ledger entries with running balance for CLIENT', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -83,7 +83,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should return 403 for non-CLIENT role', async () => {
       const kamUser: AuthUser = {
         id: 'user-2',
-        email: 'kam@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.KAM,
         kamId: 'KAM001',
       };
@@ -102,7 +102,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should return all entries for CREDIT without filters', async () => {
       const creditUser: AuthUser = {
         id: 'user-3',
-        email: 'credit@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CREDIT,
       };
 
@@ -130,7 +130,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should filter by clientId when provided', async () => {
       const creditUser: AuthUser = {
         id: 'user-3',
-        email: 'credit@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CREDIT,
       };
 
@@ -156,7 +156,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should create payout request with valid amount', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -189,7 +189,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should reject payout request when amount exceeds balance', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -216,7 +216,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should create full payout request with full: true flag', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -244,7 +244,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should approve payout request and create negative entry', async () => {
       const creditUser: AuthUser = {
         id: 'user-3',
-        email: 'credit@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CREDIT,
       };
 
@@ -293,7 +293,7 @@ describe('LedgerController - P0 Tests', () => {
     it('should reject payout request', async () => {
       const creditUser: AuthUser = {
         id: 'user-3',
-        email: 'credit@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CREDIT,
       };
 

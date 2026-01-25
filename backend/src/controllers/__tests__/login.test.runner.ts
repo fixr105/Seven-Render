@@ -90,8 +90,8 @@ async function testSuccessfulLogin() {
   
   resetCounters();
   
-  const testEmail = 'test@example.com';
-  const testPassword = 'Test@123';
+  const testEmail = 'Sagar@gmail.com';
+  const testPassword = 'pass@123';
   const hashedPassword = await bcrypt.hash(testPassword, 10);
 
   // Mock webhook response matching the format from user query
@@ -301,8 +301,8 @@ async function testIncorrectPassword() {
   
   resetCounters();
   
-  const testEmail = 'test@example.com';
-  const correctPassword = 'Test@123';
+  const testEmail = 'Sagar@gmail.com';
+  const correctPassword = 'pass@123';
   const wrongPassword = 'WrongPassword';
   const hashedPassword = await bcrypt.hash(correctPassword, 10);
 
@@ -359,8 +359,8 @@ async function testTimeout() {
   
   resetCounters();
   
-  const testEmail = 'test@example.com';
-  const testPassword = 'Test@123';
+  const testEmail = 'Sagar@gmail.com';
+  const testPassword = 'pass@123';
   const hashedPassword = await bcrypt.hash(testPassword, 10);
 
   const webhookResponse = [

@@ -8,32 +8,33 @@ Use these test accounts to explore different user roles in the system.
 
 ## Quick Test Credentials
 
+**For tests always use: Sagar@gmail.com / pass@123**
+
 ### 👤 Client (DSA Partner)
 ```
-Email: client@test.com
-Password: Test@123456
+Email: Sagar@gmail.com
+Password: pass@123
 Role: DSA Client
-Company: Test Corporation
 ```
 
 ### 👤 KAM (Key Account Manager)
 ```
-Email: kam@test.com
-Password: Test@123456
+Email: Sagar@gmail.com
+Password: pass@123
 Role: KAM
 ```
 
 ### 👤 Credit Team
 ```
-Email: credit@test.com
-Password: Test@123456
+Email: Sagar@gmail.com
+Password: pass@123
 Role: Credit Team
 ```
 
 ### 👤 NBFC Partner
 ```
-Email: nbfc@test.com
-Password: Test@123456
+Email: Sagar@gmail.com
+Password: pass@123
 Role: NBFC Partner
 ```
 

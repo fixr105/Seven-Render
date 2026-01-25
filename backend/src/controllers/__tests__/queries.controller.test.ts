@@ -63,7 +63,7 @@ describe('QueriesController - P0 Tests', () => {
     it('should allow KAM to raise query with CLIENT', async () => {
       const kamUser: AuthUser = {
         id: 'user-2',
-        email: 'kam@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.KAM,
         kamId: 'KAM001',
       };
@@ -123,7 +123,7 @@ describe('QueriesController - P0 Tests', () => {
     it('should allow CLIENT to respond to query', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -180,7 +180,7 @@ describe('QueriesController - P0 Tests', () => {
     it('should log all mutating operations to File Auditing Log', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -225,7 +225,7 @@ describe('QueriesController - P0 Tests', () => {
     it('should create notification when query is raised', async () => {
       const kamUser: AuthUser = {
         id: 'user-2',
-        email: 'kam@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.KAM,
         kamId: 'KAM001',
       };
@@ -295,7 +295,7 @@ describe('QueriesController - P0 Tests', () => {
         'Log Entry ID': 'audit-resolved',
         File: queryEntry.File,
         Timestamp: new Date().toISOString(),
-        Actor: 'client@test.com',
+        Actor: 'Sagar@gmail.com',
         'Action/Event Type': 'Query Resolved',
         'Details/Message': 'Query resolved by client',
         'Target User/Role': 'kam',

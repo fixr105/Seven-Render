@@ -35,36 +35,12 @@ const EXPECTED_WEBHOOK_PATHS = {
   'notifications': 'notifications',
 };
 
-// Test users configuration
+// Test user: Sagar@gmail.com / pass@123 (one user may have one role in Airtable)
 const TEST_USERS = [
-  {
-    email: 'client@test.com',
-    password: 'Test@123',
-    role: 'client',
-    name: 'Test Client',
-    needsProfile: 'Clients', // Needs Client record
-  },
-  {
-    email: 'kam@test.com',
-    password: 'Test@123',
-    role: 'kam',
-    name: 'Test KAM',
-    needsProfile: 'KAM Users', // Needs KAM Users record
-  },
-  {
-    email: 'credit@test.com',
-    password: 'Test@123',
-    role: 'credit_team',
-    name: 'Test Credit',
-    needsProfile: 'Credit Team Users', // Needs Credit Team Users record
-  },
-  {
-    email: 'nbfc@test.com',
-    password: 'Test@123',
-    role: 'nbfc',
-    name: 'Test NBFC',
-    needsProfile: 'NBFC Partners', // Needs NBFC Partners record
-  },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'client', name: 'Sagar', needsProfile: 'Clients' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'kam', name: 'Sagar', needsProfile: 'KAM Users' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Sagar', needsProfile: 'Credit Team Users' },
+  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'nbfc', name: 'Sagar', needsProfile: 'NBFC Partners' },
 ];
 
 /**

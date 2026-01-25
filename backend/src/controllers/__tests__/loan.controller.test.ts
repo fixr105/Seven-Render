@@ -58,7 +58,7 @@ describe('LoanController - P0 Tests', () => {
     it('should return only CLIENT applications for CLIENT role', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -96,7 +96,7 @@ describe('LoanController - P0 Tests', () => {
     it('should return all applications for CREDIT role', async () => {
       const creditUser: AuthUser = {
         id: 'user-3',
-        email: 'credit@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CREDIT,
       };
 
@@ -145,7 +145,7 @@ describe('LoanController - P0 Tests', () => {
     it('should reject submission with missing mandatory fields', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -185,7 +185,7 @@ describe('LoanController - P0 Tests', () => {
     it('should accept submission with all mandatory fields filled', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };
@@ -227,7 +227,7 @@ describe('LoanController - P0 Tests', () => {
     it('should validate mandatory fields from Client Form Mapping', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
-        email: 'client@test.com',
+        email: 'Sagar@gmail.com',
         role: UserRole.CLIENT,
         clientId: 'CLIENT001',
       };

@@ -109,10 +109,10 @@ function recordTest(testCase, endpoint, method, expectedStatus, result, issueTyp
 async function testAuthentication() {
   console.log('\n🔐 Phase 1: Authentication Tests\n');
 
-  // Test AUTH-1.1: Login with valid CLIENT credentials
+  // Test AUTH-1.1: Login with valid CLIENT credentials (Sagar@gmail.com / pass@123)
   const clientLogin = await apiRequest('POST', '/auth/login', {
-    email: 'client@test.com',
-    password: 'Test@123',
+    email: 'Sagar@gmail.com',
+    password: 'pass@123',
   });
   if (clientLogin.success && clientLogin.data?.data?.token) {
     clientToken = clientLogin.data.data.token;
@@ -123,10 +123,10 @@ async function testAuthentication() {
     console.log('❌ AUTH-1.1: CLIENT login failed');
   }
 
-  // Test AUTH-1.2: Login with valid KAM credentials
+  // Test AUTH-1.2: Login with valid KAM credentials (Sagar@gmail.com / pass@123)
   const kamLogin = await apiRequest('POST', '/auth/login', {
-    email: 'kam@test.com',
-    password: 'Test@123',
+    email: 'Sagar@gmail.com',
+    password: 'pass@123',
   });
   if (kamLogin.success && kamLogin.data?.data?.token) {
     kamToken = kamLogin.data.data.token;
@@ -137,10 +137,10 @@ async function testAuthentication() {
     console.log('❌ AUTH-1.2: KAM login failed');
   }
 
-  // Test AUTH-1.3: Login with valid CREDIT credentials
+  // Test AUTH-1.3: Login with valid CREDIT credentials (Sagar@gmail.com / pass@123)
   const creditLogin = await apiRequest('POST', '/auth/login', {
-    email: 'credit@test.com',
-    password: 'Test@123',
+    email: 'Sagar@gmail.com',
+    password: 'pass@123',
   });
   if (creditLogin.success && creditLogin.data?.data?.token) {
     creditToken = creditLogin.data.data.token;
@@ -151,10 +151,10 @@ async function testAuthentication() {
     console.log('❌ AUTH-1.3: CREDIT login failed');
   }
 
-  // Test AUTH-1.4: Login with valid NBFC credentials
+  // Test AUTH-1.4: Login with valid NBFC credentials (Sagar@gmail.com / pass@123)
   const nbfcLogin = await apiRequest('POST', '/auth/login', {
-    email: 'nbfc@test.com',
-    password: 'Test@123',
+    email: 'Sagar@gmail.com',
+    password: 'pass@123',
   });
   if (nbfcLogin.success && nbfcLogin.data?.data?.token) {
     nbfcToken = nbfcLogin.data.data.token;

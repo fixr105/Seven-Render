@@ -27,13 +27,7 @@ Tests dynamic form configuration:
 
 ## Prerequisites
 
-1. **Test Users**: Ensure test users are created in the database:
-   - `client@test.com` / `Test@123456` (Client role)
-   - `kam@test.com` / `Test@123456` (KAM role)
-   - `credit@test.com` / `Test@123456` (Credit Team role)
-   - `nbfc@test.com` / `Test@123456` (NBFC role)
-
-   See `TEST_USERS.md` in the project root for setup instructions.
+1. **Test Users**: For tests always use **Sagar@gmail.com** / **pass@123**. Ensure this user exists in Airtable (User Accounts) with the role needed for the test (client, kam, credit_team, or nbfc). See `TEST_USERS.md` in the project root.
 
 2. **Running Servers**: The Playwright config automatically starts:
    - Frontend dev server on `http://localhost:8000`
@@ -89,11 +83,7 @@ npx playwright test --project=webkit
 
 ## Test Data
 
-Tests use the following test users (defined in `helpers/auth.ts`):
-- **Client**: `client@test.com` / `Test@123456`
-- **KAM**: `kam@test.com` / `Test@123456`
-- **Credit**: `credit@test.com` / `Test@123456`
-- **NBFC**: `nbfc@test.com` / `Test@123456`
+Tests use **Sagar@gmail.com** / **pass@123** (defined in `helpers/auth.ts`). All roles (Client, KAM, Credit, NBFC) use the same credentials; the role is determined by the User Account in Airtable.
 
 ## Configuration
 
