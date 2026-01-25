@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
-import { isPageReload } from '../utils/isPageReload';
 
 export interface LoanApplication {
   id: string;
@@ -33,14 +32,9 @@ export const useApplications = () => {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch only on page refresh (F5) or via explicit refetch. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation to Applications or Dashboard) and via explicit refetch.
   useEffect(() => {
-    if (isPageReload()) {
-      fetchApplications();
-    } else {
-      setLoading(false);
-      setApplications([]);
-    }
+    fetchApplications();
   }, []);
 
   const fetchApplications = async () => {
@@ -72,7 +66,9 @@ export const useApplications = () => {
           created_at: app.creationDate || app['Creation Date'] || app.createdAt || new Date().toISOString(),
           submitted_at: app.submittedDate || app['Submitted Date'] || null,
           updated_at: app.lastUpdated || app['Last Updated'] || app.updatedAt || new Date().toISOString(),
-          client: app.client ? { company_name: app.client.name || app.client['Client Name'] } : undefined,
+          client: app.client != null
+            ? { company_name: typeof app.client === 'string' ? app.client : (app.client?.name || app.client?.['Client Name']) }
+            : undefined,
           loan_product: app.loanProduct ? { name: app.loanProduct.name || app.loanProduct['Product Name'], code: app.loanProduct.id || app.loanProduct['Product ID'] } : undefined,
         }));
         

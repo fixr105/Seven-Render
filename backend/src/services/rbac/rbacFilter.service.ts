@@ -380,12 +380,15 @@ export class RBACFilterService {
 
   /**
    * Get client IDs managed by a KAM
-   * 
-   * @param kamId - KAM ID
+   *
+   * Supports both KAM Users record id and KAM ID: Assigned KAM in Clients may store
+   * either. We fetch KAM Users, resolve kamId to [kamId, k['KAM ID']], and match
+   * client['Assigned KAM'] against any of those.
+   *
+   * @param kamId - KAM identifier (KAM Users record id or KAM ID from auth)
    * @returns Array of client IDs managed by this KAM
    */
   async getKAMManagedClientIds(kamId: string): Promise<string[]> {
-    // Check cache first
     const cacheKey = `kam-managed-clients-${kamId}`;
     const cached = requestCache.get<string[]>(cacheKey);
     if (cached !== null) {
@@ -393,24 +396,32 @@ export class RBACFilterService {
     }
 
     try {
-      const clients = await n8nClient.fetchTable('Clients');
-      
-      // Filter clients where 'Assigned KAM' matches the KAM ID
+      const [clients, kamUsers] = await Promise.all([
+        n8nClient.fetchTable('Clients'),
+        n8nClient.fetchTable('KAM Users'),
+      ]);
+
+      const kam = kamUsers.find(
+        (k: any) => matchIds(k.id, kamId) || matchIds(k['KAM ID'] || '', kamId)
+      );
+      const acceptableIds: string[] = [kamId];
+      if (kam) {
+        const kid = kam['KAM ID'] || kam.id;
+        if (kid && !acceptableIds.some((id) => matchIds(id, kid))) {
+          acceptableIds.push(String(kid));
+        }
+      }
+
       const managedClients = clients.filter((client: any) => {
         const assignedKAM = client['Assigned KAM'] || client['KAM ID'] || client['KAM'] || client['Assigned KAM ID'] || '';
-        
-        // Match by exact ID or by KAM ID field
-        return matchIds(assignedKAM, kamId);
+        return acceptableIds.some((id) => matchIds(assignedKAM, id));
       });
-      
-      // Return client IDs
-      const result = managedClients.map((client: any) => 
-        client.id || client['Client ID'] || client['ID']
-      ).filter(Boolean);
-      
-      // Cache the result
+
+      const result = managedClients
+        .map((client: any) => client.id || client['Client ID'] || client['ID'])
+        .filter(Boolean);
+
       requestCache.set(cacheKey, result);
-      
       return result;
     } catch (error: any) {
       console.error('[RBACFilter] Error fetching managed clients:', error);

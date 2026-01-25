@@ -38,11 +38,6 @@ export function matchIds(id1: any, id2: any): boolean {
   if (str1.toLowerCase() === str2.toLowerCase()) {
     return true;
   }
-  
-  // Check if one contains the other (for partial matches)
-  if (str1.includes(str2) || str2.includes(str1)) {
-    return true;
-  }
-  
+
   return false;
 }

@@ -973,53 +973,42 @@ export class KAMController {
   /**
    * GET /kam/loan-applications
    * List loan applications for KAM's managed clients
-   * 
+   *
+   * Uses rbacFilterService.filterLoanApplications (same as GET /loan-applications):
+   * - KAM: getKAMManagedClientIds(kamId) from Clients where Assigned KAM matches; filter app.Client.
+   *
    * Webhook Mapping:
-   * - GET → n8nClient.fetchTable('User Accounts') → /webhook/useraccount → Airtable: User Accounts
    * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
-   * 
-   * All records are parsed using standardized N8nResponseParser
-   * Returns ParsedRecord[] with clean field names (fields directly on object)
-   * 
-   * Frontend: src/pages/Applications.tsx (KAM view)
+   *
+   * Frontend: listKAMApplications, ApplicationsApiExample (KAM), test suites.
    * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, clientId } = req.query;
-      // Fetch only the tables we need
-      // All records are automatically parsed by fetchTable() using N8nResponseParser
-      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const [userAccounts, allApplications] = await Promise.all([
-        n8nClient.fetchTable('User Accounts'),
-        n8nClient.fetchTable('Loan Application'),
-      ]);
+      const allApplications = await n8nClient.fetchTable('Loan Application');
 
-      // Get managed clients
-      const managedClients = userAccounts.filter((u) => u.Role === 'client');
-      const managedClientIds = managedClients.map((c) => c.id);
-
-      // Filter by managed clients
-      let applications = allApplications.filter((app) =>
-        managedClientIds.includes(app.Client)
-      );
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      let applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
 
       if (status) {
-        applications = applications.filter((app) => app.Status === status);
+        applications = applications.filter((app: any) => app.Status === status || app.status === status);
       }
 
       if (clientId) {
-        applications = applications.filter((app) => app.Client === clientId);
+        applications = applications.filter((app: any) =>
+          String(app.Client || app['Client'] || '') === String(clientId)
+        );
       }
 
       res.json({
         success: true,
-        data: applications.map((app) => ({
+        data: applications.map((app: any) => ({
           id: app.id,
           fileId: app['File ID'],
           client: app.Client,
           applicantName: app['Applicant Name'],
-          status: app.Status,
+          status: app.Status || app.status,
           creationDate: app['Creation Date'],
         })),
       });
