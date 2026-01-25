@@ -8,7 +8,6 @@ import { FileText, Clock, CheckCircle, XCircle, Download, AlertCircle, RefreshCw
 import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { apiService } from '../../services/api';
 import { useState, useEffect } from 'react';
-import { isPageReload } from '../../utils/isPageReload';
 
 interface ApplicationRow {
   id: string;
@@ -25,10 +24,11 @@ export const NBFCDashboard: React.FC = () => {
   const { userRoleId } = useAuthSafe();
   const [assignedApplications, setAssignedApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation) and via Refresh when userRoleId is available.
   useEffect(() => {
-    if (isPageReload() && userRoleId) {
+    if (userRoleId) {
       fetchAssignedApplications();
     } else {
       setLoading(false);
@@ -40,6 +40,7 @@ export const NBFCDashboard: React.FC = () => {
     if (!userRoleId) return;
     try {
       setLoading(true);
+      setFetchError(null);
       // Use API service to fetch NBFC applications
       const response = await apiService.listNBFCApplications();
       
@@ -59,10 +60,12 @@ export const NBFCDashboard: React.FC = () => {
       } else {
         console.error('Error fetching NBFC applications:', response.error);
         setAssignedApplications([]);
+        setFetchError(response.error || 'Could not load applications. Please try again.');
       }
     } catch (error) {
       console.error('Exception in fetchAssignedApplications:', error);
       setAssignedApplications([]);
+      setFetchError((error as Error)?.message || 'Could not load applications. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -205,7 +208,16 @@ export const NBFCDashboard: React.FC = () => {
           </Button>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {fetchError ? (
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
+              <p className="text-error font-medium mb-2">Could not load applications</p>
+              <p className="text-neutral-600 text-sm mb-4">{fetchError}</p>
+              <Button variant="primary" onClick={fetchAssignedApplications}>
+                Retry
+              </Button>
+            </div>
+          ) : loading ? (
             <div className="text-center py-8 text-neutral-500">Loading applications...</div>
           ) : tableData.length === 0 ? (
             <div className="text-center py-8">

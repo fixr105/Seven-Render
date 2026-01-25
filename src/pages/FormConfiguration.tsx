@@ -11,7 +11,6 @@ import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
-import { isPageReload } from '../utils/isPageReload';
 
 // Form Modules Configuration
 interface FormModule {
@@ -194,9 +193,9 @@ export const FormConfiguration: React.FC = () => {
     }
   };
 
-  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation) and via Refresh when KAM.
   useEffect(() => {
-    if (isPageReload() && userRole === 'kam' && userRoleId) {
+    if (userRole === 'kam' && userRoleId) {
       fetchClientsForForm();
     } else {
       setClients([]);
@@ -204,12 +203,9 @@ export const FormConfiguration: React.FC = () => {
     }
   }, [userRole, userRoleId]);
 
+  // Fetch on mount (including SPA navigation) and via Refresh.
   useEffect(() => {
-    if (isPageReload()) {
-      fetchLoanProductsForForm();
-    } else {
-      setLoadingProducts(false);
-    }
+    fetchLoanProductsForForm();
   }, []);
 
   // Filter clients for KAM (only managed clients) - API already filters, but we use all returned clients

@@ -2,12 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Mail, Calendar, Clock, RefreshCw } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, Mail, Calendar, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
-import { isPageReload } from '../utils/isPageReload';
 
 interface DailySummaryReport {
   id: string;
@@ -29,6 +28,7 @@ export const Reports: React.FC = () => {
   const [reports, setReports] = useState<DailySummaryReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [reportsError, setReportsError] = useState<string | null>(null);
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
@@ -41,9 +41,9 @@ export const Reports: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation) and via Refresh when credit_team or admin.
   useEffect(() => {
-    if (isPageReload() && (userRole === 'credit_team' || userRole === 'admin')) {
+    if (userRole === 'credit_team' || userRole === 'admin') {
       fetchReports();
     } else {
       setLoading(false);
@@ -54,16 +54,19 @@ export const Reports: React.FC = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
+      setReportsError(null);
       const response = await apiService.listDailySummaries(7);
       if (response.success && response.data) {
         setReports(response.data);
       } else {
         console.error('Error fetching reports:', response.error);
         setReports([]);
+        setReportsError(response.error || 'Could not load reports. Please try again.');
       }
     } catch (error) {
       console.error('Error fetching reports:', error);
       setReports([]);
+      setReportsError((error as Error)?.message || 'Could not load reports. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -198,7 +201,16 @@ export const Reports: React.FC = () => {
             <CardTitle>Recent Reports (Last 7 Days)</CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {reportsError ? (
+              <div className="text-center py-12">
+                <AlertCircle className="w-16 h-16 text-error mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Could not load reports</h3>
+                <p className="text-neutral-600 mb-4">{reportsError}</p>
+                <Button variant="primary" icon={RefreshCw} onClick={fetchReports}>
+                  Retry
+                </Button>
+              </div>
+            ) : loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
                 <p className="text-sm text-neutral-600">Loading reports...</p>

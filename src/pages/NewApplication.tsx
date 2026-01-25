@@ -12,7 +12,6 @@ import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { Stepper } from '../components/ui/Stepper';
-import { isPageReload } from '../utils/isPageReload';
 
 interface UploadedFile {
   id: string;
@@ -67,9 +66,9 @@ export const NewApplication: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Fetch only on page refresh (F5) or via Load form. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation) and via Load form when client.
   useEffect(() => {
-    if (isPageReload() && userRole === 'client') {
+    if (userRole === 'client') {
       fetchClientId();
       fetchFormConfig();
       fetchConfiguredProducts();

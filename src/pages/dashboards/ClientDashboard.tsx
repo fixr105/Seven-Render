@@ -9,7 +9,6 @@ import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { useNotifications } from '../../hooks/useNotifications';
 import { apiService } from '../../services/api';
-import { isPageReload } from '../../utils/isPageReload';
 
 interface ApplicationRow {
   id: string;
@@ -29,14 +28,10 @@ export const ClientDashboard: React.FC = () => {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
 
-  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation) and via Refresh.
   useEffect(() => {
-    if (isPageReload()) {
-      fetchLoanProducts();
-      fetchConfiguredProducts();
-    } else {
-      setLoadingProducts(false);
-    }
+    fetchLoanProducts();
+    fetchConfiguredProducts();
   }, []);
 
   const refreshAll = () => {

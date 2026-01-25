@@ -9,7 +9,6 @@ import { useApplications } from '../../hooks/useApplications';
 import { apiService } from '../../services/api';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { useState, useEffect } from 'react';
-import { isPageReload } from '../../utils/isPageReload';
 
 interface ApplicationRow {
   id: string;
@@ -37,17 +36,14 @@ export const KAMDashboard: React.FC = () => {
   const [loadingClients, setLoadingClients] = useState(true);
   const [clientsError, setClientsError] = useState<string | null>(null);
 
-  // Fetch only on page refresh (F5) or via Refresh. No auto-fetch on SPA navigation.
+  // Fetch on mount (including SPA navigation) and via Refresh when userRoleId is available.
   useEffect(() => {
-    if (isPageReload() && userRoleId) {
+    if (userRoleId) {
       fetchClients();
-    } else if (!userRoleId) {
-      setLoadingClients(false);
-      setClientsError('KAM ID not found. Please contact support.');
     } else {
       setLoadingClients(false);
       setClients([]);
-      setClientsError(null);
+      setClientsError('KAM ID not found. Please contact support.');
     }
   }, []);
 

@@ -53,14 +53,14 @@ For each main page, this table lists **which GETs** it uses, **order** (parallel
 |------|-------------|---------------------------|-----------|---------------|---------------------------|
 | **ApplicationDetail** | App, Queries, Audit (status history) | `getApplication(id)`, `getQueries(id)`, `getFileAuditLog(id)` | Yes (3 in parallel) | One `loading` for main app; Queries and Status History have no separate loading | App: `setApplication(null)`, redirect or “not found”. Queries: `setQueries([])`. Audit: status history stays `[]`. No per-section “Failed to load” in many cases. |
 | **NewApplication** (client) | formConfig, configuredProducts, loanProducts | `getFormConfig()`, `getConfiguredProducts()`, `listLoanProducts(true)` | Form+Config parallel; `listLoanProducts` after `configuredProductsFetched` | `formConfigLoading`, `loanProductsLoading` | Form/config: `[]` or “Load form”. Products: `loanProductsError` or `[]`. |
-| **KAMDashboard** | applications, clients | `useApplications` → `listApplications()`, `listClients()` | Yes (both on mount; clients only on `isPageReload` in some code) | `loading` (apps), `loadingClients` | Apps: `[]`. Clients: `clientsError` or `[]`. **Gap**: on SPA nav, `listClients` may never run (`isPageReload`). |
-| **ClientDashboard** | applications, loanProducts, configuredProducts | `useApplications`, `listLoanProducts`, `getConfiguredProducts` | All can run in parallel from useEffects | `loading`, product load in hooks | Apps/products: empty or error state. |
-| **Applications** | applications | `useApplications` → `listApplications()` | One GET | `loading` | `[]` or error. |
-| **Clients** | clients | `listClients` or `listCreditClients` | One GET | `loading` | `[]`, `debugInfo` on error. **Gap**: fetch only on `isPageReload`; SPA nav → `[]`. |
-| **FormConfiguration** | clients, loanProducts | `listClients()`, `listLoanProducts(true)` | Parallel (in one or two useEffects) | `loading` | Empty lists or error. |
-| **Ledger** | ledger, payoutRequests | `useLedger` → `getClientLedger` or `getPayoutRequests` / `getClientPayoutRequests` | One GET per view | `loading` | `[]` or error. **Gap**: `useLedger` fetches only on `isPageReload`. |
+| **KAMDashboard** | applications, clients | `useApplications` → `listApplications()`, `listClients()` | Yes (both on mount and on Refresh) | `loading` (apps), `loadingClients` | Apps: `[]`. Clients: `clientsError` or `[]`. |
+| **ClientDashboard** | applications, loanProducts, configuredProducts | `useApplications`, `listLoanProducts`, `getConfiguredProducts` | All on mount and on Refresh | `loading`, product load in hooks | Apps/products: empty or error state. |
+| **Applications** | applications | `useApplications` → `listApplications()` | One GET on mount | `loading` | `[]` or error. |
+| **Clients** | clients | `listClients` or `listCreditClients` | One GET on mount and on Refresh | `loading` | `[]`, `debugInfo` on error. |
+| **FormConfiguration** | clients, loanProducts | `listClients()`, `listLoanProducts(true)` | Parallel on mount and on Refresh | `loading` | Empty lists or error. |
+| **Ledger** | ledger, payoutRequests | `useLedger` → `getClientLedger` or `getPayoutRequests` / `getClientPayoutRequests` | One GET per view on mount | `loading` | `[]` or error. **Note**: `useLedger` and `useApplications` fetch on mount (no isPageReload). |
 | **ClientForm** (public) | formMappings, formCategories, clients (fallback) | `getPublicFormMappings(clientId)`, `listFormCategories()`, `listClients()` in some paths | Sequential: mappings first, then categories; clients in other flow | Local loading | Empty or error. |
-| **Reports** | daily summaries | `listDailySummaries(7)` | One GET | `loading` | `[]` or error. Fetch only on `isPageReload`. |
+| **Reports** | daily summaries | `listDailySummaries(7)` | One GET on mount and on Refresh | `loading` | `[]` or error. |
 | **Login / Validate** | — | `auth/validate` or `auth/login` | One | — | 50s / 60s timeout. |
 
 **Backend GETs that fetch multiple tables (and how):**
@@ -132,13 +132,7 @@ If that sum gets close to **55s**, or if n8n often exceeds 5s, you risk frontend
 
 Several pages only fetch when `isPageReload()` is true. On **SPA navigation** (e.g. Dashboard → Applications, or sidebar → Clients), they set `loading=false` and `data=[]` and **never call the API**. So those sections stay empty until the user does a full reload (F5).
 
-**Known cases** (as of this doc):
-
-- **KAMDashboard** `listClients`: only when `isPageReload() && userRoleId`; else `setClients([])`.
-- **Clients** `fetchClients`: only when `isPageReload()`.
-- **useLedger**: only when `isPageReload()`.
-- **Reports** `listDailySummaries`: only when `isPageReload()`.
-- **NewApplication** `fetchFormConfig` / `fetchConfiguredProducts`: only when `isPageReload() && userRole === 'client'`.
+**Note:** `useLedger` and `useApplications` fetch on mount (no isPageReload). KAMDashboard, ClientDashboard, NBFCDashboard, Clients, FormConfiguration, Reports, NewApplication, and useNotifications have been updated to fetch on mount and/or on Refresh; they no longer rely on `isPageReload` for required data.
 
 **Check**: For every `useEffect` that fetches data, ask: “Should this run on **mount** when the user lands here via SPA, or only on full reload?” If it should run on mount, remove the `isPageReload()` guard (or add an explicit “Refresh” that calls the fetch). `useApplications` was fixed that way; apply the same pattern where appropriate.
 
@@ -227,7 +221,7 @@ Use these to verify that GETs are logical and that no section is left waiting pa
 rg "isPageReload" --type-add 'src:src/**/*.{ts,tsx}' -t src
 ```
 
-For each hit: if the fetch is required when the user lands on the page via the app (not F5), consider removing the `isPageReload` guard and always fetching on mount.
+For each hit: if the fetch is required when the user lands on the page via the app (not F5), consider removing the `isPageReload` guard and always fetching on mount. **As of the latest updates:** the main data fetches (KAMDashboard, ClientDashboard, NBFCDashboard, Clients, FormConfiguration, Reports, NewApplication) no longer use isPageReload; useNotifications may still use it by design.
 
 **2. List backend `fetchTable` and infer sequential waves**
 

@@ -59,9 +59,9 @@ Apply to: `getKAMManagedClientIds`, `filterLoanApplications`, `matchIds`, `listA
 | useLedger | Mount (and refetch) | Fetch on mount when role is client or credit_team; refetch on `refetch()`. |
 | useNotifications | **Only on full reload (F5)** | Intentional: avoid refetch on every SPA nav. Documented exception. |
 
-**Convention:** List hooks fetch on mount by default. "Only on full reload" is a documented exception (e.g. useNotifications).
+**Convention:** List hooks and pages fetch on mount by default (including SPA navigation). Use explicit Refresh or Load form for manual refetch.
 
-**Pages (Clients, Dashboards, FormConfiguration, NewApplication, Reports):** Each uses `isPageReload()` in `useEffect`. When editing, for list views prefer fetch on mount.
+**Pages (Clients, Dashboards, FormConfiguration, NewApplication, Reports):** These pages and useNotifications now fetch on mount (and/or on Refresh or Load form); they no longer use `isPageReload()` for required data. When adding new pages, prefer fetch on mount for list views.
 
 ---
 

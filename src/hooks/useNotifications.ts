@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuthSafe } from './useAuthSafe';
-import { isPageReload } from '../utils/isPageReload';
 
 export const useNotifications = () => {
   const { userRoleId } = useAuthSafe();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch only on full reload (F5). Intentional: avoid refetch on every SPA nav. See docs/ID_AND_RBAC_CONTRACT.md.
+  // Fetch on mount (including SPA navigation) when userRoleId is available.
   useEffect(() => {
-    if (isPageReload() && userRoleId) {
+    if (userRoleId) {
       fetchNotifications();
     } else {
       setUnreadCount(0);
