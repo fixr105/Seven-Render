@@ -41,4 +41,23 @@ describe('transformApplicationFromApi', () => {
       expect(got.client).toBeUndefined();
     });
   });
+
+  describe('loan_product from product/productId (backend listApplications shape)', () => {
+    it('product and productId present, loanProduct absent → loan_product: { name, code }', () => {
+      const got = transformApplicationFromApi(minimalApp({ product: 'Home Loan', productId: 'prod1' }));
+      expect(got.loan_product).toEqual({ name: 'Home Loan', code: 'prod1' });
+    });
+  });
+
+  describe('amounts: preserve 0, null for NaN/missing', () => {
+    it('requestedAmount: 0 → requested_loan_amount: 0', () => {
+      const got = transformApplicationFromApi(minimalApp({ requestedAmount: 0 }));
+      expect(got.requested_loan_amount).toBe(0);
+    });
+
+    it('approvedAmount: 0 → approved_loan_amount: 0', () => {
+      const got = transformApplicationFromApi(minimalApp({ approvedAmount: 0 }));
+      expect(got.approved_loan_amount).toBe(0);
+    });
+  });
 });

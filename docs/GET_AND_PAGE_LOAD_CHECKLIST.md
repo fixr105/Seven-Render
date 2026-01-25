@@ -106,7 +106,6 @@ Use this table to see if any single GET can exceed the frontend 55s timeout. Eac
 | `GET /notifications/unread-count` | Notifications | 5s | Yes | |
 | `GET /loan-products` | Loan Products (5s explicit) | 5s | Yes | |
 | `GET /loan-products/:id` | Loan Products | 5s | Yes | |
-| `GET /loan-applications/:id/audit-log` | all(Loan App, File Auditing Log) → filter (KAM: getKAM 2) | KAM: 10s; others: 5s | Yes | audit.controller.getFileAuditLog |
 | `GET /audit/admin/activity-log` | Admin Activity Log | 5s | Yes | |
 
 **Summary**: Max worst-case **15s** (KAM `getApplication`, `getQueries`). All are well under the frontend **55s** GET timeout. **Risk**: If n8n routinely takes &gt;5s per webhook, `fetchTable` returns `[]` on timeout and controllers respond 200 with partial/empty data—sections then “don’t load” without a visible timeout.

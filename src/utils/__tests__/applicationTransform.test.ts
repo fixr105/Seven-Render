@@ -25,4 +25,8 @@ describe('mapClientFromApi', () => {
   it('client: null → undefined', () => {
     expect(mapClientFromApi(null)).toBeUndefined();
   });
+
+  it('client: { company_name: "X" } → { company_name: "X" }', () => {
+    expect(mapClientFromApi({ company_name: 'X' })).toEqual({ company_name: 'X' });
+  });
 });

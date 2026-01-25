@@ -18,7 +18,7 @@ export function mapClientFromApi(client: unknown): { company_name: string } | un
   }
   if (typeof client === 'object' && client !== null) {
     const obj = client as Record<string, unknown>;
-    const name = (obj.name ?? obj['Client Name']) as string | undefined;
+    const name = (obj.company_name ?? obj.name ?? obj['Client Name']) as string | undefined;
     return { company_name: name ?? '' };
   }
   return undefined;

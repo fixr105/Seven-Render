@@ -37,21 +37,42 @@ export function transformApplicationFromApi(app: any): LoanApplication {
     client_id: app.clientId || app.Client || '',
     applicant_name: app.applicantName || app['Applicant Name'] || '',
     loan_product_id: app.productId || app['Loan Product'] || null,
-    requested_loan_amount: (app.requestedAmount ?? parseFloat(app['Requested Loan Amount'] || '0')) || null,
+    requested_loan_amount: (() => {
+      const v = app.requestedAmount ?? app['Requested Loan Amount'];
+      const n = v != null ? (typeof v === 'number' ? v : parseFloat(String(v))) : NaN;
+      return isNaN(n) ? null : n;
+    })(),
     status: app.status || app.Status || 'draft',
     assigned_credit_analyst: app.assignedCreditAnalyst || app['Assigned Credit Analyst'] || null,
     assigned_nbfc_id: app.assignedNBFC || app['Assigned NBFC'] || null,
     lender_decision_status: app.lenderDecisionStatus || app['Lender Decision Status'] || null,
     lender_decision_date: app.lenderDecisionDate || app['Lender Decision Date'] || null,
     lender_decision_remarks: app.lenderDecisionRemarks || app['Lender Decision Remarks'] || null,
-    approved_loan_amount: (app.approvedAmount ?? parseFloat(app['Approved Loan Amount'] || '0')) || null,
+    approved_loan_amount: (() => {
+      const v = app.approvedAmount ?? app['Approved Loan Amount'];
+      const n = v != null ? (typeof v === 'number' ? v : parseFloat(String(v))) : NaN;
+      return isNaN(n) ? null : n;
+    })(),
     ai_file_summary: app.aiFileSummary || app['AI File Summary'] || null,
     form_data: app.formData || (typeof app['Form Data'] === 'string' ? JSON.parse(app['Form Data'] || '{}') : app['Form Data']) || {},
     created_at: app.creationDate || app['Creation Date'] || app.createdAt || new Date().toISOString(),
     submitted_at: app.submittedDate || app['Submitted Date'] || null,
     updated_at: app.lastUpdated || app['Last Updated'] || app.updatedAt || new Date().toISOString(),
     client: mapClientFromApi(app.client),
-    loan_product: app.loanProduct ? { name: app.loanProduct.name || app.loanProduct['Product Name'], code: app.loanProduct.id || app.loanProduct['Product ID'] } : undefined,
+    loan_product: (() => {
+      if (app.loanProduct != null && typeof app.loanProduct === 'object') {
+        return { name: (app.loanProduct.name || app.loanProduct['Product Name']) ?? '', code: (app.loanProduct.id || app.loanProduct['Product ID']) ?? '' };
+      }
+      if (typeof app.loanProduct === 'string') {
+        return { name: app.loanProduct, code: app.productId ?? '' };
+      }
+      if (app.product != null || app.productId != null) {
+        const name = typeof app.product === 'string' ? app.product : (app.product?.['Product Name'] ?? '');
+        const code = typeof app.productId === 'string' ? app.productId : (app.productId ?? '');
+        return { name: String(name ?? ''), code: String(code ?? '') };
+      }
+      return undefined;
+    })(),
   };
 }
 
