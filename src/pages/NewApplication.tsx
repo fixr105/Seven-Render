@@ -31,7 +31,7 @@ interface FormData {
 export const NewApplication: React.FC = () => {
   const navigate = useNavigate();
   const { userRole, userRoleId, user } = useAuthSafe();
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({});
   const [documentLinks, setDocumentLinks] = useState<Record<string, string>>({}); // Module 2: OneDrive links
   const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({}); // Module 2: Upload progress
@@ -490,6 +490,9 @@ export const NewApplication: React.FC = () => {
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
+      notifications={notifications}
+      onMarkAsRead={markAsRead}
+      onMarkAllAsRead={markAllAsRead}
     >
       <form onSubmit={(e) => handleSubmit(e, false)}>
         {/* Module 2: Stepper */}

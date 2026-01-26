@@ -13,7 +13,7 @@ import { apiService } from '../services/api';
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { user, userRole, userRoleId } = useAuthSafe();
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [phoneError, setPhoneError] = useState<string>('');
   const [profileData, setProfileData] = useState({
@@ -105,6 +105,9 @@ export const Profile: React.FC = () => {
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={profileData.name || user?.email?.split('@')[0] || ''}
       notificationCount={unreadCount}
+      notifications={notifications}
+      onMarkAsRead={markAsRead}
+      onMarkAllAsRead={markAllAsRead}
     >
       <div className="max-w-2xl mx-auto">
         <Card className="mb-6">

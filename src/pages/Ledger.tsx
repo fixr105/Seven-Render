@@ -21,7 +21,7 @@ export const Ledger: React.FC = () => {
     return '';
   };
   const { entries, balance, loading, requestPayout, raiseQuery, flagPayout, refetch } = useLedger();
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showQueryModal, setShowQueryModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<any>(null);
@@ -151,7 +151,10 @@ export const Ledger: React.FC = () => {
       pageTitle="Commission Ledger"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
-      notificationCount={unreadCount}
+        notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
         {/* Balance Summary Card */}

@@ -1,15 +1,14 @@
 /**
  * AI File Summary Controller
- * 
- * Generates AI-powered summaries for loan applications using:
- * - OpenAI API (if OPENAI_API_KEY is set)
- * - n8n AI node webhook (if N8N_AI_WEBHOOK_URL is set)
- * - Structured fallback summary (if neither is available)
- * 
+ *
+ * Generates AI-powered summaries for loan applications. Default for credit team:
+ * - big-brain-bro (N8N_BIG_BRAIN_BRO_URL): POSTs same JSON as /webhook/loanapplications
+ * - n8n AI (N8N_AI_WEBHOOK_URL), OpenAI (OPENAI_API_KEY), or structured fallback
+ *
  * Webhook Mapping:
  * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
  * - GET → n8nClient.fetchTable('Clients') → /webhook/client → Airtable: Clients
- * - POST → n8nClient.postLoanApplication() → /webhook/loanapplications → Airtable: Loan Applications
+ * - POST → N8N_BIG_BRAIN_BRO_URL (AI) then n8nClient.postLoanApplication() → /webhook/loanapplications → Airtable: Loan Applications
  */
 
 import { Request, Response } from 'express';
@@ -95,15 +94,19 @@ export class AIController {
         } : undefined,
       };
 
-      // Generate AI summary
-      const summaryResult = await aiSummaryService.generateSummary(summaryRequest);
+      // Generate AI summary (pass application for big-brain-bro: same POST body as /webhook/loanapplications)
+      console.log('[AIController] Generating summary for application:', id, 'File ID:', application['File ID']);
+      const summaryResult = await aiSummaryService.generateSummary(summaryRequest, application);
+      console.log('[AIController] Summary generated, length:', summaryResult.fullSummary.length);
 
       // Update application with AI File Summary
+      console.log('[AIController] Updating application with AI File Summary');
       await n8nClient.postLoanApplication({
         ...application,
         'AI File Summary': summaryResult.fullSummary,
         'Last Updated': new Date().toISOString(),
       });
+      console.log('[AIController] Application updated successfully');
 
       res.json({
         success: true,
@@ -121,9 +124,27 @@ export class AIController {
       });
     } catch (error: any) {
       console.error('[AIController] Error generating summary:', error);
-      res.status(500).json({
+      console.error('[AIController] Error stack:', error.stack);
+      
+      // Provide more specific error messages
+      let statusCode = 500;
+      let errorMessage = error.message || 'Failed to generate summary';
+      
+      if (error.message?.includes('not found')) {
+        statusCode = 404;
+      } else if (error.message?.includes('Access denied') || error.message?.includes('permission')) {
+        statusCode = 403;
+      } else if (error.message?.includes('timeout') || error.message?.includes('ETIMEDOUT')) {
+        statusCode = 504;
+        errorMessage = 'Request timeout. The AI service may be slow. Please try again.';
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        statusCode = 503;
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message || 'Failed to generate summary',
+        error: errorMessage,
       });
     }
   }

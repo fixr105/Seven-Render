@@ -771,42 +771,16 @@ export class N8nClient {
   }
 
   /**
-   * POST Loan Application to n8n webhook
-   * 
-   * Webhook Path: /webhook/loanapplications (plural) - POST create/update operations
-   * Airtable Table: Loan Applications
-   * 
-   * Note: GET operations use /webhook/loanapplication (singular) via fetchTable('Loan Application')
-   * 
-   * Called from:
-   * - LoanController.createApplication() - Create new application
-   * - LoanController.updateApplicationForm() - Update form data
-   * - LoanController.submitApplication() - Submit draft
-   * - KAMController.editApplication() - KAM edits application
-   * - KAMController.forwardToCredit() - Forward to credit
-   * - CreditController.markInNegotiation() - Mark in negotiation
-   * - CreditController.assignNBFCs() - Assign to NBFC
-   * - CreditController.captureNBFCDecision() - Record NBFC decision
-   * - CreditController.markDisbursed() - Mark as disbursed
-   * - NBFController.recordDecision() - NBFC records decision
-   * 
-   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
+   * Build the loan application payload (same shape as POST /webhook/loanapplications).
+   * Used by postLoanApplication and by the AI summary big-brain-bro webhook.
    */
-  async postLoanApplication(data: Record<string, any>) {
-    // Ensure only exact fields are sent to applications webhook
-    // Only send: id, File ID, Client, Applicant Name, Loan Product, Requested Loan Amount,
-    // Documents, Status, Assigned Credit Analyst, Assigned NBFC, Lender Decision Status,
-    // Lender Decision Date, Lender Decision Remarks, Approved Loan Amount, AI File Summary,
-    // Form Data, Creation Date, Submitted Date, Last Updated, Asana Task ID, Asana Task Link
-    
-    // Handle Form Data - stringify if it's an object
+  buildLoanApplicationPayload(data: Record<string, any>): Record<string, any> {
     let formData = data['Form Data'] || data.formData || '';
     if (typeof formData === 'object' && formData !== null) {
       formData = JSON.stringify(formData);
     }
-    
-    const loanApplicationData = {
-      id: data.id, // for matching
+    return {
+      id: data.id,
       'File ID': data['File ID'] || data.fileId || '',
       'Client': data['Client'] || data.client || '',
       'Applicant Name': data['Applicant Name'] || data.applicantName || '',
@@ -825,12 +799,37 @@ export class N8nClient {
       'Creation Date': data['Creation Date'] || data.creationDate || '',
       'Submitted Date': data['Submitted Date'] || data.submittedDate || '',
       'Last Updated': data['Last Updated'] || data.lastUpdated || '',
-      // Asana Integration fields
       'Asana Task ID': data['Asana Task ID'] || data.asanaTaskId || '',
       'Asana Task Link': data['Asana Task Link'] || data.asanaTaskLink || '',
     };
+  }
+
+  /**
+   * POST Loan Application to n8n webhook
+   * 
+   * Webhook Path: /webhook/loanapplications (plural) - POST create/update operations
+   * Airtable Table: Loan Applications
+   * 
+   * Note: GET operations use /webhook/loanapplication (singular) via fetchTable('Loan Application')
+   * 
+   * Called from:
+   * - LoanController.createApplication() - Create new application
+   * - LoanController.updateApplicationForm() - Update form data
+   * - LoanController.submitApplication() - Submit draft
+   * - KAMController.editApplication() - KAM edits application
+   * - KAMController.forwardToCredit() - Forward to credit
+   * - CreditController.markInNegotiation() - Mark in negotiation
+   * - CreditController.assignNBFCs() - Assign to NBFC
+   * - CreditController.captureNBFCDecision() - Record NBFC decision
+   * - CreditController.markDisbursed() - Mark as disbursed
+   * - NBFController.recordDecision() - NBFC records decision
+   * - AIController.generateSummary() - Update AI File Summary
+   * 
+   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
+   */
+  async postLoanApplication(data: Record<string, any>) {
+    const loanApplicationData = this.buildLoanApplicationPayload(data);
     const result = await this.postData(n8nConfig.postApplicationsUrl, loanApplicationData);
-    // Invalidate cache for Loan Applications and related tables
     this.invalidateCache('Loan Application');
     this.invalidateCache('File Auditing Log');
     return result;

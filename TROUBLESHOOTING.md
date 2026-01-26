@@ -72,7 +72,12 @@ npm run dev
      curl -s -w "\nstatus=%{http_code}" -X POST "YOUR_N8N_BASE_URL/webhook/validate" \
        -H "Content-Type: application/json" -d '{"username":"Sagar@gmail.com","passcode":"pass@123"}'
      ```
-     Expect `status=200` and JSON (e.g. `[{ "output": { "username": "...", "role": "..." } }]` or `{ "success": true, "user": {...} }`). If you get HTML or 404, the `/webhook/validate` workflow is missing or broken.
+     For **Rahul@gmail.com** / **pass@123**:
+     ```bash
+     curl -s -w "\nstatus=%{http_code}" -X POST "YOUR_N8N_BASE_URL/webhook/validate" \
+       -H "Content-Type: application/json" -d '{"username":"Rahul@gmail.com","passcode":"pass@123"}'
+     ```
+     Expect `status=200` and JSON (e.g. `[{ "output": { "username": "...", "role": "..." } }]` or `{ "success": true, "user": {...} }`). If you get **empty**, **HTML**, or **404**, the `/webhook/validate` workflow may be inactive, the user may not exist in **User Accounts** (Airtable), or the workflow returns nothing when the user is not found.
    - **Useraccount (Email/Password):**
      ```bash
      curl -s -w "\nstatus=%{http_code}" "YOUR_N8N_BASE_URL/webhook/useraccount"
@@ -82,6 +87,11 @@ npm run dev
 3. **Env:** Set `N8N_BASE_URL` (e.g. `https://your-instance.app.n8n.cloud`) with **no** trailing slash. For login, optional: `N8N_GET_USER_ACCOUNTS_URL`. For validate, the URL is always `N8N_BASE_URL/webhook/validate`.
 
 4. **Local dev without n8n (Email/Password only):** Set `E2E_USE_MOCK_USER_ACCOUNTS=1` and use **Sagar@gmail.com** / **pass@123**. The Username/Passcode (validate) flow has no mock; it always calls n8n.
+
+5. **Rahul@gmail.com (or other usernames) returns "temporarily unavailable":** The n8n `/webhook/validate` workflow looks up **User Accounts** in Airtable by **Username** and **Password**. If the user does not exist, or the workflow returns **empty** or **HTML**, you get this error. **Fix:**  
+   - **Option A:** Add the user to **User Accounts** in Airtable: `Username` = `Rahul@gmail.com`, `Password` = `pass@123`, `Role` = your role (e.g. `credit_team`), `Account Status` = `Active`. Ensure the n8n validate workflow is **active** and queries this table.  
+   - **Option B:** Run `node backend/scripts/create-test-users.js` (after adding your user to the `testUsers` array in that script). That calls the `/webhook/adduser` n8n webhook to create the account.  
+   - Then test with the curl command in step 2; if it returns 200 and JSON, login from the app should work.
 
 ### Issue: API calls failing
 **Solution:**

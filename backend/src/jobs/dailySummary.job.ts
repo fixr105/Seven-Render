@@ -8,67 +8,23 @@
  * Can be configured via environment variable CRON_SCHEDULE
  */
 
-import * as cron from 'node-cron';
 import { dailySummaryService } from '../services/reports/dailySummary.service.js';
 
 /**
  * Daily Summary Report Job
  */
 export class DailySummaryJob {
-  private task: cron.ScheduledTask | null = null;
+  private task: { stop(): void } | null = null;
   private isRunning = false;
 
   /**
-   * Start the daily summary job
-   * 
-   * Schedule: Runs daily at 00:00 UTC (configurable via CRON_SCHEDULE env var)
+   * Start the daily summary job.
+   * DISABLED: No automatic cron. GET/POST webhooks (n8n) must run only on page load or user action.
+   * Use Reports page "Generate" button or dailySummaryJob.runManually() for on-demand reports.
    */
   start(): void {
-    // Default schedule: Daily at 00:00 UTC
-    // Can be overridden with CRON_SCHEDULE environment variable
-    const schedule = process.env.CRON_SCHEDULE || '0 0 * * *'; // Every day at midnight UTC
-
-    console.log(`[DailySummaryJob] Starting daily summary job with schedule: ${schedule}`);
-
-    this.task = cron.schedule(schedule, async () => {
-      if (this.isRunning) {
-        console.warn('[DailySummaryJob] Previous job still running, skipping this execution');
-        return;
-      }
-
-      this.isRunning = true;
-      const startTime = Date.now();
-
-      try {
-        console.log('[DailySummaryJob] Starting daily summary generation...');
-        
-        // Generate report for yesterday (default)
-        const reportData = await dailySummaryService.generateDailySummary();
-        
-        // Save to database
-        const reportId = await dailySummaryService.saveDailySummary(reportData);
-        
-        const duration = Date.now() - startTime;
-        console.log(`[DailySummaryJob] Daily summary generated successfully. Report ID: ${reportId}. Duration: ${duration}ms`);
-        console.log(`[DailySummaryJob] Report Date: ${reportData.reportDate}`);
-        console.log(`[DailySummaryJob] Metrics:`, {
-          totalApplications: reportData.metrics.totalApplications,
-          newApplications: reportData.metrics.newApplications,
-          applicationsDisbursed: reportData.metrics.applicationsDisbursed,
-          totalActivities: reportData.metrics.totalActivities,
-        });
-      } catch (error: any) {
-        console.error('[DailySummaryJob] Error generating daily summary:', error);
-        console.error('[DailySummaryJob] Error stack:', error.stack);
-        
-        // Log error but don't throw - job should continue running
-        // In production, you might want to send an alert/notification here
-      } finally {
-        this.isRunning = false;
-      }
-    });
-
-    console.log('[DailySummaryJob] Daily summary job started successfully');
+    console.log('[DailySummaryJob] Automatic scheduling is disabled. Use Reports page Generate or runManually() for on-demand reports.');
+    return; // No cron: avoid automated n8n GET/POST
   }
 
   /**

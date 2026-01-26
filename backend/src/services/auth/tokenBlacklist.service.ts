@@ -14,13 +14,9 @@ interface BlacklistedToken {
 
 class TokenBlacklistService {
   private blacklist: Map<string, BlacklistedToken> = new Map();
-  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Clean up expired tokens every hour
-    this.cleanupInterval = setInterval(() => {
-      this.cleanup();
-    }, 60 * 60 * 1000);
+    // No setInterval: avoid automated executions. Cleanup is done lazily in isBlacklisted().
   }
 
   /**
@@ -47,9 +43,10 @@ class TokenBlacklistService {
       return false;
     }
 
-    // Check if token has expired (cleanup should handle this, but double-check)
+    // Check if token has expired; remove and opportunistically clean others (no setInterval)
     if (Date.now() > entry.expiresAt * 1000) {
       this.blacklist.delete(tokenHash);
+      this.cleanup();
       return false;
     }
 
@@ -123,10 +120,6 @@ class TokenBlacklistService {
    * Cleanup on shutdown
    */
   destroy(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-    }
     this.blacklist.clear();
   }
 }

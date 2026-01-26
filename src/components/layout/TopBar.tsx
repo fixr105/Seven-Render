@@ -2,15 +2,28 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Menu, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
+import { Notification } from '../../hooks/useNotifications';
+import { formatRelativeTime } from '../../utils/dateFormatter';
 
 interface TopBarProps {
   title: string;
   onMenuToggle: () => void;
   notificationCount?: number;
   userName?: string;
+  notifications?: Notification[];
+  onMarkAsRead?: (notificationId: string) => void;
+  onMarkAllAsRead?: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificationCount = 0, userName = '' }) => {
+export const TopBar: React.FC<TopBarProps> = ({
+  title,
+  onMenuToggle,
+  notificationCount = 0,
+  userName = '',
+  notifications = [],
+  onMarkAsRead,
+  onMarkAllAsRead,
+}) => {
   const navigate = useNavigate();
   const { signOut } = useAuthSafe();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -19,6 +32,23 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
   const handleLogout = async () => {
     await signOut();
     navigate('/login');
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    // Mark as read if not already read
+    if (!notification.isRead && onMarkAsRead) {
+      onMarkAsRead(notification.id);
+    }
+
+    // Navigate to application
+    if (notification.actionLink) {
+      navigate(notification.actionLink);
+    } else if (notification.relatedFile) {
+      navigate(`/applications/${notification.relatedFile}`);
+    }
+
+    // Close dropdown
+    setShowNotifications(false);
   };
 
   return (
@@ -61,20 +91,57 @@ export const TopBar: React.FC<TopBarProps> = ({ title, onMenuToggle, notificatio
                   onClick={() => setShowNotifications(false)}
                 />
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-level-2 z-50 max-h-96 overflow-y-auto border border-neutral-200">
-                  <div className="p-4 border-b border-neutral-200">
+                  <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-neutral-900">Notifications</h3>
+                    {notificationCount > 0 && onMarkAllAsRead && (
+                      <button
+                        onClick={() => {
+                          onMarkAllAsRead();
+                        }}
+                        className="text-xs text-brand-primary hover:text-brand-primary-dark font-medium"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
                   </div>
-                  {notificationCount === 0 ? (
+                  {notifications.length === 0 ? (
                     <div className="p-4 text-center text-neutral-500">
-                      No new notifications
+                      No notifications
                     </div>
                   ) : (
                     <div className="divide-y divide-neutral-200">
-                      {/* Placeholder notifications */}
-                      <div className="p-3 hover:bg-neutral-50 cursor-pointer">
-                        <p className="text-sm text-neutral-900">New application submitted</p>
-                        <p className="text-xs text-neutral-500 mt-1">5 minutes ago</p>
-                      </div>
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`p-3 hover:bg-neutral-50 cursor-pointer transition-colors ${
+                            !notification.isRead ? 'bg-neutral-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={`text-sm ${
+                                  !notification.isRead
+                                    ? 'font-semibold text-neutral-900'
+                                    : 'text-neutral-700'
+                                }`}
+                              >
+                                {notification.title}
+                              </p>
+                              <p className="text-xs text-neutral-600 mt-1 line-clamp-2">
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-neutral-500 mt-1">
+                                {formatRelativeTime(notification.createdAt)}
+                              </p>
+                            </div>
+                            {!notification.isRead && (
+                              <div className="w-2 h-2 bg-brand-primary rounded-full mt-1 flex-shrink-0" />
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

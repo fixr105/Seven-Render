@@ -8,12 +8,13 @@ import fetch from 'node-fetch';
 const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
 const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
 
-// Test user: Sagar@gmail.com / pass@123 (for tests always use these credentials)
+// Test users: Sagar@gmail.com / pass@123 (for tests); Rahul@gmail.com / pass@123
 const testUsers = [
   { email: 'Sagar@gmail.com', password: 'pass@123', role: 'client', name: 'Sagar' },
   { email: 'Sagar@gmail.com', password: 'pass@123', role: 'kam', name: 'Sagar' },
   { email: 'Sagar@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Sagar' },
   { email: 'Sagar@gmail.com', password: 'pass@123', role: 'nbfc', name: 'Sagar' },
+  { email: 'Rahul@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Rahul' },
 ];
 
 async function createUserAccount(user) {

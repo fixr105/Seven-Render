@@ -11,7 +11,7 @@ import { NBFCDashboard } from './dashboards/NBFCDashboard';
 
 export const Dashboard: React.FC = () => {
   const { userRole, user } = useAuthSafe();
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   // Role-based sidebar items
   const sidebarItems = useMemo(() => {
@@ -107,6 +107,9 @@ export const Dashboard: React.FC = () => {
       userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
+      notifications={notifications}
+      onMarkAsRead={markAsRead}
+      onMarkAllAsRead={markAllAsRead}
     >
       {renderDashboard()}
     </MainLayout>

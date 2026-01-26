@@ -1,8 +1,12 @@
 /**
  * AI Summary Service
  * Generates AI-powered summaries for loan applications
- * 
- * Supports both OpenAI API and n8n AI node integration
+ *
+ * Priority (default for credit team):
+ * 1. big-brain-bro webhook (N8N_BIG_BRAIN_BRO_URL) - same POST body as /webhook/loanapplications
+ * 2. n8n AI webhook (N8N_AI_WEBHOOK_URL)
+ * 3. OpenAI API (OPENAI_API_KEY)
+ * 4. Structured fallback
  */
 
 import { n8nClient } from '../airtable/n8nClient.js';
@@ -33,27 +37,84 @@ export interface AISummaryResult {
 export class AISummaryService {
   /**
    * Generate AI summary for a loan application
-   * 
-   * This method can use either:
-   * 1. OpenAI API directly (if OPENAI_API_KEY is set)
-   * 2. n8n AI node webhook (if N8N_AI_WEBHOOK_URL is set)
-   * 3. Fallback to structured summary generation
+   *
+   * @param request - Summary request (fileId, applicantName, formData, etc.)
+   * @param application - Full application record (required for big-brain-bro; same shape as POST /webhook/loanapplications)
    */
-  async generateSummary(request: AISummaryRequest): Promise<AISummaryResult> {
-    // Check if n8n AI webhook is configured
+  async generateSummary(request: AISummaryRequest, application?: Record<string, any>): Promise<AISummaryResult> {
+    // 1. Default for credit team: big-brain-bro (same POST body as /webhook/loanapplications)
+    const bigBrainBroUrl = process.env.N8N_BIG_BRAIN_BRO_URL;
+    if (bigBrainBroUrl && application) {
+      try {
+        return await this.generateViaBigBrainBro(application, request);
+      } catch (error) {
+        console.error('[AISummaryService] big-brain-bro webhook error:', error);
+        // Fall through to next provider
+      }
+    }
+
+    // 2. n8n AI webhook
     const n8nAiWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
     if (n8nAiWebhookUrl) {
       return this.generateViaN8n(n8nAiWebhookUrl, request);
     }
 
-    // Check if OpenAI API key is configured
+    // 3. OpenAI API
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (openaiApiKey) {
       return this.generateViaOpenAI(openaiApiKey, request);
     }
 
-    // Fallback to structured summary generation
+    // 4. Fallback to structured summary
     return this.generateStructuredSummary(request);
+  }
+
+  /**
+   * Generate summary via big-brain-bro webhook.
+   * POSTs the same JSON as /webhook/loanapplications (buildLoanApplicationPayload).
+   * Response: [{ "output": "..." }] or { "output": "..." }
+   */
+  private async generateViaBigBrainBro(application: Record<string, any>, request: AISummaryRequest): Promise<AISummaryResult> {
+    const url = process.env.N8N_BIG_BRAIN_BRO_URL!;
+    const payload = n8nClient.buildLoanApplicationPayload(application);
+
+    console.log('[AISummaryService] Calling big-brain-bro webhook:', url);
+    console.log('[AISummaryService] Payload File ID:', payload['File ID']);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error('[AISummaryService] big-brain-bro HTTP error:', response.status, response.statusText, errorText);
+        throw new Error(`big-brain-bro webhook failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = (await response.json()) as any;
+      console.log('[AISummaryService] big-brain-bro response type:', Array.isArray(result) ? 'array' : typeof result);
+
+      // Parse response - handle both array and object formats
+      const output =
+        (Array.isArray(result) && result[0]?.output) ? result[0].output
+        : (typeof result?.output === 'string') ? result.output
+        : (typeof result === 'string') ? result
+        : '';
+
+      if (!output || typeof output !== 'string') {
+        console.error('[AISummaryService] big-brain-bro invalid response format:', JSON.stringify(result).substring(0, 200));
+        throw new Error('big-brain-bro returned no output or invalid format');
+      }
+
+      console.log('[AISummaryService] big-brain-bro output length:', output.length);
+      return this.parseSummaryResponse(output);
+    } catch (error: any) {
+      console.error('[AISummaryService] big-brain-bro error:', error.message || error);
+      throw error; // Re-throw to allow fallback in generateSummary
+    }
   }
 
   /**
@@ -348,32 +409,96 @@ ${summary.recommendation}
 
   /**
    * Parse summary response from various formats
+   * Handles both structured format (with APPLICANT PROFILE sections) and markdown (from big-brain-bro)
    */
   private parseSummaryResponse(summaryText: string): AISummaryResult {
-    // Try to extract structured information from text
+    // First, try to parse structured format with sections
     const applicantProfileMatch = summaryText.match(/APPLICANT PROFILE[\s\S]*?════+([\s\S]*?)(?=════|LOAN DETAILS|$)/i);
     const loanDetailsMatch = summaryText.match(/LOAN DETAILS[\s\S]*?════+([\s\S]*?)(?=════|STRENGTHS|$)/i);
     const strengthsMatch = summaryText.match(/STRENGTHS[\s\S]*?════+([\s\S]*?)(?=════|RISKS|$)/i);
     const risksMatch = summaryText.match(/RISKS[\s\S]*?════+([\s\S]*?)(?=════|RECOMMENDATION|$)/i);
     const recommendationMatch = summaryText.match(/RECOMMENDATION[\s\S]*?════+([\s\S]*?)(?=════|$)/i);
 
-    const applicantProfile = applicantProfileMatch ? applicantProfileMatch[1].trim() : '';
-    const loanDetails = loanDetailsMatch ? loanDetailsMatch[1].trim() : '';
-    const strengths = strengthsMatch 
-      ? strengthsMatch[1].split('\n').filter(line => line.trim() && !line.trim().match(/^[═\-]+$/)).map(line => line.replace(/^\d+\.\s*/, '').trim()).filter(Boolean)
+    // If structured format found, use it
+    if (applicantProfileMatch || loanDetailsMatch || strengthsMatch || risksMatch) {
+      const applicantProfile = applicantProfileMatch ? applicantProfileMatch[1].trim() : '';
+      const loanDetails = loanDetailsMatch ? loanDetailsMatch[1].trim() : '';
+      const strengths = strengthsMatch 
+        ? strengthsMatch[1].split('\n').filter(line => line.trim() && !line.trim().match(/^[═\-]+$/)).map(line => line.replace(/^\d+\.\s*/, '').trim()).filter(Boolean)
+        : [];
+      const risks = risksMatch
+        ? risksMatch[1].split('\n').filter(line => line.trim() && !line.trim().match(/^[═\-]+$/)).map(line => line.replace(/^\d+\.\s*/, '').trim()).filter(Boolean)
+        : [];
+      const recommendation = recommendationMatch ? recommendationMatch[1].trim() : undefined;
+
+      return {
+        applicantProfile: applicantProfile || summaryText.substring(0, 200),
+        loanDetails: loanDetails || '',
+        strengths: strengths.length > 0 ? strengths : ['Analysis in progress'],
+        risks: risks.length > 0 ? risks : ['Standard risk assessment'],
+        recommendation,
+        fullSummary: summaryText,
+      };
+    }
+
+    // Otherwise, parse markdown format (from big-brain-bro)
+    // Extract key information from markdown
+    const fileIdMatch = summaryText.match(/\*\*Loan File ID:\*\*\s*([^\n\*]+)/i) || summaryText.match(/File ID[:\s]+([A-Z0-9]+)/i);
+    const productMatch = summaryText.match(/\*\*Loan Product:\*\*\s*([^\n\*]+)/i) || summaryText.match(/Loan Product[:\s]+([^\n]+)/i);
+    const amountMatch = summaryText.match(/\*\*Requested Loan Amount:\*\*\s*([^\n\*]+)/i) || summaryText.match(/Amount[:\s]+([^\n]+)/i);
+    const tenureMatch = summaryText.match(/\*\*Proposed Tenure:\*\*\s*([^\n\*]+)/i) || summaryText.match(/Tenure[:\s]+([^\n]+)/i);
+    const rateMatch = summaryText.match(/\*\*Interest Rate:\*\*\s*([^\n\*]+)/i) || summaryText.match(/Interest Rate[:\s]+([^\n]+)/i);
+    const purposeMatch = summaryText.match(/\*\*Purpose\/Notes:\*\*\s*([^\n\*]+)/i) || summaryText.match(/Purpose[:\s]+([^\n]+)/i);
+
+    // Build applicant profile from markdown
+    const applicantProfile = [
+      fileIdMatch ? `File ID: ${fileIdMatch[1].trim()}` : '',
+      productMatch ? `Product: ${productMatch[1].trim()}` : '',
+      amountMatch ? `Amount: ${amountMatch[1].trim()}` : '',
+      tenureMatch ? `Tenure: ${tenureMatch[1].trim()}` : '',
+      rateMatch ? `Rate: ${rateMatch[1].trim()}` : '',
+    ].filter(Boolean).join('\n') || summaryText.substring(0, 300);
+
+    // Build loan details
+    const loanDetails = [
+      productMatch ? `Product: ${productMatch[1].trim()}` : '',
+      amountMatch ? `Amount: ${amountMatch[1].trim()}` : '',
+      tenureMatch ? `Tenure: ${tenureMatch[1].trim()}` : '',
+      rateMatch ? `Interest Rate: ${rateMatch[1].trim()}` : '',
+      purposeMatch ? `Purpose: ${purposeMatch[1].trim()}` : '',
+    ].filter(Boolean).join('\n') || '';
+
+    // Extract strengths and risks from markdown (look for sections or bullet points)
+    const strengthsSection = summaryText.match(/(?:###\s*)?(?:Strengths?|Key Strengths?)[\s\S]*?(?=###|##|$)/i);
+    const risksSection = summaryText.match(/(?:###\s*)?(?:Risks?|Key Risks?|Potential Risks?)[\s\S]*?(?=###|##|$)/i);
+    
+    const strengths: string[] = strengthsSection
+      ? strengthsSection[0].split('\n')
+          .filter(line => line.trim() && (line.includes('-') || line.includes('*') || line.match(/^\d+\./)))
+          .map(line => line.replace(/^[\s\-\*•\d\.]+\s*/, '').trim())
+          .filter(Boolean)
       : [];
-    const risks = risksMatch
-      ? risksMatch[1].split('\n').filter(line => line.trim() && !line.trim().match(/^[═\-]+$/)).map(line => line.replace(/^\d+\.\s*/, '').trim()).filter(Boolean)
+    
+    const risks: string[] = risksSection
+      ? risksSection[0].split('\n')
+          .filter(line => line.trim() && (line.includes('-') || line.includes('*') || line.match(/^\d+\./)))
+          .map(line => line.replace(/^[\s\-\*•\d\.]+\s*/, '').trim())
+          .filter(Boolean)
       : [];
-    const recommendation = recommendationMatch ? recommendationMatch[1].trim() : undefined;
+
+    // Extract recommendation
+    const recommendationSection = summaryText.match(/(?:###\s*)?(?:Recommendation|Overall Recommendation|Conclusion)[\s\S]*?(?=###|##|$)/i);
+    const recommendation = recommendationSection
+      ? recommendationSection[0].replace(/^###\s*(?:Recommendation|Overall Recommendation|Conclusion)\s*/i, '').trim()
+      : undefined;
 
     return {
       applicantProfile: applicantProfile || summaryText.substring(0, 200),
       loanDetails: loanDetails || '',
-      strengths: strengths.length > 0 ? strengths : ['Analysis in progress'],
-      risks: risks.length > 0 ? risks : ['Standard risk assessment'],
+      strengths: strengths.length > 0 ? strengths : ['Summary generated successfully'],
+      risks: risks.length > 0 ? risks : ['Review recommended'],
       recommendation,
-      fullSummary: summaryText,
+      fullSummary: summaryText, // Keep full markdown for display
     };
   }
 }

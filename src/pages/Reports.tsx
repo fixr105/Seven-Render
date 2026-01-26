@@ -24,7 +24,7 @@ export const Reports: React.FC = () => {
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     return '';
   };
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [reports, setReports] = useState<DailySummaryReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -136,6 +136,9 @@ export const Reports: React.FC = () => {
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
       >
         <Card>
           <CardHeader>

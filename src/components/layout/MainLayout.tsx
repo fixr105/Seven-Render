@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Footer } from './Footer';
 import logo from '../ui/logo.png';
+import { Notification } from '../../hooks/useNotifications';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -13,6 +14,9 @@ interface MainLayoutProps {
   userRole: string;
   userName?: string;
   notificationCount?: number;
+  notifications?: Notification[];
+  onMarkAsRead?: (notificationId: string) => void;
+  onMarkAllAsRead?: () => void;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({
@@ -24,6 +28,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   userRole,
   userName,
   notificationCount,
+  notifications,
+  onMarkAsRead,
+  onMarkAllAsRead,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -52,6 +59,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
             notificationCount={notificationCount}
             userName={userName}
+            notifications={notifications}
+            onMarkAsRead={onMarkAsRead}
+            onMarkAllAsRead={onMarkAllAsRead}
           />
         </div>
 

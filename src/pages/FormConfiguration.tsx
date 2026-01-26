@@ -137,7 +137,7 @@ export const FormConfiguration: React.FC = () => {
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     return '';
   };
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<string>(''); // Module 1: Loan product selection
@@ -314,7 +314,10 @@ export const FormConfiguration: React.FC = () => {
       pageTitle="Configure Forms"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
-      notificationCount={unreadCount}
+        notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
     >
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}

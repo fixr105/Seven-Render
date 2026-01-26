@@ -42,7 +42,7 @@ export const Clients: React.FC = () => {
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     return '';
   };
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -277,7 +277,10 @@ export const Clients: React.FC = () => {
       pageTitle="Client Management"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
-      notificationCount={unreadCount}
+        notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
     >
       {/* Debug Info Panel */}
       {debugInfo && (

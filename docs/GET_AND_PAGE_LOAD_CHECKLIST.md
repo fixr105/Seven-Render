@@ -5,6 +5,9 @@ Pages often need **multiple data points** to render. Each is usually one GET (or
 **Summary: Are GETs logical? Will sections load before the timeout?**  
 All backend GETs have a worst-case of **≤15s** (KAM `getApplication` / `getQueries`). The frontend GET timeout is **55s**, so no GET should hit the timeout controller from backend duration alone. Two real risks: (1) **n8n `fetchTable` 5s** – on n8n slowness it returns `[]` and the controller sends 200 with partial/empty data, so sections can appear “not loaded” without a timeout message; (2) **`isPageReload`** – several pages only fetch when `isPageReload()` is true, so on SPA navigation those sections stay empty until F5. How to check: run the commands in **§4.4** and/or `node scripts/audit-get-flows.js`.
 
+**Policy: No automatic executions; GET/POST webhooks only on page load or user action.**  
+There must be no `setInterval`, cron, or polling that triggers n8n GET/POST. All webhook calls occur only when: (1) a page loads (including SPA route mount) and its `useEffect` runs, or (2) the user explicitly triggers an action (e.g. Refresh, Generate, Submit). The daily summary cron and token-blacklist interval have been disabled; `uptimeMonitor.setupUptimeMonitoring` is a no-op.
+
 ---
 
 ## 1. Timeout Chain (Where Timeouts Apply)

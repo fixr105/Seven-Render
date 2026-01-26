@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Send, Download, Edit, Sparkles, RefreshCw } from 'lucide-react';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Download, Edit, Sparkles, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -76,7 +76,7 @@ export const ApplicationDetail: React.FC = () => {
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     return '';
   };
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [application, setApplication] = useState<any>(null);
   const [queries, setQueries] = useState<Query[]>([]);
@@ -173,26 +173,50 @@ export const ApplicationDetail: React.FC = () => {
 
     setGeneratingSummary(true);
     try {
+      console.log('[ApplicationDetail] Generating AI summary for application:', id);
       const response = await apiService.generateAISummary(id);
+      
       if (response.success && response.data) {
         // Handle both structured and plain summary formats
         const summary = response.data.summary || response.data.structured?.fullSummary || '';
-        setAiSummary(summary);
+        
         if (summary) {
-          alert('AI summary generated successfully!');
+          setAiSummary(summary);
+          console.log('[ApplicationDetail] AI summary generated successfully, length:', summary.length);
+          
+          // Refresh the application to get the updated AI File Summary from the server
+          // This ensures the summary persists if the user refreshes the page
+          try {
+            const appResponse = await apiService.getApplication(id);
+            if (appResponse.success && appResponse.data) {
+              const updatedSummary = appResponse.data.aiFileSummary || (appResponse.data as any)['AI File Summary'] || null;
+              if (updatedSummary) {
+                setAiSummary(updatedSummary);
+              }
+            }
+          } catch (refreshError) {
+            console.warn('[ApplicationDetail] Could not refresh application after summary generation:', refreshError);
+            // Non-critical, continue with the summary we have
+          }
         } else {
+          console.warn('[ApplicationDetail] AI summary generation completed but no summary returned');
           alert('AI summary generation completed, but no summary was returned.');
         }
       } else {
         throw new Error(response.error || 'Failed to generate AI summary');
       }
     } catch (error: any) {
-      console.error('Error generating AI summary:', error);
+      console.error('[ApplicationDetail] Error generating AI summary:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to generate AI summary';
+      
       if (error.response?.status === 403) {
         alert('You do not have permission to generate AI summaries. Only KAM and Credit Team members can generate summaries.');
+      } else if (error.response?.status === 404) {
+        alert('Application not found. Please refresh the page and try again.');
+      } else if (error.response?.status >= 500) {
+        alert('Server error while generating summary. Please try again in a moment.');
       } else {
-        alert(errorMessage);
+        alert(`Failed to generate AI summary: ${errorMessage}`);
       }
     } finally {
       setGeneratingSummary(false);
@@ -380,6 +404,9 @@ export const ApplicationDetail: React.FC = () => {
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
       >
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full"></div>
@@ -398,6 +425,9 @@ export const ApplicationDetail: React.FC = () => {
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
       >
         <Card>
           <CardContent>
@@ -427,6 +457,9 @@ export const ApplicationDetail: React.FC = () => {
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
       >
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full"></div>
@@ -446,6 +479,9 @@ export const ApplicationDetail: React.FC = () => {
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
       >
         <Card>
           <CardContent className="text-center py-12">
@@ -468,6 +504,9 @@ export const ApplicationDetail: React.FC = () => {
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
+      notifications={notifications}
+      onMarkAsRead={markAsRead}
+      onMarkAllAsRead={markAllAsRead}
     >
       {/* Header Actions */}
       <div className="flex items-center justify-between mb-6">
@@ -785,8 +824,8 @@ export const ApplicationDetail: React.FC = () => {
                   <p className="text-xs text-neutral-500 mt-1">This may take a few moments</p>
                 </div>
               ) : aiSummary ? (
-                <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
-                  <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-sans">
+                <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200 max-h-[600px] overflow-y-auto">
+                  <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-sans leading-relaxed">
                     {aiSummary}
                   </pre>
                 </div>
