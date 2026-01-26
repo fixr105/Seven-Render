@@ -33,6 +33,8 @@ router.post('/ledger/:ledgerEntryId/flag-dispute', creditController.flagLedgerDi
 router.post('/ledger/:ledgerEntryId/resolve-dispute', creditController.resolveLedgerDispute.bind(creditController));
 router.get('/clients', creditController.listClients.bind(creditController));
 router.get('/clients/:id', creditController.getClient.bind(creditController));
+router.post('/clients/:id/assign-kam', creditController.assignKAMToClient.bind(creditController));
+router.get('/kam-users', creditController.listKAMUsers.bind(creditController));
 
 export default router;
 

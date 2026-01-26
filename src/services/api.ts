@@ -690,6 +690,23 @@ class ApiService {
   }
 
   /**
+   * Assign KAM to client (Credit Team only)
+   */
+  async assignKAMToClient(clientId: string, kamId: string | null): Promise<ApiResponse<any>> {
+    return this.request<any>(`/credit/clients/${clientId}/assign-kam`, {
+      method: 'POST',
+      body: JSON.stringify({ kamId }),
+    });
+  }
+
+  /**
+   * List KAM users (Credit Team only)
+   */
+  async listKAMUsers(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/credit/kam-users');
+  }
+
+  /**
    * Create new client
    */
   async createClient(data: {

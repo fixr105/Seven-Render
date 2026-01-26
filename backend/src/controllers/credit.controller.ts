@@ -1170,6 +1170,109 @@ export class CreditController {
       });
     }
   }
+
+  /**
+   * POST /credit/clients/:id/assign-kam
+   * Assign or reassign a KAM to a client (Credit Team only)
+   */
+  async assignKAMToClient(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { kamId } = req.body; // KAM ID to assign (can be null to unassign)
+
+      // Fetch client
+      const clients = await n8nClient.fetchTable('Clients');
+      const client = clients.find((c) => c.id === id || c['Client ID'] === id);
+
+      if (!client) {
+        res.status(404).json({ success: false, error: 'Client not found' });
+        return;
+      }
+
+      // If kamId provided, validate KAM exists
+      if (kamId) {
+        const kamUsers = await n8nClient.fetchTable('KAM Users');
+        const kamUser = kamUsers.find(
+          (k) => k.id === kamId || k['KAM ID'] === kamId
+        );
+        if (!kamUser) {
+          res.status(400).json({ 
+            success: false, 
+            error: 'KAM not found' 
+          });
+          return;
+        }
+      }
+
+      // Update client
+      const updateData = {
+        ...client,
+        'Assigned KAM': kamId || '', // Empty string to unassign
+        'Last Updated': new Date().toISOString(),
+      };
+
+      await n8nClient.postClient(updateData);
+
+      // Log admin activity
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': kamId ? 'assign_kam_to_client' : 'unassign_kam_from_client',
+        'Description/Details': kamId 
+          ? `Assigned KAM ${kamId} to client ${client['Client ID'] || id}`
+          : `Unassigned KAM from client ${client['Client ID'] || id}`,
+        'Target Entity': 'client',
+      });
+
+      res.json({
+        success: true,
+        message: kamId ? 'KAM assigned successfully' : 'KAM unassigned successfully',
+        data: {
+          clientId: id,
+          assignedKAM: kamId || null,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to assign KAM',
+      });
+    }
+  }
+
+  /**
+   * GET /credit/kam-users
+   * List all KAM users (Credit Team only)
+   */
+  async listKAMUsers(req: Request, res: Response): Promise<void> {
+    try {
+      const kamUsers = await n8nClient.fetchTable('KAM Users');
+      
+      // Filter active KAMs only
+      const activeKAMs = kamUsers.filter(
+        (k) => k.Status === 'Active' || k.status === 'active'
+      );
+
+      res.json({
+        success: true,
+        data: activeKAMs.map((kam) => ({
+          id: kam.id,
+          kamId: kam['KAM ID'] || kam.id,
+          name: kam.Name || kam.name,
+          email: kam.Email || kam.email,
+          phone: kam.Phone || kam.phone,
+          status: kam.Status || kam.status,
+        })),
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch KAM users',
+      });
+    }
+  }
 }
 
 export const creditController = new CreditController();

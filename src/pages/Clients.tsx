@@ -8,7 +8,8 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, UserPlus, RefreshCw } from 'lucide-react';
+import { Select } from '../components/ui/Select';
+import { Home, FileText, Users, DollarSign, BarChart3, Settings, Eye, UserPlus, RefreshCw } from 'lucide-react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -35,7 +36,7 @@ const formatDate = formatDateFull;
 
 export const Clients: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, userRoleId, user } = useAuthSafe();
+  const { userRole, user } = useAuthSafe();
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
@@ -49,6 +50,11 @@ export const Clients: React.FC = () => {
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [filterType, setFilterType] = useState<'all' | 'unassigned' | 'assigned'>('all');
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [kamUsers, setKamUsers] = useState<any[]>([]);
+  const [selectedKAMId, setSelectedKAMId] = useState<string>('');
   const [newClient, setNewClient] = useState({
     company_name: '',
     contact_person: '',
@@ -202,12 +208,36 @@ export const Clients: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const filteredClients = clients.filter(client =>
-    searchQuery === '' ||
-    client.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.contact_person.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Fetch KAM users when modal opens (credit team only)
+  useEffect(() => {
+    if (userRole === 'credit_team' && showAssignModal) {
+      apiService.listKAMUsers().then(response => {
+        if (response.success && response.data) {
+          setKamUsers(response.data);
+        }
+      }).catch(error => {
+        console.error('Error fetching KAM users:', error);
+      });
+    }
+  }, [showAssignModal, userRole]);
+
+  const filteredClients = clients.filter(client => {
+    // Search filter
+    const matchesSearch = searchQuery === '' ||
+      client.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.contact_person.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.email.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
+    // Assignment filter
+    if (filterType === 'unassigned') {
+      return !client.kam_id || client.kam_id === '';
+    } else if (filterType === 'assigned') {
+      return !!client.kam_id && client.kam_id !== '';
+    }
+    return true; // 'all'
+  });
 
   const columns: Column<Client>[] = [
     {
@@ -229,6 +259,18 @@ export const Clients: React.FC = () => {
       key: 'phone',
       label: 'Phone',
       sortable: false,
+    },
+    {
+      key: 'kam_id',
+      label: 'Assigned KAM',
+      sortable: false,
+      render: (value) => (
+        value ? (
+          <Badge variant="info">{value}</Badge>
+        ) : (
+          <Badge variant="warning">Unassigned</Badge>
+        )
+      ),
     },
     {
       key: '_count',
@@ -257,14 +299,30 @@ export const Clients: React.FC = () => {
       key: 'actions',
       label: 'Actions',
       render: (_, row) => (
-        <Button
-          size="sm"
-          variant="secondary"
-          icon={Eye}
-          onClick={() => navigate(`/applications?clientId=${row.id}`)}
-        >
-          View Files
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={Eye}
+            onClick={() => navigate(`/applications?clientId=${row.id}`)}
+          >
+            View Files
+          </Button>
+          {userRole === 'credit_team' && (
+            <Button
+              size="sm"
+              variant="primary"
+              icon={UserPlus}
+              onClick={() => {
+                setSelectedClient(row);
+                setSelectedKAMId(row.kam_id || '');
+                setShowAssignModal(true);
+              }}
+            >
+              {row.kam_id ? 'Reassign KAM' : 'Assign KAM'}
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -324,13 +382,23 @@ export const Clients: React.FC = () => {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className={`grid grid-cols-1 md:grid-cols-4 ${userRole === 'credit_team' ? 'lg:grid-cols-5' : ''} gap-4 mb-6`}>
         <Card>
           <CardContent>
             <p className="text-sm text-neutral-500">Total Clients</p>
             <p className="text-2xl font-bold text-neutral-900 mt-1">{clients.length}</p>
           </CardContent>
         </Card>
+        {userRole === 'credit_team' && (
+          <Card>
+            <CardContent>
+              <p className="text-sm text-neutral-500">Unassigned Clients</p>
+              <p className="text-2xl font-bold text-warning mt-1">
+                {clients.filter(c => !c.kam_id || c.kam_id === '').length}
+              </p>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent>
             <p className="text-sm text-neutral-500">Active Clients</p>
@@ -359,10 +427,40 @@ export const Clients: React.FC = () => {
         </Card>
       </div>
 
+      {/* Filter Buttons (Credit Team only) */}
+      {userRole === 'credit_team' && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={filterType === 'all' ? 'primary' : 'secondary'}
+                onClick={() => setFilterType('all')}
+              >
+                All ({clients.length})
+              </Button>
+              <Button
+                variant={filterType === 'unassigned' ? 'primary' : 'secondary'}
+                onClick={() => setFilterType('unassigned')}
+              >
+                Unassigned ({clients.filter(c => !c.kam_id || c.kam_id === '').length})
+              </Button>
+              <Button
+                variant={filterType === 'assigned' ? 'primary' : 'secondary'}
+                onClick={() => setFilterType('assigned')}
+              >
+                Assigned ({clients.filter(c => c.kam_id && c.kam_id !== '').length})
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Clients Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Clients ({filteredClients.length})</CardTitle>
+          <CardTitle>
+            {filterType === 'all' ? 'All' : filterType === 'unassigned' ? 'Unassigned' : 'Assigned'} Clients ({filteredClients.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <DataTable
@@ -484,6 +582,81 @@ export const Clients: React.FC = () => {
             loading={submitting}
           >
             Onboard Client
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Assign KAM Modal */}
+      <Modal
+        isOpen={showAssignModal}
+        onClose={() => {
+          setShowAssignModal(false);
+          setSelectedClient(null);
+          setSelectedKAMId('');
+        }}
+        size="md"
+      >
+        <ModalHeader onClose={() => setShowAssignModal(false)}>
+          {selectedClient?.kam_id ? 'Reassign KAM' : 'Assign KAM'}
+        </ModalHeader>
+        <ModalBody>
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-600">
+              Client: <strong>{selectedClient?.company_name}</strong>
+            </p>
+            <Select
+              label="Select KAM"
+              value={selectedKAMId}
+              onChange={(e) => setSelectedKAMId(e.target.value)}
+              options={[
+                { value: '', label: 'Unassign (No KAM)' },
+                ...kamUsers.map(kam => ({
+                  value: kam.kamId || kam.id,
+                  label: `${kam.name} (${kam.email})`
+                }))
+              ]}
+            />
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowAssignModal(false);
+              setSelectedClient(null);
+              setSelectedKAMId('');
+            }}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={async () => {
+              if (!selectedClient) return;
+              setSubmitting(true);
+              try {
+                const kamId = selectedKAMId || null;
+                const response = await apiService.assignKAMToClient(selectedClient.id, kamId);
+                if (response.success) {
+                  await fetchClients(true);
+                  setShowAssignModal(false);
+                  setSelectedClient(null);
+                  setSelectedKAMId('');
+                  alert('KAM assigned successfully');
+                } else {
+                  alert(`Failed: ${response.error || 'Unknown error'}`);
+                }
+              } catch (error: any) {
+                alert(`Failed: ${error.message || 'Unknown error'}`);
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            disabled={submitting}
+            loading={submitting}
+          >
+            {selectedKAMId ? 'Assign' : 'Unassign'}
           </Button>
         </ModalFooter>
       </Modal>
