@@ -92,7 +92,7 @@ export const authRateLimiter = (req: Request, res: Response, next: NextFunction)
   let errorMessage = 'Too many login attempts, please try again after 15 minutes';
 
   // Check per-IP limit
-  authRateLimiterPerIP(req, res, (err?: Error) => {
+  authRateLimiterPerIP(req, res, (err?: any) => {
     if (err || res.statusCode === 429) {
       // Per-IP limit exceeded
       if (!res.headersSent) {
@@ -106,7 +106,7 @@ export const authRateLimiter = (req: Request, res: Response, next: NextFunction)
     perIPPassed = true;
 
     // Check per-account limit
-    authRateLimiterPerAccount(req, res, (err2?: Error) => {
+    authRateLimiterPerAccount(req, res, (err2?: any) => {
       if (err2 || res.statusCode === 429) {
         // Per-account limit exceeded
         if (!res.headersSent) {

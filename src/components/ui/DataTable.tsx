@@ -19,6 +19,7 @@ interface DataTableProps<T> {
   onSort?: (column: string) => void;
   loading?: boolean;
   emptyMessage?: string;
+  getRowClassName?: (row: T) => string;
 }
 
 export function DataTable<T>({
@@ -31,6 +32,7 @@ export function DataTable<T>({
   onSort,
   loading,
   emptyMessage = 'No data available',
+  getRowClassName,
 }: DataTableProps<T>) {
   const handleSort = (column: Column<T>) => {
     if (column.sortable && onSort) {
@@ -81,10 +83,12 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200">
-            {data.map((row) => (
+            {data.map((row) => {
+              const rowClassName = getRowClassName ? getRowClassName(row) : '';
+              return (
               <tr
                 key={keyExtractor(row)}
-                className={`${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} transition-colors`}
+                className={`${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} ${rowClassName} transition-colors`}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((column) => {
@@ -101,17 +105,20 @@ export function DataTable<T>({
                   );
                 })}
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* Mobile cards */}
       <div className="md:hidden divide-y divide-neutral-200">
-        {data.map((row) => (
+        {data.map((row) => {
+          const rowClassName = getRowClassName ? getRowClassName(row) : '';
+          return (
           <div
             key={keyExtractor(row)}
-            className={`p-4 ${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} transition-colors`}
+            className={`p-4 ${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} ${rowClassName} transition-colors`}
             onClick={() => onRowClick?.(row)}
           >
             {columns.map((column) => {
@@ -126,7 +133,8 @@ export function DataTable<T>({
               );
             })}
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );

@@ -678,44 +678,133 @@ export const ApplicationDetail: React.FC = () => {
           {/* Queries Section */}
           <Card>
             <CardHeader className="flex items-center justify-between">
-              <CardTitle>
-                Queries & Communication ({queries.length} {queries.length === 1 ? 'thread' : 'threads'})
-              </CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle>
+                  Queries & Communication ({queries.length} {queries.length === 1 ? 'thread' : 'threads'})
+                </CardTitle>
+                {queries.filter((q: any) => !q.isResolved).length > 0 && (
+                  <Badge variant="warning">
+                    {queries.filter((q: any) => !q.isResolved).length} Unresolved
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {queries.length === 0 ? (
                 <p className="text-center text-neutral-500 py-8">No queries yet</p>
               ) : (
                 <div className="space-y-6">
-                  {queries.map((thread: any) => (
-                    <div key={thread.rootQuery.id} className="border border-neutral-200 rounded-lg p-4">
+                  {/* Alert for unresolved queries (credit team only) */}
+                  {userRole === 'credit_team' && (() => {
+                    const awaitingQueries = queries.filter((q: any) => {
+                      const isCreditQuery = q.rootQuery?.targetUserRole === 'kam' && 
+                                           (q.rootQuery?.actionEventType === 'credit_query' ||
+                                            q.rootQuery?.actor?.toLowerCase().includes('credit'));
+                      const hasKAMReply = (q.replies || []).some((r: any) => 
+                        r.targetUserRole === 'credit_team' || r.actor?.toLowerCase().includes('kam')
+                      );
+                      return !q.isResolved && isCreditQuery && !hasKAMReply;
+                    });
+                    return awaitingQueries.length > 0 ? (
+                      <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="warning">Awaiting KAM Response</Badge>
+                          <span className="text-sm font-medium text-neutral-900">
+                            {awaitingQueries.length} 
+                            {' '}
+                            {awaitingQueries.length === 1 ? 'query' : 'queries'} 
+                            {' '}awaiting response
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-600">
+                          You have raised queries that are waiting for KAM to respond.
+                        </p>
+                      </div>
+                    ) : null;
+                  })()}
+                  
+                  {queries.map((thread: any) => {
+                    // Get root query with fallback
+                    const rootQuery = thread.rootQuery || {};
+                    
+                    // Calculate last activity timestamp
+                    const allTimestamps = [
+                      rootQuery.timestamp,
+                      ...((thread.replies || []).map((r: any) => r.timestamp) || [])
+                    ].filter(Boolean);
+                    const lastActivity = allTimestamps.length > 0 
+                      ? allTimestamps.reduce((latest: string, ts: string) => {
+                          try {
+                            return new Date(ts) > new Date(latest) ? ts : latest;
+                          } catch {
+                            return latest;
+                          }
+                        })
+                      : null;
+                    
+                    // Check if credit raised query and no KAM reply yet
+                    // More reliable detection: check targetUserRole and actionEventType
+                    const isCreditQuery = rootQuery.targetUserRole === 'kam' && 
+                                         (rootQuery.actionEventType === 'credit_query' ||
+                                          rootQuery.actor?.toLowerCase().includes('credit') || 
+                                          (userRole === 'credit_team' && rootQuery.targetUserRole === 'kam'));
+                    const hasKAMReply = (thread.replies || []).some((r: any) => 
+                      r.targetUserRole === 'credit_team' ||
+                      r.actor?.toLowerCase().includes('kam')
+                    ) || false;
+                    const awaitingKAMResponse = isCreditQuery && !hasKAMReply && !thread.isResolved;
+                    
+                    return (
+                    <div 
+                      key={thread.rootQuery.id} 
+                      className={`border rounded-lg p-4 ${
+                        awaitingKAMResponse && userRole === 'credit_team' 
+                          ? 'border-warning bg-warning/5' 
+                          : 'border-neutral-200'
+                      }`}
+                    >
                       {/* Root Query */}
                       <div className="mb-4 pb-4 border-b border-neutral-200">
                       <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="text-sm font-medium text-neutral-900">
-                                {thread.rootQuery.actor}
+                                {rootQuery.actor || 'Unknown'}
                               </span>
-                              <span className="text-xs text-neutral-500">
-                                {formatDate(thread.rootQuery.timestamp)}
-                              </span>
-                              {thread.rootQuery.resolved ? (
+                              {rootQuery.timestamp && (
+                                <span className="text-xs text-neutral-500">
+                                  {formatDate(rootQuery.timestamp)}
+                                </span>
+                              )}
+                              {rootQuery.resolved ? (
                                 <Badge variant="success" className="text-xs">Resolved</Badge>
                               ) : (
                                 <Badge variant="warning" className="text-xs">Open</Badge>
                               )}
+                              {awaitingKAMResponse && userRole === 'credit_team' && (
+                                <Badge variant="warning" className="text-xs">Awaiting KAM Response</Badge>
+                              )}
+                              {!awaitingKAMResponse && !thread.isResolved && hasKAMReply && userRole === 'credit_team' && (
+                                <Badge variant="info" className="text-xs">KAM Responded</Badge>
+                              )}
+                              {lastActivity && (
+                                <span className="text-xs text-neutral-500">
+                                  Last activity: {formatDate(lastActivity)}
+                                </span>
+                              )}
                         </div>
-                            <p className="text-sm text-neutral-700 mb-2">{thread.rootQuery.message}</p>
-                            <p className="text-xs text-neutral-500">
-                              To: {thread.rootQuery.targetUserRole}
-                            </p>
+                            <p className="text-sm text-neutral-700 mb-2">{rootQuery.message || 'No message'}</p>
+                            {rootQuery.targetUserRole && (
+                              <p className="text-xs text-neutral-500">
+                                To: {rootQuery.targetUserRole}
+                              </p>
+                            )}
                       </div>
-                          {!thread.isResolved && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && (
+                          {!thread.isResolved && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && rootQuery.id && (
                             <Button
                               variant="secondary"
                               size="sm"
-                              onClick={() => handleResolveQuery(thread.rootQuery.id)}
+                              onClick={() => handleResolveQuery(rootQuery.id)}
                               disabled={submitting}
                               loading={submitting}
                             >
@@ -761,7 +850,8 @@ export const ApplicationDetail: React.FC = () => {
                         </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

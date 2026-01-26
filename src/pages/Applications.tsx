@@ -14,6 +14,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Mod
 import { TextArea } from '../components/ui/TextArea';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, MessageSquare, RefreshCw } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
+import { apiService } from '../services/api';
 
 // Placeholder data removed - now using real data from database via useApplications hook
 
@@ -67,11 +68,80 @@ export const Applications: React.FC = () => {
   const [showQueryModal, setShowQueryModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<any | null>(null);
   const [queryMessage, setQueryMessage] = useState('');
+  const [queryCounts, setQueryCounts] = useState<Record<string, { unresolved: number; lastActivity: string | null }>>({});
+  const [loadingQueryCounts, setLoadingQueryCounts] = useState(false);
 
   useEffect(() => {
     const param = searchParams.get('status');
     setStatusFilter(param && URL_STATUS_TO_FILTER[param] ? URL_STATUS_TO_FILTER[param] : 'all');
   }, [searchParams]);
+
+  // Fetch query counts for applications (only for credit_team)
+  useEffect(() => {
+    if (userRole === 'credit_team' && applications.length > 0 && !loading && !loadingQueryCounts) {
+      fetchQueryCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applications.length, userRole]); // Only depend on length and role to avoid infinite loops
+
+  const fetchQueryCounts = async () => {
+    if (loadingQueryCounts) return;
+    
+    setLoadingQueryCounts(true);
+    try {
+      // Fetch queries for visible applications (first 30 to avoid performance issues)
+      const visibleApps = applications.slice(0, 30);
+      const counts: Record<string, { unresolved: number; lastActivity: string | null }> = {};
+      
+      // Fetch queries in parallel for visible applications
+      const queryPromises = visibleApps.map(async (app) => {
+        try {
+          const response = await apiService.getQueries(app.id);
+          if (response.success && response.data && Array.isArray(response.data)) {
+            const threads = response.data as any[];
+            // Count unresolved queries (where isResolved is false)
+            const unresolved = threads.filter((thread: any) => 
+              thread.isResolved === false || thread.isResolved === undefined
+            ).length;
+            
+            // Find last activity timestamp (most recent reply or root query)
+            let lastActivity: string | null = null;
+            threads.forEach((thread: any) => {
+              const rootTime = thread.rootQuery?.timestamp;
+              const replyTimes = (thread.replies || []).map((r: any) => r.timestamp).filter(Boolean) || [];
+              const allTimes = [rootTime, ...replyTimes].filter(Boolean);
+              if (allTimes.length > 0) {
+                const maxTime = allTimes.reduce((max: string, time: string) => {
+                  try {
+                    return new Date(time) > new Date(max) ? time : max;
+                  } catch {
+                    return max;
+                  }
+                });
+                if (!lastActivity || new Date(maxTime) > new Date(lastActivity)) {
+                  lastActivity = maxTime;
+                }
+              }
+            });
+            
+            counts[app.id] = { unresolved, lastActivity };
+          } else {
+            counts[app.id] = { unresolved: 0, lastActivity: null };
+          }
+        } catch (error) {
+          console.error(`Error fetching queries for application ${app.id}:`, error);
+          counts[app.id] = { unresolved: 0, lastActivity: null };
+        }
+      });
+      
+      await Promise.all(queryPromises);
+      setQueryCounts(counts);
+    } catch (error) {
+      console.error('Error fetching query counts:', error);
+    } finally {
+      setLoadingQueryCounts(false);
+    }
+  };
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
@@ -94,6 +164,7 @@ export const Applications: React.FC = () => {
     { value: 'approved', label: 'Approved' },
     { value: 'rejected', label: 'Rejected' },
     { value: 'disbursed', label: 'Disbursed' },
+    ...(userRole === 'credit_team' ? [{ value: 'awaiting_kam_response', label: 'Awaiting KAM Response' }] : []),
   ];
 
   // Convert database applications to display format
@@ -123,6 +194,8 @@ export const Applications: React.FC = () => {
         ? `₹${((app as any).requested_loan_amount / 100000).toFixed(2)}L`
         : 'N/A';
     
+    const queryData = queryCounts[app.id] || { unresolved: 0, lastActivity: null };
+    
     return {
       id: app.id || (app as any).id, // Use Airtable record ID for navigation (e.g., recCHVlPoZQYfeKlG)
       fileNumber: app.file_number || (app as any).file_number || (app as any).fileId || app.id, // For display
@@ -133,6 +206,10 @@ export const Applications: React.FC = () => {
       status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
       lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       rawData: app, // Keep raw data for debugging
+      hasUnresolvedQueries: queryData.unresolved > 0,
+      unresolvedQueryCount: queryData.unresolved,
+      lastQueryTimestamp: queryData.lastActivity,
+      rawStatus: app.status, // Keep raw status for filtering
     };
   });
 
@@ -144,7 +221,17 @@ export const Applications: React.FC = () => {
       app.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.loanType.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === 'all' || app.status.toLowerCase().includes(statusFilter);
+    let matchesStatus = true;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'awaiting_kam_response') {
+      // Filter for applications where credit has raised a query and is waiting for KAM response
+      // Status is credit_query_with_kam OR has unresolved queries targeting KAM
+      matchesStatus = app.rawStatus === 'credit_query_with_kam' || 
+                     (app.hasUnresolvedQueries && app.rawStatus !== 'closed');
+    } else {
+      matchesStatus = app.status.toLowerCase().includes(statusFilter);
+    }
 
     return matchesSearch && matchesStatus;
   });
@@ -176,7 +263,16 @@ export const Applications: React.FC = () => {
     {
       key: 'status',
       label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(value)}>{value}</Badge>,
+      render: (value, row) => (
+        <div className="flex items-center gap-2">
+          <Badge variant={getStatusVariant(value)}>{value}</Badge>
+          {userRole === 'credit_team' && row.unresolvedQueryCount > 0 && (
+            <Badge variant="warning" className="text-xs">
+              {row.unresolvedQueryCount} {row.unresolvedQueryCount === 1 ? 'query' : 'queries'}
+            </Badge>
+          )}
+        </div>
+      ),
     },
     { key: 'lastUpdate', label: 'Last Update', sortable: true },
     {
@@ -362,6 +458,12 @@ export const Applications: React.FC = () => {
             sortDirection={sortDirection}
             onSort={handleSort}
             onRowClick={(row) => navigate(`/applications/${row.id}`)}
+            getRowClassName={(row) => {
+              if (userRole === 'credit_team' && row.hasUnresolvedQueries) {
+                return 'bg-warning/5 border-l-4 border-warning';
+              }
+              return '';
+            }}
           />
           )}
         </CardContent>
