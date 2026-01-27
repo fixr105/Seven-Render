@@ -261,15 +261,20 @@ export class AuthService {
             userAccounts = rawWebhookResponse.map((record: any) => {
               const hasFields = record.fields && typeof record.fields === 'object';
               const source = hasFields ? record.fields : record;
+              // Extract and trim fields to handle whitespace issues
+              const username = (source.Username || source['Username'] || '').trim();
+              const password = (source.Password || source['Password'] || '').trim();
+              const role = (source.Role || source['Role'] || '').trim();
+              const accountStatus = (source['Account Status'] || source.AccountStatus || source.status || 'Unknown').trim();
               return {
                 id: record.id,
                 createdTime: record.createdTime || '',
-                Username: source.Username || source['Username'] || '',
-                Password: source.Password || source['Password'] || '',
-                Role: source.Role || source['Role'] || '',
-                'Account Status': source['Account Status'] || source.AccountStatus || source.status || 'Unknown',
-                'Associated Profile': source['Associated Profile'] || source.AssociatedProfile || source.profile || '',
-                'Last Login': source['Last Login'] || source.LastLogin || source.lastLogin || '',
+                Username: username,
+                Password: password,
+                Role: role,
+                'Account Status': accountStatus,
+                'Associated Profile': (source['Associated Profile'] || source.AssociatedProfile || source.profile || '').trim(),
+                'Last Login': (source['Last Login'] || source.LastLogin || source.lastLogin || '').trim(),
               } as UserAccount;
             });
             console.log(`[AuthService] ✅ Successfully extracted ${userAccounts.length} user accounts`);
