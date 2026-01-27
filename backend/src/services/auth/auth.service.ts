@@ -277,49 +277,49 @@ export class AuthService {
             // Cache the successfully fetched accounts
             this.setCachedUserAccounts(userAccounts);
           } catch (webhookError: any) {
-        console.error('[AuthService] ❌ Failed to fetch or validate user accounts from webhook after all retries');
-        console.error('[AuthService] Webhook error details:', { name: webhookError.name, message: webhookError.message });
-        
-        // Don't retry these - they're authentication failures, not service issues
-        if (webhookError.message?.includes('No user accounts found') || 
-            webhookError.message?.includes('Invalid webhook response') || 
-            webhookError.message?.includes('missing required')) {
-          throw new Error('Invalid email or password');
-        }
-        
-        // Timeout errors - already retried, provide helpful message
-        if (webhookError.message?.includes('timeout') || webhookError.message?.includes('timed out')) {
-          throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
-        }
-        
-        // Network errors - already retried
-        if (webhookError.message?.includes('ECONNREFUSED') || 
-            webhookError.message?.includes('ENOTFOUND') || 
-            webhookError.message?.includes('ETIMEDOUT')) {
-          throw new Error('Unable to reach authentication service. Please check your connection and try again.');
-        }
-        
-        // n8n/webhook returned 5xx (503, 502, 504, 500) — already retried
-        if (webhookError.message?.match(/Webhook returned status 5\d\d/)) {
-          console.error('[AuthService] ❌ Webhook 5xx after all retries — n8n or upstream (Airtable) may be down. Check N8N_BASE_URL and n8n workflow.');
-          throw new Error('Authentication service is experiencing issues. Please try again in a few moments.');
-        }
-        
-        // JSON parse errors - already retried
-        if (webhookError.message?.includes('Unexpected end of JSON input') ||
-            webhookError.message?.includes('Authentication service returned') ||
-            (webhookError.name === 'SyntaxError' && webhookError.message?.includes('JSON'))) {
-          throw new Error('Authentication service returned invalid data. Please try again.');
-        }
-        
-        // Generic connection errors
-        if (webhookError.message?.includes('temporarily unavailable')) {
-          throw new Error('Authentication service is temporarily unavailable. Please try again in a few moments.');
-        }
-        
-        // Fallback - provide a user-friendly message
-        throw new Error('Unable to connect to authentication service. Please try again in a few moments.');
-        } // End of catch block
+            console.error('[AuthService] ❌ Failed to fetch or validate user accounts from webhook after all retries');
+            console.error('[AuthService] Webhook error details:', { name: webhookError.name, message: webhookError.message });
+            
+            // Don't retry these - they're authentication failures, not service issues
+            if (webhookError.message?.includes('No user accounts found') || 
+                webhookError.message?.includes('Invalid webhook response') || 
+                webhookError.message?.includes('missing required')) {
+              throw new Error('Invalid email or password');
+            }
+            
+            // Timeout errors - already retried, provide helpful message
+            if (webhookError.message?.includes('timeout') || webhookError.message?.includes('timed out')) {
+              throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+            }
+            
+            // Network errors - already retried
+            if (webhookError.message?.includes('ECONNREFUSED') || 
+                webhookError.message?.includes('ENOTFOUND') || 
+                webhookError.message?.includes('ETIMEDOUT')) {
+              throw new Error('Unable to reach authentication service. Please check your connection and try again.');
+            }
+            
+            // n8n/webhook returned 5xx (503, 502, 504, 500) — already retried
+            if (webhookError.message?.match(/Webhook returned status 5\d\d/)) {
+              console.error('[AuthService] ❌ Webhook 5xx after all retries — n8n or upstream (Airtable) may be down. Check N8N_BASE_URL and n8n workflow.');
+              throw new Error('Authentication service is experiencing issues. Please try again in a few moments.');
+            }
+            
+            // JSON parse errors - already retried
+            if (webhookError.message?.includes('Unexpected end of JSON input') ||
+                webhookError.message?.includes('Authentication service returned') ||
+                (webhookError.name === 'SyntaxError' && webhookError.message?.includes('JSON'))) {
+              throw new Error('Authentication service returned invalid data. Please try again.');
+            }
+            
+            // Generic connection errors
+            if (webhookError.message?.includes('temporarily unavailable')) {
+              throw new Error('Authentication service is temporarily unavailable. Please try again in a few moments.');
+            }
+            
+            // Fallback - provide a user-friendly message
+            throw new Error('Unable to connect to authentication service. Please try again in a few moments.');
+          } // End of catch block
       } // End of else block (non-mock path)
     }
 

@@ -886,6 +886,9 @@ export class N8nClient {
     const result = await this.postData(n8nConfig.postAddUserUrl, userAccountData);
     // Invalidate cache for User Accounts
     this.invalidateCache('User Accounts');
+    // Also clear auth service cache to prevent stale user data
+    const { AuthService } = await import('../auth/auth.service.js');
+    AuthService.clearUserAccountsCache();
     return result;
   }
 
@@ -919,7 +922,10 @@ export class N8nClient {
       if (result && !result.error) {
         this.invalidateCache('Clients');
         this.invalidateCache('User Accounts');
-        console.log('[postClient] Cache invalidated for Clients and User Accounts');
+        // Also clear auth service cache when client is updated (may affect user accounts)
+        const { AuthService } = await import('../auth/auth.service.js');
+        AuthService.clearUserAccountsCache();
+        console.log('[postClient] Cache invalidated for Clients, User Accounts, and AuthService');
       } else {
         console.warn('[postClient] Result contains error, not invalidating cache:', result);
       }
