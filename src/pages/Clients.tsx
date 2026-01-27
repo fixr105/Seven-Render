@@ -211,13 +211,25 @@ export const Clients: React.FC = () => {
   // Fetch KAM users when modal opens (credit team only)
   useEffect(() => {
     if (userRole === 'credit_team' && showAssignModal) {
-      apiService.listKAMUsers().then(response => {
-        if (response.success && response.data) {
-          setKamUsers(response.data);
-        }
-      }).catch(error => {
-        console.error('Error fetching KAM users:', error);
-      });
+      console.log('[Clients] Fetching KAM users for assignment modal...');
+      setKamUsers([]); // Clear previous list
+      apiService.listKAMUsers()
+        .then(response => {
+          console.log('[Clients] KAM users response:', response);
+          if (response.success && response.data) {
+            console.log('[Clients] Setting KAM users:', response.data);
+            setKamUsers(response.data);
+          } else {
+            console.error('[Clients] Failed to fetch KAM users:', response.error);
+            alert(`Failed to load KAM list: ${response.error || 'Unknown error'}`);
+          }
+        })
+        .catch(error => {
+          console.error('[Clients] Error fetching KAM users:', error);
+          alert(`Error loading KAM list: ${error.message || 'Unknown error'}`);
+        });
+    } else if (showAssignModal && userRole !== 'credit_team') {
+      console.warn('[Clients] Assign KAM modal opened but user is not credit_team:', userRole);
     }
   }, [showAssignModal, userRole]);
 
@@ -604,18 +616,24 @@ export const Clients: React.FC = () => {
             <p className="text-sm text-neutral-600">
               Client: <strong>{selectedClient?.company_name}</strong>
             </p>
-            <Select
-              label="Select KAM"
-              value={selectedKAMId}
-              onChange={(e) => setSelectedKAMId(e.target.value)}
-              options={[
-                { value: '', label: 'Unassign (No KAM)' },
-                ...kamUsers.map(kam => ({
-                  value: kam.kamId || kam.id,
-                  label: `${kam.name} (${kam.email})`
-                }))
-              ]}
-            />
+            {kamUsers.length === 0 ? (
+              <div className="text-sm text-neutral-500 py-2">
+                Loading KAMs...
+              </div>
+            ) : (
+              <Select
+                label="Select KAM"
+                value={selectedKAMId}
+                onChange={(e) => setSelectedKAMId(e.target.value)}
+                options={[
+                  { value: '', label: 'Unassign (No KAM)' },
+                  ...kamUsers.map(kam => ({
+                    value: kam.kamId || kam.id,
+                    label: `${kam.name || 'Unknown'} (${kam.email || 'No email'})`
+                  }))
+                ]}
+              />
+            )}
           </div>
         </ModalBody>
         <ModalFooter>

@@ -1248,23 +1248,33 @@ export class CreditController {
    */
   async listKAMUsers(req: Request, res: Response): Promise<void> {
     try {
+      console.log('[CreditController] Fetching KAM users...');
       const kamUsers = await n8nClient.fetchTable('KAM Users');
+      console.log(`[CreditController] Found ${kamUsers.length} total KAM users`);
       
-      // Filter active KAMs only
+      // Filter active KAMs only (case-insensitive)
       const activeKAMs = kamUsers.filter(
-        (k) => k.Status === 'Active' || k.status === 'active'
+        (k) => {
+          const status = (k.Status || k.status || '').toString().trim().toLowerCase();
+          return status === 'active';
+        }
       );
+      console.log(`[CreditController] Found ${activeKAMs.length} active KAM users`);
+
+      const mappedKAMs = activeKAMs.map((kam) => ({
+        id: kam.id,
+        kamId: kam['KAM ID'] || kam.id,
+        name: kam.Name || kam.name || 'Unknown',
+        email: kam.Email || kam.email || '',
+        phone: kam.Phone || kam.phone || '',
+        status: kam.Status || kam.status || 'Unknown',
+      }));
+
+      console.log('[CreditController] Returning KAM users:', mappedKAMs.map(k => `${k.name} (${k.kamId})`).join(', '));
 
       res.json({
         success: true,
-        data: activeKAMs.map((kam) => ({
-          id: kam.id,
-          kamId: kam['KAM ID'] || kam.id,
-          name: kam.Name || kam.name,
-          email: kam.Email || kam.email,
-          phone: kam.Phone || kam.phone,
-          status: kam.Status || kam.status,
-        })),
+        data: mappedKAMs,
       });
     } catch (error: any) {
       res.status(500).json({
