@@ -319,6 +319,36 @@ class ApiService {
         };
       }
 
+      // Check if response is HTML (likely a 404 page or error page)
+      const isHtml = contentType?.includes('text/html') || text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<!doctype') || text.trim().startsWith('<html');
+      
+      if (isHtml) {
+        // This is likely a 404 or error page
+        let errorMessage = `Server returned HTML instead of JSON (${response.status} ${response.statusText})`;
+        
+        if (response.status === 404) {
+          errorMessage = `Endpoint not found: ${endpoint}. The API route may not exist or the backend may not be properly deployed.`;
+        } else if (response.status === 401 || response.status === 403) {
+          errorMessage = `Authentication failed (${response.status}). Please login again.`;
+          this.clearToken();
+        } else if (response.status >= 500) {
+          errorMessage = `Server error (${response.status}). The backend may be experiencing issues.`;
+        }
+        
+        defaultLogger.error('Server returned HTML response', {
+          endpoint,
+          url,
+          status: response.status,
+          contentType,
+          responsePreview: text.substring(0, 500),
+        });
+        
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+
       // Try to parse as JSON
       let data;
       try {
@@ -328,11 +358,12 @@ class ApiService {
         defaultLogger.error('Failed to parse JSON response', {
           endpoint,
           status: response.status,
+          contentType,
           responsePreview: text.substring(0, 200),
         });
         return {
           success: false,
-          error: `Invalid JSON response from server: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+          error: `Invalid JSON response from server (${response.status}): ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
         };
       }
 
