@@ -332,19 +332,37 @@ export class AuthService {
     console.log('[AuthService] Step 2: Searching for user by email...');
     console.log('[AuthService] Searching for email:', email.toLowerCase());
     
+    // Log all usernames for debugging
+    console.log('[AuthService] All usernames in database:', 
+      userAccounts.map(u => `"${u.Username || 'N/A'}"`).join(', '));
+    console.log('[AuthService] Searching for email (normalized):', email.toLowerCase().trim());
+    
     const userAccount = userAccounts.find(
       (u) => {
-        const username = u.Username || '';
-        const match = username.toLowerCase() === email.toLowerCase();
+        const username = (u.Username || '').trim();
+        const normalizedUsername = username.toLowerCase();
+        const normalizedEmail = email.toLowerCase().trim();
+        const match = normalizedUsername === normalizedEmail;
+        
         if (match) {
-          console.log(`[AuthService] ✅ Found user account: ${u.id}, Username: ${username}`);
-          console.log(`[AuthService] User account details:`, {
+          console.log(`[AuthService] ✅ Found user account: ${u.id}, Username: "${username}"`);
+          console.log(`[AuthService] User account details:`, JSON.stringify({
             id: u.id,
             username: username,
+            usernameLength: username.length,
             role: u.Role,
+            roleLength: (u.Role || '').length,
             accountStatus: u['Account Status'],
+            accountStatusLength: (u['Account Status'] || '').length,
             hasPassword: !!u.Password,
-          });
+            passwordLength: (u.Password || '').length,
+            passwordFirst3: (u.Password || '').substring(0, 3),
+          }, null, 2));
+        } else {
+          // Log close matches for debugging
+          if (normalizedUsername.includes(normalizedEmail) || normalizedEmail.includes(normalizedUsername)) {
+            console.log(`[AuthService] ⚠️ Close match found: "${username}" (normalized: "${normalizedUsername}") vs "${email}" (normalized: "${normalizedEmail}")`);
+          }
         }
         return match;
       }
@@ -353,9 +371,13 @@ export class AuthService {
     if (!userAccount) {
       console.error('[AuthService] ❌ User not found in database');
       console.error('[AuthService] Searched email:', email);
+      console.error('[AuthService] Searched email (normalized):', email.toLowerCase().trim());
       console.error('[AuthService] Searched in', userAccounts.length, 'accounts');
-      console.error('[AuthService] Available usernames (first 10):', 
-        userAccounts.slice(0, 10).map(u => `"${u.Username || 'N/A'}"`).join(', '));
+      console.error('[AuthService] Available usernames (all):', 
+        userAccounts.map(u => {
+          const un = (u.Username || 'N/A').trim();
+          return `"${un}" (len:${un.length})`;
+        }).join(', '));
       throw new Error('Invalid email or password');
     }
     
@@ -379,38 +401,58 @@ export class AuthService {
 
     // Step 4: Validate password
     console.log('[AuthService] Step 4: Validating password...');
-    const storedPassword = userAccount.Password || '';
+    const storedPassword = (userAccount.Password || '').trim();
+    const inputPassword = password.trim();
+    
+    console.log('[AuthService] Password comparison details:', JSON.stringify({
+      storedPasswordLength: storedPassword.length,
+      inputPasswordLength: inputPassword.length,
+      storedPasswordFirst3: storedPassword.substring(0, 3),
+      inputPasswordFirst3: inputPassword.substring(0, 3),
+      storedPasswordLast3: storedPassword.substring(Math.max(0, storedPassword.length - 3)),
+      inputPasswordLast3: inputPassword.substring(Math.max(0, inputPassword.length - 3)),
+      storedPasswordChars: Array.from(storedPassword).map(c => c.charCodeAt(0)),
+      inputPasswordChars: Array.from(inputPassword).map(c => c.charCodeAt(0)),
+    }, null, 2));
     
     if (!storedPassword) {
       console.error('[AuthService] ❌ No password found in user account');
       console.error('[AuthService] User account object keys:', Object.keys(userAccount));
+      console.error('[AuthService] Full user account object:', JSON.stringify(userAccount, null, 2));
       throw new Error('Invalid email or password');
     }
     
     // Check if password is hashed (starts with $2a$ or $2b$) or plaintext
     const isHashed = storedPassword.startsWith('$2a$') || storedPassword.startsWith('$2b$') || storedPassword.startsWith('$2y$');
     console.log('[AuthService] Password format:', isHashed ? 'Hashed (bcrypt)' : 'Plaintext');
-    console.log('[AuthService] Stored password length:', storedPassword.length);
-    console.log('[AuthService] Input password length:', password.length);
     
     let isPasswordValid: boolean;
     try {
       if (isHashed) {
-        isPasswordValid = await bcrypt.compare(password, storedPassword);
+        isPasswordValid = await bcrypt.compare(inputPassword, storedPassword);
         console.log('[AuthService] Bcrypt comparison result:', isPasswordValid);
         if (!isPasswordValid) {
           console.error('[AuthService] ❌ Bcrypt password mismatch');
         }
       } else {
-        // Trim both passwords for comparison (in case of whitespace issues)
-        const trimmedStored = storedPassword.trim();
-        const trimmedInput = password.trim();
-        isPasswordValid = trimmedStored === trimmedInput;
+        // Exact comparison for plaintext
+        isPasswordValid = storedPassword === inputPassword;
         console.log('[AuthService] Plaintext comparison result:', isPasswordValid);
+        console.log('[AuthService] Plaintext comparison:', {
+          stored: `"${storedPassword}"`,
+          input: `"${inputPassword}"`,
+          equal: storedPassword === inputPassword,
+        });
         if (!isPasswordValid) {
           console.error('[AuthService] ❌ Plaintext password mismatch');
-          console.error('[AuthService] Stored password (first 3 chars):', trimmedStored.substring(0, 3));
-          console.error('[AuthService] Input password (first 3 chars):', trimmedInput.substring(0, 3));
+          console.error('[AuthService] Character-by-character comparison:');
+          const maxLen = Math.max(storedPassword.length, inputPassword.length);
+          for (let i = 0; i < maxLen; i++) {
+            const sChar = storedPassword[i] || 'MISSING';
+            const iChar = inputPassword[i] || 'MISSING';
+            const match = sChar === iChar;
+            console.error(`  [${i}]: stored="${sChar}" (${sChar.charCodeAt(0)}) vs input="${iChar}" (${iChar.charCodeAt(0)}) ${match ? '✓' : '✗'}`);
+          }
         }
       }
     } catch (bcryptError: any) {
