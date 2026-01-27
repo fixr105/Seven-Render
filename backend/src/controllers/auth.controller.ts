@@ -210,13 +210,14 @@ export class AuthController {
           console.error('[AuthController] Webhook timeout error detected, returning 504');
         } else if (
           errorMessage.includes('temporarily unavailable') ||
-          errorMessage.includes('Unexpected end of JSON input') ||
-          errorMessage.includes('Authentication service returned') ||
-          (errorMessage.includes('Failed to connect to authentication service') && errorMessage.includes('JSON'))
+          errorMessage.includes('experiencing issues') ||
+          errorMessage.includes('Unable to connect to authentication service') ||
+          errorMessage.includes('Unable to reach authentication service') ||
+          errorMessage.includes('returned invalid data')
         ) {
           statusCode = 503; // Service Unavailable — auth provider (n8n) returned invalid/empty data
-          errorMessage = 'Authentication service temporarily unavailable. Please try again later.';
-          console.error('[AuthController] Auth provider invalid/empty or JSON parse error, returning 503');
+          // Keep the improved error message from auth service
+          console.error('[AuthController] Auth provider error after retries, returning 503');
         } else if (
           errorMessage.includes('Invalid email or password') || 
           errorMessage.includes('Account is not active') ||

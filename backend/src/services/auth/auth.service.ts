@@ -22,7 +22,46 @@ export interface AuthUser {
   name?: string;
 }
 
+// Simple in-memory cache for user accounts (5 minute TTL)
+interface CachedUserAccounts {
+  data: UserAccount[];
+  timestamp: number;
+}
+
+const USER_ACCOUNTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let userAccountsCache: CachedUserAccounts | null = null;
+
 export class AuthService {
+  /**
+   * Get cached user accounts if available and not expired
+   */
+  private getCachedUserAccounts(): UserAccount[] | null {
+    if (userAccountsCache && (Date.now() - userAccountsCache.timestamp) < USER_ACCOUNTS_CACHE_TTL) {
+      console.log('[AuthService] ✅ Using cached user accounts');
+      return userAccountsCache.data;
+    }
+    return null;
+  }
+
+  /**
+   * Cache user accounts
+   */
+  private setCachedUserAccounts(accounts: UserAccount[]): void {
+    userAccountsCache = {
+      data: accounts,
+      timestamp: Date.now(),
+    };
+    console.log('[AuthService] ✅ Cached user accounts');
+  }
+
+  /**
+   * Clear user accounts cache (call after user creation/updates)
+   */
+  static clearUserAccountsCache(): void {
+    userAccountsCache = null;
+    console.log('[AuthService] ✅ Cleared user accounts cache');
+  }
+
   /**
    * Login - validate credentials and return JWT
    * 
@@ -72,110 +111,216 @@ export class AuthService {
       rawWebhookResponse = undefined;
       console.log('[AuthService] Using E2E mock user accounts (skipping n8n webhook)');
     } else {
-      console.log('[AuthService] Step 1: Fetching user accounts from webhook...');
-      console.log('[AuthService] Webhook URL: /webhook/useraccount');
-      console.log('[AuthService] Table: User Accounts');
-      try {
-        const { n8nEndpoints } = await import('../airtable/n8nEndpoints.js');
-        const webhookUrl = n8nEndpoints.get.userAccount;
-        console.log('[AuthService] Fetching from:', webhookUrl);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+      // Check cache first
+      const cachedAccounts = this.getCachedUserAccounts();
+      if (cachedAccounts) {
+        userAccounts = cachedAccounts;
+        rawWebhookResponse = undefined;
+        console.log('[AuthService] ✅ Using cached user accounts (skipping webhook call)');
+      } else {
+        console.log('[AuthService] Step 1: Fetching user accounts from webhook...');
+        console.log('[AuthService] Webhook URL: /webhook/useraccount');
+        console.log('[AuthService] Table: User Accounts');
         try {
-          const response = await fetch(webhookUrl, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-          if (!response.ok) {
-            throw new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
-          }
-          const text = await response.text();
-          if (!text || text.trim().length === 0) {
-            console.error('[AuthService] ❌ Webhook returned empty body. status:', response.status, 'url:', webhookUrl);
-            throw new Error('Authentication service returned an empty response.');
-          }
-          try {
-            rawWebhookResponse = JSON.parse(text);
-          } catch (parseErr: any) {
-            const preview = text.substring(0, 500);
-            const looksLikeHtml = /^\s*</.test(text.trim()) || text.trim().toLowerCase().startsWith('<!');
-            console.error('[AuthService] ❌ Webhook response is not valid JSON:', parseErr?.message || parseErr);
-            console.error('[AuthService] ❌ Response status:', response.status, 'url:', webhookUrl);
-            console.error('[AuthService] ❌ Body preview:', preview + (text.length > 500 ? '...' : ''));
-            if (looksLikeHtml) {
-              console.error('[AuthService] ❌ Body looks like HTML — n8n may be returning an error page. Check n8n workflow is active and /webhook/useraccount exists.');
+          const { n8nEndpoints } = await import('../airtable/n8nEndpoints.js');
+          const webhookUrl = n8nEndpoints.get.userAccount;
+          console.log('[AuthService] Fetching from:', webhookUrl);
+
+          // Retry configuration
+          const MAX_RETRIES = 3;
+          const INITIAL_TIMEOUT = 20000; // 20 seconds (increased from 15)
+          const RETRY_DELAYS = [1000, 2000, 3000]; // Exponential backoff delays in ms
+          
+          let lastError: Error | null = null;
+          
+          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+              console.log(`[AuthService] Attempt ${attempt}/${MAX_RETRIES} to fetch user accounts...`);
+              
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), INITIAL_TIMEOUT);
+              
+              try {
+                const response = await fetch(webhookUrl, {
+                  method: 'GET',
+                  headers: { 'Content-Type': 'application/json' },
+                  signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                  // Retry on 5xx errors, fail fast on 4xx
+                  if (response.status >= 500 && attempt < MAX_RETRIES) {
+                    console.warn(`[AuthService] ⚠️ Webhook returned ${response.status}, will retry...`);
+                    lastError = new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
+                    continue;
+                  }
+                  throw new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
+                }
+                
+                const text = await response.text();
+                if (!text || text.trim().length === 0) {
+                  if (attempt < MAX_RETRIES) {
+                    console.warn(`[AuthService] ⚠️ Webhook returned empty body, will retry...`);
+                    lastError = new Error('Authentication service returned an empty response.');
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
+                    continue;
+                  }
+                  console.error('[AuthService] ❌ Webhook returned empty body. status:', response.status, 'url:', webhookUrl);
+                  throw new Error('Authentication service returned an empty response.');
+                }
+                
+                try {
+                  rawWebhookResponse = JSON.parse(text);
+                } catch (parseErr: any) {
+                  const preview = text.substring(0, 500);
+                  const looksLikeHtml = /^\s*</.test(text.trim()) || text.trim().toLowerCase().startsWith('<!');
+                  console.error('[AuthService] ❌ Webhook response is not valid JSON:', parseErr?.message || parseErr);
+                  console.error('[AuthService] ❌ Response status:', response.status, 'url:', webhookUrl);
+                  console.error('[AuthService] ❌ Body preview:', preview + (text.length > 500 ? '...' : ''));
+                  if (looksLikeHtml) {
+                    console.error('[AuthService] ❌ Body looks like HTML — n8n may be returning an error page. Check n8n workflow is active and /webhook/useraccount exists.');
+                  }
+                  
+                  // Retry on JSON parse errors (might be transient)
+                  if (attempt < MAX_RETRIES) {
+                    console.warn(`[AuthService] ⚠️ JSON parse error, will retry...`);
+                    lastError = new Error('Authentication service temporarily unavailable. Please try again later.');
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
+                    continue;
+                  }
+                  throw new Error('Authentication service temporarily unavailable. Please try again later.');
+                }
+                
+                console.log('[AuthService] ✅ Raw webhook response received');
+                break; // Success, exit retry loop
+                
+              } catch (fetchError: any) {
+                clearTimeout(timeoutId);
+                if (fetchError.name === 'AbortError') {
+                  if (attempt < MAX_RETRIES) {
+                    console.warn(`[AuthService] ⚠️ Request timed out, will retry (attempt ${attempt}/${MAX_RETRIES})...`);
+                    lastError = new Error('Authentication service timeout: Webhook request timed out. Please try again.');
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
+                    continue;
+                  }
+                  console.error('[AuthService] ❌ Webhook request timed out after all retries');
+                  throw new Error('Authentication service timeout: Webhook request timed out. Please try again.');
+                }
+                
+                // Retry on network errors
+                if (attempt < MAX_RETRIES && (
+                  fetchError.message?.includes('ECONNREFUSED') ||
+                  fetchError.message?.includes('ENOTFOUND') ||
+                  fetchError.message?.includes('ETIMEDOUT') ||
+                  fetchError.message?.includes('network')
+                )) {
+                  console.warn(`[AuthService] ⚠️ Network error, will retry: ${fetchError.message}`);
+                  lastError = fetchError;
+                  await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
+                  continue;
+                }
+                
+                console.error('[AuthService] ❌ Webhook fetch error:', fetchError.message);
+                throw fetchError;
+              }
+            } catch (attemptError: any) {
+              lastError = attemptError;
+              if (attempt === MAX_RETRIES) {
+                // Last attempt failed, throw the error
+                throw attemptError;
+              }
+              // Continue to next retry
             }
-            throw new Error('Authentication service temporarily unavailable. Please try again later.');
           }
-          console.log('[AuthService] ✅ Raw webhook response received');
-        } catch (fetchError: any) {
-          clearTimeout(timeoutId);
-          if (fetchError.name === 'AbortError') {
-            console.error('[AuthService] ❌ Webhook request timed out after 15 seconds');
-            throw new Error('Authentication service timeout: Webhook request timed out. Please try again.');
+          
+          // If we get here without breaking, all retries failed
+          if (lastError) {
+            throw lastError;
           }
-          console.error('[AuthService] ❌ Webhook fetch error:', fetchError.message);
-          throw fetchError;
-        }
-        if (!Array.isArray(rawWebhookResponse)) {
-          console.error('[AuthService] ❌ Webhook response is not an array');
-          throw new Error('Invalid webhook response format: Expected an array of user records');
-        }
-        if (rawWebhookResponse.length === 0) {
-          throw new Error('No user accounts found in database');
-        }
-        const invalidRecords: number[] = [];
-        rawWebhookResponse.forEach((record: any, index: number) => {
-          if (!record || typeof record !== 'object') { invalidRecords.push(index); return; }
-          if (!record.id || typeof record.id !== 'string') { invalidRecords.push(index); return; }
-          const hasFields = record.fields && typeof record.fields === 'object' && record.fields !== null;
-          const hasDirectUsername = record.Username && typeof record.Username === 'string';
-          if (!hasFields && !hasDirectUsername) invalidRecords.push(index);
-        });
-        if (invalidRecords.length > 0) {
-          throw new Error(`Invalid webhook response: ${invalidRecords.length} record(s) missing required 'id' or user data properties`);
-        }
-        userAccounts = rawWebhookResponse.map((record: any) => {
-          const hasFields = record.fields && typeof record.fields === 'object';
-          const source = hasFields ? record.fields : record;
-          return {
-            id: record.id,
-            createdTime: record.createdTime || '',
-            Username: source.Username || source['Username'] || '',
-            Password: source.Password || source['Password'] || '',
-            Role: source.Role || source['Role'] || '',
-            'Account Status': source['Account Status'] || source.AccountStatus || source.status || 'Unknown',
-            'Associated Profile': source['Associated Profile'] || source.AssociatedProfile || source.profile || '',
-            'Last Login': source['Last Login'] || source.LastLogin || source.lastLogin || '',
-          } as UserAccount;
-        });
-        console.log(`[AuthService] ✅ Successfully extracted ${userAccounts.length} user accounts`);
-      } catch (webhookError: any) {
-        console.error('[AuthService] ❌ Failed to fetch or validate user accounts from webhook');
+          
+            if (!Array.isArray(rawWebhookResponse)) {
+              console.error('[AuthService] ❌ Webhook response is not an array');
+              throw new Error('Invalid webhook response format: Expected an array of user records');
+            }
+            if (rawWebhookResponse.length === 0) {
+              throw new Error('No user accounts found in database');
+            }
+            const invalidRecords: number[] = [];
+            rawWebhookResponse.forEach((record: any, index: number) => {
+              if (!record || typeof record !== 'object') { invalidRecords.push(index); return; }
+              if (!record.id || typeof record.id !== 'string') { invalidRecords.push(index); return; }
+              const hasFields = record.fields && typeof record.fields === 'object' && record.fields !== null;
+              const hasDirectUsername = record.Username && typeof record.Username === 'string';
+              if (!hasFields && !hasDirectUsername) invalidRecords.push(index);
+            });
+            if (invalidRecords.length > 0) {
+              throw new Error(`Invalid webhook response: ${invalidRecords.length} record(s) missing required 'id' or user data properties`);
+            }
+            userAccounts = rawWebhookResponse.map((record: any) => {
+              const hasFields = record.fields && typeof record.fields === 'object';
+              const source = hasFields ? record.fields : record;
+              return {
+                id: record.id,
+                createdTime: record.createdTime || '',
+                Username: source.Username || source['Username'] || '',
+                Password: source.Password || source['Password'] || '',
+                Role: source.Role || source['Role'] || '',
+                'Account Status': source['Account Status'] || source.AccountStatus || source.status || 'Unknown',
+                'Associated Profile': source['Associated Profile'] || source.AssociatedProfile || source.profile || '',
+                'Last Login': source['Last Login'] || source.LastLogin || source.lastLogin || '',
+              } as UserAccount;
+            });
+            console.log(`[AuthService] ✅ Successfully extracted ${userAccounts.length} user accounts`);
+            
+            // Cache the successfully fetched accounts
+            this.setCachedUserAccounts(userAccounts);
+          } catch (webhookError: any) {
+        console.error('[AuthService] ❌ Failed to fetch or validate user accounts from webhook after all retries');
         console.error('[AuthService] Webhook error details:', { name: webhookError.name, message: webhookError.message });
-        if (webhookError.message?.includes('No user accounts found') || webhookError.message?.includes('Invalid webhook response') || webhookError.message?.includes('missing required')) {
+        
+        // Don't retry these - they're authentication failures, not service issues
+        if (webhookError.message?.includes('No user accounts found') || 
+            webhookError.message?.includes('Invalid webhook response') || 
+            webhookError.message?.includes('missing required')) {
           throw new Error('Invalid email or password');
         }
+        
+        // Timeout errors - already retried, provide helpful message
         if (webhookError.message?.includes('timeout') || webhookError.message?.includes('timed out')) {
-          throw new Error(`Authentication service timeout: ${webhookError.message}`);
+          throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
         }
-        // n8n/webhook returned 5xx (503, 502, 504, 500) — treat as temporarily unavailable
+        
+        // Network errors - already retried
+        if (webhookError.message?.includes('ECONNREFUSED') || 
+            webhookError.message?.includes('ENOTFOUND') || 
+            webhookError.message?.includes('ETIMEDOUT')) {
+          throw new Error('Unable to reach authentication service. Please check your connection and try again.');
+        }
+        
+        // n8n/webhook returned 5xx (503, 502, 504, 500) — already retried
         if (webhookError.message?.match(/Webhook returned status 5\d\d/)) {
-          console.error('[AuthService] ❌ Webhook 5xx — n8n or upstream (Airtable) may be down. Check N8N_BASE_URL and n8n workflow.');
-          throw new Error('Authentication service temporarily unavailable. Please try again later.');
+          console.error('[AuthService] ❌ Webhook 5xx after all retries — n8n or upstream (Airtable) may be down. Check N8N_BASE_URL and n8n workflow.');
+          throw new Error('Authentication service is experiencing issues. Please try again in a few moments.');
         }
-        // Never surface raw JSON parse errors (e.g. "Unexpected end of JSON input") to the client
+        
+        // JSON parse errors - already retried
         if (webhookError.message?.includes('Unexpected end of JSON input') ||
             webhookError.message?.includes('Authentication service returned') ||
-            webhookError.message?.includes('temporarily unavailable') ||
             (webhookError.name === 'SyntaxError' && webhookError.message?.includes('JSON'))) {
-          throw new Error('Authentication service temporarily unavailable. Please try again later.');
+          throw new Error('Authentication service returned invalid data. Please try again.');
         }
-        throw new Error(`Failed to connect to authentication service: ${webhookError.message}`);
-      }
+        
+        // Generic connection errors
+        if (webhookError.message?.includes('temporarily unavailable')) {
+          throw new Error('Authentication service is temporarily unavailable. Please try again in a few moments.');
+        }
+        
+        // Fallback - provide a user-friendly message
+        throw new Error('Unable to connect to authentication service. Please try again in a few moments.');
+        } // End of catch block
+      } // End of else block (non-mock path)
     }
 
     // Step 2: Find user by email (Username field in Airtable)
