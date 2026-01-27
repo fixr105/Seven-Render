@@ -333,6 +333,13 @@ export class AuthService {
         const match = username.toLowerCase() === email.toLowerCase();
         if (match) {
           console.log(`[AuthService] ✅ Found user account: ${u.id}, Username: ${username}`);
+          console.log(`[AuthService] User account details:`, {
+            id: u.id,
+            username: username,
+            role: u.Role,
+            accountStatus: u['Account Status'],
+            hasPassword: !!u.Password,
+          });
         }
         return match;
       }
@@ -340,9 +347,10 @@ export class AuthService {
 
     if (!userAccount) {
       console.error('[AuthService] ❌ User not found in database');
+      console.error('[AuthService] Searched email:', email);
       console.error('[AuthService] Searched in', userAccounts.length, 'accounts');
-      console.error('[AuthService] Available usernames (first 5):', 
-        userAccounts.slice(0, 5).map(u => u.Username || 'N/A').join(', '));
+      console.error('[AuthService] Available usernames (first 10):', 
+        userAccounts.slice(0, 10).map(u => `"${u.Username || 'N/A'}"`).join(', '));
       throw new Error('Invalid email or password');
     }
     
@@ -350,12 +358,17 @@ export class AuthService {
 
     // Step 3: Check account status
     console.log('[AuthService] Step 3: Checking account status...');
-    const accountStatus = userAccount['Account Status'] || userAccount['Account Status'] || 'Unknown';
-    console.log('[AuthService] Account Status:', accountStatus);
+    const accountStatus = userAccount['Account Status'] || 'Unknown';
+    console.log('[AuthService] Account Status (raw):', accountStatus);
     
-    if (accountStatus !== 'Active') {
-      console.error('[AuthService] ❌ Account is not active. Status:', accountStatus);
-      throw new Error('Account is not active');
+    // Normalize account status for comparison (case-insensitive)
+    const normalizedStatus = typeof accountStatus === 'string' ? accountStatus.trim() : String(accountStatus);
+    const isActive = normalizedStatus.toLowerCase() === 'active';
+    console.log('[AuthService] Account Status (normalized):', normalizedStatus, 'isActive:', isActive);
+    
+    if (!isActive) {
+      console.error('[AuthService] ❌ Account is not active. Status:', accountStatus, '(normalized:', normalizedStatus, ')');
+      throw new Error(`Account is not active. Current status: ${accountStatus}`);
     }
     console.log('[AuthService] ✅ Account is active');
 
@@ -365,21 +378,35 @@ export class AuthService {
     
     if (!storedPassword) {
       console.error('[AuthService] ❌ No password found in user account');
+      console.error('[AuthService] User account object keys:', Object.keys(userAccount));
       throw new Error('Invalid email or password');
     }
     
     // Check if password is hashed (starts with $2a$ or $2b$) or plaintext
-    const isHashed = storedPassword.startsWith('$2a$') || storedPassword.startsWith('$2b$');
+    const isHashed = storedPassword.startsWith('$2a$') || storedPassword.startsWith('$2b$') || storedPassword.startsWith('$2y$');
     console.log('[AuthService] Password format:', isHashed ? 'Hashed (bcrypt)' : 'Plaintext');
+    console.log('[AuthService] Stored password length:', storedPassword.length);
+    console.log('[AuthService] Input password length:', password.length);
     
     let isPasswordValid: boolean;
     try {
       if (isHashed) {
         isPasswordValid = await bcrypt.compare(password, storedPassword);
         console.log('[AuthService] Bcrypt comparison result:', isPasswordValid);
+        if (!isPasswordValid) {
+          console.error('[AuthService] ❌ Bcrypt password mismatch');
+        }
       } else {
-        isPasswordValid = storedPassword === password;
+        // Trim both passwords for comparison (in case of whitespace issues)
+        const trimmedStored = storedPassword.trim();
+        const trimmedInput = password.trim();
+        isPasswordValid = trimmedStored === trimmedInput;
         console.log('[AuthService] Plaintext comparison result:', isPasswordValid);
+        if (!isPasswordValid) {
+          console.error('[AuthService] ❌ Plaintext password mismatch');
+          console.error('[AuthService] Stored password (first 3 chars):', trimmedStored.substring(0, 3));
+          console.error('[AuthService] Input password (first 3 chars):', trimmedInput.substring(0, 3));
+        }
       }
     } catch (bcryptError: any) {
       console.error('[AuthService] ❌ Password validation error:', bcryptError.message);
