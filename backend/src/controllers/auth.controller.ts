@@ -404,6 +404,76 @@ export class AuthController {
         return;
       }
 
+      // CRITICAL: Reject any test users from JWT token
+      const userEmail = req.user.email?.toLowerCase().trim() || '';
+      if (userEmail === 'test@example.com' || 
+          userEmail.includes('test@') || 
+          (req.user.name === 'Test User' && req.user.role === 'client')) {
+        console.error('[AuthController] getMe: Test user detected in JWT token, rejecting', {
+          email: req.user.email,
+          name: req.user.name,
+          role: req.user.role,
+        });
+        res.status(401).json({
+          success: false,
+          error: 'Invalid authentication. Please log out and log in again.',
+        });
+        return;
+      }
+
+      // CRITICAL: Verify user exists in User Accounts table and is Active
+      try {
+        const userAccounts = await n8nClient.fetchTable('User Accounts', false, undefined, 5000);
+        const realUser = userAccounts.find((u: any) => {
+          const accountEmail = (u['Username'] || u['Email'] || '').toLowerCase().trim();
+          return accountEmail === userEmail;
+        });
+        
+        if (!realUser) {
+          console.error('[AuthController] getMe: User from JWT not found in User Accounts table', {
+            email: req.user.email,
+          });
+          res.status(401).json({
+            success: false,
+            error: 'User account not found. Please log out and log in again.',
+          });
+          return;
+        }
+        
+        // Check account status
+        const accountStatus = (realUser['Account Status'] || realUser.AccountStatus || '').toLowerCase().trim();
+        if (accountStatus !== 'active') {
+          console.error('[AuthController] getMe: User account is not active', {
+            email: req.user.email,
+            status: accountStatus,
+          });
+          res.status(401).json({
+            success: false,
+            error: `Account is not active. Current status: ${realUser['Account Status'] || accountStatus}. Please contact administrator.`,
+          });
+          return;
+        }
+        
+        // Update req.user with verified data from User Accounts
+        req.user.email = realUser['Username'] || realUser['Email'];
+        req.user.id = realUser.id;
+        req.user.role = realUser['Role'] || realUser.role;
+        console.log('[AuthController] getMe: User verified in User Accounts table', {
+          email: req.user.email,
+          id: req.user.id,
+          role: req.user.role,
+        });
+      } catch (verifyError: any) {
+        console.error('[AuthController] getMe: Failed to verify user in User Accounts table', {
+          error: verifyError.message,
+        });
+        res.status(401).json({
+          success: false,
+          error: 'Unable to verify user. Please log out and log in again.',
+        });
+        return;
+      }
+
       console.log('[AuthController] getMe: Fetching user info for:', req.user.email);
 
       // Step 2: Get name from JWT token first, then fallback to email
