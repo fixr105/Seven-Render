@@ -70,7 +70,6 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000,
       env: { 
-        E2E_USE_MOCK_USER_ACCOUNTS: '1',
         N8N_BASE_URL: process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud',
         NODE_ENV: 'development',
       },

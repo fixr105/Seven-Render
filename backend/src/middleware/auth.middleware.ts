@@ -59,66 +59,8 @@ export const authenticate = async (
 
     const token = authHeader.substring(7);
     logger.debug('Token extracted', { 
-      tokenLength: token.length, 
-      isTestToken: token.startsWith('test-token-') 
+      tokenLength: token.length
     });
-    
-    // Allow test tokens (bypass authentication for development/testing)
-    // Token format: test-token-{role}@{timestamp}
-    // This format allows roles with underscores (e.g., credit_team)
-    if (token.startsWith('test-token-')) {
-      logger.debug('Processing test token');
-      // Extract role from token: test-token-{role}@{timestamp}
-      // Split by '@' first to separate role from timestamp
-      const roleAndTimestamp = token.replace('test-token-', '');
-      const atIndex = roleAndTimestamp.indexOf('@');
-      const role = atIndex > 0 ? roleAndTimestamp.substring(0, atIndex) : roleAndTimestamp;
-      
-      // Map test user emails to roles (tests use Sagar@gmail.com / pass@123)
-      const testUsers: Record<string, { email: string; role: any; clientId?: string; kamId?: string; nbfcId?: string; name: string }> = {
-        'client': {
-          email: 'Sagar@gmail.com',
-          role: 'client',
-          clientId: 'TEST-CLIENT-001',
-          name: 'Sagar',
-        },
-        'kam': {
-          email: 'Sagar@gmail.com',
-          role: 'kam',
-          kamId: 'TEST-KAM-001',
-          name: 'Sagar',
-        },
-        'credit_team': {
-          email: 'Sagar@gmail.com',
-          role: 'credit_team',
-          name: 'Sagar',
-        },
-        'nbfc': {
-          email: 'Sagar@gmail.com',
-          role: 'nbfc',
-          nbfcId: 'TEST-NBFC-001',
-          name: 'Sagar',
-        },
-      };
-      
-      const testUser = testUsers[role];
-      if (testUser) {
-        req.user = {
-          id: `test-${role}-${Date.now()}`,
-          email: testUser.email,
-          role: testUser.role,
-          clientId: testUser.clientId,
-          kamId: testUser.kamId,
-          nbfcId: testUser.nbfcId,
-          name: testUser.name,
-        };
-        logger.info('Test token authenticated', { email: testUser.email, role: testUser.role });
-        next();
-        return;
-      } else {
-        logger.warn('Unknown test role', { role });
-      }
-    }
     
     // Verify real JWT token
     logger.debug('Verifying JWT token');

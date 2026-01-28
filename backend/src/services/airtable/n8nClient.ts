@@ -631,6 +631,11 @@ export class N8nClient {
   }
 
   async postCreditTeamUser(data: Record<string, any>) {
+    // Validate email if provided
+    const email = data['Email'] || data.Email || '';
+    if (email && !this.isValidEmail(email)) {
+      throw new Error(`Invalid email format in Credit Team Users: "${email}". Email must be a valid email address.`);
+    }
     // Ensure exact fields are sent to CREDITTEAMUSERS webhook
     const creditUserData = {
       id: data.id, // for matching
@@ -763,7 +768,21 @@ export class N8nClient {
     return result;
   }
 
+  /**
+   * Validate email format
+   */
+  private isValidEmail(email: string): boolean {
+    if (!email || typeof email !== 'string') return false;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  }
+
   async postKamUser(data: Record<string, any>) {
+    // Validate email if provided
+    const email = data['Email'] || data.Email || '';
+    if (email && !this.isValidEmail(email)) {
+      throw new Error(`Invalid email format in KAM Users: "${email}". Email must be a valid email address.`);
+    }
     const result = await this.postData(n8nConfig.postKamUsersUrl, data);
     // Invalidate cache for KAM Users
     this.invalidateCache('KAM Users');

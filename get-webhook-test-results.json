@@ -1,0 +1,775 @@
+{
+  "summary": {
+    "total": 15,
+    "success": 14,
+    "errors": 1,
+    "emptyResponses": 1,
+    "formatIssues": 0,
+    "missingFields": 1
+  },
+  "results": [
+    {
+      "name": "Admin Activity",
+      "path": "Adminactivity",
+      "table": "Admin Activity log",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/Adminactivity",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 78,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [
+          "Activity ID",
+          "Timestamp",
+          "Performed By",
+          "Action Type"
+        ],
+        "presentFields": [
+          "id"
+        ],
+        "fieldCoverage": 20,
+        "allFields": [
+          "id",
+          "createdTime"
+        ]
+      },
+      "recordCount": 78,
+      "sampleRecord": {
+        "id": "rec0yoTsePEMJDTBr",
+        "createdTime": "2025-12-02T11:21:51.000Z"
+      },
+      "recommendations": [
+        "Missing 4 expected fields: Activity ID, Timestamp, Performed By, Action Type",
+        "Some records have empty/null values in critical fields: Record 1: Activity ID, Record 1: Timestamp, Record 3: Activity ID, Record 3: Timestamp, Record 4: Activity ID"
+      ]
+    },
+    {
+      "name": "User Accounts",
+      "path": "useraccount",
+      "table": "User Accounts",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/useraccount",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 11,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Username",
+          "Password",
+          "Role",
+          "Account Status",
+          "Associated Profile"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Username",
+          "Password",
+          "Role",
+          "Associated Profile",
+          "Account Status"
+        ]
+      },
+      "recordCount": 11,
+      "sampleRecord": {
+        "id": "rec35KB1tY5SXIoA8",
+        "createdTime": "2026-01-15T13:06:04.000Z",
+        "Username": "test@gmail.com",
+        "Password": "$2a$10$/yESUxCP6QI7BSZG1hg8qeFP7Tu5/pkRCKqID8rDfmDTv/jfjIIs2",
+        "Role": "client",
+        "Associated Profile": "test",
+        "Account Status": "Active"
+      },
+      "recommendations": [
+        "Some records have empty/null values in critical fields: Record 3: Username, Record 3: Password"
+      ]
+    },
+    {
+      "name": "Client Form Mapping",
+      "path": "clientformmapping",
+      "table": "Client Form Mapping",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/clientformmapping",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 20,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Mapping ID",
+          "Client",
+          "Category",
+          "Is Required"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Mapping ID",
+          "Client",
+          "Category",
+          "Is Required",
+          "Display Order"
+        ]
+      },
+      "recordCount": 20,
+      "sampleRecord": {
+        "id": "rec05cNiaNZJyrp8h",
+        "createdTime": "2026-01-15T12:12:57.000Z",
+        "Mapping ID": "MAP-1768479172976-1-srvhusrv6",
+        "Client": "recOpm0UyZFHWUutV",
+        "Category": "CAT-1768479161760-1-g1zy6ag2n",
+        "Is Required": "True",
+        "Display Order": "2"
+      },
+      "recommendations": [
+        "Some records have empty/null values in critical fields: Record 3: Mapping ID, Record 3: Client"
+      ]
+    },
+    {
+      "name": "Clients",
+      "path": "client",
+      "table": "Clients",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/client",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 6,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Client ID",
+          "Client Name",
+          "Assigned KAM",
+          "Status"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Client ID",
+          "Client Name",
+          "Primary Contact Name",
+          "Contact Email / Phone",
+          "Assigned KAM",
+          "Commission Rate",
+          "Status"
+        ]
+      },
+      "recordCount": 6,
+      "sampleRecord": {
+        "id": "recMwnvR6JHBsIgDj",
+        "createdTime": "2025-12-01T06:27:51.000Z",
+        "Client ID": "CL001",
+        "Client Name": "Fluxx Electric",
+        "Primary Contact Name": "9876543210",
+        "Contact Email / Phone": "Test@fluxxev.com",
+        "Assigned KAM": "USER-1767430957573-81645wu26",
+        "Commission Rate": "1",
+        "Status": "active"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "Commission Ledger",
+      "path": "commisionledger",
+      "table": "Commission Ledger",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/commisionledger",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 2,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Ledger Entry ID",
+          "Client",
+          "Loan File",
+          "Date",
+          "Payout Amount"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Ledger Entry ID",
+          "Client",
+          "Loan File",
+          "Date",
+          "Disbursed Amount",
+          "Commission Rate",
+          "Payout Amount",
+          "Description",
+          "Dispute Status",
+          "Payout Request"
+        ]
+      },
+      "recordCount": 2,
+      "sampleRecord": {
+        "id": "recTr1AVIRPtCtfXg",
+        "createdTime": "2025-12-02T13:19:42.000Z",
+        "Ledger Entry ID": "LEDGER-TEST-001",
+        "Client": "Test Corporation Pvt Ltd",
+        "Loan File": "SF20250101001",
+        "Date": "2025-01-15",
+        "Disbursed Amount": "5000000",
+        "Commission Rate": "1.5",
+        "Payout Amount": "75000",
+        "Description": "Commission for loan disbursement - Test entry",
+        "Dispute Status": "None",
+        "Payout Request": "False"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "Credit Team Users",
+      "path": "creditteamuser",
+      "table": "Credit Team Users",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/creditteamuser",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 2,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Credit User ID",
+          "Name",
+          "Email",
+          "Role",
+          "Status"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Credit User ID",
+          "Name",
+          "Email",
+          "Role",
+          "Status"
+        ]
+      },
+      "recordCount": 2,
+      "sampleRecord": {
+        "id": "recngN57SvPlvrVCN",
+        "createdTime": "2026-01-03T09:02:56.000Z",
+        "Credit User ID": "USER-1767430973544-kgaox059z",
+        "Name": "Rahul",
+        "Email": "Rahul",
+        "Role": "credit_team",
+        "Status": "Active"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "Daily Summary Reports",
+      "path": "dailysummaryreport",
+      "table": "Daily summary Reports",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/dailysummaryreport",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 8,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Report Date",
+          "Summary Content"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Report Date",
+          "Summary Content",
+          "Generated Timestamp"
+        ]
+      },
+      "recordCount": 8,
+      "sampleRecord": {
+        "id": "rec4OJQakMHIPR5oG",
+        "createdTime": "2026-01-09T00:00:06.000Z",
+        "Report Date": "2026-01-08",
+        "Summary Content": "Daily Summary Report for 2026-01-08\n==================================================\n\nLOAN APPLICATIONS\n--------------------------------------------------\nTotal Applications: 0\nNew Applications: 0\nStatus Changes: 0\nApplications Disbursed: 0\nTotal Disbursed Amount: ₹0\n\nApplications by Status:\n\nADMIN ACTIVITIES\n--------------------------------------------------\nTotal Activities: 0\n\nActivities by Type:\n\nActivities by Role:\n\nCOMMISSION & LEDGER\n--------------------------------------------------\nTotal Commissions: 0\nPayout Requests: 0\nDisputes: 0\n\nQUERIES & AUDIT\n--------------------------------------------------\nQueries Raised: 0\nQueries Resolved: 0\nOpen Queries: 0\n\n==================================================\nReport Generated: 2026-01-09T00:00:04.829Z",
+        "Generated Timestamp": "2026-01-09T00:00:04.830Z"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "File Auditing Log",
+      "path": "fileauditinglog",
+      "table": "File Auditing Log",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/fileauditinglog",
+      "status": "error",
+      "httpStatus": 200,
+      "error": "Unexpected end of JSON input",
+      "responseFormat": null,
+      "fieldAnalysis": null,
+      "recordCount": 0,
+      "sampleRecord": null,
+      "recommendations": []
+    },
+    {
+      "name": "Form Categories",
+      "path": "formcategories",
+      "table": "Form Categories",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/formcategories",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 18,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Category ID",
+          "Category Name",
+          "Display Order",
+          "Active"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Category ID",
+          "Category Name",
+          "Description",
+          "Display Order",
+          "Active"
+        ]
+      },
+      "recordCount": 18,
+      "sampleRecord": {
+        "id": "rec03iY1CFi5TCuwn",
+        "createdTime": "2026-01-12T14:02:37.000Z",
+        "Category ID": "CAT-1768226555584-0-h3bcsuaoz",
+        "Category Name": "Personal KYC (All Applicants/Co-Applicants)",
+        "Description": "Personal identification and address documents",
+        "Display Order": "1",
+        "Active": "True"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "Form Fields",
+      "path": "formfields",
+      "table": "Form Fields",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/formfields",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 144,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Field ID",
+          "Category",
+          "Field Label",
+          "Field Type",
+          "Is Mandatory"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Field ID",
+          "Category",
+          "Field Label",
+          "Field Type",
+          "Field Placeholder",
+          "Is Mandatory",
+          "Display Order",
+          "Active"
+        ]
+      },
+      "recordCount": 144,
+      "sampleRecord": {
+        "id": "rec1IIHtpyn1mQ6lW",
+        "createdTime": "2025-12-02T14:56:42.000Z",
+        "Field ID": "FIELD-TEST-1764687387246",
+        "Category": "Personal Information",
+        "Field Label": "Full Name",
+        "Field Type": "text",
+        "Field Placeholder": "Enter your full name",
+        "Is Mandatory": "True",
+        "Display Order": "1",
+        "Active": "True"
+      },
+      "recommendations": [
+        "Some records have empty/null values in critical fields: Record 2: Field ID, Record 2: Category, Record 4: Field ID, Record 4: Category"
+      ]
+    },
+    {
+      "name": "KAM Users",
+      "path": "kamusers",
+      "table": "KAM Users",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/kamusers",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 5,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "KAM ID",
+          "Name",
+          "Email",
+          "Role",
+          "Status"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "KAM ID",
+          "Name",
+          "Email",
+          "Role",
+          "Status"
+        ]
+      },
+      "recordCount": 5,
+      "sampleRecord": {
+        "id": "rec0Kt2KQNOZiSHPU",
+        "createdTime": "2026-01-03T09:02:41.000Z",
+        "KAM ID": "USER-1767430957573-81645wu26",
+        "Name": "Sagar",
+        "Email": "Sagar",
+        "Role": "kam",
+        "Status": "Active"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "Loan Applications",
+      "path": "loanapplication",
+      "table": "Loan Applications",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/loanapplication",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 4,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "File ID",
+          "Client",
+          "Status",
+          "Applicant Name",
+          "Loan Product"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "File ID",
+          "Client",
+          "Applicant Name",
+          "Loan Product",
+          "Requested Loan Amount",
+          "Status",
+          "AI File Summary",
+          "Form Data",
+          "Creation Date",
+          "Submitted Date",
+          "Last Updated",
+          "KAM ID"
+        ]
+      },
+      "recordCount": 4,
+      "sampleRecord": {
+        "id": "rec5WymT3K6OEg5lt",
+        "createdTime": "2026-01-03T10:30:24.000Z",
+        "File ID": "SF36220522BRY3QF",
+        "Client": "CL001",
+        "Applicant Name": "Test Client",
+        "Loan Product": "LP009",
+        "Requested Loan Amount": "500000",
+        "Status": "Approved",
+        "AI File Summary": "═══════════════════════════════════════════════════════════\nAPPLICANT PROFILE\n═══════════════════════════════════════════════════════════\nApplicant: Test Client\nBusiness Type: N/A\nBusiness Age: N/A\nAnnual Turnover: N/A\nCIBIL Score: N/A\n\n═══════════════════════════════════════════════════════════\nLOAN DETAILS\n═══════════════════════════════════════════════════════════\nLoan Product: LP009\nRequested Amount: ₹5,00,000\nCurrent Status: Approved\nDocuments Uploaded: 0 document(s)\n\n═══════════════════════════════════════════════════════════\nSTRENGTHS\n═══════════════════════════════════════════════════════════\n1. Application submitted with required information\n\n═══════════════════════════════════════════════════════════\nRISKS\n═══════════════════════════════════════════════════════════\n1. Limited documentation provided - may need additional verification\n\n\n═══════════════════════════════════════════════════════════\nRECOMMENDATION\n═══════════════════════════════════════════════════════════\nApplication under review - await credit team assessment\n\n═══════════════════════════════════════════════════════════",
+        "Form Data": "{\"Tenure (months)\":24,\"Interest Rate (%)\":15,\"Notes\":\"Test application for RBF-EV\"}",
+        "Creation Date": "2026-01-03",
+        "Submitted Date": "2026-01-03",
+        "Last Updated": "2026-01-26T11:18:30.343Z",
+        "KAM ID": "USER-1767430957573-81645wu26"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "Loan Products",
+      "path": "loanproducts",
+      "table": "Loan Products",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/loanproducts",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 8,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Product ID",
+          "Product Name",
+          "Active"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Product ID",
+          "Product Name",
+          "Description",
+          "Active"
+        ]
+      },
+      "recordCount": 8,
+      "sampleRecord": {
+        "id": "rec3ULbmCFKO6ipte",
+        "createdTime": "2026-01-03T10:19:23.000Z",
+        "Product ID": "LP013",
+        "Product Name": "Loan Against Property",
+        "Description": "Secured loan backed by residential or commercial property for flexible financing.",
+        "Active": "True"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "NBFC Partners",
+      "path": "nbfcpartners",
+      "table": "NBFC Partners",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/nbfcpartners",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 14,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Lender ID",
+          "Lender Name",
+          "Active"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Lender ID",
+          "Lender Name",
+          "Contact Person",
+          "Address/Region",
+          "Active"
+        ]
+      },
+      "recordCount": 14,
+      "sampleRecord": {
+        "id": "recAA7cgUpSnFtm2I",
+        "createdTime": "2026-01-13T12:28:05.000Z",
+        "Lender ID": "NBFC-010",
+        "Lender Name": "Early Salary (B2C)",
+        "Contact Person": "Kabir Singh",
+        "Address/Region": "Delhi",
+        "Active": "True"
+      },
+      "recommendations": []
+    },
+    {
+      "name": "Notifications",
+      "path": "notifications",
+      "table": "Notifications",
+      "url": "https://fixrrahul.app.n8n.cloud/webhook/notifications",
+      "status": "success",
+      "httpStatus": 200,
+      "error": null,
+      "responseFormat": {
+        "isArray": true,
+        "isObject": false,
+        "hasRecords": false,
+        "hasData": false,
+        "isAirtableFormat": false,
+        "isFlattened": true,
+        "recordCount": 15,
+        "structure": "array_flattened"
+      },
+      "fieldAnalysis": {
+        "missingFields": [],
+        "presentFields": [
+          "id",
+          "Notification ID",
+          "Recipient User",
+          "Title",
+          "Message",
+          "Is Read"
+        ],
+        "fieldCoverage": 100,
+        "allFields": [
+          "id",
+          "createdTime",
+          "Notification ID",
+          "Recipient User",
+          "Recipient Role",
+          "Related File",
+          "Related Client",
+          "Related Ledger Entry",
+          "Notification Type",
+          "Title",
+          "Message",
+          "Channel",
+          "Is Read",
+          "Created At",
+          "Action Link"
+        ]
+      },
+      "recordCount": 15,
+      "sampleRecord": {
+        "id": "rec339MXxUykZVKKt",
+        "createdTime": "2025-12-02T16:06:16.000Z",
+        "Notification ID": "NOTIF005",
+        "Recipient User": "rohit.shreefa",
+        "Recipient Role": "Client",
+        "Related File": "FILE001",
+        "Related Client": "CL001",
+        "Related Ledger Entry": "LED001",
+        "Notification Type": "Ledger Update",
+        "Title": "Commission Added",
+        "Message": "Commission of ₹54,000 has been added for loan FILE001.",
+        "Channel": "In-App",
+        "Is Read": "False",
+        "Created At": "2025-01-15T18:00:00.000Z",
+        "Action Link": "/ledgers/LED001"
+      },
+      "recommendations": [
+        "Some records have empty/null values in critical fields: Record 2: Notification ID, Record 2: Recipient User, Record 4: Notification ID, Record 4: Recipient User"
+      ]
+    }
+  ]
+}

@@ -95,29 +95,17 @@ export class AuthService {
     console.log('[AuthService] ========== LOGIN SERVICE STARTED ==========');
     console.log('[AuthService] Email:', email);
     
-    // Step 1: Fetch user accounts from webhook and validate response structure (or use E2E mock)
+    // Step 1: Fetch user accounts from webhook and validate response structure
     let userAccounts: UserAccount[];
     let rawWebhookResponse: any;
 
-    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS === '1') {
-      // E2E: use in-memory users matching e2e/helpers/auth.ts TEST_USERS (no n8n webhook)
-      const mock: UserAccount[] = [
-        { id: 'recE2EClient01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.CLIENT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
-        { id: 'recE2EKAM01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.KAM, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
-        { id: 'recE2ECredit01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.CREDIT, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
-        { id: 'recE2ENBFC01', createdTime: '', Username: 'Sagar@gmail.com', Password: 'pass@123', Role: UserRole.NBFC, 'Account Status': AccountStatus.ACTIVE, 'Associated Profile': 'Sagar', 'Last Login': '' },
-      ];
-      userAccounts = mock;
+    // Check cache first
+    const cachedAccounts = this.getCachedUserAccounts();
+    if (cachedAccounts) {
+      userAccounts = cachedAccounts;
       rawWebhookResponse = undefined;
-      console.log('[AuthService] Using E2E mock user accounts (skipping n8n webhook)');
+      console.log('[AuthService] ✅ Using cached user accounts (skipping webhook call)');
     } else {
-      // Check cache first
-      const cachedAccounts = this.getCachedUserAccounts();
-      if (cachedAccounts) {
-        userAccounts = cachedAccounts;
-        rawWebhookResponse = undefined;
-        console.log('[AuthService] ✅ Using cached user accounts (skipping webhook call)');
-      } else {
         console.log('[AuthService] Step 1: Fetching user accounts from webhook...');
         console.log('[AuthService] Webhook URL: /webhook/useraccount');
         console.log('[AuthService] Table: User Accounts');
@@ -325,7 +313,6 @@ export class AuthService {
             // Fallback - provide a user-friendly message
             throw new Error('Unable to connect to authentication service. Please try again in a few moments.');
           } // End of catch block
-      } // End of else block (non-mock path)
     }
 
     // Step 2: Find user by email (Username field in Airtable)
@@ -534,14 +521,6 @@ export class AuthService {
     // Role data fetching is now completely non-blocking to prevent Vercel timeouts
     authUser.name = userAccount['Associated Profile'] || email.split('@')[0];
 
-    // E2E mock: set placeholder role IDs so routes that require them don't 401
-    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS === '1') {
-      if (role === UserRole.CLIENT) authUser.clientId = 'E2E-CLIENT-01';
-      if (role === UserRole.KAM) authUser.kamId = 'E2E-KAM-01';
-      if (role === UserRole.NBFC) authUser.nbfcId = 'E2E-NBFC-01';
-      if (role === UserRole.CREDIT) authUser.creditTeamId = 'E2E-CREDIT-01';
-    }
-
     console.log('[AuthService] Initial user object:', {
       id: authUser.id,
       email: authUser.email,
@@ -550,8 +529,6 @@ export class AuthService {
     });
 
     // Fetch role-specific data in background (completely non-blocking)
-    // Skip in E2E mock mode to avoid n8n calls
-    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS !== '1') {
     (async () => {
       try {
         switch (role) {
@@ -665,10 +642,8 @@ export class AuthService {
       console.error(`[AuthService] Unhandled error in background role data fetch for ${email}:`, error.message);
       // Don't throw - this is intentionally non-blocking
     });
-    }
 
-    // Update last login (non-blocking - don't wait for it). Skip in E2E mock mode.
-    if (process.env.E2E_USE_MOCK_USER_ACCOUNTS !== '1') {
+    // Update last login (non-blocking - don't wait for it)
     (async () => {
       try {
         await n8nClient.postUserAccount({
@@ -690,7 +665,6 @@ export class AuthService {
       console.error(`[AuthService] Unhandled error updating last login for ${email}:`, error.message);
       // Don't throw - this is intentionally non-blocking
     });
-    }
 
     // Step 7: Generate JWT token
     console.log('[AuthService] Step 7: Generating JWT token...');

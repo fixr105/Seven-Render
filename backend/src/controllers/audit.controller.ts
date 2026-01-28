@@ -78,9 +78,18 @@ export class AuditController {
       // Fetch only Admin Activity Log table
       const allActivityLogs = await n8nClient.fetchTable('Admin Activity Log');
       
+      // Filter out incomplete records (only have id/createdTime, missing activity data)
+      const completeRecords = allActivityLogs.filter((record: any) => {
+        return record['Activity ID'] || 
+               record['Performed By'] || 
+               record['Action Type'] ||
+               record['Description/Details'] ||
+               record['Timestamp'];
+      });
+      
       // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
-      let activityLogs = await rbacFilterService.filterAdminActivityLog(allActivityLogs, req.user!);
+      let activityLogs = await rbacFilterService.filterAdminActivityLog(completeRecords, req.user!);
 
       // Apply filters
       if (dateFrom || dateTo) {
