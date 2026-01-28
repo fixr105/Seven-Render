@@ -538,6 +538,20 @@ export class AuthController {
         return;
       }
 
+      // IMPORTANT: Do NOT call the n8n /webhook/validate at all.
+      // It has been observed to return fallback test users (e.g., test@example.com),
+      // causing cross-login. Instead, treat passcode like password and use the
+      // exact same auth flow as /auth/login (User Accounts table + bcrypt + JWT).
+      const result = await authService.login(username, passcode);
+      res.status(200).json({
+        success: true,
+        data: {
+          user: result.user,
+          token: result.token,
+        },
+      });
+      return;
+
       // Get n8n base URL from environment (required)
       if (!process.env.N8N_BASE_URL) {
         this.logStructured('VALIDATE_N8N_BASE_URL_MISSING', {
