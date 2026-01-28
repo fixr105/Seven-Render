@@ -404,15 +404,19 @@ export class AuthController {
         return;
       }
 
-      // CRITICAL: Reject any test users from JWT token
+      // SECURITY: Reject any test users from JWT token
       const userEmail = req.user.email?.toLowerCase().trim() || '';
-      if (userEmail === 'test@example.com' || 
+      const isTestUser = userEmail === 'test@example.com' || 
           userEmail.includes('test@') || 
-          (req.user.name === 'Test User' && req.user.role === 'client')) {
+          (req.user.name === 'Test User' && req.user.role === 'client') ||
+          req.user.id === 'test-user-123';
+      
+      if (isTestUser) {
         console.error('[AuthController] getMe: Test user detected in JWT token, rejecting', {
           email: req.user.email,
           name: req.user.name,
           role: req.user.role,
+          id: req.user.id,
         });
         res.status(401).json({
           success: false,
@@ -887,7 +891,7 @@ export class AuthController {
           profileData = rawData;
         }
 
-        // Check if webhook returned test data (indicating it didn't find the real user)
+        // SECURITY: Reject any test data patterns immediately
         const isTestData = profileData && (
           profileData.id === 'test-user-123' ||
           profileData.email === 'test@example.com' ||
@@ -895,78 +899,21 @@ export class AuthController {
           (profileData.name === 'Test User' && profileData.role === 'client')
         );
 
-        // If webhook returned test data, fetch real user from Airtable
         if (isTestData) {
-          defaultLogger.warn('VALIDATE: Webhook returned test data, fetching real user from Airtable', {
+          defaultLogger.error('VALIDATE: Test data detected from webhook, rejecting authentication', {
             requestId,
             username,
             webhookResponse: profileData,
           });
-          
-          try {
-            // Fetch User Accounts to find the real user
-            const userAccounts = await n8nClient.fetchTable('User Accounts', true, undefined, 5000);
-            const realUserAccount = userAccounts.find((u: any) => {
-              const accountUsername = (u['Username'] || u['Email'] || '').toLowerCase();
-              const accountName = (u['Name'] || u['Associated profile'] || '').toLowerCase();
-              const searchUsername = username.toLowerCase();
-              return accountUsername === searchUsername ||
-                     accountName === searchUsername ||
-                     accountUsername.includes(searchUsername) ||
-                     accountName.includes(searchUsername);
-            });
-            
-            if (realUserAccount) {
-              defaultLogger.info('VALIDATE: Found real user in Airtable', {
-                requestId,
-                userId: realUserAccount.id,
-                username: realUserAccount['Username'] || realUserAccount['Email'],
-                role: realUserAccount['Role'],
-              });
-              
-              // Use real user data instead of test data
-              profileData = {
-                id: realUserAccount.id,
-                username: realUserAccount['Username'] || realUserAccount['Email'],
-                email: realUserAccount['Email'] || realUserAccount['Username'],
-                role: realUserAccount['Role'],
-                name: realUserAccount['Name'] || realUserAccount['Associated profile'] || realUserAccount['Username'],
-                'Associated profile': realUserAccount['Associated profile'] || realUserAccount['Name'],
-              };
-            } else {
-              defaultLogger.warn('VALIDATE: Real user not found in Airtable, rejecting test data', {
-                requestId,
-                username,
-              });
-              // REJECT test data - do not allow login with test users
-              profileData = null;
-            }
-          } catch (fetchError: any) {
-            defaultLogger.error('VALIDATE: Failed to fetch real user from Airtable', {
-              requestId,
-              error: fetchError.message,
-            });
-            // REJECT test data on error - do not allow login
-            profileData = null;
-          }
-        }
-
-        // STRICT: Reject any test data that wasn't replaced with real user
-        if (profileData && isTestData) {
-          defaultLogger.error('VALIDATE: Test data detected and not replaced, rejecting authentication', {
-            requestId,
-            username,
-            profileData,
-          });
           res.status(401).json({
             success: false,
-            error: 'Invalid username or passcode. Test users are not allowed.',
+            error: 'Invalid username or passcode.',
           });
           return;
         }
 
-        // STRICT: Always use User Accounts table directly - ignore webhook response
-        // This ensures we never use test data from the webhook
+        // Always use User Accounts table directly - ignore webhook response
+        // This ensures we only authenticate real users from the database
         try {
           const userAccounts = await n8nClient.fetchTable('User Accounts', false, undefined, 5000);
           const realUser = userAccounts.find((u: any) => {

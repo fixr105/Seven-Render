@@ -19,12 +19,33 @@ const N8N_POST_KAM_USERS_URL = process.env.N8N_POST_KAM_USERS_URL || 'https://fi
 const N8N_POST_CREDIT_TEAM_USERS_URL = process.env.N8N_POST_CREDIT_TEAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS';
 const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners';
 
-// Test user: always use Sagar@gmail.com / pass@123
+// Use environment variables for test users - NEVER hardcode credentials
+// WARNING: This script should ONLY be used in development/test environments
 const requiredTestUsers = [
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'client', name: 'Sagar' },
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'kam', name: 'Sagar' },
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Sagar' },
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'nbfc', name: 'Sagar' },
+  { 
+    email: process.env.E2E_CLIENT_USERNAME || 'client@test.local', 
+    password: process.env.E2E_CLIENT_PASSWORD || 'test123', 
+    role: 'client', 
+    name: 'Test Client' 
+  },
+  { 
+    email: process.env.E2E_KAM_USERNAME || 'kam@test.local', 
+    password: process.env.E2E_KAM_PASSWORD || 'test123', 
+    role: 'kam', 
+    name: 'Test KAM' 
+  },
+  { 
+    email: process.env.E2E_CREDIT_USERNAME || 'credit@test.local', 
+    password: process.env.E2E_CREDIT_PASSWORD || 'test123', 
+    role: 'credit_team', 
+    name: 'Test Credit' 
+  },
+  { 
+    email: process.env.E2E_NBFC_USERNAME || 'nbfc@test.local', 
+    password: process.env.E2E_NBFC_PASSWORD || 'test123', 
+    role: 'nbfc', 
+    name: 'Test NBFC' 
+  },
 ];
 
 /**

@@ -1,6 +1,18 @@
 /**
  * Script to create test users in Airtable via n8n webhooks
- * Run this to create the test users needed for login
+ * 
+ * WARNING: This script should ONLY be used in development/test environments.
+ * Test users should NEVER be created in production.
+ * 
+ * To use this script, set environment variables:
+ * - E2E_CLIENT_USERNAME (default: client@test.local)
+ * - E2E_CLIENT_PASSWORD (default: test123)
+ * - E2E_KAM_USERNAME (default: kam@test.local)
+ * - E2E_KAM_PASSWORD (default: test123)
+ * - E2E_CREDIT_USERNAME (default: credit@test.local)
+ * - E2E_CREDIT_PASSWORD (default: test123)
+ * - E2E_NBFC_USERNAME (default: nbfc@test.local)
+ * - E2E_NBFC_PASSWORD (default: test123)
  */
 
 import fetch from 'node-fetch';
@@ -8,13 +20,32 @@ import fetch from 'node-fetch';
 const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
 const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
 
-// Test users: Sagar@gmail.com / pass@123 (for tests); Rahul@gmail.com / pass@123
+// Use environment variables for test users - NEVER hardcode credentials
 const testUsers = [
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'client', name: 'Sagar' },
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'kam', name: 'Sagar' },
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Sagar' },
-  { email: 'Sagar@gmail.com', password: 'pass@123', role: 'nbfc', name: 'Sagar' },
-  { email: 'Rahul@gmail.com', password: 'pass@123', role: 'credit_team', name: 'Rahul' },
+  { 
+    email: process.env.E2E_CLIENT_USERNAME || 'client@test.local', 
+    password: process.env.E2E_CLIENT_PASSWORD || 'test123', 
+    role: 'client', 
+    name: 'Test Client' 
+  },
+  { 
+    email: process.env.E2E_KAM_USERNAME || 'kam@test.local', 
+    password: process.env.E2E_KAM_PASSWORD || 'test123', 
+    role: 'kam', 
+    name: 'Test KAM' 
+  },
+  { 
+    email: process.env.E2E_CREDIT_USERNAME || 'credit@test.local', 
+    password: process.env.E2E_CREDIT_PASSWORD || 'test123', 
+    role: 'credit_team', 
+    name: 'Test Credit' 
+  },
+  { 
+    email: process.env.E2E_NBFC_USERNAME || 'nbfc@test.local', 
+    password: process.env.E2E_NBFC_PASSWORD || 'test123', 
+    role: 'nbfc', 
+    name: 'Test NBFC' 
+  },
 ];
 
 async function createUserAccount(user) {
@@ -110,10 +141,16 @@ async function main() {
   }
 
   console.log('\n✅ Test user creation complete!');
-  console.log('\nYou can now login with:');
+  console.log('\n⚠️  WARNING: These are test users. Do NOT use in production!');
+  console.log('\nTest user credentials (from environment variables):');
   testUsers.forEach(user => {
     console.log(`  ${user.email} / ${user.password} (${user.role})`);
   });
+  console.log('\nTo use different credentials, set environment variables:');
+  console.log('  E2E_CLIENT_USERNAME, E2E_CLIENT_PASSWORD');
+  console.log('  E2E_KAM_USERNAME, E2E_KAM_PASSWORD');
+  console.log('  E2E_CREDIT_USERNAME, E2E_CREDIT_PASSWORD');
+  console.log('  E2E_NBFC_USERNAME, E2E_NBFC_PASSWORD');
 }
 
 main().catch(console.error);
