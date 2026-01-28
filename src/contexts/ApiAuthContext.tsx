@@ -97,8 +97,11 @@ export const ApiAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const logout = () => {
-    apiService.logout();
+    // Clear all authentication data from storage
+    apiService.logout(); // This now calls clearAllAuthData()
     setUser(null);
+    // Ensure loading state is reset
+    setLoading(false);
   };
 
   const hasRole = (role: UserRole): boolean => {

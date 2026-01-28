@@ -406,23 +406,30 @@ export class RBACFilterService {
       const kam = kamUsers.find(
         (k: any) => matchIds(k.id, kamId) || matchIds(k['KAM ID'] || '', kamId)
       );
+      
       const acceptableIds: string[] = [kamId];
       if (kam) {
+        // Prioritize KAM ID field over record id for consistency
         const kid = kam['KAM ID'] || kam.id;
         if (kid && !acceptableIds.some((id) => matchIds(id, kid))) {
           acceptableIds.push(String(kid));
         }
-        if (kam['Name']) {
-          const nameVal = String(kam['Name']).trim();
-          if (nameVal && !acceptableIds.some((id) => matchIds(id, nameVal))) {
-            acceptableIds.push(nameVal);
-          }
+        // Also include record id if different
+        if (kam.id && !acceptableIds.some((id) => matchIds(id, kam.id))) {
+          acceptableIds.push(String(kam.id));
         }
+        // Remove name matching as it's not reliable
       }
+      
+      console.log(`[RBACFilter] getKAMManagedClientIds: kamId=${kamId}, found KAM=${!!kam}, acceptableIds=${JSON.stringify(acceptableIds)}`);
 
       const managedClients = clients.filter((client: any) => {
         const assignedKAM = client['Assigned KAM'] || client.assignedKAM || client['KAM ID'] || client['KAM'] || client['Assigned KAM ID'] || '';
-        return acceptableIds.some((id) => matchIds(assignedKAM, id));
+        const matches = acceptableIds.some((id) => matchIds(assignedKAM, id));
+        if (!matches && assignedKAM) {
+          console.log(`[RBACFilter] Client ${client.id || client['Client ID']} not matched: assignedKAM="${assignedKAM}" vs acceptableIds=${JSON.stringify(acceptableIds)}`);
+        }
+        return matches;
       });
 
       const result = managedClients
@@ -430,12 +437,27 @@ export class RBACFilterService {
         .filter(Boolean);
 
       if (result.length === 0) {
-        const sample = clients.slice(0, 3).map((c: any) => {
+        const sample = clients.slice(0, 5).map((c: any) => {
           const raw = c['Assigned KAM'] || c.assignedKAM || c['KAM ID'] || c['KAM'] || c['Assigned KAM ID'];
           const val = Array.isArray(raw) ? (raw[0] ?? '') : raw;
-          return { clientId: c.id || c['Client ID'], assignedKAM: val };
+          return { 
+            clientId: c.id || c['Client ID'], 
+            clientName: c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
+            assignedKAM: val,
+            assignedKAMType: typeof val
+          };
         });
-        console.warn('[RBACFilter] getKAMManagedClientIds: 0 managed clients', { kamId, found: !!kam, acceptableIds, sample });
+        console.warn('[RBACFilter] getKAMManagedClientIds: 0 managed clients', { 
+          kamId, 
+          found: !!kam,
+          kamKAMID: kam ? (kam['KAM ID'] || 'N/A') : 'N/A',
+          kamRecordId: kam ? kam.id : 'N/A',
+          acceptableIds, 
+          totalClients: clients.length,
+          sample 
+        });
+      } else {
+        console.log(`[RBACFilter] getKAMManagedClientIds: Found ${result.length} managed clients for KAM ${kamId}`);
       }
 
       requestCache.set(cacheKey, result);

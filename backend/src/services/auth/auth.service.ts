@@ -382,6 +382,24 @@ export class AuthService {
     }
     
     console.log('[AuthService] ✅ User account found:', userAccount.id);
+    
+    // Step 2.5: Validate only ONE user exists with this email (strict validation)
+    const normalizedEmail = email.toLowerCase().trim();
+    const duplicateUsers = userAccounts.filter((u: any) => {
+      const username = (u.Username || '').trim();
+      return username.toLowerCase() === normalizedEmail;
+    });
+    
+    if (duplicateUsers.length > 1) {
+      console.error('[AuthService] ❌ Multiple users found with same email:', email);
+      console.error('[AuthService] Found', duplicateUsers.length, 'users with email:', email);
+      duplicateUsers.forEach((u: any, index: number) => {
+        console.error(`[AuthService]   User ${index + 1}: ID=${u.id}, Role=${u.Role}, Status=${u['Account Status']}`);
+      });
+      throw new Error('Multiple users found with same email. Please contact administrator to resolve this issue.');
+    }
+    
+    console.log('[AuthService] ✅ Email validation passed: Only one user found with this email');
 
     // Step 3: Check account status
     console.log('[AuthService] Step 3: Checking account status...');
@@ -587,8 +605,13 @@ export class AuthService {
               
               const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
               if (kamUser) {
-                authUser.kamId = kamUser.id;
+                // Use KAM ID field (not record id) for consistency with Clients["Assigned KAM"]
+                // Fallback to record id if KAM ID field is not available
+                authUser.kamId = kamUser['KAM ID'] || kamUser.id;
                 authUser.name = kamUser.Name || authUser.name;
+                console.log(`[AuthService] KAM user found: ${email}, KAM ID: ${authUser.kamId}, Name: ${authUser.name}`);
+              } else {
+                console.warn(`[AuthService] KAM user not found in KAM Users table for email: ${email}`);
               }
             } catch (error: any) {
               console.error(`[AuthService] Background KAM lookup failed for ${email}:`, error.message);

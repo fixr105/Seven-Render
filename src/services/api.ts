@@ -228,6 +228,35 @@ class ApiService {
     localStorage.removeItem('auth_token');
   }
 
+  /**
+   * Clear all authentication-related data from storage
+   */
+  clearAllAuthData(): void {
+    this.token = null;
+    // Clear all auth-related localStorage items
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('userSettings'); // User settings may contain auth data
+    // Clear any other potential auth-related items
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('auth') || key.includes('token') || key.includes('user'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Clear sessionStorage as well
+    const sessionKeysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && (key.includes('auth') || key.includes('token') || key.includes('user'))) {
+        sessionKeysToRemove.push(key);
+      }
+    }
+    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+  }
+
   getToken(): string | null {
     return this.token;
   }
@@ -481,7 +510,7 @@ class ApiService {
    * Logout (clear token)
    */
   logout(): void {
-    this.clearToken();
+    this.clearAllAuthData();
   }
 
   // ==================== CLIENT ENDPOINTS ====================
