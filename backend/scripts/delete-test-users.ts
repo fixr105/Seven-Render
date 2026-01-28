@@ -18,12 +18,16 @@ const testEmailPatterns = [
   /rahul@gmail\.com/i,
   /.*@test\.com/i,
   /test.*@.*/i,
+  /.*@example\.com/i,  // test@example.com and similar
+  /test@.*/i,          // test@anything
 ];
 
 // Test email exact matches (case-insensitive)
 const testEmails = [
   'sagar@gmail.com',
   'rahul@gmail.com',
+  'test@gmail.com',
+  'test@example.com',
   'client@test.com',
   'kam@test.com',
   'credit@test.com',

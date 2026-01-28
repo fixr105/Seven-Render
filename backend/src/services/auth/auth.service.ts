@@ -401,7 +401,7 @@ export class AuthService {
     
     console.log('[AuthService] ✅ Email validation passed: Only one user found with this email');
 
-    // Step 3: Check account status
+    // Step 3: Check account status (STRICT - only "Active" allowed)
     console.log('[AuthService] Step 3: Checking account status...');
     const accountStatus = userAccount['Account Status'] || 'Unknown';
     console.log('[AuthService] Account Status (raw):', accountStatus);
@@ -411,9 +411,11 @@ export class AuthService {
     const isActive = normalizedStatus.toLowerCase() === 'active';
     console.log('[AuthService] Account Status (normalized):', normalizedStatus, 'isActive:', isActive);
     
+    // STRICT: Only "Active" status is allowed. Reject "Inactive", "N/A", "Unknown", empty, or any other value
     if (!isActive) {
       console.error('[AuthService] ❌ Account is not active. Status:', accountStatus, '(normalized:', normalizedStatus, ')');
-      throw new Error(`Account is not active. Current status: ${accountStatus}`);
+      console.error('[AuthService] ❌ Only users with Account Status = "Active" can login');
+      throw new Error(`Account is not active. Current status: ${accountStatus}. Please contact administrator.`);
     }
     console.log('[AuthService] ✅ Account is active');
 
