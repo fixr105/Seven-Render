@@ -617,6 +617,14 @@ export class AuthController {
       // causing cross-login. Instead, treat passcode like password and use the
       // exact same auth flow as /auth/login (User Accounts table + bcrypt + JWT).
       const result = await authService.login(username, passcode);
+      
+      this.logStructured('VALIDATE_SUCCESS', {
+        requestId,
+        username,
+        userId: result.user.id,
+        role: result.user.role,
+      });
+      
       res.status(200).json({
         success: true,
         data: {
@@ -626,15 +634,33 @@ export class AuthController {
       });
       return;
     } catch (error: any) {
-      // Catch-all for any unexpected errors
-      console.error('[AuthController] validate: Unexpected error:', error);
-      console.error('[AuthController] validate: Error stack:', error.stack);
+      // Handle authentication errors properly
+      const errorMessage = error.message || 'Validation failed';
+      
+      this.logStructured('VALIDATE_ERROR', {
+        requestId,
+        username,
+        error: errorMessage,
+      });
+      
+      // Determine appropriate status code based on error message
+      let statusCode = 500;
+      if (errorMessage.includes('Invalid email or password') ||
+          errorMessage.includes('Account is not active') ||
+          errorMessage.includes('not found') ||
+          errorMessage.includes('Invalid username or passcode')) {
+        statusCode = 401;
+      } else if (errorMessage.includes('temporarily unavailable') ||
+                 errorMessage.includes('timeout') ||
+                 errorMessage.includes('Unable to connect')) {
+        statusCode = 503;
+      }
       
       // Ensure we always return a response
       if (!res.headersSent) {
-        res.status(500).json({
+        res.status(statusCode).json({
           success: false,
-          error: error.message || 'Validation failed',
+          error: errorMessage,
         });
       }
       return;
