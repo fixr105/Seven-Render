@@ -621,25 +621,68 @@ export class AuthController {
         },
       });
       return;
-
-      // Get n8n base URL from environment (required)
-      if (!process.env.N8N_BASE_URL) {
-        this.logStructured('VALIDATE_N8N_BASE_URL_MISSING', {
-          requestId,
-          error: 'N8N_BASE_URL environment variable is required',
-        });
-        defaultLogger.error('N8N_BASE_URL environment variable is missing', {
-          requestId,
-          envKeys: Object.keys(process.env).filter(k => k.includes('N8N')),
-        });
+    } catch (error: any) {
+      // Catch-all for any unexpected errors
+      console.error('[AuthController] validate: Unexpected error:', error);
+      console.error('[AuthController] validate: Error stack:', error.stack);
+      
+      // Ensure we always return a response
+      if (!res.headersSent) {
         res.status(500).json({
           success: false,
-          error: 'Server configuration error: N8N_BASE_URL not configured',
+          error: error.message || 'Validation failed',
+        });
+      }
+      return;
+    }
+  }
+
+  /**
+   * POST /auth/refresh
+   * Refresh access token using refresh token
+   */
+  async refresh(req: Request, res: Response): Promise<void> {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        res.status(400).json({
+          success: false,
+          error: 'Refresh token is required',
         });
         return;
       }
-      const n8nBaseUrl = process.env.N8N_BASE_URL.trim();
-      const validateUrl = `${n8nBaseUrl}/webhook/validate`;
+
+      // Verify refresh token
+      const tokenData = authService.verifyRefreshToken(refreshToken);
+      
+      // Get user data (simplified - in production, fetch from database)
+      const user: any = {
+        id: tokenData.userId,
+        email: tokenData.email,
+        role: tokenData.role,
+      };
+
+      // Generate new access token
+      const newToken = authService.generateToken(user);
+
+      res.json({
+        success: true,
+        token: newToken,
+        user,
+      });
+    } catch (error: any) {
+      console.error('[AuthController] Refresh error:', error);
+      
+      res.status(401).json({
+        success: false,
+        error: error.message || 'Invalid refresh token',
+      });
+    }
+  }
+
+  /**
+   * POST /auth/logout
       
       // Log detailed webhook configuration
       defaultLogger.info('VALIDATE: Webhook configuration', {
