@@ -838,137 +838,70 @@ export class AuthController {
           return;
         }
 
-        // STRICT: Only allow users that exist in User Accounts table with Active status
-        // If no profileData, try to find user in User Accounts table directly
-        if (!profileData) {
-          try {
-            const userAccounts = await n8nClient.fetchTable('User Accounts', false, undefined, 5000);
-            const realUser = userAccounts.find((u: any) => {
-              const accountEmail = (u['Username'] || u['Email'] || '').toLowerCase().trim();
-              const accountName = (u['Associated Profile'] || u['Name'] || '').toLowerCase().trim();
-              const searchUsername = username.toLowerCase().trim();
-              return accountEmail === searchUsername || accountName === searchUsername;
-            });
-            
-            if (realUser) {
-              // Check account status
-              const accountStatus = (realUser['Account Status'] || realUser.AccountStatus || '').toLowerCase().trim();
-              if (accountStatus !== 'active') {
-                defaultLogger.error('VALIDATE: User account is not active', {
-                  requestId,
-                  username,
-                  status: accountStatus,
-                });
-                res.status(401).json({
-                  success: false,
-                  error: `Account is not active. Current status: ${realUser['Account Status'] || accountStatus}. Please contact administrator.`,
-                });
-                return;
-              }
-              
-              profileData = {
-                id: realUser.id,
-                username: realUser['Username'] || realUser['Email'],
-                email: realUser['Username'] || realUser['Email'],
-                role: realUser['Role'] || realUser.role,
-                name: realUser['Associated Profile'] || realUser['Name'] || realUser['Username'],
-                'Associated profile': realUser['Associated Profile'] || realUser['Name'],
-              };
-              
-              defaultLogger.info('VALIDATE: Found user in User Accounts table', {
-                requestId,
-                userId: realUser.id,
-                email: profileData.email,
-                role: profileData.role,
-              });
-            } else {
-              defaultLogger.error('VALIDATE: User not found in User Accounts table', {
-                requestId,
-                username,
-              });
-              res.status(401).json({
-                success: false,
-                error: 'Invalid username or passcode. User not found in system.',
-              });
-              return;
-            }
-          } catch (verifyError: any) {
-            defaultLogger.error('VALIDATE: Failed to verify user in User Accounts table', {
+        // STRICT: Always use User Accounts table directly - ignore webhook response
+        // This ensures we never use test data from the webhook
+        try {
+          const userAccounts = await n8nClient.fetchTable('User Accounts', false, undefined, 5000);
+          const realUser = userAccounts.find((u: any) => {
+            const accountEmail = (u['Username'] || u['Email'] || '').toLowerCase().trim();
+            const accountName = (u['Associated Profile'] || u['Name'] || '').toLowerCase().trim();
+            const searchUsername = username.toLowerCase().trim();
+            return accountEmail === searchUsername || accountName === searchUsername;
+          });
+          
+          if (!realUser) {
+            defaultLogger.error('VALIDATE: User not found in User Accounts table', {
               requestId,
-              error: verifyError.message,
+              username,
             });
             res.status(401).json({
               success: false,
-              error: 'Unable to verify user. Please try again.',
+              error: 'Invalid username or passcode. User not found in system.',
             });
             return;
           }
-        } else {
-          // If profileData exists, verify it's a real user from User Accounts table
-          try {
-            const userAccounts = await n8nClient.fetchTable('User Accounts', false, undefined, 5000);
-            const userEmail = profileData.email || profileData.username || username;
-            const realUser = userAccounts.find((u: any) => {
-              const accountEmail = (u['Username'] || u['Email'] || '').toLowerCase().trim();
-              return accountEmail === userEmail.toLowerCase().trim();
-            });
-            
-            if (!realUser) {
-              defaultLogger.error('VALIDATE: User email not found in User Accounts table', {
-                requestId,
-                username,
-                email: userEmail,
-              });
-              res.status(401).json({
-                success: false,
-                error: 'Invalid username or passcode. User not found in system.',
-              });
-              return;
-            }
-            
-            // Check account status
-            const accountStatus = (realUser['Account Status'] || realUser.AccountStatus || '').toLowerCase().trim();
-            if (accountStatus !== 'active') {
-              defaultLogger.error('VALIDATE: User account is not active', {
-                requestId,
-                username,
-                email: userEmail,
-                status: accountStatus,
-              });
-              res.status(401).json({
-                success: false,
-                error: `Account is not active. Current status: ${realUser['Account Status'] || accountStatus}. Please contact administrator.`,
-              });
-              return;
-            }
-            
-            // Use real user data from User Accounts table
-            profileData = {
-              id: realUser.id,
-              username: realUser['Username'] || realUser['Email'],
-              email: realUser['Username'] || realUser['Email'],
-              role: realUser['Role'] || realUser.role,
-              name: realUser['Associated Profile'] || realUser['Name'] || realUser['Username'],
-              'Associated profile': realUser['Associated Profile'] || realUser['Name'],
-            };
-            
-            defaultLogger.info('VALIDATE: Using verified user from User Accounts table', {
+          
+          // Check account status
+          const accountStatus = (realUser['Account Status'] || realUser.AccountStatus || '').toLowerCase().trim();
+          if (accountStatus !== 'active') {
+            defaultLogger.error('VALIDATE: User account is not active', {
               requestId,
-              userId: realUser.id,
-              email: profileData.email,
-              role: profileData.role,
-            });
-          } catch (verifyError: any) {
-            defaultLogger.error('VALIDATE: Failed to verify user in User Accounts table', {
-              requestId,
-              error: verifyError.message,
+              username,
+              status: accountStatus,
             });
             res.status(401).json({
               success: false,
-              error: 'Unable to verify user. Please try again.',
+              error: `Account is not active. Current status: ${realUser['Account Status'] || accountStatus}. Please contact administrator.`,
             });
             return;
           }
+          
+          // Use real user data from User Accounts table (ignore webhook response)
+          profileData = {
+            id: realUser.id,
+            username: realUser['Username'] || realUser['Email'],
+            email: realUser['Username'] || realUser['Email'],
+            role: realUser['Role'] || realUser.role,
+            name: realUser['Associated Profile'] || realUser['Name'] || realUser['Username'],
+            'Associated profile': realUser['Associated Profile'] || realUser['Name'],
+          };
+          
+          defaultLogger.info('VALIDATE: Using user from User Accounts table (webhook ignored)', {
+            requestId,
+            userId: realUser.id,
+            email: profileData.email,
+            role: profileData.role,
+          });
+        } catch (verifyError: any) {
+          defaultLogger.error('VALIDATE: Failed to fetch user from User Accounts table', {
+            requestId,
+            error: verifyError.message,
+          });
+          res.status(401).json({
+            success: false,
+            error: 'Unable to verify user. Please try again.',
+          });
+          return;
         }
 
         // If we have profile data, proceed with authentication
