@@ -235,18 +235,23 @@ export class AuthService {
             if (rawWebhookResponse.length === 0) {
               throw new Error('No user accounts found in database');
             }
-            const invalidRecords: number[] = [];
+            const validRecords: any[] = [];
             rawWebhookResponse.forEach((record: any, index: number) => {
-              if (!record || typeof record !== 'object') { invalidRecords.push(index); return; }
-              if (!record.id || typeof record.id !== 'string') { invalidRecords.push(index); return; }
+              if (!record || typeof record !== 'object') return;
+              if (!record.id || typeof record.id !== 'string') return;
               const hasFields = record.fields && typeof record.fields === 'object' && record.fields !== null;
               const hasDirectUsername = record.Username && typeof record.Username === 'string';
-              if (!hasFields && !hasDirectUsername) invalidRecords.push(index);
+              if (!hasFields && !hasDirectUsername) return;
+              validRecords.push(record);
             });
-            if (invalidRecords.length > 0) {
-              throw new Error(`Invalid webhook response: ${invalidRecords.length} record(s) missing required 'id' or user data properties`);
+            if (validRecords.length === 0) {
+              console.error('[AuthService] ❌ All records missing required id or user data');
+              throw new Error('No user accounts found in database');
             }
-            userAccounts = rawWebhookResponse.map((record: any) => {
+            if (validRecords.length < rawWebhookResponse.length) {
+              console.warn(`[AuthService] ⚠️ Skipped ${rawWebhookResponse.length - validRecords.length} invalid record(s) missing id or user data`);
+            }
+            userAccounts = validRecords.map((record: any) => {
               const hasFields = record.fields && typeof record.fields === 'object';
               const source = hasFields ? record.fields : record;
               // Extract and trim fields to handle whitespace issues
@@ -517,8 +522,7 @@ export class AuthService {
       role,
     };
 
-    // Set default name immediately (don't wait for role data)
-    // Role data fetching is now completely non-blocking to prevent Vercel timeouts
+    // Set default name immediately
     authUser.name = userAccount['Associated Profile'] || email.split('@')[0];
 
     console.log('[AuthService] Initial user object:', {
@@ -528,120 +532,170 @@ export class AuthService {
       name: authUser.name,
     });
 
-    // Fetch role-specific data in background (completely non-blocking)
-    (async () => {
-      try {
-        switch (role) {
-          case UserRole.CLIENT:
-            // For clients, find the Client record in Airtable via n8n webhook
-            try {
-              const clients = await n8nClient.fetchTable('Clients', true, undefined, 2000) as any[];
-              
-              // Try multiple field name variations for email matching
-              const client = clients.find((c: any) => {
-                // Check various possible email field names
-                const contactInfo = 
-                  c['Contact Email / Phone'] || 
-                  c['Contact Email/Phone'] || 
-                  c['Contact Email'] ||
-                  c['Email'] ||
-                  c['Email Address'] ||
-                  '';
-                
-                // Also check if Client ID or Client Name matches (fallback)
-                const clientId = c['Client ID'] || '';
-                const clientName = c['Client Name'] || '';
-                
-                // Match by email if available, otherwise try to match by name/ID
-                if (contactInfo) {
-                  return contactInfo.toLowerCase().includes(email.toLowerCase());
-                }
-                
-                // Fallback: try matching email username with client name
-                const emailUsername = email.split('@')[0].toLowerCase();
-                return clientName.toLowerCase().includes(emailUsername) || 
-                       clientId.toLowerCase().includes(emailUsername);
-              });
-              
-              if (client) {
-                // Use Client ID if available, otherwise use record id
-                authUser.clientId = client['Client ID'] || client.id;
-                authUser.name = client['Client Name'] || authUser.name;
-                console.log(`[AuthService] Client login (background): ${email} -> Airtable Client ID: ${authUser.clientId}, Name: ${authUser.name}`);
-              } else {
-                console.warn(`[AuthService] No Client record found matching ${email} in ${clients.length} clients`);
-              }
-            } catch (error: any) {
-              console.error(`[AuthService] Background client lookup failed for ${email}:`, error.message);
-              console.error(`[AuthService] Client lookup error stack:`, error.stack?.split('\n').slice(0, 3));
-            }
-            break;
+    // Step 6.5: Fetch role-specific profile data (BLOCKING - must complete before JWT generation)
+    console.log('[AuthService] Step 6.5: Fetching role-specific profile data...');
+    try {
+      // Add timeout wrapper for profile data fetching (max 5 seconds per role table)
+      const fetchWithTimeout = async <T>(promise: Promise<T>, timeoutMs: number, tableName: string): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((_, reject) => 
+            setTimeout(() => reject(new Error(`Profile data fetch timeout for ${tableName} after ${timeoutMs}ms`)), timeoutMs)
+          )
+        ]);
+      };
 
-          case UserRole.KAM:
-            // Fetch only KAM Users table
-            try {
-              const kamUsers = await n8nClient.fetchTable('KAM Users', true, undefined, 2000) as any[];
+      switch (role) {
+        case UserRole.CLIENT:
+          // For clients, find the Client record in Airtable via n8n webhook
+          try {
+            console.log(`[AuthService] Fetching Clients table for ${email}...`);
+            const clients = await fetchWithTimeout(
+              n8nClient.fetchTable('Clients', true, undefined, 5000) as Promise<any[]>,
+              5000,
+              'Clients'
+            );
+            
+            // Try multiple field name variations for email matching
+            const client = clients.find((c: any) => {
+              // Check various possible email field names
+              const contactInfo = 
+                c['Contact Email / Phone'] || 
+                c['Contact Email/Phone'] || 
+                c['Contact Email'] ||
+                c['Email'] ||
+                c['Email Address'] ||
+                '';
               
-              const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
-              if (kamUser) {
-                // Use KAM ID field (not record id) for consistency with Clients["Assigned KAM"]
-                // Fallback to record id if KAM ID field is not available
-                authUser.kamId = kamUser['KAM ID'] || kamUser.id;
-                authUser.name = kamUser.Name || authUser.name;
-                console.log(`[AuthService] KAM user found: ${email}, KAM ID: ${authUser.kamId}, Name: ${authUser.name}`);
-              } else {
-                console.warn(`[AuthService] KAM user not found in KAM Users table for email: ${email}`);
+              // Also check if Client ID or Client Name matches (fallback)
+              const clientId = c['Client ID'] || '';
+              const clientName = c['Client Name'] || '';
+              
+              // Match by email if available, otherwise try to match by name/ID
+              if (contactInfo) {
+                return contactInfo.toLowerCase().includes(email.toLowerCase());
               }
-            } catch (error: any) {
-              console.error(`[AuthService] Background KAM lookup failed for ${email}:`, error.message);
-              console.error(`[AuthService] KAM lookup error stack:`, error.stack?.split('\n').slice(0, 3));
+              
+              // Fallback: try matching email username with client name
+              const emailUsername = email.split('@')[0].toLowerCase();
+              return clientName.toLowerCase().includes(emailUsername) || 
+                     clientId.toLowerCase().includes(emailUsername);
+            });
+            
+            if (client) {
+              // Use Client ID if available, otherwise use record id
+              authUser.clientId = client['Client ID'] || client.id;
+              authUser.name = client['Client Name'] || authUser.name;
+              console.log(`[AuthService] ✅ Client profile found: ${email} -> Client ID: ${authUser.clientId}, Name: ${authUser.name}`);
+            } else {
+              console.warn(`[AuthService] ⚠️ No Client record found matching ${email} in ${clients.length} clients`);
+              // Login still succeeds, but clientId will be null
             }
-            break;
+          } catch (error: any) {
+            console.error(`[AuthService] ⚠️ Client profile lookup failed for ${email}:`, error.message);
+            // Don't throw - login should succeed even if profile data is missing
+            // clientId will remain null
+          }
+          break;
 
-          case UserRole.CREDIT:
-            // Fetch only Credit Team Users table
-            try {
-              const creditUsers = await n8nClient.fetchTable('Credit Team Users', true, undefined, 2000) as any[];
-              
-              const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
-              if (creditUser) {
-                authUser.creditTeamId = creditUser['Credit Team ID'] || creditUser.id;
-                authUser.name = creditUser.Name || authUser.name;
-              }
-            } catch (error: any) {
-              console.error(`[AuthService] Background Credit lookup failed for ${email}:`, error.message);
-              console.error(`[AuthService] Credit lookup error stack:`, error.stack?.split('\n').slice(0, 3));
+        case UserRole.KAM:
+          // Fetch only KAM Users table
+          try {
+            console.log(`[AuthService] Fetching KAM Users table for ${email}...`);
+            const kamUsers = await fetchWithTimeout(
+              n8nClient.fetchTable('KAM Users', true, undefined, 5000) as Promise<any[]>,
+              5000,
+              'KAM Users'
+            );
+            
+            const kamUser = kamUsers.find((k) => k.Email?.toLowerCase() === email.toLowerCase());
+            if (kamUser) {
+              // Use KAM ID field (not record id) for consistency with Clients["Assigned KAM"]
+              // Fallback to record id if KAM ID field is not available
+              authUser.kamId = kamUser['KAM ID'] || kamUser.id;
+              authUser.name = kamUser.Name || authUser.name;
+              console.log(`[AuthService] ✅ KAM profile found: ${email}, KAM ID: ${authUser.kamId}, Name: ${authUser.name}`);
+            } else {
+              console.warn(`[AuthService] ⚠️ KAM user not found in KAM Users table for email: ${email}`);
+              // Login still succeeds, but kamId will be null
             }
-            break;
+          } catch (error: any) {
+            console.error(`[AuthService] ⚠️ KAM profile lookup failed for ${email}:`, error.message);
+            // Don't throw - login should succeed even if profile data is missing
+            // kamId will remain null
+          }
+          break;
 
-          case UserRole.NBFC:
-            // Fetch only NBFC Partners table
-            try {
-              const nbfcPartners = await n8nClient.fetchTable('NBFC Partners', true, undefined, 2000) as any[];
-              
-              // NBFC users might have email in Contact Email/Phone
-              const nbfcPartner = nbfcPartners.find((n) => 
-                n['Contact Email/Phone']?.toLowerCase().includes(email.toLowerCase())
-              );
-              if (nbfcPartner) {
-                authUser.nbfcId = nbfcPartner.id;
-                authUser.name = nbfcPartner['Lender Name'] || authUser.name;
-              }
-            } catch (error: any) {
-              console.error(`[AuthService] Background NBFC lookup failed for ${email}:`, error.message);
-              console.error(`[AuthService] NBFC lookup error stack:`, error.stack?.split('\n').slice(0, 3));
+        case UserRole.CREDIT:
+          // Fetch only Credit Team Users table
+          try {
+            console.log(`[AuthService] Fetching Credit Team Users table for ${email}...`);
+            const creditUsers = await fetchWithTimeout(
+              n8nClient.fetchTable('Credit Team Users', true, undefined, 5000) as Promise<any[]>,
+              5000,
+              'Credit Team Users'
+            );
+            
+            const creditUser = creditUsers.find((c) => c.Email?.toLowerCase() === email.toLowerCase());
+            if (creditUser) {
+              authUser.creditTeamId = creditUser['Credit Team ID'] || creditUser.id;
+              authUser.name = creditUser.Name || authUser.name;
+              console.log(`[AuthService] ✅ Credit Team profile found: ${email}, Credit Team ID: ${authUser.creditTeamId}, Name: ${authUser.name}`);
+            } else {
+              console.warn(`[AuthService] ⚠️ Credit Team user not found in Credit Team Users table for email: ${email}`);
+              // Login still succeeds, but creditTeamId will be null
             }
-            break;
-        }
-      } catch (error: any) {
-        // Catch any unexpected errors in the background fetch
-        console.error(`[AuthService] Background role data fetch failed for ${email}:`, error.message);
-        console.error(`[AuthService] Background fetch error stack:`, error.stack?.split('\n').slice(0, 5));
+          } catch (error: any) {
+            console.error(`[AuthService] ⚠️ Credit Team profile lookup failed for ${email}:`, error.message);
+            // Don't throw - login should succeed even if profile data is missing
+            // creditTeamId will remain null
+          }
+          break;
+
+        case UserRole.NBFC:
+          // Fetch only NBFC Partners table
+          try {
+            console.log(`[AuthService] Fetching NBFC Partners table for ${email}...`);
+            const nbfcPartners = await fetchWithTimeout(
+              n8nClient.fetchTable('NBFC Partners', true, undefined, 5000) as Promise<any[]>,
+              5000,
+              'NBFC Partners'
+            );
+            
+            // NBFC users might have email in Contact Email/Phone
+            const nbfcPartner = nbfcPartners.find((n) => 
+              n['Contact Email/Phone']?.toLowerCase().includes(email.toLowerCase())
+            );
+            if (nbfcPartner) {
+              authUser.nbfcId = nbfcPartner.id;
+              authUser.name = nbfcPartner['Lender Name'] || authUser.name;
+              console.log(`[AuthService] ✅ NBFC profile found: ${email}, NBFC ID: ${authUser.nbfcId}, Name: ${authUser.name}`);
+            } else {
+              console.warn(`[AuthService] ⚠️ NBFC Partner not found in NBFC Partners table for email: ${email}`);
+              // Login still succeeds, but nbfcId will be null
+            }
+          } catch (error: any) {
+            console.error(`[AuthService] ⚠️ NBFC profile lookup failed for ${email}:`, error.message);
+            // Don't throw - login should succeed even if profile data is missing
+            // nbfcId will remain null
+          }
+          break;
       }
-    })().catch((error: any) => {
-      console.error(`[AuthService] Unhandled error in background role data fetch for ${email}:`, error.message);
-      // Don't throw - this is intentionally non-blocking
-    });
+      
+      console.log('[AuthService] ✅ Profile data fetch completed. Final profile:', {
+        clientId: authUser.clientId || 'null',
+        kamId: authUser.kamId || 'null',
+        nbfcId: authUser.nbfcId || 'null',
+        creditTeamId: authUser.creditTeamId || 'null',
+        name: authUser.name,
+      });
+    } catch (error: any) {
+      // Catch any unexpected errors in profile data fetching
+      console.error(`[AuthService] ⚠️ Unexpected error in profile data fetch for ${email}:`, error.message);
+      console.error(`[AuthService] Profile fetch error stack:`, error.stack?.split('\n').slice(0, 5));
+      // Don't throw - login should succeed even if profile data fetch fails
+      // Profile IDs will remain null
+    }
 
     // Update last login (non-blocking - don't wait for it)
     (async () => {
