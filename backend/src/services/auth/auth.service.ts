@@ -147,34 +147,48 @@ export class AuthService {
                   throw new Error(`Webhook returned status ${response.status}: ${response.statusText}`);
                 }
                 
-                const text = await response.text();
-                if (!text || text.trim().length === 0) {
+                // Use response.json() directly for better error handling
+                const contentType = response.headers.get('content-type') || '';
+                console.log(`[AuthService] Response received - Status: ${response.status}, Content-Type: ${contentType}`);
+                
+                if (!contentType.includes('application/json')) {
+                  // If not JSON, read as text to see what we got
+                  const text = await response.text();
+                  const preview = text.substring(0, 500);
+                  const looksLikeHtml = /^\s*</.test(text.trim()) || text.trim().toLowerCase().startsWith('<!');
+                  
+                  console.error('[AuthService] ❌ Response is not JSON. Content-Type:', contentType);
+                  console.error('[AuthService] ❌ Body preview:', preview + (text.length > 500 ? '...' : ''));
+                  
+                  if (looksLikeHtml) {
+                    console.error('[AuthService] ❌ Body looks like HTML — n8n may be returning an error page.');
+                  }
+                  
                   if (attempt < MAX_RETRIES) {
-                    console.warn(`[AuthService] ⚠️ Webhook returned empty body, will retry...`);
-                    lastError = new Error('Authentication service returned an empty response.');
+                    console.warn(`[AuthService] ⚠️ Non-JSON response, will retry (attempt ${attempt}/${MAX_RETRIES})...`);
+                    lastError = new Error('Authentication service returned invalid content type.');
                     await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
                     continue;
                   }
-                  console.error('[AuthService] ❌ Webhook returned empty body. status:', response.status, 'url:', webhookUrl);
-                  throw new Error('Authentication service returned an empty response.');
+                  throw new Error('Authentication service returned invalid content type. Expected JSON but got: ' + contentType);
                 }
                 
                 try {
-                  // Log response details for debugging
-                  console.log(`[AuthService] Response received - Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}, Body length: ${text.length}`);
-                  
-                  rawWebhookResponse = JSON.parse(text);
+                  // Parse JSON directly - more reliable than text() + JSON.parse()
+                  rawWebhookResponse = await response.json();
                   console.log(`[AuthService] ✅ JSON parsed successfully. Response type: ${Array.isArray(rawWebhookResponse) ? 'array' : typeof rawWebhookResponse}, Length: ${Array.isArray(rawWebhookResponse) ? rawWebhookResponse.length : 'N/A'}`);
                 } catch (parseErr: any) {
-                  const preview = text.substring(0, 500);
-                  const looksLikeHtml = /^\s*</.test(text.trim()) || text.trim().toLowerCase().startsWith('<!');
-                  console.error('[AuthService] ❌ Webhook response is not valid JSON:', parseErr?.message || parseErr);
-                  console.error('[AuthService] ❌ Response status:', response.status, 'url:', webhookUrl);
-                  console.error('[AuthService] ❌ Content-Type:', response.headers.get('content-type'));
-                  console.error('[AuthService] ❌ Body length:', text.length);
-                  console.error('[AuthService] ❌ Body preview:', preview + (text.length > 500 ? '...' : ''));
-                  if (looksLikeHtml) {
-                    console.error('[AuthService] ❌ Body looks like HTML — n8n may be returning an error page. Check n8n workflow is active and /webhook/useraccount exists.');
+                  // If json() fails, try to read as text for debugging
+                  try {
+                    const text = await response.text();
+                    const preview = text.substring(0, 500);
+                    console.error('[AuthService] ❌ JSON parsing failed. Error:', parseErr?.message || parseErr);
+                    console.error('[AuthService] ❌ Response status:', response.status, 'url:', webhookUrl);
+                    console.error('[AuthService] ❌ Content-Type:', contentType);
+                    console.error('[AuthService] ❌ Body length:', text.length);
+                    console.error('[AuthService] ❌ Body preview:', preview + (text.length > 500 ? '...' : ''));
+                  } catch (textErr: any) {
+                    console.error('[AuthService] ❌ Could not read response body:', textErr?.message);
                   }
                   
                   // Retry on JSON parse errors (might be transient)
@@ -184,11 +198,7 @@ export class AuthService {
                     await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
                     continue;
                   }
-                  // Provide more specific error message
-                  const errorMsg = looksLikeHtml 
-                    ? 'Authentication service returned an error page. Please check n8n workflow is active and configured correctly.'
-                    : 'Authentication service returned invalid data. Please try again later.';
-                  throw new Error(errorMsg);
+                  throw new Error('Authentication service returned invalid JSON. Please try again later.');
                 }
                 
                 console.log('[AuthService] ✅ Raw webhook response received');
