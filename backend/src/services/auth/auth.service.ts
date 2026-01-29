@@ -160,12 +160,18 @@ export class AuthService {
                 }
                 
                 try {
+                  // Log response details for debugging
+                  console.log(`[AuthService] Response received - Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}, Body length: ${text.length}`);
+                  
                   rawWebhookResponse = JSON.parse(text);
+                  console.log(`[AuthService] ✅ JSON parsed successfully. Response type: ${Array.isArray(rawWebhookResponse) ? 'array' : typeof rawWebhookResponse}, Length: ${Array.isArray(rawWebhookResponse) ? rawWebhookResponse.length : 'N/A'}`);
                 } catch (parseErr: any) {
                   const preview = text.substring(0, 500);
                   const looksLikeHtml = /^\s*</.test(text.trim()) || text.trim().toLowerCase().startsWith('<!');
                   console.error('[AuthService] ❌ Webhook response is not valid JSON:', parseErr?.message || parseErr);
                   console.error('[AuthService] ❌ Response status:', response.status, 'url:', webhookUrl);
+                  console.error('[AuthService] ❌ Content-Type:', response.headers.get('content-type'));
+                  console.error('[AuthService] ❌ Body length:', text.length);
                   console.error('[AuthService] ❌ Body preview:', preview + (text.length > 500 ? '...' : ''));
                   if (looksLikeHtml) {
                     console.error('[AuthService] ❌ Body looks like HTML — n8n may be returning an error page. Check n8n workflow is active and /webhook/useraccount exists.');
@@ -173,12 +179,16 @@ export class AuthService {
                   
                   // Retry on JSON parse errors (might be transient)
                   if (attempt < MAX_RETRIES) {
-                    console.warn(`[AuthService] ⚠️ JSON parse error, will retry...`);
+                    console.warn(`[AuthService] ⚠️ JSON parse error, will retry (attempt ${attempt}/${MAX_RETRIES})...`);
                     lastError = new Error('Authentication service temporarily unavailable. Please try again later.');
                     await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
                     continue;
                   }
-                  throw new Error('Authentication service temporarily unavailable. Please try again later.');
+                  // Provide more specific error message
+                  const errorMsg = looksLikeHtml 
+                    ? 'Authentication service returned an error page. Please check n8n workflow is active and configured correctly.'
+                    : 'Authentication service returned invalid data. Please try again later.';
+                  throw new Error(errorMsg);
                 }
                 
                 console.log('[AuthService] ✅ Raw webhook response received');
