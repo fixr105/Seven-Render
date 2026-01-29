@@ -533,16 +533,26 @@ export class AuthService {
     });
 
     // Step 6.5: Fetch role-specific profile data (BLOCKING - must complete before JWT generation)
+    // Note: If profile data fetch fails, login still succeeds with null profile IDs
     console.log('[AuthService] Step 6.5: Fetching role-specific profile data...');
     try {
-      // Add timeout wrapper for profile data fetching (max 5 seconds per role table)
+      // Add timeout wrapper for profile data fetching (max 3 seconds per role table to prevent long delays)
       const fetchWithTimeout = async <T>(promise: Promise<T>, timeoutMs: number, tableName: string): Promise<T> => {
-        return Promise.race([
-          promise,
-          new Promise<T>((_, reject) => 
-            setTimeout(() => reject(new Error(`Profile data fetch timeout for ${tableName} after ${timeoutMs}ms`)), timeoutMs)
-          )
-        ]);
+        let timeoutId: NodeJS.Timeout;
+        const timeoutPromise = new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error(`Profile data fetch timeout for ${tableName} after ${timeoutMs}ms`));
+          }, timeoutMs);
+        });
+        
+        try {
+          const result = await Promise.race([promise, timeoutPromise]);
+          clearTimeout(timeoutId);
+          return result;
+        } catch (error) {
+          clearTimeout(timeoutId);
+          throw error;
+        }
       };
 
       switch (role) {
@@ -551,8 +561,8 @@ export class AuthService {
           try {
             console.log(`[AuthService] Fetching Clients table for ${email}...`);
             const clients = await fetchWithTimeout(
-              n8nClient.fetchTable('Clients', true, undefined, 5000) as Promise<any[]>,
-              5000,
+              n8nClient.fetchTable('Clients', true, undefined, 3000) as Promise<any[]>,
+              3000,
               'Clients'
             );
             
@@ -603,8 +613,8 @@ export class AuthService {
           try {
             console.log(`[AuthService] Fetching KAM Users table for ${email}...`);
             const kamUsers = await fetchWithTimeout(
-              n8nClient.fetchTable('KAM Users', true, undefined, 5000) as Promise<any[]>,
-              5000,
+              n8nClient.fetchTable('KAM Users', true, undefined, 3000) as Promise<any[]>,
+              3000,
               'KAM Users'
             );
             
@@ -631,8 +641,8 @@ export class AuthService {
           try {
             console.log(`[AuthService] Fetching Credit Team Users table for ${email}...`);
             const creditUsers = await fetchWithTimeout(
-              n8nClient.fetchTable('Credit Team Users', true, undefined, 5000) as Promise<any[]>,
-              5000,
+              n8nClient.fetchTable('Credit Team Users', true, undefined, 3000) as Promise<any[]>,
+              3000,
               'Credit Team Users'
             );
             
@@ -657,8 +667,8 @@ export class AuthService {
           try {
             console.log(`[AuthService] Fetching NBFC Partners table for ${email}...`);
             const nbfcPartners = await fetchWithTimeout(
-              n8nClient.fetchTable('NBFC Partners', true, undefined, 5000) as Promise<any[]>,
-              5000,
+              n8nClient.fetchTable('NBFC Partners', true, undefined, 3000) as Promise<any[]>,
+              3000,
               'NBFC Partners'
             );
             
@@ -691,11 +701,25 @@ export class AuthService {
       });
     } catch (error: any) {
       // Catch any unexpected errors in profile data fetching
+      // CRITICAL: Never throw here - login must succeed even if profile data is missing
       console.error(`[AuthService] ⚠️ Unexpected error in profile data fetch for ${email}:`, error.message);
       console.error(`[AuthService] Profile fetch error stack:`, error.stack?.split('\n').slice(0, 5));
+      console.warn(`[AuthService] ⚠️ Continuing login without profile data - profile IDs will be null`);
       // Don't throw - login should succeed even if profile data fetch fails
-      // Profile IDs will remain null
+      // Profile IDs will remain null, but login will succeed
     }
+    
+    // Log final state before JWT generation
+    console.log('[AuthService] Profile data fetch completed (or skipped). Final authUser state:', {
+      id: authUser.id,
+      email: authUser.email,
+      role: authUser.role,
+      name: authUser.name || 'null',
+      clientId: authUser.clientId || 'null',
+      kamId: authUser.kamId || 'null',
+      nbfcId: authUser.nbfcId || 'null',
+      creditTeamId: authUser.creditTeamId || 'null',
+    });
 
     // Update last login (non-blocking - don't wait for it)
     (async () => {
