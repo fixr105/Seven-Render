@@ -6,6 +6,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import routes from './routes/index.js';
 import { handleError } from './utils/errors.js';
 import { defaultLogger } from './utils/logger.js';
@@ -91,6 +92,9 @@ app.use(cors(corsOptions));
 
 // APM middleware for performance monitoring
 app.use(apmMiddleware);
+
+// Cookie parser middleware (for HTTP-only cookies)
+app.use(cookieParser());
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { useAuthSafe } from './useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 
 export const useLedger = () => {
-  const { userRole } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   const [entries, setEntries] = useState<any[]>([]);
   const [balance, setBalance] = useState(0);
   const [payoutRequests, setPayoutRequests] = useState<any[]>([]);

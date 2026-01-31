@@ -3,8 +3,8 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { ledgerController } from '../controllers/ledger.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireClient } from '../middleware/rbac.middleware.js';
 
 const router = Router();

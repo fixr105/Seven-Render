@@ -251,8 +251,10 @@ export const n8nEndpoints = {
     client: process.env.N8N_POST_CLIENT_URL || getPostWebhookUrl('CLIENT'),
     notification: process.env.N8N_POST_NOTIFICATION_URL || getPostWebhookUrl('NOTIFICATION'),
     email: process.env.N8N_POST_EMAIL_URL || getPostWebhookUrl('EMAIL'),
+    /** POST credentials to validate; same path as GET useraccount, different method */
+    userAccountValidate: process.env.N8N_POST_USER_ACCOUNT_VALIDATE_URL || getGetWebhookUrl('USER_ACCOUNT'),
   },
-  
+
   // GET Webhook URLs (with env var overrides)
   get: {
     adminActivity: process.env.N8N_GET_ADMIN_ACTIVITY_URL || getGetWebhookUrl('ADMIN_ACTIVITY'),

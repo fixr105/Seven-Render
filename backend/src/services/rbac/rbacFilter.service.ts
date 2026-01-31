@@ -11,7 +11,7 @@
  * This replaces the 'Search records' logic previously handled by n8n search nodes.
  */
 
-import { AuthUser } from '../auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 import { UserRole } from '../../config/constants.js';
 import { n8nClient } from '../airtable/n8nClient.js';
 import { matchIds } from '../../utils/idMatcher.js';

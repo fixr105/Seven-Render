@@ -3,9 +3,9 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { kamController } from '../controllers/kam.controller.js';
 import { ledgerController } from '../controllers/ledger.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireKAM, requireCreditOrKAM } from '../middleware/rbac.middleware.js';
 
 const router = Router();

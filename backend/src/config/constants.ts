@@ -8,6 +8,7 @@ export enum UserRole {
   KAM = 'kam',
   CREDIT = 'credit_team',
   NBFC = 'nbfc',
+  ADMIN = 'admin',
 }
 
 export enum LoanStatus {

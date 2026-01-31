@@ -1,0 +1,196 @@
+{
+  "name": "User Accounts GET (for backend login)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "useraccount",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-get-node",
+      "name": "Webhook GET",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [400, 300],
+      "webhookId": "useraccount-get"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7RRcehD5xLiPv7",
+          "mode": "list",
+          "cachedResultName": "User Accounts",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tbl7RRcehD5xLiPv7"
+        },
+        "options": {}
+      },
+      "id": "airtable-search-node",
+      "name": "Airtable - Search User Accounts",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [620, 300],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "9V3QecRD4knK4vpD",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "test@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "dummy@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition3",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "example.com",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition4",
+              "leftValue": "={{ $json.fields['Account Status'] }}",
+              "rightValue": "Active",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition5",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "test",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "condition6",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "dummy",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-test-accounts-node",
+      "name": "Filter Test Accounts",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst array = items.map(i => i.json);\nreturn [{ json: array }];"
+      },
+      "id": "code-build-array-node",
+      "name": "Build Array",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-node",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1280, 300]
+    }
+  ],
+  "connections": {
+    "Webhook GET": {
+      "main": [
+        [
+          {
+            "node": "Airtable - Search User Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable - Search User Accounts": {
+      "main": [
+        [
+          {
+            "node": "Filter Test Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Test Accounts": {
+      "main": [
+        [
+          {
+            "node": "Build Array",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Array": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

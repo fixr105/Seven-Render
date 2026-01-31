@@ -7,7 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { FileUpload } from '../components/ui/FileUpload';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, Send, AlertTriangle, RefreshCw } from 'lucide-react';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -30,7 +30,9 @@ interface FormData {
 
 export const NewApplication: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, userRoleId, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
+  const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({});
   const [documentLinks, setDocumentLinks] = useState<Record<string, string>>({}); // Module 2: OneDrive links

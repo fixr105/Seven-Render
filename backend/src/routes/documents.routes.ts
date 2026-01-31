@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate } from '../auth/auth.middleware.js';
 import { requireClient } from '../middleware/rbac.middleware.js';
 import { uploadRateLimiter } from '../middleware/rateLimit.middleware.js';
 import multer from 'multer';
@@ -18,7 +18,6 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
 });
 
-// All document routes require authentication and CLIENT role
 router.use(authenticate);
 router.use(requireClient);
 // Apply upload rate limiting

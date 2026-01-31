@@ -4,13 +4,12 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { creditTeamUsersController } from '../controllers/creditTeamUsers.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireCredit } from '../middleware/rbac.middleware.js';
 
 const router = Router();
 
-// All routes require CREDIT role
 router.use(authenticate);
 router.use(requireCredit);
 

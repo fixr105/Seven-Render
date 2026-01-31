@@ -3,7 +3,7 @@
  */
 
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate } from '../auth/auth.middleware.js';
 import { apiRateLimiter } from '../middleware/rateLimit.middleware.js';
 import healthRoutes, { trackMetrics } from './health.routes.js';
 import authRoutes from './auth.routes.js';
@@ -52,12 +52,11 @@ router.get('/test-express', (req, res) => {
   });
 });
 
-// Test endpoint with authentication to see if auth middleware is the issue
+// Test endpoint with authentication
 router.get('/test-express-auth', authenticate, (req, res) => {
-  console.log('[TEST-EXPRESS-AUTH] Express route with auth matched!');
   res.json({ 
     success: true, 
-    message: 'Express routing with auth works!', 
+    message: 'Express routing with auth works', 
     timestamp: new Date().toISOString(),
     user: req.user,
   });
@@ -159,8 +158,10 @@ router.get('/debug/webhook-config', (req, res) => {
   }
 });
 
-// Mount route modules with rate limiting
+// Auth routes (login, validate use authRateLimiter; /me, logout, refresh use authenticate)
 router.use('/auth', authRoutes);
+
+// Mount route modules with rate limiting
 router.use('/client', apiRateLimiter, clientRoutes);
 router.use('/loan-applications', apiRateLimiter, loanRoutes);
 router.use('/kam', apiRateLimiter, kamRoutes);

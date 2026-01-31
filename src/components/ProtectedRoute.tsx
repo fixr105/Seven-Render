@@ -1,8 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuthSafe } from '../hooks/useAuthSafe';
-import { UserRole } from '../services/api';
-import { defaultLogger } from '../utils/logger';
+import { useAuth } from '../auth/AuthContext';
+import { UserRole } from '../auth/types';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-  const { user, userRole, loading } = useAuthSafe();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -24,13 +23,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (!user) {
-    defaultLogger.debug('ProtectedRoute: No user found, redirecting to login', {
-      hasToken: !!localStorage.getItem('auth_token'),
-    });
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+  if (allowedRoles && user.role && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

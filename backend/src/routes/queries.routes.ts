@@ -4,12 +4,11 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { queriesController } from '../controllers/queries.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
 // POST /queries/:parentId/replies - Post reply to a query

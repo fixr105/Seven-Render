@@ -16,17 +16,16 @@ test.describe('Smoke - Client Loan Products', () => {
 
     await expect(loanProductSelect).toBeVisible({ timeout: 10000 });
 
-    // Wait for products to load (check for either loading state or loaded state)
+    // Wait for products to load (browser-valid DOM: :has-text is Playwright-only)
     await page.waitForFunction(
       () => {
-        const select = document.querySelector('label:has-text("Loan Product")')?.parentElement?.querySelector('select');
+        const label = Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'));
+        const select = label?.parentElement?.querySelector('select');
         if (!select) return false;
         const options = Array.from(select.querySelectorAll('option'));
-        // Check if we're past the loading state (not "Loading products...")
         const hasLoaded = options.some(opt => opt.textContent !== 'Loading products...');
-        // Check if we have actual product options (more than just placeholder)
-        const hasProducts = options.some(opt => 
-          opt.textContent && 
+        const hasProducts = options.some(opt =>
+          opt.textContent &&
           !opt.textContent.match(/^(Select|Choose|--|Loading|No products)/i) &&
           opt.value !== ''
         );
@@ -68,20 +67,22 @@ test.describe('Smoke - Client Loan Products', () => {
     // Check for error message or helper text indicating no products
     const noProductsMessage = page.getByText(/No loan products are currently available|No loan products are configured for your account/i);
     
-    // Wait for either the message to appear OR the select to be disabled with no options
+    // Wait for either the message to appear OR the select to be disabled with no options (browser-valid DOM)
     await Promise.race([
       noProductsMessage.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
       page.waitForFunction(
         () => {
-          const select = document.querySelector('label:has-text("Loan Product")')?.parentElement?.querySelector('select') as HTMLSelectElement;
+          const label = Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'));
+          const select = label?.parentElement?.querySelector('select') as HTMLSelectElement | null;
           if (!select) return false;
           const options = Array.from(select.querySelectorAll('option'));
-          // Check if select is disabled and only has placeholder/no product options
-          const hasOnlyPlaceholder = options.length <= 1 || 
-            options.every(opt => 
-              !opt.textContent || 
-              opt.textContent.match(/^(Select|Choose|--|Loading|No products|No products available)/i) ||
-              opt.value === ''
+          const hasOnlyPlaceholder =
+            options.length <= 1 ||
+            options.every(
+              opt =>
+                !opt.textContent ||
+                opt.textContent.match(/^(Select|Choose|--|Loading|No products|No products available)/i) ||
+                opt.value === ''
             );
           return select.disabled && hasOnlyPlaceholder;
         },

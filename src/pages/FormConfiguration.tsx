@@ -7,7 +7,7 @@ import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 // Checkbox is handled inline with native input
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, CheckCircle, RefreshCw } from 'lucide-react';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
@@ -130,7 +130,9 @@ const FORM_MODULES: FormModule[] = [
 
 export const FormConfiguration: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, userRoleId, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
+  const userRoleId = user?.kamId || user?.id || null;
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;

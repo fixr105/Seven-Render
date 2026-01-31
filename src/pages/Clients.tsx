@@ -10,7 +10,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Mod
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Eye, UserPlus, RefreshCw } from 'lucide-react';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
@@ -36,7 +36,8 @@ const formatDate = formatDateFull;
 
 export const Clients: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
@@ -149,22 +150,6 @@ export const Clients: React.FC = () => {
     if (!newClient.company_name || !newClient.contact_person || !newClient.email) {
       alert('Please fill in all required fields');
       return;
-    }
-
-    // Check if token is available before making request
-    const token = apiService.getToken();
-      const tokenFromStorage = localStorage.getItem('auth_token');
-    
-    if (!token && !tokenFromStorage) {
-      console.error('[Clients] ❌ No token available! User needs to login.');
-      alert('Authentication required. Please log in again.');
-      navigate('/login');
-      return;
-    }
-    
-    // If token exists in storage but not in service, reload it
-    if (!token && tokenFromStorage) {
-      apiService.setToken(tokenFromStorage);
     }
 
     setSubmitting(true);

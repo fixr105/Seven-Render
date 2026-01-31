@@ -11,7 +11,7 @@
  * After migration, this will be the primary logging mechanism.
  */
 
-import { AuthUser } from '../auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 import { UserRole } from '../../config/constants.js';
 import { AdminActionType } from '../../utils/adminLogger.js';
 
@@ -57,6 +57,7 @@ export class CentralizedLoggerService {
       [UserRole.KAM]: 'Key Account Manager (KAM)',
       [UserRole.CREDIT]: 'Credit Team',
       [UserRole.NBFC]: 'NBFC Partner',
+      [UserRole.ADMIN]: 'Admin',
     };
     return roleMap[user.role] || user.role;
   }

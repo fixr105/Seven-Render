@@ -5,14 +5,16 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, User, Mail, Phone, Building } from 'lucide-react';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const { user, userRole, userRoleId } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
+  const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [phoneError, setPhoneError] = useState<string>('');

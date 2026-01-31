@@ -9,7 +9,7 @@
  */
 
 import { UserRole } from './config/constants.js';
-import { AuthUser } from './services/auth/auth.service.js';
+import { AuthUser } from './types/auth.js';
 import { AdminActionType, logAdminActivity } from './utils/adminLogger.js';
 import { canPerformAction, requireActionPermission } from './middleware/rbac.middleware.js';
 import { n8nApiClient } from './services/airtable/n8nApiClient.js';

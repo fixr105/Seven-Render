@@ -1,0 +1,305 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "useraccount",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "da84ca8e-29a0-445b-a797-bb8e9461c717",
+      "name": "Webhook31",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1264, 1520],
+      "webhookId": "useraccount-get"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "username",
+              "value": "={{ $json.body.Username || $json.body.username || $json.Username || $json.username || $json['body']['Username'] || $json['body']['username'] }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $json.body.Password || $json.body.password || $json.Password || $json.password || $json['body']['Password'] || $json['body']['password'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-username-node",
+      "name": "Extract Credentials",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1488, 1520]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7RRcehD5xLiPv7",
+          "mode": "list",
+          "cachedResultName": "User Accounts",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tbl7RRcehD5xLiPv7"
+        },
+        "options": {}
+      },
+      "id": "d5fff828-b9b4-402c-9812-00764b5d90ef",
+      "name": "Airtable - Search User Accounts",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1712, 1520],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "9V3QecRD4knK4vpD",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-username-match",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "={{ $('Extract Credentials').item.json.username }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-username-node",
+      "name": "Filter by Username",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1936, 1520]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "test@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "dummy@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition3",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "example.com",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition4",
+              "leftValue": "={{ $json.fields['Account Status'] }}",
+              "rightValue": "Active",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition5",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "test",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "condition6",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "dummy",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8af59e53-98d2-467d-ab6c-908b3ca780ce",
+      "name": "Filter Test Accounts1",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [2160, 1520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length === 0) {\n  return [{ json: { status: 'unmatched' } }];\n}\nreturn [{ json: items[0].json }];"
+      },
+      "id": "code-single-or-unmatched",
+      "name": "Single User or Unmatched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2384, 1520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "7708f0c0-dddc-486f-bcbb-9642257a16ff",
+      "name": "Respond to Webhook32",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2604, 1520]
+    }
+  ],
+  "connections": {
+    "Webhook31": {
+      "main": [
+        [
+          {
+            "node": "Extract Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Credentials": {
+      "main": [
+        [
+          {
+            "node": "Airtable - Search User Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable - Search User Accounts": {
+      "main": [
+        [
+          {
+            "node": "Filter by Username",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter by Username": {
+      "main": [
+        [
+          {
+            "node": "Filter Test Accounts1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Test Accounts1": {
+      "main": [
+        [
+          {
+            "node": "Single User or Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Single User or Unmatched": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook32",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook31": [
+      {
+        "headers": {
+          "host": "fixrrahul.app.n8n.cloud",
+          "user-agent": "node-fetch",
+          "accept": "*/*",
+          "accept-encoding": "gzip, br",
+          "cdn-loop": "cloudflare; loops=1; subreqs=1",
+          "cf-connecting-ip": "2605:4c40:145:2658:0:647b:128:1",
+          "cf-ew-via": "15",
+          "cf-ipcountry": "IN",
+          "cf-ray": "9c58723590a53b27-BOM",
+          "cf-visitor": "{\"scheme\":\"https\"}",
+          "cf-worker": "n8n.cloud",
+          "content-type": "application/json",
+          "x-forwarded-for": "2605:4c40:145:2658:0:647b:128:1, 172.69.178.247",
+          "x-forwarded-host": "fixrrahul.app.n8n.cloud",
+          "x-forwarded-port": "443",
+          "x-forwarded-proto": "https",
+          "x-forwarded-server": "traefik-prod-users-gwc-65-cbb4dd965-65swl",
+          "x-is-trusted": "yes",
+          "x-real-ip": "2605:4c40:145:2658:0:647b:128:1"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "Username": "sagar@sevenfincorp.email",
+          "Password": "pass@123"
+        },
+        "webhookUrl": "https://fixrrahul.app.n8n.cloud/webhook/useraccount",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cede7282cee9e04cab35956e332b88bc74affd8110baf9d026857557d15dcea0"
+  }
+}

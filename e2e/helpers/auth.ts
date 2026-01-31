@@ -16,22 +16,22 @@ const getEnvVar = (key: string, fallback: string): string => {
 
 export const TEST_USERS = {
   client: {
-    email: getEnvVar('E2E_CLIENT_USERNAME', 'Sagar@gmail.com'),
+    email: getEnvVar('E2E_CLIENT_USERNAME', 'sagar@sevenfincorp.email'),
     password: getEnvVar('E2E_CLIENT_PASSWORD', 'pass@123'),
     role: 'client',
   },
   kam: {
-    email: getEnvVar('E2E_KAM_USERNAME', 'Sagar@gmail.com'),
+    email: getEnvVar('E2E_KAM_USERNAME', 'sagar@sevenfincorp.email'),
     password: getEnvVar('E2E_KAM_PASSWORD', 'pass@123'),
     role: 'kam',
   },
   credit: {
-    email: getEnvVar('E2E_CREDIT_USERNAME', 'Sagar@gmail.com'),
+    email: getEnvVar('E2E_CREDIT_USERNAME', 'sagar@sevenfincorp.email'),
     password: getEnvVar('E2E_CREDIT_PASSWORD', 'pass@123'),
     role: 'credit_team',
   },
   nbfc: {
-    email: getEnvVar('E2E_NBFC_USERNAME', 'Sagar@gmail.com'),
+    email: getEnvVar('E2E_NBFC_USERNAME', 'sagar@sevenfincorp.email'),
     password: getEnvVar('E2E_NBFC_PASSWORD', 'pass@123'),
     role: 'nbfc',
   },

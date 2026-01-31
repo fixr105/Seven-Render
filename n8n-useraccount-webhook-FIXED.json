@@ -1,0 +1,170 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7RRcehD5xLiPv7",
+          "mode": "list",
+          "cachedResultName": "User Accounts",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tbl7RRcehD5xLiPv7"
+        },
+        "options": {}
+      },
+      "id": "d5fff828-b9b4-402c-9812-00764b5d90ef",
+      "name": "Airtable - Search User Accounts",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1600, 1520],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "9V3QecRD4knK4vpD",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "test@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "dummy@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition3",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "example.com",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition4",
+              "leftValue": "={{ $json.fields['Account Status'] }}",
+              "rightValue": "Active",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition5",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "test",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "condition6",
+              "leftValue": "={{ $json.fields.Username }}",
+              "rightValue": "dummy",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1b20d1d4-eb03-4097-9a1e-2f2271eb7086",
+      "name": "Filter Test Accounts",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1808, 1520]
+    },
+    {
+      "parameters": {
+        "path": "useraccount",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "da84ca8e-29a0-445b-a797-bb8e9461c717",
+      "name": "Webhook31",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1392, 1520],
+      "webhookId": "useraccount-get"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "7708f0c0-dddc-486f-bcbb-9642257a16ff",
+      "name": "Respond to Webhook32",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2000, 1520]
+    }
+  ],
+  "connections": {
+    "Airtable - Search User Accounts": {
+      "main": [
+        [
+          {
+            "node": "Filter Test Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Test Accounts": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook32",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook31": {
+      "main": [
+        [
+          {
+            "node": "Airtable - Search User Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

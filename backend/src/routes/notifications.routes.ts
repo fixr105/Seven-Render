@@ -3,12 +3,11 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { notificationsController } from '../controllers/notifications.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
 // GET /notifications - Get user notifications

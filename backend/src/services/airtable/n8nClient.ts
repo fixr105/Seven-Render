@@ -455,19 +455,44 @@ export class N8nClient {
       const totalDuration = Date.now() - startTime;
       console.log(`[getUserAccounts] Total duration: ${totalDuration}ms, returned ${Array.isArray(data) ? data.length : 'non-array'} records`);
       
-      // The webhook returns an array of user accounts directly
+      let rawArray: any[] = [];
       if (Array.isArray(data)) {
-        return data as UserAccount[];
-      }
-      
-      // If it's an object, try to extract User Accounts
-      if (typeof data === 'object' && data !== null && data !== undefined && 'User Accounts' in data) {
+        rawArray = data;
+      } else if (typeof data === 'object' && data !== null && 'User Accounts' in data) {
         const userAccountsData = (data as Record<string, any>)['User Accounts'];
-        return Array.isArray(userAccountsData) ? userAccountsData as UserAccount[] : [];
+        rawArray = Array.isArray(userAccountsData) ? userAccountsData : [];
+      } else {
+        console.warn('Unexpected response format from User Accounts webhook');
+        return [];
       }
-      
-      console.warn('Unexpected response format from User Accounts webhook');
-      return [];
+
+      // Normalize: support (1) Airtable nested fields, (2) flattened format with PIN or Password
+      return rawArray.map((item: any): UserAccount => {
+        if (item && typeof item.fields === 'object' && item.fields !== null) {
+          return {
+            id: item.id ?? '',
+            createdTime: item.createdTime,
+            Username: item.fields.Username ?? item.fields.username ?? '',
+            Password: item.fields.Password ?? item.fields.password ?? item.fields.PIN ?? item.fields.pin ?? '',
+            Role: item.fields.Role ?? item.fields.role ?? 'client',
+            'Associated Profile': item.fields['Associated Profile'],
+            'Last Login': item.fields['Last Login'],
+            'Account Status': item.fields['Account Status'] ?? 'Active',
+          };
+        }
+        // Flattened format (n8n may return Username, PIN, Role at top level)
+        const password = item.Password ?? item.password ?? item.PIN ?? item.pin ?? '';
+        return {
+          id: item.id ?? '',
+          createdTime: item.createdTime,
+          Username: item.Username ?? item.username ?? '',
+          Password: password,
+          Role: item.Role ?? item.role ?? 'client',
+          'Associated Profile': item['Associated Profile'],
+          'Last Login': item['Last Login'],
+          'Account Status': item['Account Status'] ?? 'Active',
+        };
+      });
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError' || error.message?.includes('timed out') || error.message?.includes('timeout')) {
@@ -906,7 +931,7 @@ export class N8nClient {
     // Invalidate cache for User Accounts
     this.invalidateCache('User Accounts');
     // Also clear auth service cache to prevent stale user data
-    const { AuthService } = await import('../auth/auth.service.js');
+        const { AuthService } = await import('../../auth/auth.service.js');
     AuthService.clearUserAccountsCache();
     return result;
   }
@@ -942,7 +967,7 @@ export class N8nClient {
         this.invalidateCache('Clients');
         this.invalidateCache('User Accounts');
         // Also clear auth service cache when client is updated (may affect user accounts)
-        const { AuthService } = await import('../auth/auth.service.js');
+        const { AuthService } = await import('../../auth/auth.service.js');
         AuthService.clearUserAccountsCache();
         console.log('[postClient] Cache invalidated for Clients, User Accounts, and AuthService');
       } else {

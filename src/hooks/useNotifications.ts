@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { useAuthSafe } from './useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 
 export interface Notification {
   id: string;
@@ -21,7 +21,8 @@ export interface Notification {
 }
 
 export const useNotifications = () => {
-  const { userRoleId } = useAuthSafe();
+  const { user } = useAuth();
+  const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);

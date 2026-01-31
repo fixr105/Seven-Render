@@ -1,0 +1,208 @@
+{
+  "name": "User Accounts Webhook (with Test Account Filter)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "useraccount",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "useraccount-get"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard"
+        },
+        "table": {
+          "__rl": true,
+          "value": "User Accounts",
+          "mode": "list"
+        },
+        "options": {
+          "filterByFormula": "",
+          "sort": []
+        },
+        "fields": {
+          "field": [
+            {
+              "fieldName": "Username",
+              "fieldId": "fldXXXXXXXXXXXX"
+            },
+            {
+              "fieldName": "Password",
+              "fieldId": "fldYYYYYYYYYYYY"
+            },
+            {
+              "fieldName": "Role",
+              "fieldId": "fldZZZZZZZZZZZZ"
+            },
+            {
+              "fieldName": "Account Status",
+              "fieldId": "fldAAAAAAAAAAAA"
+            },
+            {
+              "fieldName": "Associated Profile",
+              "fieldId": "fldBBBBBBBBBBBB"
+            },
+            {
+              "fieldName": "Last Login",
+              "fieldId": "fldCCCCCCCCCCCC"
+            }
+          ]
+        }
+      },
+      "id": "airtable-node",
+      "name": "Airtable - Search User Accounts",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "airtableApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIALS_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.fields['Username'] }}",
+              "rightValue": "test@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.fields['Username'] }}",
+              "rightValue": "dummy@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition3",
+              "leftValue": "={{ $json.fields['Username'] }}",
+              "rightValue": "example.com",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "condition4",
+              "leftValue": "={{ $json.fields['Account Status'] }}",
+              "rightValue": "Active",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition5",
+              "leftValue": "={{ $json.fields['Username'] }}",
+              "rightValue": "test",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "condition6",
+              "leftValue": "={{ $json.fields['Username'] }}",
+              "rightValue": "dummy",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-node",
+      "name": "Filter Test Accounts",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-node",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Airtable - Search User Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable - Search User Accounts": {
+      "main": [
+        [
+          {
+            "node": "Filter Test Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Test Accounts": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-28T00:00:00.000Z",
+  "versionId": "1"
+}

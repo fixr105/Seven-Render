@@ -8,7 +8,7 @@ import { Request, Response } from 'express';
 import { LedgerController } from '../ledger.controller.js';
 import { CreditController } from '../credit.controller.js';
 import { UserRole } from '../../config/constants.js';
-import { AuthUser } from '../../services/auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 import { createMockN8nClient, mockCommissionLedger, mockClients } from '../../__tests__/helpers/mockN8nClient.js';
 import * as n8nClientModule from '../../services/airtable/n8nClient.js';
 
@@ -149,6 +149,28 @@ describe('LedgerController - P0 Tests', () => {
       entries.forEach((entry: any) => {
         expect(entry.Client).toBe('CLIENT001');
       });
+    });
+
+    it('should filter by dateFrom and dateTo when provided', async () => {
+      const creditUser: AuthUser = {
+        id: 'user-3',
+        email: 'Sagar@gmail.com',
+        role: UserRole.CREDIT,
+      };
+
+      mockRequest = {
+        user: creditUser,
+        query: { dateFrom: '2025-01-02', dateTo: '2025-01-03' },
+      };
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockResolvedValue(mockCommissionLedger);
+
+      await ledgerController.getCreditLedger(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      expect(responseCall.success).toBe(true);
+      expect(responseCall.data.entries).toBeDefined();
     });
   });
 

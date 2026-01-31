@@ -9,7 +9,7 @@ import { QueriesController } from '../queries.controller.js';
 import { KAMController } from '../kam.controller.js';
 import { ClientController } from '../client.controller.js';
 import { UserRole, LoanStatus } from '../../config/constants.js';
-import { AuthUser } from '../../services/auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 import { createMockN8nClient, mockFileAuditingLog, mockLoanApplications, mockNotifications, mockClients } from '../../__tests__/helpers/mockN8nClient.js';
 import * as n8nClientModule from '../../services/airtable/n8nClient.js';
 

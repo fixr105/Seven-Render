@@ -1,0 +1,88 @@
+{
+  "parameters": {
+    "conditions": {
+      "options": {
+        "caseSensitive": false,
+        "leftValue": "",
+        "typeValidation": "strict",
+        "version": 1
+      },
+      "conditions": [
+        {
+          "id": "condition1",
+          "leftValue": "={{ $json.fields.Username }}",
+          "rightValue": "test@",
+          "operator": {
+            "type": "string",
+            "operation": "notContains"
+          }
+        },
+        {
+          "id": "condition2",
+          "leftValue": "={{ $json.fields.Username }}",
+          "rightValue": "test",
+          "operator": {
+            "type": "string",
+            "operation": "notContains"
+          }
+        },
+        {
+          "id": "condition3",
+          "leftValue": "={{ $json.fields.Username }}",
+          "rightValue": "dummy@",
+          "operator": {
+            "type": "string",
+            "operation": "notContains"
+          }
+        },
+        {
+          "id": "condition4",
+          "leftValue": "={{ $json.fields.Username }}",
+          "rightValue": "dummy",
+          "operator": {
+            "type": "string",
+            "operation": "notContains"
+          }
+        },
+        {
+          "id": "condition5",
+          "leftValue": "={{ $json.fields.Username }}",
+          "rightValue": "example.com",
+          "operator": {
+            "type": "string",
+            "operation": "notContains"
+          }
+        },
+        {
+          "id": "condition6",
+          "leftValue": "={{ $json.fields['Account Status'] }}",
+          "rightValue": "Active",
+          "operator": {
+            "type": "string",
+            "operation": "equals"
+          }
+        },
+        {
+          "id": "condition7",
+          "leftValue": "={{ $json.fields.Username }}",
+          "rightValue": "test",
+          "operator": {
+            "type": "string",
+            "operation": "notEquals"
+          }
+        },
+        {
+          "id": "condition8",
+          "leftValue": "={{ $json.fields.Username }}",
+          "rightValue": "dummy",
+          "operator": {
+            "type": "string",
+            "operation": "notEquals"
+          }
+        }
+      ],
+      "combinator": "and"
+    },
+    "options": {}
+  }
+}

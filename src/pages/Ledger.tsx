@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, AlertCircle, MessageSquare, Send, CheckCircle, XCircle } from 'lucide-react';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useLedger } from '../hooks/useLedger';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -13,7 +13,8 @@ import { apiService } from '../services/api';
 
 export const Ledger: React.FC = () => {
   const navigate = useNavigate();
-  const { userRole, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;

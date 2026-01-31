@@ -36,25 +36,6 @@ export interface ApiResponse<T = any> {
   error?: string;
 }
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  user: {
-    id: string;
-    email: string;
-    role: UserRole;
-    clientId?: string | null;
-    kamId?: string | null;
-    nbfcId?: string | null;
-    creditTeamId?: string | null;
-    name?: string;
-  };
-  token: string;
-}
-
 export interface UserContext {
   id: string;
   email: string;
@@ -205,60 +186,9 @@ export interface AuditLogEntry {
 
 class ApiService {
   private baseUrl: string;
-  private token: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
-    this.loadToken();
-    
-  }
-
-  // Token Management
-  private loadToken(): void {
-    this.token = localStorage.getItem('auth_token');
-  }
-
-  setToken(token: string): void {
-    this.token = token;
-    localStorage.setItem('auth_token', token);
-  }
-
-  clearToken(): void {
-    this.token = null;
-    localStorage.removeItem('auth_token');
-  }
-
-  /**
-   * Clear all authentication-related data from storage
-   */
-  clearAllAuthData(): void {
-    this.token = null;
-    // Clear all auth-related localStorage items
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('userSettings'); // User settings may contain auth data
-    // Clear any other potential auth-related items
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.includes('auth') || key.includes('token') || key.includes('user'))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    
-    // Clear sessionStorage as well
-    const sessionKeysToRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && (key.includes('auth') || key.includes('token') || key.includes('user'))) {
-        sessionKeysToRemove.push(key);
-      }
-    }
-    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
-  }
-
-  getToken(): string | null {
-    return this.token;
   }
 
   // Generic request method
@@ -266,10 +196,6 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    // Always reload token from localStorage before each request
-    // This ensures we have the latest token even if it was updated elsewhere
-    this.loadToken();
-    
     const url = `${this.baseUrl}${endpoint}`;
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -285,37 +211,23 @@ class ApiService {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    // Add auth token if available
-    // ALWAYS check localStorage first to ensure we have the latest token
-    const storageToken = localStorage.getItem('auth_token');
-    const tokenToUse = this.token || storageToken;
-    
-    if (tokenToUse) {
-      headers['Authorization'] = `Bearer ${tokenToUse}`;
-      // Always log in production to debug auth issues
-    } else if (!isPublicEndpoint) {
-      // No token at all - log warning
-    }
+    // Note: Auth tokens are in HTTP-only cookies
+    // Browser automatically includes cookies in requests (credentials: 'include' is default for same-origin)
+    // No need to manually add Authorization header
+    // Cookies are sent automatically by the browser
 
     try {
       // Add timeout for fetch requests
       // Validate endpoint needs shorter timeout to avoid Vercel 30s limit
-      const isValidateRequest = endpoint.includes('/auth/validate');
-      const isLoginRequest = endpoint.includes('/auth/login');
       const isApplicationRequest = endpoint.includes('/loan-applications') && options.method === 'POST';
       const isGetRequest = !options.method || options.method === 'GET';
       
       // Validate endpoint: 50s timeout (Fly.io backend has no 30s limit, n8n webhook can be slow)
-      // Login and application creation webhooks: 60s (if going directly to Fly.io)
+      // Login, validate, and application creation: 60s (n8n webhook can be slow)
       // GET requests: 55s for n8n webhooks
       // Other requests: 30s timeout
-      const timeoutMs = isValidateRequest
-        ? 50000  // 50s for validate (Fly.io backend, n8n webhook can be slow)
-        : isLoginRequest || isApplicationRequest 
-        ? 60000  // 60s for login/app creation (if going to Fly.io directly)
-        : isGetRequest 
-        ? 55000  // 55s for GET requests (n8n webhooks can be slow)
-        : 30000; // 30s for other POST/PUT/DELETE requests
+      const isAuthRequest = endpoint.includes('/auth/login') || endpoint.includes('/auth/validate');
+      const timeoutMs = isAuthRequest || isApplicationRequest ? 60000 : isGetRequest ? 55000 : 30000;
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -325,6 +237,7 @@ class ApiService {
         response = await fetch(url, {
           ...options,
           headers,
+          credentials: 'include', // Include cookies (HTTP-only cookies for auth)
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
@@ -358,8 +271,7 @@ class ApiService {
         if (response.status === 404) {
           errorMessage = `Endpoint not found: ${endpoint}. The API route may not exist or the backend may not be properly deployed.`;
         } else if (response.status === 401 || response.status === 403) {
-          errorMessage = `Authentication failed (${response.status}). Please login again.`;
-          this.clearToken();
+          errorMessage = `Authentication failed (${response.status}).`;
         } else if (response.status >= 500) {
           errorMessage = `Server error (${response.status}). The backend may be experiencing issues.`;
         }
@@ -397,13 +309,10 @@ class ApiService {
       }
 
       if (!response.ok) {
-        // Handle 401/403 errors specially - token might be invalid or expired
         if (response.status === 401 || response.status === 403) {
-          // Clear token if unauthorized/forbidden
-          this.clearToken();
           return {
             success: false,
-            error: data.error || `Authentication failed (${response.status}). Please login again.`,
+            error: data.error || `Authentication failed (${response.status}).`,
           };
         }
         return {
@@ -460,40 +369,31 @@ class ApiService {
     }
   }
 
-  // ==================== AUTHENTICATION ====================
-
   /**
-   * Login and receive JWT token
+   * Login with email and password.
+   * Token is set in HTTP-only cookie by server; browser sends it automatically on subsequent requests.
    */
-  async login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
-    const response = await this.request<LoginResponse>('/auth/login', {
+  async login(email: string, password: string): Promise<ApiResponse<{ user: UserContext }>> {
+    const response = await this.request<{ user: UserContext }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-
-    if (response.success && response.data?.token) {
-      this.setToken(response.data.token);
-    }
-
     return response;
   }
 
   /**
-   * Validate username and passcode via n8n webhook (proxied through backend)
-   * This eliminates CORS issues by routing through the backend
+   * Get current user from /auth/me.
+   * Requires valid auth cookie.
    */
-  async validate(username: string, passcode: string): Promise<ApiResponse<any>> {
-    return this.request<any>('/auth/validate', {
-      method: 'POST',
-      body: JSON.stringify({ username, passcode }),
-    });
+  async getMe(): Promise<ApiResponse<UserContext>> {
+    return this.request<UserContext>('/auth/me', { method: 'GET' });
   }
 
   /**
-   * Get current authenticated user
+   * Logout - clears auth cookie on server.
    */
-  async getMe(): Promise<ApiResponse<UserContext>> {
-    return this.request<UserContext>('/auth/me');
+  async logout(): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>('/auth/logout', { method: 'POST' });
   }
 
   /**
@@ -506,12 +406,6 @@ class ApiService {
     });
   }
 
-  /**
-   * Logout (clear token)
-   */
-  logout(): void {
-    this.clearAllAuthData();
-  }
 
   // ==================== CLIENT ENDPOINTS ====================
 
@@ -625,7 +519,6 @@ class ApiService {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          this.clearToken();
           return {
             success: false,
             error: data.error || 'Authentication failed',
@@ -1376,31 +1269,16 @@ class ApiService {
 
   // ==================== ROLE-BASED ACCESS HELPERS ====================
 
-  /**
-   * Check if user has required role
-   */
-  hasRole(requiredRoles: UserRole[]): boolean {
-    // This should be called after getMe() to get current user role
-    // For now, we'll check token and let backend enforce
-    return true; // Backend will enforce RBAC
+  hasRole(_requiredRoles: UserRole[]): boolean {
+    return true;
   }
 
-  /**
-   * Get user role from token (basic check)
-   */
   async getUserRole(): Promise<UserRole | null> {
-    const me = await this.getMe();
-    if (me.success && me.data) {
-      return me.data.role;
-    }
     return null;
   }
 
-  /**
-   * Check if user can access resource
-   */
-  canAccess(requiredRole: UserRole): Promise<boolean> {
-    return this.getUserRole().then((role) => role === requiredRole);
+  canAccess(_requiredRole: UserRole): Promise<boolean> {
+    return Promise.resolve(false);
   }
 }
 

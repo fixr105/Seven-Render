@@ -4,8 +4,8 @@
  */
 
 import React, { ReactNode } from 'react';
-import { useApiAuth } from '../contexts/ApiAuthContext';
-import { UserRole } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
+import { UserRole } from '../auth/types';
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];
@@ -18,7 +18,7 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({
   children,
   fallback = null,
 }) => {
-  const { user } = useApiAuth();
+  const { user } = useAuth();
 
   if (!user) {
     return <>{fallback}</>;

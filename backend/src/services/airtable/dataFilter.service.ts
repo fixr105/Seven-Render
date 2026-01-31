@@ -3,7 +3,7 @@
  * Filters Airtable data based on user role and permissions
  */
 
-import { AuthUser } from '../auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 import { UserRole } from '../../config/constants.js';
 import {
   LoanApplication,

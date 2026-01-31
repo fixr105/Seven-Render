@@ -12,7 +12,7 @@
 import { n8nClient } from '../airtable/n8nClient.js';
 import { DisputeStatus, LoanStatus } from '../../config/constants.js';
 import { centralizedLogger } from '../logging/centralizedLogger.service.js';
-import { AuthUser } from '../auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 
 /**
  * Options for calculating commission

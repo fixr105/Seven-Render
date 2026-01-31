@@ -7,18 +7,21 @@ import React from 'react';
 import { vi } from 'vitest';
 import { render, RenderOptions } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { ApiAuthContext, ApiAuthContextType } from '../contexts/ApiAuthContext';
+import { AuthProvider } from '../auth/AuthContext';
 import { UserContext, UserRole, ApiResponse } from '../services/api';
+
+export interface MockAuthContextType {
+  user: UserContext | null;
+  loading: boolean;
+  login: ReturnType<typeof vi.fn>;
+  logout: ReturnType<typeof vi.fn>;
+  refreshUser: ReturnType<typeof vi.fn>;
+  hasRole: (role: UserRole) => boolean;
+}
 
 // Mock API Service
 export const createMockApiService = () => {
   const mockApiService = {
-    login: vi.fn<(...args: any[]) => Promise<ApiResponse>>(),
-    logout: vi.fn(),
-    getMe: vi.fn<(...args: any[]) => Promise<ApiResponse<UserContext>>>(),
-    getToken: vi.fn<() => string | null>(),
-    setToken: vi.fn<(token: string) => void>(),
-    clearToken: vi.fn(),
     listApplications: vi.fn<(...args: any[]) => Promise<ApiResponse>>(),
     getApplication: vi.fn<(...args: any[]) => Promise<ApiResponse>>(),
     createApplication: vi.fn<(...args: any[]) => Promise<ApiResponse>>(),
@@ -38,8 +41,8 @@ export const createMockApiService = () => {
   return mockApiService;
 };
 
-// Mock Auth Context Provider
-export const createMockAuthContext = (user: UserContext | null = null, loading: boolean = false): ApiAuthContextType => {
+// Mock Auth Context (for tests that mock useAuth)
+export const createMockAuthContext = (user: UserContext | null = null, loading: boolean = false): MockAuthContextType => {
   return {
     user,
     loading,
@@ -47,36 +50,25 @@ export const createMockAuthContext = (user: UserContext | null = null, loading: 
     logout: vi.fn(),
     refreshUser: vi.fn(),
     hasRole: vi.fn((role: UserRole) => user?.role === role),
-    signInAsTestUser: vi.fn(),
   };
 };
 
-// Test wrapper with Router and Auth Context
-export const TestWrapper: React.FC<{
-  children: React.ReactNode;
-  authContext?: ApiAuthContextType;
-}> = ({ children, authContext }) => {
-  const defaultAuthContext = createMockAuthContext();
-  const contextValue = authContext || defaultAuthContext;
-
+// Test wrapper with Router and Auth (stub provider)
+export const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <BrowserRouter>
-      <ApiAuthContext.Provider value={contextValue}>
+      <AuthProvider>
         {children}
-      </ApiAuthContext.Provider>
+      </AuthProvider>
     </BrowserRouter>
   );
 };
 
 // Custom render function with default providers
-export const renderWithProviders = (
-  ui: React.ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'> & { authContext?: ApiAuthContextType }
-) => {
-  const { authContext, ...renderOptions } = options || {};
+export const renderWithProviders = (ui: React.ReactElement, options?: Omit<RenderOptions, 'wrapper'>) => {
   return render(ui, {
-    wrapper: (props) => <TestWrapper {...props} authContext={authContext} />,
-    ...renderOptions,
+    wrapper: TestWrapper,
+    ...options,
   });
 };
 

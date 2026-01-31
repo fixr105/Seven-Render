@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { useAuthSafe } from './useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { mapClientFromApi } from '../utils/applicationTransform';
 
 export interface LoanApplication {
@@ -77,7 +77,8 @@ export function transformApplicationFromApi(app: any): LoanApplication {
 }
 
 export const useApplications = () => {
-  const { userRole, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 

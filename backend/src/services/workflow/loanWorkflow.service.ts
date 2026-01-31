@@ -14,7 +14,7 @@ import { LoanStatus, UserRole } from '../../config/constants.js';
 import { validateTransition } from '../statusTracking/statusStateMachine.js';
 import { recordStatusChange } from '../statusTracking/statusHistory.service.js';
 import { centralizedLogger } from '../logging/centralizedLogger.service.js';
-import { AuthUser } from '../auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 
 /**
  * Options for creating a new loan application

@@ -3,9 +3,9 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { creditController } from '../controllers/credit.controller.js';
 import { ledgerController } from '../controllers/ledger.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireCredit } from '../middleware/rbac.middleware.js';
 import { enforceRolePermissions } from '../middleware/roleEnforcement.middleware.js';
 

@@ -89,6 +89,20 @@ export const ROLE_STATUS_PERMISSIONS: Record<UserRole, LoanStatus[]> = {
     // NBFC doesn't directly change status, but their decision affects status
     // Status changes are handled by Credit team based on NBFC decision
   ],
+  [UserRole.ADMIN]: [
+    // Admin can perform any transition (same as Credit for full access)
+    LoanStatus.QUERY_WITH_CLIENT,
+    LoanStatus.PENDING_CREDIT_REVIEW,
+    LoanStatus.CREDIT_QUERY_WITH_KAM,
+    LoanStatus.IN_NEGOTIATION,
+    LoanStatus.SENT_TO_NBFC,
+    LoanStatus.APPROVED,
+    LoanStatus.REJECTED,
+    LoanStatus.DISBURSED,
+    LoanStatus.CLOSED,
+    LoanStatus.UNDER_KAM_REVIEW,
+    LoanStatus.WITHDRAWN,
+  ],
 };
 
 /**

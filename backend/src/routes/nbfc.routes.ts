@@ -3,8 +3,8 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { nbfcController } from '../controllers/nbfc.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireNBFC } from '../middleware/rbac.middleware.js';
 
 const router = Router();

@@ -3,11 +3,11 @@
  * Provides utilities for checking user roles and permissions
  */
 
-import { useApiAuth } from '../contexts/ApiAuthContext';
-import { UserRole } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
+import { UserRole } from '../auth/types';
 
 export function useRoleAccess() {
-  const { user } = useApiAuth();
+  const { user } = useAuth();
 
   const isClient = user?.role === 'client';
   const isKAM = user?.role === 'kam';

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings } from 'lucide-react';
@@ -10,7 +10,8 @@ import { CreditDashboard } from './dashboards/CreditDashboard';
 import { NBFCDashboard } from './dashboards/NBFCDashboard';
 
 export const Dashboard: React.FC = () => {
-  const { userRole, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   // Role-based sidebar items

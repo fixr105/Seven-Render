@@ -331,7 +331,7 @@ export class KAMController {
       // Create user account only if it doesn't exist (non-blocking for existing users)
       let userAccountPromise: Promise<any> | null = null;
       if (isNewUser) {
-        const { authService } = await import('../services/auth/auth.service.js');
+        const { authService } = await import('../auth/auth.service.js');
         const hashedPassword = await authService.hashPassword('TempPassword123!');
         
         const userAccountData = {

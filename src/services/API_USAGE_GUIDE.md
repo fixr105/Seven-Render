@@ -18,37 +18,9 @@ Add to `.env`:
 VITE_API_BASE_URL=http://localhost:3000
 ```
 
-### 2. Update Auth Context
+### 2. Auth (stub)
 
-Replace Supabase auth with API auth:
-
-```tsx
-// In App.tsx
-import { ApiAuthProvider } from './contexts/ApiAuthContext';
-
-function App() {
-  return (
-    <ApiAuthProvider>
-      {/* Your app */}
-    </ApiAuthProvider>
-  );
-}
-```
-
-### 3. Update Login Page
-
-```tsx
-import { useApiAuth } from '../contexts/ApiAuthContext';
-
-const { login } = useApiAuth();
-
-const handleLogin = async () => {
-  const { error } = await login(email, password);
-  if (!error) {
-    navigate('/dashboard');
-  }
-};
-```
+Auth is currently a stub (no login). Use `useAuth()` from `./auth/AuthStub` when rebuilding auth.
 
 ## Usage Examples
 

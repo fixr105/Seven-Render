@@ -18,9 +18,11 @@ test.describe('Role-persona smoke', () => {
     await loginAs(page, 'client');
     await waitForPageLoad(page);
 
-    // Sidebar: navigate via sidebar to avoid full reload (keeps auth); /dashboard has full nav
-    const nav = page.locator('nav');
+    // Sidebar: navigate via sidebar to avoid full reload (keeps auth); wait for Applications page so sidebar reflects Applications layout
+    const nav = page.getByTestId('sidebar-nav');
     await nav.getByRole('button', { name: 'Applications' }).click();
+    await page.waitForURL(/\/applications/, { timeout: 10000 });
+    await page.getByText(/Loan Applications|Applications|All Applications|Loading/i).first().waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForLoadState('networkidle');
 
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });
@@ -69,8 +71,10 @@ test.describe('Role-persona smoke', () => {
     await loginAs(page, 'kam');
     await waitForPageLoad(page);
 
-    const nav = page.locator('nav');
+    const nav = page.getByTestId('sidebar-nav');
     await nav.getByRole('button', { name: 'Applications' }).click();
+    await page.waitForURL(/\/applications/, { timeout: 10000 });
+    await page.getByText(/Loan Applications|Applications|All Applications|Loading/i).first().waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForLoadState('networkidle');
 
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });
@@ -118,8 +122,10 @@ test.describe('Role-persona smoke', () => {
     await loginAs(page, 'credit');
     await waitForPageLoad(page);
 
-    const nav = page.locator('nav');
+    const nav = page.getByTestId('sidebar-nav');
     await nav.getByRole('button', { name: 'Applications' }).click();
+    await page.waitForURL(/\/applications/, { timeout: 10000 });
+    await page.getByText(/Loan Applications|Applications|All Applications|Loading/i).first().waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForLoadState('networkidle');
 
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });
@@ -171,8 +177,10 @@ test.describe('Role-persona smoke', () => {
     await loginAs(page, 'nbfc');
     await waitForPageLoad(page);
 
-    const nav = page.locator('nav');
+    const nav = page.getByTestId('sidebar-nav');
     await nav.getByRole('button', { name: 'Applications' }).click();
+    await page.waitForURL(/\/applications/, { timeout: 10000 });
+    await page.getByText(/Loan Applications|Applications|No applications|All Applications|Loading/i).first().waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForLoadState('networkidle');
 
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });

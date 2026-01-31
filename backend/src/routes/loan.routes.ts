@@ -3,9 +3,9 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { loanController } from '../controllers/loan.controller.js';
 import { clientController } from '../controllers/client.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireClient } from '../middleware/rbac.middleware.js';
 
 const router = Router();

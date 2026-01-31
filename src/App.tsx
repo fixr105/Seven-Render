@@ -1,9 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-// Use unified auth provider for API-based authentication
-import { UnifiedAuthProvider } from './contexts/UnifiedAuthProvider';
+import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoginPage } from './auth/LoginPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Applications } from './pages/Applications';
 import { ApplicationDetail } from './pages/ApplicationDetail';
@@ -15,16 +14,14 @@ import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
 import { ClientForm } from './pages/ClientForm';
+import { ForgotPassword } from './pages/ForgotPassword';
 
 function App() {
-  // Always wrap with BrowserRouter first, then unified provider
-  // This ensures routing context is available before auth context
-  // UnifiedAuthProvider ensures consistent component tree structure
   return (
     <BrowserRouter>
-      <UnifiedAuthProvider>
+      <AuthProvider>
         <AppRoutes />
-      </UnifiedAuthProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
@@ -32,8 +29,8 @@ function App() {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Login route - case insensitive, redirect uppercase to lowercase */}
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/LOGIN" element={<Navigate to="/login" replace />} />
       <Route path="/Login" element={<Navigate to="/login" replace />} />
 

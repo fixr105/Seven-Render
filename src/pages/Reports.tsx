@@ -3,7 +3,7 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, Mail, Calendar, Clock, RefreshCw, AlertCircle } from 'lucide-react';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
@@ -17,7 +17,8 @@ interface DailySummaryReport {
 }
 
 export const Reports: React.FC = () => {
-  const { userRole, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;

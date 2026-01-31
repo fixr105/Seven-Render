@@ -3,8 +3,8 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { aiController } from '../controllers/ai.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireCreditOrKAM } from '../middleware/rbac.middleware.js';
 
 const router = Router();

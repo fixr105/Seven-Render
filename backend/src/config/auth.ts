@@ -25,5 +25,14 @@ if (!jwtSecret || jwtSecret === 'default-secret-change-in-production') {
 export const authConfig = {
   jwtSecret: jwtSecret || 'default-secret-change-in-production',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  cookieName: 'auth_token',
+  cookieOptions: {
+    httpOnly: true, // Prevents JavaScript access (XSS protection)
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    // Use sameSite: 'none' for cross-origin (e.g. lms.sevenfincorp.com -> seven-dash.fly.dev)
+    sameSite: (process.env.CORS_ORIGIN ? 'none' : 'strict') as 'strict' | 'none' | 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches JWT expiration)
+    path: '/',
+  },
 } as const;
 

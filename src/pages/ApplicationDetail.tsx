@@ -8,7 +8,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Mod
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
 import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Download, Edit, Sparkles, RefreshCw, File, Image, FileCheck, Eye, ExternalLink, Grid3x3, List } from 'lucide-react';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { apiService } from '../services/api';
@@ -69,7 +69,8 @@ interface StatusHistoryItem {
 export const ApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userRole, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
@@ -125,15 +126,6 @@ export const ApplicationDetail: React.FC = () => {
       setLoading(true);
       console.log(`[ApplicationDetail] Fetching application with ID: ${id}`);
       
-      // Check if user has a token
-      const token = apiService.getToken();
-      if (!token) {
-        console.error('[ApplicationDetail] No authentication token found. Redirecting to login...');
-        // Redirect to login if no token
-        navigate('/login');
-        return;
-      }
-      
       const response = await apiService.getApplication(id!);
       console.log(`[ApplicationDetail] Response:`, { success: response.success, hasData: !!response.data, error: response.error });
       
@@ -145,10 +137,8 @@ export const ApplicationDetail: React.FC = () => {
       } else {
         console.error(`[ApplicationDetail] Error fetching application ${id}:`, response.error);
         // Check if it's an authentication error
-        if (response.error?.includes('No token') || response.error?.includes('401') || response.error?.includes('Authentication')) {
-          console.error('[ApplicationDetail] Authentication failed. Redirecting to login...');
-          navigate('/login');
-          return;
+        if (response.error?.includes('401') || response.error?.includes('Authentication')) {
+          console.error('[ApplicationDetail] Authentication failed.');
         }
         // Check if it's an access denied error
         if (response.error?.includes('Access denied') || response.error?.includes('403')) {
@@ -160,9 +150,8 @@ export const ApplicationDetail: React.FC = () => {
     } catch (error: any) {
       console.error(`[ApplicationDetail] Exception fetching application ${id}:`, error);
       // Check if it's an authentication error
-      if (error.message?.includes('No token') || error.message?.includes('401')) {
-        navigate('/login');
-        return;
+      if (error.message?.includes('401')) {
+        // Auth removed; show not found
       }
       // Set application to null to show "not found" message
       setApplication(null);

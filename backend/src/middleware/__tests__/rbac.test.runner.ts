@@ -5,7 +5,7 @@
  */
 
 import { UserRole } from '../../config/constants.js';
-import { AuthUser } from '../../services/auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 import {
   canPerformAction,
   requireActionPermission,

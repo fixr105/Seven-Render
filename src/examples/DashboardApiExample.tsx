@@ -4,14 +4,14 @@
  */
 
 import React, { useEffect } from 'react';
-import { useApiAuth } from '../contexts/ApiAuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { useRoleAccess } from '../hooks/useRoleAccess';
 import { apiService, DashboardSummary } from '../services/api';
 import { useApiCall } from '../hooks/useApi';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 export const DashboardApiExample: React.FC = () => {
-  const { user } = useApiAuth();
+  const { user } = useAuth();
   const { isClient, isKAM, isCredit, isNBFC } = useRoleAccess();
   const { loading, error, data, execute } = useApiCall<DashboardSummary>();
 

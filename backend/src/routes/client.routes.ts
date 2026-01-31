@@ -3,13 +3,12 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { clientController } from '../controllers/client.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireClient } from '../middleware/rbac.middleware.js';
 
 const router = Router();
 
-// All client routes require authentication and CLIENT role
 router.use(authenticate);
 router.use(requireClient);
 

@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Request, Response } from 'express';
 import { LoanController } from '../loan.controller.js';
 import { UserRole, LoanStatus } from '../../config/constants.js';
-import { AuthUser } from '../../services/auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 import { createMockN8nClient, mockLoanApplications, mockFormFields, mockClientFormMapping, mockFormCategories } from '../../__tests__/helpers/mockN8nClient.js';
 import * as n8nClientModule from '../../services/airtable/n8nClient.js';
 
@@ -34,6 +34,7 @@ jest.mock('../../services/statusTracking/statusStateMachine.js', () => ({
 jest.mock('../../services/statusTracking/statusHistory.service.js', () => ({
   recordStatusChange: jest.fn().mockResolvedValue(undefined),
 }));
+
 
 describe('LoanController - P0 Tests', () => {
   let controller: LoanController;

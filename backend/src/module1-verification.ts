@@ -13,7 +13,7 @@ import { n8nClient } from './services/airtable/n8nClient.js';
 import { getLatestFormConfigVersion, shouldApplyFormConfig } from './services/formConfigVersioning.js';
 import { logClientAction, AdminActionType } from './utils/adminLogger.js';
 import { UserRole } from './config/constants.js';
-import { AuthUser } from './services/auth/auth.service.js';
+import { AuthUser } from './types/auth.js';
 
 console.log('🔍 Module 1: M2 Master Form Builder + Client Dashboard Config Verification\n');
 console.log('='.repeat(60));

@@ -7,7 +7,7 @@
 import { LoanStatus } from '../../config/constants.js';
 import { n8nClient } from '../airtable/n8nClient.js';
 import { logStatusChange } from '../../utils/adminLogger.js';
-import { AuthUser } from '../auth/auth.service.js';
+import { AuthUser } from '../../types/auth.js';
 
 /**
  * Status history entry

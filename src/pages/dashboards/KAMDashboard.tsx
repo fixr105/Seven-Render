@@ -7,7 +7,7 @@ import { DataTable, Column } from '../../components/ui/DataTable';
 import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, TrendingUp, RefreshCw } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { apiService } from '../../services/api';
-import { useAuthSafe } from '../../hooks/useAuthSafe';
+import { useAuth } from '../../auth/AuthContext';
 import { useState, useEffect } from 'react';
 
 interface ApplicationRow {
@@ -30,7 +30,8 @@ interface ClientStats {
 
 export const KAMDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { userRoleId } = useAuthSafe();
+  const { user } = useAuth();
+  const userRoleId = user?.kamId || user?.id || null;
   const { applications, loading, refetch } = useApplications();
   const [clients, setClients] = useState<ClientStats[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);

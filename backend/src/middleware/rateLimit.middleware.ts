@@ -27,14 +27,20 @@ const RATE_LIMIT_CONFIG = {
 };
 
 // Helper to determine if rate limiting should be skipped
-// Only skip in true development mode, and allow override via environment variable
+// Skip when E2E override is set, or rate limits explicitly disabled, or in development
 const shouldSkipRateLimit = (): boolean => {
-  // Allow explicit override via environment variable
   if (process.env.ENABLE_RATE_LIMITS === 'true') {
     return false;
   }
-  // Skip only in development, not in staging/test
-  return process.env.NODE_ENV === 'development' && process.env.ENABLE_RATE_LIMITS !== 'false';
+  if (process.env.SKIP_E2E_RATE_LIMITS === 'true' || process.env.ENABLE_RATE_LIMITS === 'false') {
+    return true;
+  }
+  return process.env.NODE_ENV === 'development';
+};
+
+// Skip auth rate limit when SKIP_AUTH_RATE_LIMIT=true (for local/dev iterative testing)
+const shouldSkipAuthRateLimit = (): boolean => {
+  return process.env.SKIP_AUTH_RATE_LIMIT === 'true';
 };
 
 // Helper to extract identifier from request
@@ -82,6 +88,10 @@ const authRateLimiterPerAccount = rateLimit({
 // Composite rate limiter that enforces both per-IP and per-IP:identifier limits
 // Both limits must pass for the request to proceed
 export const authRateLimiter = (req: Request, res: Response, next: NextFunction): void => {
+  // Skip auth rate limit when SKIP_AUTH_RATE_LIMIT=true (for local/dev iterative testing)
+  if (shouldSkipAuthRateLimit()) {
+    return next();
+  }
   // Skip in development (using same logic as individual limiters)
   if (shouldSkipRateLimit()) {
     return next();

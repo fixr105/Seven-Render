@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Menu, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
-import { useAuthSafe } from '../../hooks/useAuthSafe';
+import { useAuth } from '../../auth/AuthContext';
 import { Notification } from '../../hooks/useNotifications';
 import { formatRelativeTime } from '../../utils/dateFormatter';
 
@@ -25,12 +25,12 @@ export const TopBar: React.FC<TopBarProps> = ({
   onMarkAllAsRead,
 }) => {
   const navigate = useNavigate();
-  const { signOut } = useAuthSafe();
+  const { logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const handleLogout = async () => {
-    await signOut();
+  const handleLogout = () => {
+    logout();
     navigate('/login');
   };
 

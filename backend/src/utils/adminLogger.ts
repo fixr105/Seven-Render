@@ -7,7 +7,7 @@
 
 import { n8nConfig } from '../config/airtable.js';
 import { n8nApiClient } from '../services/airtable/n8nApiClient.js';
-import { AuthUser } from '../services/auth/auth.service.js';
+import { AuthUser } from '../types/auth.js';
 
 /**
  * Action types for admin logging

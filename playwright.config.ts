@@ -69,9 +69,11 @@ export default defineConfig({
       url: 'http://localhost:3001/health',
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000,
-      env: { 
+      env: {
         N8N_BASE_URL: process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud',
         NODE_ENV: 'development',
+        SKIP_AUTH_RATE_LIMIT: 'true',
+        SKIP_E2E_RATE_LIMITS: 'true',
       },
     },
   ],

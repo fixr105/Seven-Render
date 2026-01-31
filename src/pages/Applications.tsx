@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
-import { useAuthSafe } from '../hooks/useAuthSafe';
+import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -51,7 +51,8 @@ const URL_STATUS_TO_FILTER: Record<string, string> = {
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { userRole, user } = useAuthSafe();
+  const { user } = useAuth();
+  const userRole = user?.role || null;
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;

@@ -4,21 +4,19 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../auth/auth.middleware.js';
 import { productsController } from '../controllers/products.controller.js';
 import { nbfcPartnersController } from '../controllers/nbfc.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { requireCredit, requireCreditOrNBFC } from '../middleware/rbac.middleware.js';
 
 const router = Router();
 
-// Log when products router is accessed
+router.use(authenticate);
+
 router.use((req, res, next) => {
   console.log(`[PRODUCTS ROUTER] ${req.method} ${req.path} - req.url: ${req.url}`);
   next();
 });
-
-// All routes require authentication
-router.use(authenticate);
 
 // Loan Products - Temporarily bypass auth for testing
 router.get('/loan-products', async (req, res, next) => {

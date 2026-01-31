@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useApiAuth } from '../contexts/ApiAuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { useRoleAccess } from '../hooks/useRoleAccess';
 import { apiService, LoanApplication } from '../services/api';
 import { useApiCall } from '../hooks/useApi';
@@ -12,7 +12,7 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { Button } from '../components/ui/Button';
 
 export const ApplicationsApiExample: React.FC = () => {
-  const { user } = useApiAuth();
+  const { user } = useAuth();
   const { isClient, isKAM, isCredit, isNBFC } = useRoleAccess();
   const { loading, error, data, execute } = useApiCall<LoanApplication[]>();
   const [statusFilter, setStatusFilter] = useState<string>('');
