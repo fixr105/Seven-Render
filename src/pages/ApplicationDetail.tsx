@@ -75,8 +75,8 @@ export const ApplicationDetail: React.FC = () => {
   const [application, setApplication] = useState<any>(null);
   const [queries, setQueries] = useState<Query[]>([]);
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [kamEdits, setKamEdits] = useState<any[]>([]);
+  const [, _setAuditLogs] = useState<any[]>([]);
+  const [, _setKamEdits] = useState<any[]>([]);
   const [showQueryModal, setShowQueryModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [queryMessage, setQueryMessage] = useState('');

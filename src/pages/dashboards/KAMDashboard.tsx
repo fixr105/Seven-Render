@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, TrendingUp, RefreshCw, Sparkles } from 'lucide-react';
+import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../auth/AuthContext';

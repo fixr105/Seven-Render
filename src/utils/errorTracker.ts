@@ -119,7 +119,7 @@ class HttpErrorTracker implements ErrorTracker {
  * Console-only error tracker (fallback)
  */
 class ConsoleErrorTracker implements ErrorTracker {
-  setUser(user: { id?: string; email?: string; username?: string }) {
+  setUser(_user: { id?: string; email?: string; username?: string }) {
     // No-op for console tracker
   }
 

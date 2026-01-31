@@ -3,16 +3,17 @@ import React from 'react';
 interface CardProps {
   children: React.ReactNode;
   className?: string;
+  id?: string;
   hoverable?: boolean;
   onClick?: () => void;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', hoverable = false, onClick }) => {
+export const Card: React.FC<CardProps> = ({ children, className = '', id, hoverable = false, onClick }) => {
   const baseClasses = 'bg-white rounded-lg shadow-level-1 border border-neutral-200 overflow-hidden';
   const hoverClasses = hoverable ? 'cursor-pointer hover:shadow-level-2 transition-shadow duration-200' : '';
 
   return (
-    <div className={`${baseClasses} ${hoverClasses} ${className}`} onClick={onClick}>
+    <div id={id} className={`${baseClasses} ${hoverClasses} ${className}`} onClick={onClick}>
       {children}
     </div>
   );

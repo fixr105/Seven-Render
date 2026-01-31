@@ -23,7 +23,7 @@ export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { applications, loading, refetch: refetchApplications } = useApplications();
   const { balance, loading: ledgerLoading, refetch: refetchLedger } = useLedger();
-  const { unreadCount } = useNotifications();
+  useNotifications();
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
@@ -83,7 +83,6 @@ export const ClientDashboard: React.FC = () => {
   const drafts = applications.filter(a => a.status === 'draft').length;
   const pendingReview = applications.filter(a => a.status === 'pending_kam_review' || a.status === 'kam_query_raised').length;
   const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
-  const pendingQueries = applications.filter(a => a.status === 'kam_query_raised' || a.status === 'credit_query_raised').length;
 
   // Format table data
   const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({

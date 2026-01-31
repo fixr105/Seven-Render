@@ -12,7 +12,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Select } from '../components/ui/Select';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
-import { Plus, Eye, MessageSquare, RefreshCw } from 'lucide-react';
+import { Plus, Eye, MessageSquare, RefreshCw, FileText } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';

@@ -77,8 +77,7 @@ export function transformApplicationFromApi(app: any): LoanApplication {
 }
 
 export const useApplications = () => {
-  const { user } = useAuth();
-  const userRole = user?.role || null;
+  useAuth();
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
 

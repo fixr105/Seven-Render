@@ -14,14 +14,6 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { Stepper } from '../components/ui/Stepper';
 
-interface UploadedFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  progress?: number;
-}
-
 interface FormData {
   applicant_name: string;
   loan_product_id: string;
@@ -421,21 +413,24 @@ export const NewApplication: React.FC = () => {
       }
 
       // Module 2: Handle warnings and duplicate detection
-      if (response.data?.warnings && response.data.warnings.length > 0) {
-        setValidationWarnings(response.data.warnings);
+      const validationWarns = response.data?.warnings ?? [];
+      if (validationWarns.length > 0) {
+        setValidationWarnings(validationWarns);
       }
 
       if (response.data?.duplicateFound) {
         setDuplicateWarning(response.data.duplicateFound);
       }
 
+      const warnings = response.data?.warnings ?? [];
       // Module 2: Soft validation - show warnings but allow submission
-      if (!saveAsDraft && (response.data?.warnings?.length > 0 || response.data?.duplicateFound)) {
+      if (!saveAsDraft && (warnings.length > 0 || response.data?.duplicateFound)) {
         // Show confirmation dialog with warnings
+        const data = response.data;
         const warningMessages = [
-          ...(response.data.warnings || []),
-          ...(response.data.duplicateFound 
-            ? [`Duplicate application found: ${response.data.duplicateFound.fileId}`]
+          ...(data?.warnings ?? []),
+          ...(data?.duplicateFound 
+            ? [`Duplicate application found: ${data.duplicateFound.fileId ?? ''}`]
             : []),
         ];
         
@@ -452,7 +447,7 @@ export const NewApplication: React.FC = () => {
       // Success - show message and navigate
       const successMessage = saveAsDraft 
         ? 'Application saved as draft successfully!'
-        : response.data?.warnings?.length > 0
+        : (response.data?.warnings?.length ?? 0) > 0
         ? 'Application submitted successfully with warnings. Your KAM will review it.'
         : 'Application submitted successfully!';
       
@@ -663,6 +658,8 @@ export const NewApplication: React.FC = () => {
                     } catch (e) {
                       options = [];
                     }
+                    const hasError = !!fieldErrors[fieldId];
+                    const fieldError = fieldErrors[fieldId];
 
                     return (
                       <div key={fieldId}>
@@ -768,7 +765,7 @@ export const NewApplication: React.FC = () => {
                                   });
                                 }
                               }}
-                              options={Array.isArray(options) ? options : []}
+                              options={Array.isArray(options) ? options.map((o: string) => ({ value: o, label: o })) : []}
                               error={hasError ? fieldError : undefined}
                             />
                           </div>

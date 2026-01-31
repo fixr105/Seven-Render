@@ -11,7 +11,7 @@ interface MainLayoutProps {
   activeItem: string;
   onItemClick: (id: string) => void;
   pageTitle: string;
-  userRole: string;
+  userRole?: string;
   userName?: string;
   notificationCount?: number;
   notifications?: Notification[];
@@ -25,7 +25,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   activeItem,
   onItemClick,
   pageTitle,
-  userRole,
+  userRole = '',
   userName,
   notificationCount,
   notifications,

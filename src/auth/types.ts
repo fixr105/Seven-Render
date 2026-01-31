@@ -9,6 +9,8 @@ export interface UserContext {
   email: string;
   role: UserRole;
   name?: string | null;
+  phone?: string | null;
+  company?: string | null;
   clientId?: string | null;
   kamId?: string | null;
   nbfcId?: string | null;

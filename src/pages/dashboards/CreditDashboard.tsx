@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { FileText, Clock, DollarSign, CheckCircle, AlertCircle, Users, TrendingUp, Send, Sparkles } from 'lucide-react';
+import { FileText, Clock, DollarSign, AlertCircle, Send, Sparkles } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 

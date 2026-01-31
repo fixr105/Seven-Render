@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input';
 import { FileUpload } from '../components/ui/FileUpload';
 import { Select } from '../components/ui/Select';
 import { Send } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
@@ -194,7 +195,8 @@ export const ClientForm: React.FC = () => {
               );
               
               if (category) {
-                const categoryName = category['Category Name'] || category.categoryName || '';
+                const raw = category as unknown as Record<string, unknown>;
+                const categoryName = String(raw['Category Name'] ?? category.categoryName ?? '');
                 // Match category name to module name
                 const module = FORM_MODULES.find(m => 
                   m.name === categoryName || 
@@ -323,11 +325,7 @@ export const ClientForm: React.FC = () => {
   };
 
   // Get fields from configured modules
-  const formFields = configuredModules
-    .map(moduleId => FORM_MODULES.find(m => m.id === moduleId))
-    .filter(Boolean)
-    .flatMap(module => module!.fields);
-
+  const { user } = useAuth();
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
@@ -338,6 +336,7 @@ export const ClientForm: React.FC = () => {
         activeItem={activeItem}
         onItemClick={handleNavigation}
         pageTitle="LOADING FORM"
+        userRole={user?.role}
       >
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
@@ -356,6 +355,7 @@ export const ClientForm: React.FC = () => {
         activeItem={activeItem}
         onItemClick={handleNavigation}
         pageTitle="FORM ERROR"
+        userRole={user?.role}
       >
         <Card>
           <CardContent className="p-6">
@@ -378,6 +378,7 @@ export const ClientForm: React.FC = () => {
         activeItem={activeItem}
         onItemClick={handleNavigation}
         pageTitle="FORM SUBMITTED"
+        userRole={user?.role}
       >
         <Card>
           <CardContent className="p-6">
@@ -405,6 +406,7 @@ export const ClientForm: React.FC = () => {
       activeItem={activeItem}
       onItemClick={handleNavigation}
       pageTitle="LOAN APPLICATION FORM"
+      userRole={user?.role}
     >
       <div className="space-y-6">
         {clientInfo && (
@@ -445,13 +447,22 @@ export const ClientForm: React.FC = () => {
                     {module.fields.map(field => (
                       <div key={field.id}>
                         {field.type === 'file' ? (
-                          <FileUpload
-                            label={field.label}
-                            required={field.required}
-                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                            onFilesSelected={(files) => handleFileUpload(field.id, files)}
-                            uploadedFiles={uploadedFiles[field.id] || []}
-                          />
+                          <div>
+                            <label className="block text-sm font-medium text-neutral-700 mb-1">
+                              {field.label}
+                              {field.required && <span className="text-error ml-1">*</span>}
+                            </label>
+                            <FileUpload
+                              acceptedTypes={['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']}
+                              onFilesSelected={(files) => handleFileUpload(field.id, files)}
+                              uploadedFiles={(uploadedFiles[field.id] || []).map((f, i) => ({
+                                id: `${field.id}-${i}`,
+                                name: f.name,
+                                size: f.size,
+                                type: f.type,
+                              }))}
+                            />
+                          </div>
                         ) : field.type === 'checkbox' ? (
                           <div className="flex items-center gap-2">
                             <input
@@ -472,7 +483,7 @@ export const ClientForm: React.FC = () => {
                             required={field.required}
                             value={formData[field.id] || ''}
                             onChange={(value) => handleFieldChange(field.id, value)}
-                            options={field.options || []}
+                            options={(field.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : o))}
                           />
                         ) : field.type === 'textarea' ? (
                           <div>

@@ -1,19 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { AlertCircle, MessageSquare, Send, CheckCircle, XCircle } from 'lucide-react';
+import { MessageSquare, Send } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useLedger } from '../hooks/useLedger';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
-import { apiService } from '../services/api';
 
 export const Ledger: React.FC = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const userRole = user?.role || null;
   
@@ -22,7 +19,7 @@ export const Ledger: React.FC = () => {
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     return '';
   };
-  const { entries, balance, loading, requestPayout, raiseQuery, flagPayout, refetch } = useLedger();
+  const { entries, balance, loading, requestPayout, raiseQuery, flagPayout } = useLedger();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showQueryModal, setShowQueryModal] = useState(false);

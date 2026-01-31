@@ -4,7 +4,6 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
-import { Input } from '../components/ui/Input';
 // Checkbox is handled inline with native input
 import { CheckCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
@@ -141,7 +140,7 @@ export const FormConfiguration: React.FC = () => {
     return '';
   };
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const [loading, setLoading] = useState(false);
+  const [, _setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<string>(''); // Module 1: Loan product selection
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
@@ -155,7 +154,7 @@ export const FormConfiguration: React.FC = () => {
   const [clientsLoading, setClientsLoading] = useState(true);
   
   // Fetch form mappings from API (will be fetched per client as needed)
-  const [formMappings, setFormMappings] = useState<any[]>([]);
+  const [formMappings] = useState<any[]>([]);
 
   const fetchClientsForForm = async () => {
     if (userRole !== 'kam' || !userRoleId) {

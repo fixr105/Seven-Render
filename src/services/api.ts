@@ -202,15 +202,6 @@ class ApiService {
       ...options.headers,
     };
 
-    // Public endpoints that don't require authentication
-    const publicEndpoints = ['/auth/login', '/auth/validate', '/auth/register', '/health'];
-    const isPublicEndpoint = publicEndpoints.some(publicPath => endpoint.startsWith(publicPath));
-    
-    // Set timeout for requests (25 seconds to stay under Vercel's 30s limit)
-    const timeoutMs = 25000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
     // Note: Auth tokens are in HTTP-only cookies
     // Browser automatically includes cookies in requests (credentials: 'include' is default for same-origin)
     // No need to manually add Authorization header
@@ -494,17 +485,13 @@ class ApiService {
     }
 
     const url = `${this.baseUrl}/documents/upload`;
-    const headers: HeadersInit = {};
-    
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
-    }
 
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers,
+        headers: {},
         body: formData,
+        credentials: 'include',
       });
 
       const text = await response.text();
@@ -536,7 +523,6 @@ class ApiService {
       };
     } catch (error: any) {
       defaultLogger.error('Document upload error', {
-        applicationId,
         fieldId,
         error: error.message,
       });
@@ -544,7 +530,6 @@ class ApiService {
       if (error instanceof Error) {
         errorTracker.captureException(error, {
           metadata: {
-            applicationId,
             fieldId,
             operation: 'document_upload',
           },
