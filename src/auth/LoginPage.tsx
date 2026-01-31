@@ -9,6 +9,8 @@ import { Mail, Lock } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import loginBg from '../components/ui/login-bg.png';
+import logo from '../components/ui/logo.png';
 import './LoginPage.css';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,10 +71,13 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="login-page">
+    <div
+      className="login-page"
+      style={{ ['--login-bg' as string]: `url(${loginBg})` }}
+    >
       <div className="login-card">
-        <h1 className="login-title">Seven Fincorp</h1>
-        <p className="login-subtitle">Loan Management System</p>
+        <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
+        <p className="login-tagline">AI-FIRST TECH-FIRST PLATFORM</p>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {error && <div className="login-error">{error}</div>}
