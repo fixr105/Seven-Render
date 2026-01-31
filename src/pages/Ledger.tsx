@@ -4,11 +4,12 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, AlertCircle, MessageSquare, Send, CheckCircle, XCircle } from 'lucide-react';
+import { AlertCircle, MessageSquare, Send, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useLedger } from '../hooks/useLedger';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
 export const Ledger: React.FC = () => {
@@ -31,15 +32,7 @@ export const Ledger: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
-    ...(userRole === 'client' || userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
-    ...(userRole === 'kam' || userRole === 'credit_team' ? [{ id: 'clients', label: 'Clients', icon: Users, path: '/clients' }] : []),
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
+  const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   const formatCurrency = (amount: number): string => {

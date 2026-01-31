@@ -12,8 +12,9 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Select } from '../components/ui/Select';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Plus, Eye, MessageSquare, RefreshCw } from 'lucide-react';
+import { Plus, Eye, MessageSquare, RefreshCw } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
 // Placeholder data removed - now using real data from database via useApplications hook
@@ -144,15 +145,7 @@ export const Applications: React.FC = () => {
     }
   };
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications', badge: 5 },
-    ...(userRole === 'kam' || userRole === 'credit_team' ? [{ id: 'clients', label: 'Clients', icon: Users, path: '/clients' }] : []),
-    ...(userRole === 'client' || userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
+  const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   const statusOptions = [

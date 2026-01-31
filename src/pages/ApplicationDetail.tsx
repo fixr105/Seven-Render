@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, ArrowLeft, MessageSquare, Download, Edit, Sparkles, RefreshCw, File, Image, FileCheck, Eye, ExternalLink, Grid3x3, List } from 'lucide-react';
+import { MessageSquare, Download, Edit, Sparkles, RefreshCw, File, FileText, Image, Eye, ExternalLink, Grid3x3, List } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
+import { formatDateSafe } from '../utils/dateFormatter';
 
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
@@ -32,16 +35,6 @@ const formatAmount = (amount: any): string => {
   const num = parseFloat(amount);
   if (isNaN(num)) return '₹0';
   return `₹${num.toLocaleString('en-IN')}`;
-};
-
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
 };
 
 interface Query {
@@ -100,14 +93,7 @@ export const ApplicationDetail: React.FC = () => {
   const [approvedAmount, setApprovedAmount] = useState<string>('');
   const [documentsViewMode, setDocumentsViewMode] = useState<'grid' | 'list'>('grid');
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
-    ...(userRole === 'kam' || userRole === 'credit_team' ? [{ id: 'clients', label: 'Clients', icon: Users, path: '/clients' }] : []),
-    ...(userRole === 'client' || userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
+  const sidebarItems = useSidebarItems();
 
   // Load application data ONLY on initial mount or when navigating to a different application
   // No automatic refetch - user must manually refresh
@@ -202,7 +188,7 @@ export const ApplicationDetail: React.FC = () => {
       const errorMessage = error.response?.data?.error || error.message || 'Failed to generate AI summary';
       
       if (error.response?.status === 403) {
-        alert('You do not have permission to generate AI summaries. Only KAM and Credit Team members can generate summaries.');
+        alert('You do not have permission to generate an AI summary for this application.');
       } else if (error.response?.status === 404) {
         alert('Application not found. Please refresh the page and try again.');
       } else if (error.response?.status >= 500) {
@@ -500,22 +486,21 @@ export const ApplicationDetail: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      {/* Header Actions */}
-      <div className="flex items-center justify-between mb-6">
-        <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate(-1)}>
-          Back
-        </Button>
-        <div className="flex gap-2">
-          {(userRole === 'kam' || userRole === 'credit_team') && (
-            <Button variant="primary" icon={Edit} onClick={() => setShowStatusModal(true)}>
-              Update Status
+      <PageHeader
+        onBack={() => navigate(-1)}
+        actions={
+          <>
+            {(userRole === 'kam' || userRole === 'credit_team') && (
+              <Button variant="primary" icon={Edit} onClick={() => setShowStatusModal(true)}>
+                Update Status
+              </Button>
+            )}
+            <Button variant="secondary" icon={MessageSquare} onClick={() => setShowQueryModal(true)}>
+              Raise Query
             </Button>
-          )}
-          <Button variant="secondary" icon={MessageSquare} onClick={() => setShowQueryModal(true)}>
-            Raise Query
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
@@ -590,7 +575,7 @@ export const ApplicationDetail: React.FC = () => {
                     </div>
                     {(application.lender_decision_date || application.lenderDecisionDate) && (
                       <p className="text-xs text-neutral-500 mt-1">
-                        {formatDate(application.lender_decision_date || application.lenderDecisionDate)}
+                        {formatDateSafe(application.lender_decision_date || application.lenderDecisionDate)}
                       </p>
                     )}
                     {(application.lender_decision_remarks || application.lenderDecisionRemarks) && (
@@ -602,11 +587,11 @@ export const ApplicationDetail: React.FC = () => {
                 )}
                 <div>
                   <p className="text-sm text-neutral-500">Created</p>
-                  <p className="font-semibold text-neutral-900">{formatDate(application.created_at)}</p>
+                  <p className="font-semibold text-neutral-900">{formatDateSafe(application.created_at)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Last Updated</p>
-                  <p className="font-semibold text-neutral-900">{formatDate(application.updated_at)}</p>
+                  <p className="font-semibold text-neutral-900">{formatDateSafe(application.updated_at)}</p>
                 </div>
               </div>
             </CardContent>
@@ -829,14 +814,18 @@ export const ApplicationDetail: React.FC = () => {
               <CardTitle>Application Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {Object.entries(application.form_data || {}).map(([key, value]) => (
-                  <div key={key} className="grid grid-cols-3 gap-2">
-                    <p className="text-sm text-neutral-500 capitalize">{key.replace(/_/g, ' ')}</p>
-                    <p className="col-span-2 text-sm text-neutral-900">{String(value)}</p>
-                  </div>
-                ))}
-              </div>
+              {!application.form_data || Object.keys(application.form_data).length === 0 ? (
+                <p className="text-center text-neutral-500 py-6">No form data recorded</p>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(application.form_data).map(([key, value]) => (
+                    <div key={key} className="grid grid-cols-3 gap-2">
+                      <p className="text-sm text-neutral-500 capitalize">{key.replace(/_/g, ' ')}</p>
+                      <p className="col-span-2 text-sm text-neutral-900">{String(value)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -938,7 +927,7 @@ export const ApplicationDetail: React.FC = () => {
                               </span>
                               {rootQuery.timestamp && (
                                 <span className="text-xs text-neutral-500">
-                                  {formatDate(rootQuery.timestamp)}
+                                  {formatDateSafe(rootQuery.timestamp)}
                                 </span>
                               )}
                               {rootQuery.resolved ? (
@@ -954,7 +943,7 @@ export const ApplicationDetail: React.FC = () => {
                               )}
                               {lastActivity && (
                                 <span className="text-xs text-neutral-500">
-                                  Last activity: {formatDate(lastActivity)}
+                                  Last activity: {formatDateSafe(lastActivity)}
                                 </span>
                               )}
                         </div>
@@ -989,7 +978,7 @@ export const ApplicationDetail: React.FC = () => {
                                   {reply.actor}
                                 </span>
                                 <span className="text-xs text-neutral-500">
-                                  {formatDate(reply.timestamp)}
+                                  {formatDateSafe(reply.timestamp)}
                                 </span>
                               </div>
                               <p className="text-sm text-neutral-700">{reply.message}</p>
@@ -1031,25 +1020,29 @@ export const ApplicationDetail: React.FC = () => {
               <CardTitle>Status History</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {statusHistory.map((item, index) => (
-                  <div key={item.id} className="relative pl-6">
-                    {index !== statusHistory.length - 1 && (
-                      <div className="absolute left-2 top-6 bottom-0 w-0.5 bg-neutral-200" />
-                    )}
-                    <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-brand-primary" />
-                    <div>
-                      <Badge variant={getStatusVariant(item.to_status)}>
-                        {formatStatus(item.to_status)}
-                      </Badge>
-                      <p className="text-xs text-neutral-500 mt-1">{formatDate(item.created_at)}</p>
-                      {item.notes && (
-                        <p className="text-xs text-neutral-600 mt-1">{item.notes}</p>
+              {statusHistory.length === 0 ? (
+                <p className="text-center text-neutral-500 py-6">No status changes yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {statusHistory.map((item, index) => (
+                    <div key={item.id} className="relative pl-6">
+                      {index !== statusHistory.length - 1 && (
+                        <div className="absolute left-2 top-6 bottom-0 w-0.5 bg-neutral-200" />
                       )}
+                      <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-brand-primary" />
+                      <div>
+                        <Badge variant={getStatusVariant(item.to_status)}>
+                          {formatStatus(item.to_status)}
+                        </Badge>
+                        <p className="text-xs text-neutral-500 mt-1">{formatDateSafe(item.created_at)}</p>
+                        {item.notes && (
+                          <p className="text-xs text-neutral-600 mt-1">{item.notes}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1123,7 +1116,7 @@ export const ApplicationDetail: React.FC = () => {
                       </Badge>
                       {(application.lenderDecisionDate || application.lender_decision_date) && (
                         <span className="text-sm text-neutral-500">
-                          on {formatDate(application.lenderDecisionDate || application.lender_decision_date)}
+                          on {formatDateSafe(application.lenderDecisionDate || application.lender_decision_date)}
                         </span>
                       )}
                     </div>

@@ -3,57 +3,59 @@
  * All dates should be formatted as dd-Mon (e.g., 05-Jan)
  */
 
-export const formatDate = (date: string | Date): string => {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(d.getTime())) {
-    return 'Invalid Date';
-  }
+const FALLBACK_DATE = '—';
 
+export const formatDate = (date: string | Date | null | undefined): string => {
+  if (date == null || date === '') return FALLBACK_DATE;
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return FALLBACK_DATE;
   const day = d.getDate().toString().padStart(2, '0');
   const month = d.toLocaleDateString('en-US', { month: 'short' });
-  
   return `${day}-${month}`;
 };
 
-export const formatDateFull = (date: string | Date): string => {
+export const formatDateFull = (date: string | Date | null | undefined): string => {
+  if (date == null || date === '') return FALLBACK_DATE;
   const d = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(d.getTime())) {
-    return 'Invalid Date';
-  }
-
+  if (isNaN(d.getTime())) return FALLBACK_DATE;
   const day = d.getDate().toString().padStart(2, '0');
   const month = d.toLocaleDateString('en-US', { month: 'short' });
   const year = d.getFullYear();
-  
   return `${day}-${month}-${year}`;
 };
 
-export const formatDateTime = (date: string | Date): string => {
+export const formatDateTime = (date: string | Date | null | undefined): string => {
+  if (date == null || date === '') return FALLBACK_DATE;
   const d = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(d.getTime())) {
-    return 'Invalid Date';
-  }
-
+  if (isNaN(d.getTime())) return FALLBACK_DATE;
   const day = d.getDate().toString().padStart(2, '0');
   const month = d.toLocaleDateString('en-US', { month: 'short' });
   const hours = d.getHours().toString().padStart(2, '0');
   const minutes = d.getMinutes().toString().padStart(2, '0');
-  
   return `${day}-${month} ${hours}:${minutes}`;
+};
+
+/** Safe date+time for detail views; returns — for missing/invalid. */
+export const formatDateSafe = (date: string | Date | null | undefined): string => {
+  if (date == null || date === '') return FALLBACK_DATE;
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return FALLBACK_DATE;
+  return d.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 /**
  * Format date as relative time (e.g., "5 minutes ago", "2 hours ago", "3 days ago")
  */
-export const formatRelativeTime = (date: string | Date): string => {
+export const formatRelativeTime = (date: string | Date | null | undefined): string => {
+  if (date == null || date === '') return FALLBACK_DATE;
   const d = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(d.getTime())) {
-    return 'Invalid Date';
-  }
+  if (isNaN(d.getTime())) return FALLBACK_DATE;
 
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();

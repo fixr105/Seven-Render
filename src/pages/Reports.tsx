@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Mail, Calendar, Clock, RefreshCw, AlertCircle } from 'lucide-react';
+import { Mail, Calendar, Clock, RefreshCw, AlertCircle, BarChart3 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
 interface DailySummaryReport {
@@ -31,15 +32,7 @@ export const Reports: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [reportsError, setReportsError] = useState<string | null>(null);
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
-    ...(userRole === 'kam' || userRole === 'credit_team' ? [{ id: 'clients', label: 'Clients', icon: Users, path: '/clients' }] : []),
-    ...(userRole === 'client' || userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
+  const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   // Fetch on mount (including SPA navigation) and via Refresh when credit_team or admin.

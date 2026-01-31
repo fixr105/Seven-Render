@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, TrendingUp, RefreshCw } from 'lucide-react';
+import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, TrendingUp, RefreshCw, Sparkles } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../auth/AuthContext';
@@ -231,6 +231,19 @@ export const KAMDashboard: React.FC = () => {
               Configure Client Forms
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* AI features hint */}
+      <Card className="mb-6 border-brand-primary/20 bg-brand-primary/5">
+        <CardContent className="py-3 flex items-center gap-3">
+          <Sparkles className="w-5 h-5 text-brand-primary flex-shrink-0" />
+          <p className="text-sm text-neutral-700">
+            View or generate <strong>AI summaries</strong> on any application — open an application and use the AI File Summary section.
+          </p>
+          <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
+            Applications
+          </Button>
         </CardContent>
       </Card>
 

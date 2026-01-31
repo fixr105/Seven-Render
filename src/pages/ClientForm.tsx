@@ -6,8 +6,9 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { FileUpload } from '../components/ui/FileUpload';
 import { Select } from '../components/ui/Select';
-import { Home, FileText, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { useNavigation } from '../hooks/useNavigation';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
 // Form Modules Configuration (same as FormConfiguration)
@@ -327,11 +328,7 @@ export const ClientForm: React.FC = () => {
     .filter(Boolean)
     .flatMap(module => module!.fields);
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
-  ];
-
+  const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   if (loading) {

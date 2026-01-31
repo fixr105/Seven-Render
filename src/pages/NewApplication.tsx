@@ -6,11 +6,12 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { FileUpload } from '../components/ui/FileUpload';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, Send, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Save, Send, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { Stepper } from '../components/ui/Stepper';
 
 interface UploadedFile {
@@ -57,15 +58,7 @@ export const NewApplication: React.FC = () => {
     form_data: {},
   });
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications', badge: 5 },
-    ...(userRole === 'kam' || userRole === 'credit_team' ? [{ id: 'clients', label: 'Clients', icon: Users, path: '/clients' }] : []),
-    ...(userRole === 'client' || userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
+  const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   // Fetch on mount (including SPA navigation) and via Load form when client.

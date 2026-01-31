@@ -4,11 +4,11 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Save, User, Mail, Phone, Building } from 'lucide-react';
+import { Save, User, Mail, Phone, Building, Sparkles } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
-import { apiService } from '../services/api';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -25,14 +25,7 @@ export const Profile: React.FC = () => {
     company: '',
   });
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
-    ...(userRole === 'kam' || userRole === 'credit_team' ? [{ id: 'clients', label: 'Clients', icon: Users, path: '/clients' }] : []),
-    ...(userRole === 'client' || userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
+  const sidebarItems = useSidebarItems();
 
   React.useEffect(() => {
     fetchProfileData();
@@ -111,8 +104,8 @@ export const Profile: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <div className="max-w-2xl mx-auto">
-        <Card className="mb-6">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card>
           <CardHeader>
             <CardTitle>Profile Information</CardTitle>
           </CardHeader>
@@ -174,6 +167,29 @@ export const Profile: React.FC = () => {
                 )}
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* AI features - available for all profile types */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-brand-primary" />
+              AI Features
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-neutral-600">
+              AI-powered application summaries are available for all roles. Open any application from the Applications list and use the <strong>AI File Summary</strong> section to generate or view an AI summary with applicant profile, loan details, strengths, and risks.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3"
+              onClick={() => navigate('/applications')}
+            >
+              Go to Applications
+            </Button>
           </CardContent>
         </Card>
 

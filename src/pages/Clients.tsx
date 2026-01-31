@@ -9,10 +9,11 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, Eye, UserPlus, RefreshCw } from 'lucide-react';
+import { Eye, UserPlus, RefreshCw } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
 interface Client {
@@ -66,14 +67,7 @@ export const Clients: React.FC = () => {
     enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'] as string[], // Preselect all M1-M7
   });
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
-    { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },
-    ...(userRole === 'credit_team' ? [{ id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' }] : []),
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
+  const sidebarItems = useSidebarItems();
 
   const fetchClients = async (forceRefresh: boolean = false) => {
     try {
@@ -337,6 +331,7 @@ export const Clients: React.FC = () => {
         onMarkAsRead={markAsRead}
         onMarkAllAsRead={markAllAsRead}
     >
+      <div className="space-y-6">
       {/* Debug Info Panel */}
       {debugInfo && (
         <Card className="mb-4 border-2 border-brand-primary">
@@ -663,6 +658,7 @@ export const Clients: React.FC = () => {
           </Button>
         </ModalFooter>
       </Modal>
+      </div>
     </MainLayout>
   );
 };

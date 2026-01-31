@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { FileText, Clock, CheckCircle, XCircle, Download, AlertCircle, RefreshCw } from 'lucide-react';
+import { FileText, Clock, CheckCircle, XCircle, Download, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { apiService } from '../../services/api';
 import { useState, useEffect } from 'react';
@@ -194,6 +194,19 @@ export const NBFCDashboard: React.FC = () => {
               View All Pending
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* AI features hint */}
+      <Card className="mb-6 border-brand-primary/20 bg-brand-primary/5">
+        <CardContent className="py-3 flex items-center gap-3">
+          <Sparkles className="w-5 h-5 text-brand-primary flex-shrink-0" />
+          <p className="text-sm text-neutral-700">
+            View or generate <strong>AI summaries</strong> on any application — open an application and use the AI File Summary section.
+          </p>
+          <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
+            Applications
+          </Button>
         </CardContent>
       </Card>
 

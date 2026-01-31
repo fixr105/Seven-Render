@@ -6,10 +6,11 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 // Checkbox is handled inline with native input
-import { Home, FileText, Users, DollarSign, BarChart3, Settings, CheckCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
+import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
 // Form Modules Configuration
@@ -228,14 +229,7 @@ export const FormConfiguration: React.FC = () => {
     return formMappings.filter((mapping: any) => mapping.Client === selectedClient);
   }, [formMappings, selectedClient]);
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
-    { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
-    { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
+  const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
   // Check if user is KAM
