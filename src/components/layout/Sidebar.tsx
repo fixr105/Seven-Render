@@ -25,7 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
       {/* Mobile backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onToggle}
         />
       )}
@@ -72,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
                 }}
                 className={`
                   w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-pointer border-l-4
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-primary
                   ${isActive
                     ? 'bg-white/10 text-white border-brand-secondary'
                     : 'border-transparent text-white/85 hover:bg-white/10 hover:text-white hover:border-white/40'

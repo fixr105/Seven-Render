@@ -16,6 +16,7 @@ export interface QueryThread {
     targetUserRole: string;
     resolved: boolean;
     actionEventType: string;
+    editHistory?: Array<{ editedAt: string }>;
   };
   replies: Array<{
     id: string;
@@ -77,8 +78,11 @@ export class QueryService {
         recipientEmail = kamUser?.Email || '';
       }
     } else if (targetUserRole === 'credit_team') {
-      // For credit team, we might need to notify all credit team members
-      // For now, we'll use a generic approach
+      const creditUsers = await n8nClient.fetchTable('Credit Team Users');
+      const activeCredit = creditUsers.find(
+        (u: any) => (u.Status || u.status || '').toLowerCase() === 'active' && (u.Email || u.email)
+      );
+      recipientEmail = activeCredit?.Email || activeCredit?.email || '';
       recipientRole = 'credit_team';
     }
 
@@ -192,17 +196,29 @@ export class QueryService {
       return isForFile && isQuery;
     });
 
-    // Group into threads - root queries are those that are not replies
+    // Group into threads - root queries are those that are not replies and not edit/resolution entries
+    const actionType = (e: any) => (e['Action/Event Type'] || '').toLowerCase();
     const rootQueries = queryEntries.filter((entry: any) => {
       const message = entry['Details/Message'] || '';
-      // A reply would reference a parent query ID in the message
-      return !message.includes('Reply to query');
+      if (message.includes('Reply to query')) return false;
+      if (actionType(entry).includes('query_edited') || actionType(entry).includes('query_resolved')) return false;
+      return true;
     });
 
     // Build threads
     const threads: QueryThread[] = rootQueries.map((root: any) => {
       const rootMessage = root['Details/Message'] || '';
       const rootId = root.id;
+
+      // Edit history for this root query
+      const editHistory = queryEntries
+        .filter((entry: any) => actionType(entry).includes('query_edited') && (entry['Details/Message'] || '').includes(`Edit of query ${rootId} at `))
+        .map((entry: any) => {
+          const msg = entry['Details/Message'] || '';
+          const atMatch = msg.match(/Edit of query \S+ at ([^:]+):/);
+          return { editedAt: atMatch ? atMatch[1].trim() : entry.Timestamp || '' };
+        })
+        .sort((a, b) => (a.editedAt > b.editedAt ? -1 : 1));
 
       // Find all replies to this root query
       const replies = queryEntries
@@ -240,6 +256,7 @@ export class QueryService {
           targetUserRole: root['Target User/Role'] || '',
           resolved: root.Resolved === 'True',
           actionEventType: root['Action/Event Type'] || '',
+          editHistory: editHistory.length > 0 ? editHistory : undefined,
         },
         replies,
         isResolved: root.Resolved === 'True',
@@ -255,6 +272,65 @@ export class QueryService {
     });
 
     return threads;
+  }
+
+  /** Allowed time window (ms) to edit own query after creation. Default 15 minutes. */
+  private readonly QUERY_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+  /**
+   * Update (edit) a query by the author within the allowed time window. Appends edit history as a new audit row.
+   */
+  async updateQuery(
+    queryId: string,
+    fileId: string,
+    userEmail: string,
+    newMessage: string
+  ): Promise<void> {
+    const auditLogs = await n8nClient.fetchTable('File Auditing Log');
+    const query = auditLogs.find((q: any) => q.id === queryId);
+
+    if (!query) {
+      throw new Error('Query not found');
+    }
+
+    if (query.File !== fileId) {
+      throw new Error('Query does not belong to this application');
+    }
+
+    const actor = (query.Actor || '').trim();
+    if (!actor || actor.toLowerCase() !== (userEmail || '').toLowerCase()) {
+      throw new Error('Only the query author can edit this query');
+    }
+
+    const created = new Date(query.Timestamp || 0).getTime();
+    const now = Date.now();
+    if (now - created > this.QUERY_EDIT_WINDOW_MS) {
+      throw new Error('Query can only be edited within 15 minutes of creation');
+    }
+
+    const previousMessage = query['Details/Message'] || '';
+    if (previousMessage === newMessage) {
+      return;
+    }
+
+    await n8nClient.postFileAuditLog({
+      ...query,
+      'Details/Message': newMessage,
+    });
+
+    const editId = `QUERY-EDIT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const editTimestamp = new Date().toISOString();
+    await n8nClient.postFileAuditLog({
+      id: editId,
+      'Log Entry ID': editId,
+      File: fileId,
+      Timestamp: editTimestamp,
+      Actor: userEmail,
+      'Action/Event Type': 'query_edited',
+      'Details/Message': `Edit of query ${queryId} at ${editTimestamp}: "${previousMessage.substring(0, 200)}${previousMessage.length > 200 ? '...' : ''}" → "${newMessage.substring(0, 200)}${newMessage.length > 200 ? '...' : ''}"`,
+      'Target User/Role': query['Target User/Role'] || '',
+      Resolved: query.Resolved || 'False',
+    });
   }
 
   /**

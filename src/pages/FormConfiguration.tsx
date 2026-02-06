@@ -170,7 +170,7 @@ export const FormConfiguration: React.FC = () => {
       } else {
         setClients([]);
       }
-    } catch (error: any) {
+    } catch (_error) {
       setClients([]);
     } finally {
       setClientsLoading(false);

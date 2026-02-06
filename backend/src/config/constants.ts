@@ -63,6 +63,9 @@ export enum PayoutRequestStatus {
   PAID = 'Paid',
 }
 
+/** SLA: days after "Sent to NBFC" before considered past due for follow-up */
+export const SLA_SENT_TO_NBFC_DAYS = 7;
+
 // Note: Airtable table IDs are now managed in n8nEndpoints.ts
 // All database operations go through n8n webhooks, not direct Airtable API calls
 

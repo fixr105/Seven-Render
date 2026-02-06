@@ -35,8 +35,8 @@ export interface CommissionLedgerData {
 export interface CommissionLedgerResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -119,7 +119,7 @@ export const postCommissionLedger = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'Commission ledger entry posted successfully', 
           status: response.status 
@@ -134,13 +134,10 @@ export const postCommissionLedger = async (
       message: 'Commission ledger entry posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post commission ledger entry';
     console.error('❌ Error posting commission ledger:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post commission ledger entry',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

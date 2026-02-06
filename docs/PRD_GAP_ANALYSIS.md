@@ -12,13 +12,13 @@
 |----------|-------------|---------|---------|
 | M1: Pay In/Out Ledger | 5 | 1 | 0 |
 | M2: Master Form Builder | 8 | 2 | 0 |
-| M3: File Status Tracking | 6 | 0 | 0 |
-| M4: Audit Log & Queries | 6 | 2 | 1 |
-| M5: Action Center | 5 | 1 | 0 |
+| M3: File Status Tracking | 7 | 0 | 0 |
+| M4: Audit Log & Queries | 9 | 0 | 0 |
+| M5: Action Center | 6 | 0 | 0 |
 | M6: Daily Summary Reports | 4 | 1 | 0 |
 | M7: AI File Summary | 5 | 0 | 0 |
-| Auth & Onboarding | 3 | 1 | 0 |
-| NBFC | 5 | 0 | 0 |
+| Auth & Onboarding | 4 | 0 | 0 |
+| NBFC | 6 | 0 | 0 |
 | Notifications | 2 | 1 | 1 |
 
 ---
@@ -32,7 +32,7 @@
 | Raise query on ledger entry | Implemented | createLedgerQuery, POST ledger/:id/query |
 | Payout request (full/partial) | Implemented | approvePayout accepts approvedAmount, note |
 | Negative (pay-in) entries | Implemented | Payout Amount can be negative |
-| Commission ratio (1:99, -1:101) | Partial | Uses percentage; ratio format not supported |
+| Commission ratio (1:99, -1:101) | Partial | System uses percentage only (e.g. commission_rate from Client). Ratio format (1:99, -1:101) is not supported. |
 
 ---
 
@@ -49,7 +49,7 @@
 | Duplicate application check (PAN) | Implemented | duplicateDetection.service, warns on submit |
 | KAM edit submitted form | Implemented | KAM can edit; audit log via File Auditing |
 | Form locking after KAM forward | Implemented | Client cannot edit after forward |
-| Multiple form templates per product | Partial | Single config per client; product-specific mapping unclear |
+| Multiple form templates per product | Implemented | Form config is per client. Product-specific mapping is supported when `productId` is supplied: backend (formConfig.service, mandatoryFieldValidation.service) filters Client Form Mapping by product. Default UI uses one config per client; frontend can pass productId when fetching form config (e.g. NewApplication, ClientForm) to get product-specific fields. Gap closed. |
 | Form versioning on submit | Implemented | Form Config Version stored |
 
 ---
@@ -61,7 +61,7 @@
 | All statuses (Draft, Under KAM Review, etc.) | Implemented | statusStateMachine.ts |
 | Role-based transition rules | Implemented | ROLE_STATUS_PERMISSIONS |
 | Status history timeline | Implemented | statusHistory.service, StatusTimeline |
-| Visibility adaptation (Client sees simplified) | Partial | formatStatus used; "Action Required" mapping not verified |
+| Visibility adaptation (Client sees simplified) | Implemented | getStatusDisplayNameForViewer() shows 'Action required' for client when status is query_with_client, credit_query_raised, kam_query_raised, etc. Used in ApplicationDetail, Applications, ClientDashboard. |
 | Archive/Closed file access | Implemented | Filter by status, date range |
 | Withdraw application (Client) | Implemented | withdrawApplication |
 
@@ -75,11 +75,11 @@
 | Credit → KAM query | Implemented | credit raiseQuery |
 | NBFC → Credit query (Needs Clarification) | Implemented | recordDecision with Needs Clarification |
 | Event logging (status change, edit) | Implemented | File Auditing Log |
-| Role-based visibility | Partial | Filtering by role; client/NBFC visibility not fully verified |
+| Role-based visibility | Implemented | getQueries filters by targetUserRole (client/nbfc see only their threads). See ID_AND_RBAC_CONTRACT.md section 8. |
 | Query resolution | Implemented | resolveQuery |
-| Edit own query (short period) | Missing | No edit-with-history implementation |
+| Edit own query (short period) | Implemented | Author can edit within 15 minutes; edit history recorded as query_edited in File Auditing Log; PATCH /loan-applications/:id/queries/:queryId; ApplicationDetail Edit button and 'Edited on' display. |
 | Notifications on query post | Implemented | notification webhook |
-| Email on query post | Partial | In-app yes; email on query post may not be in n8n workflow |
+| Email on query post | Implemented | Backend sends email via notificationService.notifyQueryCreated to SendGrid when query is created; in-app notification also. Not n8n-driven. |
 
 ---
 
@@ -92,7 +92,7 @@
 | KAM: Onboard Client, Configure Forms | Implemented | KAM dashboard |
 | KAM: Review New Files, Files Awaiting Client | Implemented | KAM dashboard cards |
 | Credit: Files to Review, Payout Pending | Implemented | Credit dashboard |
-| Credit: Follow Up with NBFC (SLA) | Partial | SLA-based alert not verified |
+| Credit: Follow Up with NBFC (SLA) | Implemented | GET /credit/sla-past-due; Credit dashboard Past SLA card and badge; status history used for sent-at date. |
 | NBFC: Review Application, Approve/Reject | Implemented | NBFC decision modal |
 | Context-aware actions | Implemented | Actions disabled when invalid |
 
@@ -130,7 +130,7 @@
 | Login (email + password) | Implemented | auth.controller, LoginPage |
 | Role-based dashboards | Implemented | ClientDashboard, KAMDashboard, etc. |
 | Client onboarding (KAM) | Implemented | Clients.tsx onboard modal |
-| Module enable/disable per client | Partial | Enabled Modules stored; sidebar is role-based, not module-based |
+| Module enable/disable per client | Implemented | getMe returns enabledModules for client; sidebar hides Ledger when M1 not in enabledModules (getSidebarItemsForRole, useSidebarItems). |
 
 ---
 
@@ -142,30 +142,30 @@
 | Approve with amount/conditions | Implemented | recordDecision, approvedAmount |
 | Reject with mandatory reason | Implemented | decisionRemarks required |
 | Needs Clarification | Implemented | LenderDecisionStatus.NEEDS_CLARIFICATION |
-| Predefined rejection reasons | Partial | Free-text remarks; dropdown of predefined reasons not verified |
+| Predefined rejection reasons | Implemented | Dropdown of predefined reasons plus Other in NBFC reject flow; value stored in Lender Decision Remarks. |
 
 ---
 
 ## High Priority Recommendations
 
-1. **Modular Dashboard Configuration** – Ensure clients with M1 disabled do not see Ledger. Sidebar is role-based; add module check for CLIENT role.
-2. **Email on Query Post** – Verify n8n workflow sends email when query is raised.
-3. **Automated Email to NBFC on Forward** – Verify assign-nbfcs triggers email with OneDrive link.
+1. **Modular Dashboard Configuration** – Done. Sidebar hides Ledger for client when M1 not in enabledModules.
+2. **Email on Query Post** – Done. Backend SendGrid on query create (notificationService.notifyQueryCreated).
+3. **Automated Email to NBFC on Forward** – Verify assign-nbfcs triggers email with OneDrive link (see NOTIFICATIONS_EMAIL_FLOWS if documented).
 
 ---
 
 ## Medium Priority Recommendations
 
-4. **Edit Query with History** – PRD allows users to edit own query for short period with edit history. Not implemented.
-5. **Status Visibility Adaptation** – Verify client sees "Action Required" instead of "Credit Query Raised".
-6. **Follow Up with NBFC (SLA)** – Add SLA-based alert for files in Sent to NBFC too long.
+4. **Edit Query with History** – Done. 15-min edit window, edit history in audit log, PATCH endpoint, ApplicationDetail UI.
+5. **Status Visibility Adaptation** – Done. getStatusDisplayNameForViewer shows 'Action required' for client.
+6. **Follow Up with NBFC (SLA)** – Done. GET /credit/sla-past-due and Credit dashboard Past SLA section.
 
 ---
 
 ## Lower Priority
 
-7. **Commission Ratio (1:99)** – Document that percentage is used; ratio format not supported.
-8. **Predefined Rejection Reasons** – Add dropdown of common reasons with custom option.
+7. **Commission Ratio (1:99)** – Document that percentage is used; ratio format not supported. (No code change.)
+8. **Predefined Rejection Reasons** – Done. Dropdown plus Other in NBFC reject flow.
 
 ---
 

@@ -19,6 +19,17 @@ export type LoanStatus =
   | 'closed';
 
 /**
+ * Statuses that mean "client action required" (query raised to client or awaiting client response).
+ * For client role these are shown as "Action required" instead of technical labels.
+ */
+const CLIENT_ACTION_REQUIRED_STATUSES = new Set([
+  'query_with_client',
+  'credit_query_raised',
+  'kam_query_raised',
+  'credit_query_with_kam', // if shown to client in some flows
+]);
+
+/**
  * Get status display name
  */
 export function getStatusDisplayName(status: string): string {
@@ -37,6 +48,18 @@ export function getStatusDisplayName(status: string): string {
     closed: 'Closed',
   };
   return displayNames[status] || status;
+}
+
+/**
+ * Get status display name for a given viewer role. For client role, query-related statuses
+ * are shown as "Action required" for a simpler, user-friendly label.
+ */
+export function getStatusDisplayNameForViewer(status: string, viewerRole: string): string {
+  const normalized = (status || '').toLowerCase();
+  if (viewerRole === 'client' && CLIENT_ACTION_REQUIRED_STATUSES.has(normalized)) {
+    return 'Action required';
+  }
+  return getStatusDisplayName(status);
 }
 
 /**

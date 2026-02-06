@@ -29,8 +29,8 @@ export interface KAMUserData {
 export interface KAMUserResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -105,7 +105,7 @@ export const postKAMUser = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'KAM user posted successfully', 
           status: response.status 
@@ -120,13 +120,10 @@ export const postKAMUser = async (
       message: 'KAM user posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post KAM user';
     console.error('❌ Error posting KAM user:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post KAM user',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

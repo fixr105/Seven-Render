@@ -12,6 +12,7 @@ const router = Router();
 router.use(authenticate);
 router.use(requireNBFC);
 
+router.get('/rejection-reasons', nbfcController.getRejectionReasons.bind(nbfcController));
 router.get('/dashboard', nbfcController.getDashboard.bind(nbfcController));
 router.get('/loan-applications', nbfcController.listApplications.bind(nbfcController));
 router.get('/loan-applications/:id', nbfcController.getApplication.bind(nbfcController));

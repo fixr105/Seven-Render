@@ -5,8 +5,17 @@
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
+import { NBFC_REJECTION_REASONS } from '../config/nbfcRejectionReasons.js';
 
 export class NBFController {
+  /**
+   * GET /nbfc/rejection-reasons
+   * Returns predefined rejection reasons for NBFC decision modal
+   */
+  async getRejectionReasons(_req: Request, res: Response): Promise<void> {
+    res.json({ success: true, data: NBFC_REJECTION_REASONS });
+  }
+
   /**
    * GET /nbfc/dashboard
    */
@@ -379,7 +388,7 @@ export class NBFCPartnersController {
    */
   async createPartner(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'credit_team') {
+      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
@@ -433,7 +442,7 @@ export class NBFCPartnersController {
    */
   async updatePartner(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'credit_team') {
+      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }

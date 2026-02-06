@@ -69,7 +69,8 @@ export class AuditController {
    */
   async getAdminActivityLog(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'credit_team') {
+      const allowed = req.user?.role === 'credit_team' || req.user?.role === 'admin';
+      if (!req.user || !allowed) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
@@ -78,13 +79,9 @@ export class AuditController {
       // Fetch only Admin Activity Log table
       const allActivityLogs = await n8nClient.fetchTable('Admin Activity Log');
       
-      // Filter out incomplete records (only have id/createdTime, missing activity data)
+      // Filter out incomplete records: require both Activity ID and Timestamp for meaningful rows
       const completeRecords = allActivityLogs.filter((record: any) => {
-        return record['Activity ID'] || 
-               record['Performed By'] || 
-               record['Action Type'] ||
-               record['Description/Details'] ||
-               record['Timestamp'];
+        return record['Activity ID'] && record['Timestamp'];
       });
       
       // Apply RBAC filtering using centralized service

@@ -15,6 +15,9 @@ import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
 import { ClientForm } from './pages/ClientForm';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { AdminActivityLog } from './pages/AdminActivityLog';
+import { AdminUserAccounts } from './pages/AdminUserAccounts';
+import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
 
 function App() {
   return (
@@ -115,6 +118,31 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Reports />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/activity-log"
+        element={
+          <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
+            <AdminActivityLog />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/user-accounts"
+        element={
+          <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
+            <AdminUserAccounts />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/nbfc-partners"
+        element={
+          <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
+            <AdminNBFCPartners />
           </ProtectedRoute>
         }
       />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { Mail, Calendar, Clock, RefreshCw, AlertCircle, BarChart3 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
@@ -29,8 +30,11 @@ export const Reports: React.FC = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [reports, setReports] = useState<DailySummaryReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [latestReport, setLatestReport] = useState<DailySummaryReport | null>(null);
+  const [latestLoading, setLatestLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [reportsError, setReportsError] = useState<string | null>(null);
+  const [emailRecipients, setEmailRecipients] = useState('');
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -39,9 +43,12 @@ export const Reports: React.FC = () => {
   useEffect(() => {
     if (userRole === 'credit_team' || userRole === 'admin') {
       fetchReports();
+      fetchLatestReport();
     } else {
       setLoading(false);
+      setLatestLoading(false);
       setReports([]);
+      setLatestReport(null);
     }
   }, []);
 
@@ -66,17 +73,47 @@ export const Reports: React.FC = () => {
     }
   };
 
+  const fetchLatestReport = async () => {
+    try {
+      setLatestLoading(true);
+      const response = await apiService.getLatestDailySummary();
+      if (response.success && response.data) {
+        const raw = response.data as Record<string, unknown>;
+        setLatestReport({
+          id: (raw.id as string) || '',
+          reportDate: (raw['Report Date'] ?? raw.reportDate) as string,
+          summaryContent: (raw['Summary Content'] ?? raw.summaryContent) as string,
+          generatedTimestamp: (raw['Generated Timestamp'] ?? raw.generatedTimestamp) as string,
+          deliveredTo: (raw['Delivered To'] ?? raw.deliveredTo) as string,
+        });
+      } else {
+        setLatestReport(null);
+      }
+    } catch {
+      setLatestReport(null);
+    } finally {
+      setLatestLoading(false);
+    }
+  };
+
   const handleGenerateReport = async () => {
     if (!confirm('Generate daily summary report for today?')) {
       return;
     }
 
+    const recipients = emailRecipients
+      ? emailRecipients.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean)
+      : undefined;
+
     setGenerating(true);
     try {
-      const response = await apiService.generateDailySummary();
+      const response = await apiService.generateDailySummary(undefined, recipients);
       if (response.success) {
         await fetchReports();
-        alert('Report generated successfully.');
+        await fetchLatestReport();
+        alert(recipients?.length
+          ? 'Report generated and email sent successfully.'
+          : 'Report generated successfully.');
       } else {
         alert(`Failed to generate report: ${response.error || 'Unknown error'}`);
       }
@@ -164,43 +201,118 @@ export const Reports: React.FC = () => {
     >
       <div className="space-y-6">
         {/* Header with Generate Button */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-neutral-900">Daily Summary Reports</h1>
-            <p className="text-sm text-neutral-600 mt-1">
-              Automated daily reports aggregating loan applications, commission ledger, and audit log metrics
-            </p>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-neutral-900">Daily Summary Reports</h1>
+              <p className="text-sm text-neutral-600 mt-1">
+                Automated daily reports aggregating loan applications, commission ledger, and audit log metrics
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                icon={RefreshCw}
+                onClick={() => {
+                  fetchReports();
+                  fetchLatestReport();
+                }}
+                disabled={loading}
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="primary"
+                icon={Mail}
+                onClick={handleGenerateReport}
+                loading={generating}
+                disabled={generating}
+              >
+                Generate Today's Report
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              icon={RefreshCw}
-              onClick={fetchReports}
-              disabled={loading}
-            >
-              Refresh
-            </Button>
-            <Button
-              variant="primary"
-              icon={Mail}
-              onClick={handleGenerateReport}
-              loading={generating}
-              disabled={generating}
-            >
-              Generate Today's Report
-            </Button>
+          <div className="max-w-md">
+            <Input
+              id="email-recipients"
+              type="text"
+              label="Email to (optional)"
+              placeholder="e.g. manager@company.com, team@company.com"
+              value={emailRecipients}
+              onChange={(e) => setEmailRecipients(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* Reports List */}
+        {/* Latest report */}
         <Card>
+          <CardHeader>
+            <CardTitle>Latest report</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {latestLoading ? (
+              <div className="flex items-center gap-3 py-4">
+                <div className="animate-spin w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+                <span className="text-sm text-neutral-500">Loading latest report...</span>
+              </div>
+            ) : latestReport ? (
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <Calendar className="w-5 h-5 text-neutral-400" />
+                  <span className="font-medium text-neutral-900">
+                    Report for {formatDate(latestReport.reportDate)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-neutral-600 mb-3">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    <span>Generated: {formatDateTime(latestReport.generatedTimestamp)}</span>
+                  </div>
+                  {latestReport.deliveredTo && (
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-4 h-4" />
+                      <span>Delivered to: {latestReport.deliveredTo}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                  <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-mono line-clamp-6">
+                    {latestReport.summaryContent.length > 200
+                      ? `${latestReport.summaryContent.slice(0, 200)}...`
+                      : latestReport.summaryContent}
+                  </pre>
+                </div>
+                <p className="mt-2">
+                  <Button
+                    variant="tertiary"
+                    size="sm"
+                    onClick={() => document.getElementById('reports-list')?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    View full report in list below
+                  </Button>
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                <p className="text-neutral-600 mb-3">No report generated yet.</p>
+                <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
+                  Generate Today&apos;s Report
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Reports List */}
+        <Card id="reports-list">
           <CardHeader>
             <CardTitle>Recent Reports (Last 7 Days)</CardTitle>
           </CardHeader>
           <CardContent>
             {reportsError ? (
               <div className="text-center py-12">
-                <AlertCircle className="w-16 h-16 text-error mx-auto mb-4" />
+                <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-neutral-900 mb-2">Could not load reports</h3>
                 <p className="text-neutral-600 mb-4">{reportsError}</p>
                 <Button variant="primary" icon={RefreshCw} onClick={fetchReports}>
@@ -208,14 +320,14 @@ export const Reports: React.FC = () => {
                 </Button>
               </div>
             ) : loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-                <p className="text-sm text-neutral-600">Loading reports...</p>
+              <div className="text-center py-10">
+                <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2" />
+                <p className="text-sm text-neutral-500">Loading reports...</p>
               </div>
             ) : reports.length === 0 ? (
               <div className="text-center py-12">
-                <BarChart3 className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Reports Found</h3>
+                <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">No reports found</h3>
                 <p className="text-neutral-600 mb-4">
                   No daily summary reports have been generated yet.
                 </p>

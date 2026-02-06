@@ -257,7 +257,7 @@ export const Clients: React.FC = () => {
       sortable: false,
       render: (value) => (
         value ? (
-          <Badge variant="info">{value}</Badge>
+          <Badge variant="info">{String(value)}</Badge>
         ) : (
           <Badge variant="warning">Unassigned</Badge>
         )
@@ -268,7 +268,7 @@ export const Clients: React.FC = () => {
       label: 'Applications',
       align: 'center',
       render: (count) => (
-        <Badge variant="neutral">{count?.applications || 0}</Badge>
+        <Badge variant="neutral">{(count as { applications?: number })?.applications ?? 0}</Badge>
       ),
     },
     {
@@ -284,7 +284,7 @@ export const Clients: React.FC = () => {
       key: 'created_at',
       label: 'Onboarded',
       sortable: true,
-      render: (value) => formatDate(value),
+      render: (value) => formatDate(value as string | Date | null | undefined),
     },
     {
       key: 'actions',

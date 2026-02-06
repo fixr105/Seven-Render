@@ -4,10 +4,11 @@ import { TopBar } from './TopBar';
 import { Footer } from './Footer';
 import logo from '../ui/logo.png';
 import { Notification } from '../../hooks/useNotifications';
+import type { SidebarNavItem } from '../../config/sidebar';
 
 interface MainLayoutProps {
   children: React.ReactNode;
-  sidebarItems: any[];
+  sidebarItems: SidebarNavItem[];
   activeItem: string;
   onItemClick: (id: string) => void;
   pageTitle: string;

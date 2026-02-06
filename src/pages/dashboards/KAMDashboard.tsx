@@ -129,13 +129,27 @@ export const KAMDashboard: React.FC = () => {
     {
       key: 'status',
       label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(value)}>{value}</Badge>,
+      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
     },
     { key: 'lastUpdate', label: 'Last Update', sortable: true },
   ];
 
   return (
     <>
+      {/* New files highlight */}
+      {pendingReview > 0 && (
+        <Card className="mb-6 border-warning/30 bg-warning/5">
+          <CardContent className="py-3 flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm text-neutral-800">
+              You have {pendingReview} new file{pendingReview !== 1 ? 's' : ''} from clients awaiting your review.
+            </p>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/applications?status=pending_kam_review')}>
+              Review new files
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
@@ -143,7 +157,7 @@ export const KAMDashboard: React.FC = () => {
             <div>
               <p className="text-sm text-neutral-500">Managed Clients</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{totalClients}</p>
-              <p className="text-xs text-neutral-500 mt-1">Active accounts</p>
+              <p className="text-xs text-neutral-500 mt-1">{applications.length} total files</p>
             </div>
             <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <Users className="w-6 h-6 text-brand-primary" />
@@ -214,20 +228,21 @@ export const KAMDashboard: React.FC = () => {
               variant="primary"
               icon={Plus}
               onClick={() => navigate('/clients')}
+              title="Onboard a new client"
             >
               Onboard New Client
             </Button>
             {pendingReview > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=pending_kam_review')}>
+              <Button variant="secondary" onClick={() => navigate('/applications?status=pending_kam_review')} title="Review new files from clients">
                 Review New Files ({pendingReview})
               </Button>
             )}
             {awaitingResponse > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=kam_query_raised')}>
+              <Button variant="secondary" onClick={() => navigate('/applications?status=kam_query_raised')} title="Files awaiting client response">
                 Files Awaiting Response ({awaitingResponse})
               </Button>
             )}
-            <Button variant="secondary" onClick={() => navigate('/form-configuration')}>
+            <Button variant="secondary" onClick={() => navigate('/form-configuration')} title="Configure forms per client">
               Configure Client Forms
             </Button>
           </div>

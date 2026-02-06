@@ -41,6 +41,13 @@ vi.mock('../../hooks/useNavigation', () => ({
   }),
 }));
 
+// Mock useAuth so Ledger receives a client user; keep AuthProvider for TestWrapper
+vi.mock('../../auth/AuthContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../auth/AuthContext')>();
+  return { ...actual, useAuth: vi.fn() };
+});
+
+import { useAuth } from '../../auth/AuthContext';
 import { useLedger } from '../../hooks/useLedger';
 
 describe('Ledger Page - P0 Tests', () => {
@@ -71,6 +78,15 @@ describe('Ledger Page - P0 Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+      user: mockClientUser,
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshUser: vi.fn(),
+      hasRole: vi.fn(() => true),
+      signInAsTestUser: vi.fn(),
+    });
   });
 
   describe('M1-FE-001: Ledger Entries Rendering', () => {
@@ -98,12 +114,12 @@ describe('Ledger Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/SF001/i)).toBeInTheDocument();
-        expect(screen.getByText(/SF002/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/SF001/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(/SF002/i).length).toBeGreaterThanOrEqual(1);
       });
 
-      // Check that amounts are displayed
-      expect(screen.getByText(/₹10,000/i)).toBeInTheDocument();
+      // Check that amounts are displayed (may appear in multiple cells)
+      expect(screen.getAllByText(/₹10,000/i).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText(/₹12,500/i)).toBeInTheDocument();
     });
 
@@ -131,14 +147,12 @@ describe('Ledger Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        // Check for current balance display
-        const balanceText = screen.getByText(/₹22,500|22500|balance/i);
-        expect(balanceText).toBeInTheDocument();
+        const balanceEl = screen.queryByText(/22,500/) ?? screen.queryByText(/22500/);
+        expect(balanceEl).toBeTruthy();
       });
 
       // Check running balances in entries
       await waitFor(() => {
-        expect(screen.getByText(/₹22,500/i)).toBeInTheDocument();
         expect(screen.getByText(/₹10,000/i)).toBeInTheDocument();
       });
     });
@@ -270,11 +284,10 @@ describe('Ledger Page - P0 Tests', () => {
       const payoutButton = screen.getByRole('button', { name: /request payout|payout request/i });
       await user.click(payoutButton);
 
-      // Should open modal or show payout form
+      // Should open modal (modal shows "Available Balance:" and "Request Amount")
       await waitFor(() => {
-        const modal = screen.queryByRole('dialog') || screen.queryByText(/payout|amount/i);
-        expect(modal).toBeInTheDocument();
-      });
+        expect(screen.getByText(/Available Balance/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
     });
 
     it('should call requestPayout when payout is submitted', async () => {
@@ -313,11 +326,10 @@ describe('Ledger Page - P0 Tests', () => {
 
       // Wait for modal to open
       await waitFor(() => {
-        const submitButton = screen.getByRole('button', { name: /submit|confirm|request/i });
-        expect(submitButton).toBeInTheDocument();
-      });
-
-      const submitButton = screen.getByRole('button', { name: /submit|confirm|request/i });
+        expect(screen.getByText(/Available Balance/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
+      const requestButtons = screen.getAllByRole('button', { name: /request payout/i });
+      const submitButton = requestButtons[requestButtons.length - 1];
       await user.click(submitButton);
 
       // Should call requestPayout

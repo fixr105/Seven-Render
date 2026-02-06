@@ -4,11 +4,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { Plus, FileText, Clock, CheckCircle, DollarSign, Package, RefreshCw, Sparkles } from 'lucide-react';
+import { Plus, FileText, Clock, CheckCircle, DollarSign, Package, RefreshCw, Sparkles, Wallet, FileEdit, AlertCircle, XCircle } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { useNotifications } from '../../hooks/useNotifications';
 import { apiService } from '../../services/api';
+import { getStatusDisplayNameForViewer } from '../../lib/statusUtils';
 
 interface ApplicationRow {
   id: string;
@@ -53,14 +54,16 @@ export const ClientDashboard: React.FC = () => {
           description: product.description || product['Description'],
         }));
         setLoanProducts(products);
-        
+
         if (products.length === 0) {
+          // No products configured
         }
       } else if (response.error) {
         // If 401/403, the API service already cleared the token
         // The auth context will handle redirect
       }
-    } catch (error) {
+    } catch (_error) {
+      // Fallback: leave products empty
     } finally {
       setLoadingProducts(false);
     }
@@ -73,8 +76,10 @@ export const ClientDashboard: React.FC = () => {
       if (response.success && response.data) {
         setConfiguredProductIds(new Set(response.data));
       } else if (response.error) {
+        // Leave configured product IDs unchanged
       }
-    } catch (error) {
+    } catch (_error) {
+      // Leave configured product IDs unchanged
     }
   };
 
@@ -82,6 +87,8 @@ export const ClientDashboard: React.FC = () => {
   const totalApplications = applications.length;
   const drafts = applications.filter(a => a.status === 'draft').length;
   const pendingReview = applications.filter(a => a.status === 'pending_kam_review' || a.status === 'kam_query_raised').length;
+  const actionRequired = applications.filter(a => a.status === 'kam_query_raised').length;
+  const rejected = applications.filter(a => a.status === 'rejected').length;
   const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
 
   // Format table data
@@ -90,13 +97,13 @@ export const ClientDashboard: React.FC = () => {
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
     loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
-    status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    status: getStatusDisplayNameForViewer(app.status, 'client'),
     lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
   }));
 
   const getStatusVariant = (status: string) => {
     if (status.toLowerCase().includes('approved') || status.toLowerCase().includes('disbursed')) return 'success';
-    if (status.toLowerCase().includes('query') || status.toLowerCase().includes('pending')) return 'warning';
+    if (status === 'Action required' || status.toLowerCase().includes('query') || status.toLowerCase().includes('pending')) return 'warning';
     if (status.toLowerCase().includes('rejected')) return 'error';
     return 'neutral';
   };
@@ -108,7 +115,7 @@ export const ClientDashboard: React.FC = () => {
     {
       key: 'status',
       label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(value)}>{value}</Badge>,
+      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
     },
     { key: 'lastUpdate', label: 'Last Update', sortable: true },
   ];
@@ -116,16 +123,28 @@ export const ClientDashboard: React.FC = () => {
   return (
     <>
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">Total Applications</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{totalApplications}</p>
-              <p className="text-xs text-neutral-500 mt-1">{drafts} drafts saved</p>
             </div>
             <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <FileText className="w-6 h-6 text-brand-primary" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm text-neutral-500">Drafts</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">{drafts}</p>
+              <p className="text-xs text-neutral-500 mt-1">saved</p>
+            </div>
+            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
+              <FileEdit className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
         </Card>
@@ -138,6 +157,19 @@ export const ClientDashboard: React.FC = () => {
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
               <Clock className="w-6 h-6 text-warning" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm text-neutral-500">Action required</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">{actionRequired}</p>
+              <p className="text-xs text-warning mt-1">Pending your response</p>
+            </div>
+            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
         </Card>
@@ -160,10 +192,27 @@ export const ClientDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
+              <p className="text-sm text-neutral-500">Rejected</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">{rejected}</p>
+            </div>
+            <div className="w-12 h-12 bg-error/10 rounded-full flex items-center justify-center">
+              <XCircle className="w-6 h-6 text-error" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
               <p className="text-sm text-neutral-500">Commission Balance</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">
                 ₹{ledgerLoading ? '0.0' : (balance / 1000).toFixed(1)}K
               </p>
+              {balance > 0 && (
+                <Button variant="secondary" size="sm" className="mt-2" icon={Wallet} onClick={() => navigate('/ledger')}>
+                  Request Payout
+                </Button>
+              )}
             </div>
             <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
               <DollarSign className="w-6 h-6 text-success" />
@@ -230,13 +279,44 @@ export const ClientDashboard: React.FC = () => {
           </Button>
         </CardHeader>
         <CardContent>
-          <Button
-            variant="primary"
-            icon={Plus}
-            onClick={() => navigate('/applications/new')}
-          >
-            New Application
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="primary"
+              icon={Plus}
+              onClick={() => navigate('/applications/new')}
+              title="Create a new loan application"
+            >
+              New Application
+            </Button>
+            <Button
+              variant="secondary"
+              icon={DollarSign}
+              onClick={() => navigate('/ledger')}
+              title="Open your commission ledger"
+            >
+              View Ledger
+            </Button>
+            {drafts > 0 && (
+              <Button
+                variant="secondary"
+                icon={FileEdit}
+                onClick={() => navigate('/applications?status=draft')}
+                title="View draft applications"
+              >
+                View drafts
+              </Button>
+            )}
+            {balance > 0 && (
+              <Button
+                variant="secondary"
+                icon={Wallet}
+                onClick={() => navigate('/ledger')}
+                title="Request a payout"
+              >
+                Request Payout
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -257,12 +337,9 @@ export const ClientDashboard: React.FC = () => {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle>Recent Applications</CardTitle>
-          <button
-            onClick={() => navigate('/applications')}
-            className="text-sm text-brand-primary hover:text-brand-primary/80 font-medium"
-          >
+          <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
             View All
-          </button>
+          </Button>
         </CardHeader>
         <CardContent>
           {loading ? (

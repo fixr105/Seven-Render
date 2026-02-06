@@ -5,7 +5,7 @@ export interface Column<T> {
   key: string;
   label: string;
   sortable?: boolean;
-  render?: (value: any, row: T) => React.ReactNode;
+  render?: (value: unknown, row: T) => React.ReactNode;
   align?: 'left' | 'center' | 'right';
 }
 
@@ -42,7 +42,7 @@ export function DataTable<T>({
 
   if (loading) {
     return (
-      <div className="bg-white rounded shadow-level-1 p-8 text-center">
+      <div className="bg-white rounded-lg shadow-level-1 p-8 text-center">
         <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto"></div>
         <p className="mt-4 text-neutral-500">Loading...</p>
       </div>
@@ -51,14 +51,14 @@ export function DataTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded shadow-level-1 p-8 text-center">
+      <div className="bg-white rounded-lg shadow-level-1 p-8 text-center">
         <p className="text-neutral-500">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded shadow-level-1 overflow-hidden">
+    <div className="bg-white rounded-lg shadow-level-1 overflow-hidden">
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
@@ -92,7 +92,7 @@ export function DataTable<T>({
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((column) => {
-                  const value = (row as any)[column.key];
+                  const value = (row as Record<string, unknown>)[column.key];
                   return (
                     <td
                       key={column.key}
@@ -100,7 +100,7 @@ export function DataTable<T>({
                         column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left'
                       }`}
                     >
-                      {column.render ? column.render(value, row) : value}
+                      {column.render ? column.render(value, row) : (value as React.ReactNode)}
                     </td>
                   );
                 })}
@@ -122,12 +122,12 @@ export function DataTable<T>({
             onClick={() => onRowClick?.(row)}
           >
             {columns.map((column) => {
-              const value = (row as any)[column.key];
+              const value = (row as Record<string, unknown>)[column.key];
               return (
                 <div key={column.key} className="flex justify-between py-2">
                   <span className="text-sm font-medium text-neutral-700">{column.label}:</span>
                   <span className="text-sm text-neutral-900">
-                    {column.render ? column.render(value, row) : value}
+                    {column.render ? column.render(value, row) : (value as React.ReactNode)}
                   </span>
                 </div>
               );

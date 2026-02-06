@@ -109,7 +109,7 @@ class HttpErrorTracker implements ErrorTracker {
       }).catch(() => {
         // Silently fail - don't break application if error tracking fails
       });
-    } catch (err) {
+    } catch (_err) {
       // Silently fail
     }
   }
@@ -119,7 +119,7 @@ class HttpErrorTracker implements ErrorTracker {
  * Console-only error tracker (fallback)
  */
 class ConsoleErrorTracker implements ErrorTracker {
-  setUser(_user: { id?: string; email?: string; username?: string }) {
+  setUser(_u: { id?: string; email?: string; username?: string }) {
     // No-op for console tracker
   }
 
@@ -200,7 +200,7 @@ export function setupErrorHandlers() {
             colno: event.colno,
           },
         });
-      } catch (err) {
+      } catch (_err) {
         // Silently fail - don't break error handling
       }
     });
@@ -216,7 +216,7 @@ export function setupErrorHandlers() {
             type: 'unhandledRejection',
           },
         });
-      } catch (err) {
+      } catch (_err) {
         // Silently fail - don't break error handling
       }
     });

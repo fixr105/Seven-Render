@@ -192,6 +192,7 @@ export class LoanController {
               label: f.label,
               type: f.type,
             })),
+            formatErrors: validationResult.formatErrors ?? [],
           });
           return;
         }
@@ -546,7 +547,19 @@ export class LoanController {
       }
 
       const { queryService } = await import('../services/queries/query.service.js');
-      const threads = await queryService.getQueriesForFile(application['File ID']);
+      let threads = await queryService.getQueriesForFile(application['File ID']);
+
+      // Role-based visibility: Client and NBFC only see threads targeted at them
+      const viewerRole = (req.user!.role || '').toLowerCase();
+      if (viewerRole === 'client') {
+        threads = threads.filter(
+          (t) => (t.rootQuery.targetUserRole || '').toLowerCase().trim() === 'client'
+        );
+      } else if (viewerRole === 'nbfc') {
+        threads = threads.filter(
+          (t) => (t.rootQuery.targetUserRole || '').toLowerCase().trim() === 'nbfc'
+        );
+      }
 
       res.json({
         success: true,
@@ -556,6 +569,58 @@ export class LoanController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to fetch queries',
+      });
+    }
+  }
+
+  /**
+   * PATCH /loan-applications/:id/queries/:queryId
+   * Edit own query within allowed time window (e.g. 15 minutes). Only the author can edit.
+   */
+  async updateQuery(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, queryId } = req.params;
+      const { message: newMessage } = req.body;
+
+      if (!newMessage || typeof newMessage !== 'string' || !newMessage.trim()) {
+        res.status(400).json({ success: false, error: 'message is required' });
+        return;
+      }
+
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app) => app.id === id);
+
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({ success: false, error: 'Access denied' });
+        return;
+      }
+
+      const { queryService } = await import('../services/queries/query.service.js');
+      await queryService.updateQuery(
+        queryId,
+        application['File ID'],
+        req.user!.email,
+        newMessage.trim()
+      );
+
+      res.json({
+        success: true,
+        message: 'Query updated successfully',
+      });
+    } catch (error: any) {
+      const status = error.message?.includes('Only the query author') || error.message?.includes('within 15 minutes')
+        ? 403
+        : 500;
+      res.status(status).json({
+        success: false,
+        error: error.message || 'Failed to update query',
       });
     }
   }
@@ -933,12 +998,13 @@ export class LoanController {
       if (!validationResult.isValid) {
         res.status(400).json({
           success: false,
-          error: validationResult.errorMessage || 'Missing required fields',
-          missingFields: validationResult.missingFields.map((f) => ({
+          error: validationResult.errorMessage || 'Validation failed',
+          missingFields: validationResult.missingFields?.map((f) => ({
             fieldId: f.fieldId,
             label: f.label,
             type: f.type,
-          })),
+          })) ?? [],
+          formatErrors: validationResult.formatErrors ?? [],
         });
         return;
       }

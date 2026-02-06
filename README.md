@@ -76,7 +76,7 @@ All components are built with accessibility in mind, featuring:
 ### Pages
 
 #### Dashboard
-- Key metrics cards (applications count, pending reviews, commission balance)
+- Key metrics cards (applications count, pending reviews, commission balance; commission is calculated as percentage from Client record, not ratio format)
 - Quick actions panel
 - Recent applications table
 - Real-time statistics

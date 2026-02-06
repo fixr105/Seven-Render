@@ -102,19 +102,36 @@ export class AuthController {
       res.status(401).json({ success: false, error: 'Not authenticated' });
       return;
     }
-    res.json({
-      success: true,
-      data: {
-        id: req.user.id,
-        email: req.user.email,
-        role: req.user.role,
-        name: req.user.name,
-        clientId: req.user.clientId,
-        kamId: req.user.kamId,
-        nbfcId: req.user.nbfcId,
-        creditTeamId: req.user.creditTeamId,
-      },
-    });
+    const data: Record<string, unknown> = {
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      name: req.user.name,
+      clientId: req.user.clientId,
+      kamId: req.user.kamId,
+      nbfcId: req.user.nbfcId,
+      creditTeamId: req.user.creditTeamId,
+    };
+    if (req.user.role === 'client' && req.user.clientId) {
+      try {
+        const { n8nClient } = await import('../services/airtable/n8nClient.js');
+        const clients = await n8nClient.fetchTable('Clients');
+        const client = clients.find(
+          (c: any) =>
+            c.id === req.user!.clientId ||
+            c['Client ID'] === req.user!.clientId ||
+            String(c.id) === String(req.user!.clientId)
+        );
+        const enabledStr = client?.['Enabled Modules'] || client?.enabledModules || '';
+        const enabledModules = typeof enabledStr === 'string'
+          ? enabledStr.split(',').map((m: string) => m.trim()).filter(Boolean)
+          : Array.isArray(enabledStr) ? enabledStr : [];
+        data.enabledModules = enabledModules;
+      } catch {
+        data.enabledModules = [];
+      }
+    }
+    res.json({ success: true, data });
   }
 
   async logout(req: Request, res: Response): Promise<void> {

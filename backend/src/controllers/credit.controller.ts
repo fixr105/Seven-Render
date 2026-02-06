@@ -4,7 +4,8 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { LoanStatus, LenderDecisionStatus, DisputeStatus } from '../config/constants.js';
+import { LoanStatus, LenderDecisionStatus, DisputeStatus, SLA_SENT_TO_NBFC_DAYS } from '../config/constants.js';
+import { getStatusHistory } from '../services/statusTracking/statusHistory.service.js';
 
 export class CreditController {
   /**
@@ -82,15 +83,63 @@ export class CreditController {
   }
 
   /**
+   * GET /credit/sla-past-due
+   * Returns applications in Sent to NBFC that are past SLA (sent more than SLA_SENT_TO_NBFC_DAYS ago).
+   */
+  async getSlaPastDue(req: Request, res: Response): Promise<void> {
+    try {
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const sentToNbfc = applications.filter((app: any) => app.Status === LoanStatus.SENT_TO_NBFC);
+      const now = Date.now();
+      const slaMs = SLA_SENT_TO_NBFC_DAYS * 24 * 60 * 60 * 1000;
+      const items: Array<{ fileId: string; applicationId?: string; sentAt: string; daysPastSLA: number }> = [];
+
+      for (const app of sentToNbfc) {
+        const fileId = app['File ID'] || app.fileId || app.id;
+        if (!fileId) continue;
+        let sentAt: string = app['Last Updated'] || new Date().toISOString();
+        try {
+          const history = await getStatusHistory(fileId);
+          const sentEntry = history.filter((e) => e.toStatus === LoanStatus.SENT_TO_NBFC).pop();
+          if (sentEntry?.changedAt) sentAt = sentEntry.changedAt;
+        } catch (_) {
+          // keep Last Updated fallback
+        }
+        const sentTime = new Date(sentAt).getTime();
+        const ageMs = now - sentTime;
+        if (ageMs > slaMs) {
+          const daysPastSLA = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+          items.push({
+            fileId,
+            applicationId: app.id || app['Record ID'],
+            sentAt,
+            daysPastSLA,
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        data: { items },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch SLA past-due list',
+      });
+    }
+  }
+
+  /**
    * GET /credit/loan-applications
    * List all loan applications (Credit Team sees all)
-   * 
+   *
    * Webhook Mapping:
    * - GET → n8nClient.fetchTable('Loan Application') → /webhook/loanapplication → Airtable: Loan Applications
-   * 
+   *
    * All records are parsed using standardized N8nResponseParser
    * Returns ParsedRecord[] with clean field names (fields directly on object)
-   * 
+   *
    * Frontend: src/pages/Applications.tsx (Credit Team view)
    * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
@@ -407,6 +456,36 @@ export class CreditController {
         `Assigned NBFCs to application`,
         { nbfcIds: Array.isArray(nbfcIds) ? nbfcIds : [nbfcIds], statusChange: `${previousStatus} → ${newStatus}` }
       );
+
+      // Email assigned NBFC(s) with application link (non-blocking)
+      const ids = Array.isArray(nbfcIds) ? nbfcIds : [nbfcIds];
+      if (ids.length > 0) {
+        (async () => {
+          try {
+            const partners = await n8nClient.fetchTable('NBFC Partners');
+            const baseUrl = process.env.FRONTEND_URL || 'https://lms.sevenfincorp.com';
+            const appLink = `${baseUrl}/applications/${id}`;
+            const emails: string[] = [];
+            for (const nbfcId of ids) {
+              const partner = partners.find(
+                (p: any) => p.id === nbfcId || p['Lender ID'] === nbfcId || String(p.id) === String(nbfcId)
+              );
+              const contact = partner?.['Contact Email/Phone'] || partner?.['Contact Email / Phone'] || '';
+              const email = contact.split(/\s*\/\s*/)[0]?.trim();
+              if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) emails.push(email);
+            }
+            if (emails.length > 0) {
+              await n8nClient.postEmail({
+                to: emails,
+                subject: `New application assigned – Seven Fincorp LMS`,
+                body: `<p>An application has been assigned to you.</p><p><a href="${appLink}">View application</a></p><p>Application ID: ${id}</p>`,
+              });
+            }
+          } catch (emailErr: any) {
+            console.error('[assignNBFCs] Failed to send email to NBFC(s):', emailErr?.message || emailErr);
+          }
+        })();
+      }
 
       res.json({
         success: true,

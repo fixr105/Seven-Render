@@ -16,6 +16,7 @@ import { Plus, Eye, MessageSquare, RefreshCw, FileText } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
+import { getStatusDisplayNameForViewer } from '../lib/statusUtils';
 
 // Placeholder data removed - now using real data from database via useApplications hook
 
@@ -24,6 +25,7 @@ const getStatusVariant = (status: string) => {
     case 'Approved':
     case 'Disbursed':
       return 'success';
+    case 'Action required':
     case 'KAM Query Raised':
     case 'Pending KAM Review':
       return 'warning';
@@ -39,6 +41,7 @@ const getStatusVariant = (status: string) => {
 };
 
 const URL_STATUS_TO_FILTER: Record<string, string> = {
+  draft: 'draft',
   pending_kam_review: 'pending',
   forwarded_to_credit: 'credit',
   kam_query_raised: 'query',
@@ -150,6 +153,7 @@ export const Applications: React.FC = () => {
 
   const statusOptions = [
     { value: 'all', label: 'All Status' },
+    { value: 'draft', label: 'Draft' },
     { value: 'pending', label: 'Pending KAM Review' },
     { value: 'query', label: 'KAM Query Raised' },
     { value: 'credit', label: 'Forwarded to Credit' },
@@ -197,7 +201,7 @@ export const Applications: React.FC = () => {
       applicantName: String(applicantName),
       loanType: String(loanType),
       amount: String(amount),
-      status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      status: getStatusDisplayNameForViewer(app.status, userRole || ''),
       lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       rawData: app, // Keep raw data for debugging
       hasUnresolvedQueries: queryData.unresolved > 0,
@@ -259,7 +263,7 @@ export const Applications: React.FC = () => {
       label: 'Status',
       render: (value, row) => (
         <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(value)}>{value}</Badge>
+          <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>
           {userRole === 'credit_team' && row.unresolvedQueryCount > 0 && (
             <Badge variant="warning" className="text-xs">
               {row.unresolvedQueryCount} {row.unresolvedQueryCount === 1 ? 'query' : 'queries'}
@@ -433,15 +437,30 @@ export const Applications: React.FC = () => {
           ) : filteredData.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-                <p className="text-neutral-500">No applications found</p>
-                <Button 
-                  variant="tertiary" 
-                  size="sm" 
-                  onClick={refetch}
-                  className="mt-4"
-                >
-                  Refresh Data
-                </Button>
+                {applications.length > 0 ? (
+                  <>
+                    <p className="text-neutral-600 font-medium mb-1">No applications match the current filters</p>
+                    <p className="text-neutral-500 text-sm mb-4">Try clearing search and status filter.</p>
+                    <Button
+                      variant="tertiary"
+                      size="sm"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setStatusFilter('all');
+                        navigate('/applications', { replace: true });
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-neutral-500">No applications found</p>
+                    <Button variant="tertiary" size="sm" onClick={refetch} className="mt-4">
+                      Refresh Data
+                    </Button>
+                  </>
+                )}
               </div>
           ) : (
           <DataTable

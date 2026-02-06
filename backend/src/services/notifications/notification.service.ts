@@ -257,7 +257,7 @@ export class NotificationService {
     if (actionLink) {
       const fullLink = actionLink.startsWith('http') 
         ? actionLink 
-        : `${process.env.FRONTEND_URL || 'https://yourdomain.com'}${actionLink}`;
+        : `${process.env.FRONTEND_URL || 'https://lms.sevenfincorp.com'}${actionLink}`;
       
       html += `
           <div style="margin-top: 20px; text-align: center;">

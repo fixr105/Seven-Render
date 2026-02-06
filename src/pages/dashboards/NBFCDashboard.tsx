@@ -102,7 +102,7 @@ export const NBFCDashboard: React.FC = () => {
     {
       key: 'status',
       label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(value)}>{value}</Badge>,
+      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
     },
     { key: 'sentDate', label: 'Received', sortable: true },
     {
@@ -125,7 +125,20 @@ export const NBFCDashboard: React.FC = () => {
   return (
     <>
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm text-neutral-500">Total assigned</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">{assignedApplications.length}</p>
+              <p className="text-xs text-neutral-500 mt-1">Applications</p>
+            </div>
+            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
+              <FileText className="w-6 h-6 text-brand-primary" />
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
@@ -186,11 +199,12 @@ export const NBFCDashboard: React.FC = () => {
                   const nextFile = assignedApplications.find(a => a.status === 'sent_to_nbfc');
                   if (nextFile) navigate(`/applications/${nextFile.id}`);
                 }}
+                title="Open next application pending your decision"
               >
                 Review Next Application ({pendingDecision})
               </Button>
             )}
-            <Button variant="secondary" onClick={() => navigate('/applications?status=sent_to_nbfc')}>
+            <Button variant="secondary" onClick={() => navigate('/applications?status=sent_to_nbfc')} title="View all applications pending your decision">
               View All Pending
             </Button>
           </div>
@@ -209,6 +223,20 @@ export const NBFCDashboard: React.FC = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Pending highlight */}
+      {pendingDecision > 0 && (
+        <Card className="mb-6 border-warning/30 bg-warning/5">
+          <CardContent className="py-3 flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm text-neutral-800">
+              You have {pendingDecision} application{pendingDecision !== 1 ? 's' : ''} pending your decision.
+            </p>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/applications?status=sent_to_nbfc')}>
+              View all pending
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Assigned Applications */}
       <Card>

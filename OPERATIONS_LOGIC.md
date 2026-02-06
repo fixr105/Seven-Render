@@ -703,7 +703,8 @@ This document describes the logic flow of every operation (API endpoint) in the 
 4. Fetch `Clients` table to get commission rate
 5. Find client by Client ID
 6. Get commission rate from client (default: 1.5%)
-7. Calculate commission: `(loanAmount * commissionRate) / 100`
+7. Calculate commission: `(loanAmount * commissionRate) / 100`  
+   **Note:** The system uses **percentage** for commission (not ratio format like 1:99 or -1:101).
 8. Determine entry type:
    - **Payout**: commission >= 0 (positive amount)
    - **Payin**: commission < 0 (negative amount)

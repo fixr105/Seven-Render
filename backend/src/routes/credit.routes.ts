@@ -16,6 +16,7 @@ router.use(requireCredit);
 router.use(enforceRolePermissions); // Role enforcement with admin override
 
 router.get('/dashboard', creditController.getDashboard.bind(creditController));
+router.get('/sla-past-due', creditController.getSlaPastDue.bind(creditController));
 router.get('/loan-applications', creditController.listApplications.bind(creditController));
 router.get('/loan-applications/:id', creditController.getApplication.bind(creditController));
 router.post('/loan-applications/:id/queries', creditController.raiseQuery.bind(creditController));

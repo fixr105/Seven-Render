@@ -9,6 +9,22 @@
 
 import { n8nClient } from '../airtable/n8nClient.js';
 
+/** Indian PAN format: 5 letters + 4 digits + 1 letter */
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+
+function isPanField(field: { fieldId: string; label: string; type: string }): boolean {
+  const t = (field.type || '').toLowerCase();
+  const id = (field.fieldId || '').toLowerCase();
+  const label = (field.label || '').toLowerCase();
+  return t === 'pan' || id.includes('pan') || label.includes('pan');
+}
+
+function isValidPan(value: string): boolean {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim().toUpperCase();
+  return PAN_REGEX.test(trimmed);
+}
+
 /**
  * Mandatory field validation result
  */
@@ -18,6 +34,11 @@ export interface MandatoryFieldValidationResult {
     fieldId: string;
     label: string;
     type: string;
+  }>;
+  formatErrors?: Array<{
+    fieldId: string;
+    label: string;
+    message: string;
   }>;
   errorMessage?: string;
 }
@@ -146,9 +167,22 @@ export async function validateMandatoryFields(
     type: string;
   }> = [];
 
+  const formatErrors: Array<{ fieldId: string; label: string; message: string }> = [];
+
   mandatoryFields.forEach((field) => {
     const value = formData[field.fieldId];
     const hasDocument = documentLinks?.[field.fieldId] && documentLinks[field.fieldId].trim().length > 0;
+
+    // Format validation for PAN fields (when value is present)
+    if (isPanField(field) && value && typeof value === 'string' && value.trim().length > 0) {
+      if (!isValidPan(value)) {
+        formatErrors.push({
+          fieldId: field.fieldId,
+          label: field.label,
+          message: 'Invalid PAN format. PAN must be 5 letters, 4 digits, and 1 letter (e.g. ABCDE1234F).',
+        });
+      }
+    }
 
     // Check if field is empty
     let isEmpty = false;
@@ -173,14 +207,35 @@ export async function validateMandatoryFields(
     }
   });
 
-  const isValid = missingFields.length === 0;
+  // Also validate PAN format for any non-mandatory PAN field that has a value
+  const allFieldConfigs = await loadFormFieldsConfig(clientId, productId);
+  allFieldConfigs.forEach((field) => {
+    if (!isPanField(field)) return;
+    const value = formData[field.fieldId];
+    if (!value || typeof value !== 'string' || value.trim().length === 0) return;
+    if (formatErrors.some((e) => e.fieldId === field.fieldId)) return;
+    if (!isValidPan(value)) {
+      formatErrors.push({
+        fieldId: field.fieldId,
+        label: field.label,
+        message: 'Invalid PAN format. PAN must be 5 letters, 4 digits, and 1 letter (e.g. ABCDE1234F).',
+      });
+    }
+  });
+
+  const isValid = missingFields.length === 0 && formatErrors.length === 0;
 
   return {
     isValid,
     missingFields,
+    formatErrors: formatErrors.length > 0 ? formatErrors : undefined,
     errorMessage: isValid
       ? undefined
-      : `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`,
+      : missingFields.length > 0
+        ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`
+        : formatErrors.length > 0
+          ? formatErrors.map((e) => `${e.label}: ${e.message}`).join('; ')
+          : undefined,
   };
 }
 

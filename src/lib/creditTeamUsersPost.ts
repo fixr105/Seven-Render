@@ -27,8 +27,8 @@ export interface CreditTeamUserData {
 export interface CreditTeamUserResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -102,7 +102,7 @@ export const postCreditTeamUser = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'Credit team user posted successfully', 
           status: response.status 
@@ -117,13 +117,10 @@ export const postCreditTeamUser = async (
       message: 'Credit team user posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post credit team user';
     console.error('❌ Error posting credit team user:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post credit team user',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

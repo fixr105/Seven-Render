@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 
@@ -27,17 +27,7 @@ export const useNotifications = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Fetch on mount (including SPA navigation) when userRoleId is available.
-  useEffect(() => {
-    if (userRoleId) {
-      fetchNotifications();
-    } else {
-      setNotifications([]);
-      setUnreadCount(0);
-    }
-  }, [userRoleId]);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!userRoleId) return;
     setLoading(true);
     try {
@@ -58,7 +48,17 @@ export const useNotifications = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userRoleId]);
+
+  // Fetch on mount (including SPA navigation) when userRoleId is available.
+  useEffect(() => {
+    if (userRoleId) {
+      fetchNotifications();
+    } else {
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  }, [userRoleId, fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
     try {

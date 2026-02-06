@@ -15,4 +15,6 @@ export interface UserContext {
   kamId?: string | null;
   nbfcId?: string | null;
   creditTeamId?: string | null;
+  /** For client role: enabled modules (e.g. M1, M2) from Clients record. Used to hide Ledger when M1 is disabled. */
+  enabledModules?: string[];
 }

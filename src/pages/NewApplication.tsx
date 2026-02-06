@@ -13,6 +13,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { Stepper } from '../components/ui/Stepper';
+import { getPanValidationError, isPanField } from '../utils/panValidation';
 
 interface FormData {
   applicant_name: string;
@@ -130,7 +131,7 @@ export const NewApplication: React.FC = () => {
       } else {
         setFormConfig([]);
       }
-    } catch (error: any) {
+    } catch (_error) {
       setFormConfig([]);
     } finally {
       setFormConfigLoading(false);
@@ -192,7 +193,7 @@ export const NewApplication: React.FC = () => {
       } else if (response.error) {
         setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
       }
-    } catch (error) {
+    } catch (_error) {
       setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
     }
   };
@@ -293,7 +294,7 @@ export const NewApplication: React.FC = () => {
       errors.requested_loan_amount = 'Requested Loan Amount is required';
     }
 
-    // Validate mandatory form fields from configuration
+    // Validate mandatory form fields from configuration (required + PAN format)
     formConfig.forEach((category: any) => {
       (category.fields || []).forEach((field: any) => {
         const fieldId = field.fieldId || field['Field ID'] || field.id;
@@ -301,10 +302,10 @@ export const NewApplication: React.FC = () => {
         const fieldType = field.type || field['Field Type'] || field.fieldType;
         const isRequired = field.isRequired || field['Is Required'] === 'True' || field['Is Mandatory'] === 'True' || field.isMandatory === true;
 
-        if (isRequired) {
-          const value = formData.form_data[fieldId];
-          const hasDocument = documentLinks[fieldId] && documentLinks[fieldId].trim().length > 0;
+        const value = formData.form_data[fieldId];
+        const hasDocument = documentLinks[fieldId] && documentLinks[fieldId].trim().length > 0;
 
+        if (isRequired) {
           let isEmpty = false;
           if (fieldType === 'file') {
             isEmpty = !hasDocument && (!value || (typeof value === 'string' && value.trim().length === 0));
@@ -316,6 +317,15 @@ export const NewApplication: React.FC = () => {
 
           if (isEmpty) {
             errors[fieldId] = `${fieldLabel} is required`;
+          }
+        }
+
+        // PAN format validation (when value is present)
+        const panField = { fieldId, label: fieldLabel, type: fieldType };
+        if (isPanField(panField) && value && typeof value === 'string' && value.trim().length > 0) {
+          const panError = getPanValidationError(value);
+          if (panError) {
+            errors[fieldId] = errors[fieldId] || panError;
           }
         }
       });
@@ -390,23 +400,27 @@ export const NewApplication: React.FC = () => {
       });
 
       if (!response.success) {
-        // Handle backend validation errors (400 with missingFields)
+        // Handle backend validation errors (400 with missingFields and/or formatErrors)
+        const missingFieldsErrors: Record<string, string> = {};
         if (response.data?.missingFields && Array.isArray(response.data.missingFields)) {
-          const missingFieldsErrors: Record<string, string> = {};
-          response.data.missingFields.forEach((field: any) => {
+          response.data.missingFields.forEach((field: { fieldId: string; label: string }) => {
             missingFieldsErrors[field.fieldId] = `${field.label} is required`;
           });
+        }
+        if (response.data?.formatErrors && Array.isArray(response.data.formatErrors)) {
+          response.data.formatErrors.forEach((err: { fieldId: string; message: string }) => {
+            missingFieldsErrors[err.fieldId] = err.message;
+          });
+        }
+        if (Object.keys(missingFieldsErrors).length > 0) {
           setFieldErrors(missingFieldsErrors);
-          
-          // Scroll to first error
           const firstErrorField = Object.keys(missingFieldsErrors)[0];
           const errorElement = document.getElementById(firstErrorField) || 
                              document.querySelector(`[data-field-id="${firstErrorField}"]`);
           if (errorElement) {
             errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
-          
-          alert(`Missing required fields:\n\n${response.data.missingFields.map((f: any) => f.label).join('\n')}`);
+          alert(response.error || Object.values(missingFieldsErrors).join('\n'));
           return;
         }
         throw new Error(response.error || 'Failed to create application');
@@ -655,7 +669,7 @@ export const NewApplication: React.FC = () => {
                     let options: string[] = [];
                     try {
                       options = field.options || (field['Field Options'] ? (typeof field['Field Options'] === 'string' ? JSON.parse(field['Field Options']) : field['Field Options']) : []);
-                    } catch (e) {
+                    } catch (_e) {
                       options = [];
                     }
                     const hasError = !!fieldErrors[fieldId];
@@ -801,6 +815,7 @@ export const NewApplication: React.FC = () => {
                         ) : (
                           <Input
                             id={fieldId}
+                            data-field-id={fieldId}
                             type={fieldType === 'date' ? 'date' : fieldType === 'number' ? 'number' : 'text'}
                             label={fieldLabel}
                             required={isRequired}
@@ -808,7 +823,6 @@ export const NewApplication: React.FC = () => {
                             value={formData.form_data[fieldId] || ''}
                             onChange={(e) => {
                               handleFieldChange(fieldId, e.target.value);
-                              // Clear error when field is changed
                               if (fieldErrors[fieldId]) {
                                 setFieldErrors(prev => {
                                   const next = { ...prev };
@@ -817,6 +831,23 @@ export const NewApplication: React.FC = () => {
                                 });
                               }
                             }}
+                            onBlur={
+                              isPanField({ fieldId, label: fieldLabel, type: fieldType })
+                                ? () => {
+                                    const value = formData.form_data[fieldId];
+                                    const panError = getPanValidationError(value);
+                                    if (panError) {
+                                      setFieldErrors(prev => ({ ...prev, [fieldId]: panError }));
+                                    } else if (fieldErrors[fieldId]) {
+                                      setFieldErrors(prev => {
+                                        const next = { ...prev };
+                                        delete next[fieldId];
+                                        return next;
+                                      });
+                                    }
+                                  }
+                                : undefined
+                            }
                             error={hasError ? fieldError : undefined}
                           />
                         )}

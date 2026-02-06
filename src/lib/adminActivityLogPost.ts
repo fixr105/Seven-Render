@@ -27,8 +27,8 @@ export interface AdminActivityLogData {
 export interface AdminActivityLogResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -107,7 +107,7 @@ export const postAdminActivityLog = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'Admin activity logged successfully', 
           status: response.status 
@@ -122,12 +122,13 @@ export const postAdminActivityLog = async (
       message: 'Admin activity logged successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post admin activity log';
     console.error('❌ Error posting admin activity log:', error);
     return {
       success: false,
-      message: error.message || 'Failed to post admin activity log',
-      error: error,
+      message,
+      error: String(error),
     };
   }
 };

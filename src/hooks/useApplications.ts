@@ -18,7 +18,7 @@ export interface LoanApplication {
   lender_decision_remarks: string | null;
   approved_loan_amount: number | null;
   ai_file_summary: string | null;
-  form_data: Record<string, any>;
+  form_data: Record<string, unknown>;
   created_at: string;
   submitted_at: string | null;
   updated_at: string;
@@ -30,46 +30,52 @@ export interface LoanApplication {
  * Transform API application shape to UI LoanApplication.
  * Handles client as string, { name }, { 'Client Name' }, or null/undefined. See docs/ID_AND_RBAC_CONTRACT.md.
  */
-export function transformApplicationFromApi(app: any): LoanApplication {
+export function transformApplicationFromApi(app: Record<string, unknown>): LoanApplication {
+  const id = app.id != null ? String(app.id) : '';
   return {
-    id: app.id,
-    file_number: app.fileId || app['File ID'] || (app.id ? `SF${String(app.id).slice(0, 8)}` : ''),
-    client_id: app.clientId || app.Client || '',
-    applicant_name: app.applicantName || app['Applicant Name'] || '',
-    loan_product_id: app.productId || app['Loan Product'] || null,
+    id,
+    file_number: String(app.fileId ?? app['File ID'] ?? (id ? `SF${id.slice(0, 8)}` : '')),
+    client_id: String(app.clientId ?? app.Client ?? ''),
+    applicant_name: String(app.applicantName ?? app['Applicant Name'] ?? ''),
+    loan_product_id: (app.productId ?? app['Loan Product']) != null ? String(app.productId ?? app['Loan Product']) : null,
     requested_loan_amount: (() => {
       const v = app.requestedAmount ?? app['Requested Loan Amount'];
       const n = v != null ? (typeof v === 'number' ? v : parseFloat(String(v))) : NaN;
       return isNaN(n) ? null : n;
     })(),
-    status: app.status || app.Status || 'draft',
-    assigned_credit_analyst: app.assignedCreditAnalyst || app['Assigned Credit Analyst'] || null,
-    assigned_nbfc_id: app.assignedNBFC || app['Assigned NBFC'] || null,
-    lender_decision_status: app.lenderDecisionStatus || app['Lender Decision Status'] || null,
-    lender_decision_date: app.lenderDecisionDate || app['Lender Decision Date'] || null,
-    lender_decision_remarks: app.lenderDecisionRemarks || app['Lender Decision Remarks'] || null,
+    status: String(app.status ?? app.Status ?? 'draft'),
+    assigned_credit_analyst: (app.assignedCreditAnalyst ?? app['Assigned Credit Analyst']) != null ? String(app.assignedCreditAnalyst ?? app['Assigned Credit Analyst']) : null,
+    assigned_nbfc_id: (app.assignedNBFC ?? app['Assigned NBFC']) != null ? String(app.assignedNBFC ?? app['Assigned NBFC']) : null,
+    lender_decision_status: (app.lenderDecisionStatus ?? app['Lender Decision Status']) != null ? String(app.lenderDecisionStatus ?? app['Lender Decision Status']) : null,
+    lender_decision_date: (app.lenderDecisionDate ?? app['Lender Decision Date']) != null ? String(app.lenderDecisionDate ?? app['Lender Decision Date']) : null,
+    lender_decision_remarks: (app.lenderDecisionRemarks ?? app['Lender Decision Remarks']) != null ? String(app.lenderDecisionRemarks ?? app['Lender Decision Remarks']) : null,
     approved_loan_amount: (() => {
       const v = app.approvedAmount ?? app['Approved Loan Amount'];
       const n = v != null ? (typeof v === 'number' ? v : parseFloat(String(v))) : NaN;
       return isNaN(n) ? null : n;
     })(),
-    ai_file_summary: app.aiFileSummary || app['AI File Summary'] || null,
-    form_data: app.formData || (typeof app['Form Data'] === 'string' ? JSON.parse(app['Form Data'] || '{}') : app['Form Data']) || {},
-    created_at: app.creationDate || app['Creation Date'] || app.createdAt || new Date().toISOString(),
-    submitted_at: app.submittedDate || app['Submitted Date'] || null,
-    updated_at: app.lastUpdated || app['Last Updated'] || app.updatedAt || new Date().toISOString(),
+    ai_file_summary: (app.aiFileSummary ?? app['AI File Summary']) != null ? String(app.aiFileSummary ?? app['AI File Summary']) : null,
+    form_data: (() => {
+      const fd = app.formData ?? (typeof app['Form Data'] === 'string' ? JSON.parse(String(app['Form Data'] || '{}')) : app['Form Data']);
+      return (fd && typeof fd === 'object' && !Array.isArray(fd) ? fd : {}) as Record<string, unknown>;
+    })(),
+    created_at: String(app.creationDate ?? app['Creation Date'] ?? app.createdAt ?? new Date().toISOString()),
+    submitted_at: (app.submittedDate ?? app['Submitted Date']) != null ? String(app.submittedDate ?? app['Submitted Date']) : null,
+    updated_at: String(app.lastUpdated ?? app['Last Updated'] ?? app.updatedAt ?? new Date().toISOString()),
     client: mapClientFromApi(app.client),
     loan_product: (() => {
-      if (app.loanProduct != null && typeof app.loanProduct === 'object') {
-        return { name: (app.loanProduct.name || app.loanProduct['Product Name']) ?? '', code: (app.loanProduct.id || app.loanProduct['Product ID']) ?? '' };
+      const lp = app.loanProduct;
+      if (lp != null && typeof lp === 'object' && !Array.isArray(lp)) {
+        const o = lp as Record<string, unknown>;
+        return { name: String(o.name ?? o['Product Name'] ?? ''), code: String(o.id ?? o['Product ID'] ?? '') };
       }
-      if (typeof app.loanProduct === 'string') {
-        return { name: app.loanProduct, code: app.productId ?? '' };
+      if (typeof lp === 'string') {
+        return { name: lp, code: String(app.productId ?? '') };
       }
       if (app.product != null || app.productId != null) {
-        const name = typeof app.product === 'string' ? app.product : (app.product?.['Product Name'] ?? '');
-        const code = typeof app.productId === 'string' ? app.productId : (app.productId ?? '');
-        return { name: String(name ?? ''), code: String(code ?? '') };
+        const name = typeof app.product === 'string' ? app.product : String((app.product as Record<string, unknown>)?.['Product Name'] ?? '');
+        const code = typeof app.productId === 'string' ? app.productId : String(app.productId ?? '');
+        return { name: name ?? '', code: code ?? '' };
       }
       return undefined;
     })(),
@@ -96,7 +102,7 @@ export const useApplications = () => {
       if (response.success && response.data) {
         // Transform API response to match expected format
         const appsArray = Array.isArray(response.data) ? response.data : [];
-        const transformed = appsArray.map((app: any) => transformApplicationFromApi(app));
+        const transformed = appsArray.map((app) => transformApplicationFromApi(app as unknown as Record<string, unknown>));
         
         setApplications(transformed);
       } else {
@@ -116,7 +122,7 @@ export const useApplications = () => {
     }
   };
 
-  const updateStatus = async (_id: string, _newStatus: string) => {
+  const updateStatus = async (_applicationId: string, _newStatus: string) => {
     // Status updates should go through specific endpoints (e.g., submit, forward, etc.)
     // For now, just refetch
     await fetchApplications();

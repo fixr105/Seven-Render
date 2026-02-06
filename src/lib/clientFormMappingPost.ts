@@ -25,8 +25,8 @@ export interface ClientFormMappingData {
 export interface ClientFormMappingResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -104,7 +104,7 @@ export const postClientFormMapping = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'Client form mapping posted successfully', 
           status: response.status 
@@ -119,13 +119,10 @@ export const postClientFormMapping = async (
       message: 'Client form mapping posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post client form mapping';
     console.error('❌ Error posting client form mapping:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post client form mapping',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

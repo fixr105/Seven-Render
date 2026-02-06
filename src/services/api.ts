@@ -285,7 +285,7 @@ class ApiService {
       let data;
       try {
         data = JSON.parse(text);
-      } catch (parseError) {
+      } catch (_parseError) {
         // If not JSON, return the text as error
         defaultLogger.error('Failed to parse JSON response', {
           endpoint,
@@ -397,6 +397,83 @@ class ApiService {
     });
   }
 
+  /**
+   * List all user accounts (admin/credit_team)
+   */
+  async listUserAccounts(): Promise<
+    ApiResponse<Array<{ id: string; username: string; role: string; associatedProfile?: string; lastLogin?: string; accountStatus?: string }>>
+  > {
+    return this.request('/user-accounts');
+  }
+
+  /**
+   * Get single user account
+   */
+  async getUserAccount(id: string): Promise<
+    ApiResponse<{ id: string; username: string; role: string; associatedProfile?: string; lastLogin?: string; accountStatus?: string }>
+  > {
+    return this.request(`/user-accounts/${id}`);
+  }
+
+  /**
+   * Update user account (admin/credit_team)
+   */
+  async updateUserAccount(
+    id: string,
+    data: { accountStatus?: string; role?: string; associatedProfile?: string }
+  ): Promise<ApiResponse> {
+    return this.request(`/user-accounts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * List NBFC partners
+   */
+  async listNBFCPartners(): Promise<
+    ApiResponse<Array<{ id: string; lenderId?: string; lenderName: string; contactPerson?: string; contactEmailPhone?: string; addressRegion?: string; active: boolean }>>
+  > {
+    return this.request('/nbfc-partners');
+  }
+
+  /**
+   * Get single NBFC partner
+   */
+  async getNBFCPartner(id: string): Promise<
+    ApiResponse<{ id: string; lenderId?: string; lenderName: string; contactPerson?: string; contactEmailPhone?: string; addressRegion?: string; active: boolean }>
+  > {
+    return this.request(`/nbfc-partners/${id}`);
+  }
+
+  /**
+   * Create NBFC partner (admin/credit_team)
+   */
+  async createNBFCPartner(data: {
+    lenderName: string;
+    contactPerson?: string;
+    contactEmailPhone?: string;
+    addressRegion?: string;
+    active?: boolean;
+  }): Promise<ApiResponse<{ id: string }>> {
+    return this.request('/nbfc-partners', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Update NBFC partner (admin/credit_team)
+   */
+  async updateNBFCPartner(
+    id: string,
+    data: { lenderName?: string; contactPerson?: string; contactEmailPhone?: string; addressRegion?: string; active?: boolean }
+  ): Promise<ApiResponse> {
+    return this.request(`/nbfc-partners/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
 
   // ==================== CLIENT ENDPOINTS ====================
 
@@ -780,6 +857,17 @@ class ApiService {
   }
 
   /**
+   * Get applications in Sent to NBFC that are past SLA (for follow-up).
+   */
+  async getCreditSlaPastDue(): Promise<
+    ApiResponse<{ items: Array<{ fileId: string; applicationId?: string; sentAt: string; daysPastSLA: number }> }>
+  > {
+    return this.request<{ items: Array<{ fileId: string; applicationId?: string; sentAt: string; daysPastSLA: number }> }>(
+      '/credit/sla-past-due'
+    );
+  }
+
+  /**
    * List all applications (Credit)
    */
   async listCreditApplications(params?: {
@@ -928,6 +1016,13 @@ class ApiService {
   /**
    * Record NBFC decision
    */
+  /**
+   * Get predefined NBFC rejection reasons for the decision modal
+   */
+  async getNbfcRejectionReasons(): Promise<ApiResponse<Array<{ value: string; label: string }>>> {
+    return this.request<Array<{ value: string; label: string }>>('/nbfc/rejection-reasons');
+  }
+
   async recordNBFCDecision(
     applicationId: string,
     data: {
@@ -1003,10 +1098,17 @@ class ApiService {
   }
 
   /**
-   * Get daily summary report
+   * Get daily summary report by date
    */
   async getDailySummary(date: string): Promise<ApiResponse> {
     return this.request(`/reports/daily/${date}`);
+  }
+
+  /**
+   * Get latest daily summary report (single most recent)
+   */
+  async getLatestDailySummary(): Promise<ApiResponse<any>> {
+    return this.request('/reports/daily/latest');
   }
 
   /**
@@ -1034,6 +1136,16 @@ class ApiService {
   }
 
   /**
+   * Edit own query (within allowed time window). Only the query author can edit.
+   */
+  async updateQuery(applicationId: string, queryId: string, message: string): Promise<ApiResponse> {
+    return this.request(`/loan-applications/${applicationId}/queries/${queryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  /**
    * Resolve a query
    */
   async resolveQuery(applicationId: string, queryId: string, resolutionMessage?: string): Promise<ApiResponse> {
@@ -1044,10 +1156,24 @@ class ApiService {
   }
 
   /**
-   * Get admin activity log
+   * Get admin activity log (optional filters via query params)
    */
-  async getAdminActivityLog(): Promise<ApiResponse> {
-    return this.request('/admin/activity-log');
+  async getAdminActivityLog(params?: {
+    dateFrom?: string;
+    dateTo?: string;
+    performedBy?: string;
+    actionType?: string;
+    targetEntity?: string;
+  }): Promise<ApiResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) searchParams.set('dateTo', params.dateTo);
+    if (params?.performedBy) searchParams.set('performedBy', params.performedBy);
+    if (params?.actionType) searchParams.set('actionType', params.actionType);
+    if (params?.targetEntity) searchParams.set('targetEntity', params.targetEntity);
+    const query = searchParams.toString();
+    const url = query ? `/admin/activity-log?${query}` : '/admin/activity-log';
+    return this.request(url);
   }
 
   // ==================== AI SUMMARY ====================

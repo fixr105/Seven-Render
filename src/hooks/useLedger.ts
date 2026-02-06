@@ -1,28 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 
 export const useLedger = () => {
   const { user } = useAuth();
   const userRole = user?.role || null;
-  const [entries, setEntries] = useState<any[]>([]);
+  const [entries, setEntries] = useState<Record<string, unknown>[]>([]);
+  const [payoutRequests, setPayoutRequests] = useState<unknown[]>([]);
   const [balance, setBalance] = useState(0);
-  const [payoutRequests, setPayoutRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch on mount (including SPA navigation to Ledger) and via explicit refetch. See docs/ID_AND_RBAC_CONTRACT.md.
-  useEffect(() => {
-    if (userRole === 'client') {
-      fetchLedger();
-      fetchPayoutRequests();
-    } else if (userRole === 'credit_team') {
-      fetchPayoutRequests().finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchLedger = async () => {
+  const fetchLedger = useCallback(async () => {
     if (userRole !== 'client') return;
     
     try {
@@ -30,26 +18,29 @@ export const useLedger = () => {
       const response = await apiService.getClientLedger();
       
       if (response.success && response.data) {
-        const ledgerData = response.data as any;
+        const ledgerData = response.data as Record<string, unknown> | unknown[];
         // Handle both direct array response and nested data structure
-        const entriesList = Array.isArray(ledgerData) 
-          ? ledgerData 
-          : (ledgerData.entries || []);
-        
+        const entriesList = Array.isArray(ledgerData)
+          ? ledgerData
+          : ((ledgerData as Record<string, unknown>).entries as Record<string, unknown>[] | undefined) || [];
+
         // Sort by date (oldest first for running balance calculation)
         const sortedEntries = [...entriesList].sort((a, b) => {
-          const dateA = a.Date || a.date || '';
-          const dateB = b.Date || b.date || '';
+          const entryA = a as Record<string, unknown>;
+          const entryB = b as Record<string, unknown>;
+          const dateA = String(entryA.Date ?? entryA.date ?? '');
+          const dateB = String(entryB.Date ?? entryB.date ?? '');
           return dateA.localeCompare(dateB);
         });
-        
+
         // Calculate running balance (oldest to newest)
         let runningBalance = 0;
-        const entriesWithBalance = sortedEntries.map((entry: any) => {
-          const payoutAmount = parseFloat(entry['Payout Amount'] || entry.payoutAmount || '0');
+        const entriesWithBalance = sortedEntries.map((entry) => {
+          const e = entry as Record<string, unknown>;
+          const payoutAmount = parseFloat(String(e['Payout Amount'] ?? e.payoutAmount ?? '0'));
           runningBalance += payoutAmount;
           return {
-            ...entry,
+            ...e,
             runningBalance,
             formattedAmount: formatCurrency(payoutAmount),
             formattedBalance: formatCurrency(runningBalance),
@@ -71,7 +62,7 @@ export const useLedger = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userRole]);
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-IN', {
@@ -82,7 +73,7 @@ export const useLedger = () => {
     }).format(amount);
   };
 
-  const fetchPayoutRequests = async () => {
+  const fetchPayoutRequests = useCallback(async () => {
     try {
       // Credit team uses /credit/payout-requests; client uses /clients/me/payout-requests
       const response =
@@ -100,7 +91,19 @@ export const useLedger = () => {
       console.error('Exception in fetchPayoutRequests:', error);
       setPayoutRequests([]);
     }
-  };
+  }, [userRole]);
+
+  // Fetch on mount (including SPA navigation to Ledger) and when role changes. See docs/ID_AND_RBAC_CONTRACT.md.
+  useEffect(() => {
+    if (userRole === 'client') {
+      fetchLedger();
+      fetchPayoutRequests();
+    } else if (userRole === 'credit_team') {
+      fetchPayoutRequests().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [userRole, fetchLedger, fetchPayoutRequests]);
 
   const requestPayout = async (amount?: number, full?: boolean) => {
     try {
@@ -147,9 +150,11 @@ export const useLedger = () => {
     }
   };
 
-  const processPayoutRequest = async (_requestId: string, _approve: boolean) => {
+  const processPayoutRequest = async (_requestId: string, _approve: boolean): Promise<void> => {
     // This should be handled by credit team endpoint
     // No automatic refresh - user must manually refresh to see updates
+    void _requestId;
+    void _approve;
   };
 
   const addLedgerEntry = async (entryData: {

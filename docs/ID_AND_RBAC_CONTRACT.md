@@ -86,3 +86,15 @@ Apply to: `getKAMManagedClientIds`, `filterLoanApplications`, `matchIds`, `listA
 4. **List hooks** — Fetch on mount by default; "only on full reload" is documented and justified when used.
 5. **Transforms** — API → UI: a few tests for "weird but valid" shapes (string, empty, alternative keys).
 6. **Schema/ID audit** — When adding/changing "Assigned KAM," "Client," "Managed by," update the table in section 3 and confirm the code matches.
+
+---
+
+## 8. Query and audit visibility (GET /loan-applications/:id/queries)
+
+| Viewer role   | Threads returned |
+|---------------|------------------|
+| **client**    | Only threads where root query `Target User/Role` is **client** (KAM→Client and responses). |
+| **nbfc**      | Only threads where root query `Target User/Role` is **nbfc** (e.g. Credit→NBFC, Needs Clarification). |
+| **kam**, **credit_team** | All threads (no filter). |
+
+Implementation: `loan.controller.getQueries` filters the result of `queryService.getQueriesForFile()` by `req.user.role` before responding. Client and NBFC must not see internal Credit↔KAM or KAM↔Client threads that are not targeted at them.

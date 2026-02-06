@@ -1,7 +1,9 @@
 /**
  * Authentication Context
  * Provides auth state and methods; uses backend /auth/login, /auth/me, /auth/logout
+ * Single auth module: exports AuthProvider (component) and useAuth (hook). Fast Refresh relaxed for this file.
  */
+/* eslint-disable react-refresh/only-export-components */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiService } from '../services/api';
@@ -59,8 +61,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return {};
       }
       return { error: response.error || 'Invalid email or password' };
-    } catch (err: any) {
-      return { error: err.message || 'Login failed. Please try again.' };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Login failed. Please try again.' };
     } finally {
       setLoading(false);
     }

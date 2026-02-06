@@ -27,8 +27,8 @@ export interface NBFCPartnerData {
 export interface NBFCPartnerResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -102,7 +102,7 @@ export const postNBFCPartner = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'NBFC partner posted successfully', 
           status: response.status 
@@ -117,13 +117,10 @@ export const postNBFCPartner = async (
       message: 'NBFC partner posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post NBFC partner';
     console.error('❌ Error posting NBFC partner:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post NBFC partner',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

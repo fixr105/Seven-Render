@@ -23,21 +23,21 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
             <a 
               href="#" 
               onClick={(e) => handleLinkClick(e, 'Privacy Policy')}
-              className="hover:text-brand-primary transition-colors cursor-pointer"
+              className="hover:text-brand-primary transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 rounded"
             >
               Privacy Policy
             </a>
             <a 
               href="#" 
               onClick={(e) => handleLinkClick(e, 'Terms of Service')}
-              className="hover:text-brand-primary transition-colors cursor-pointer"
+              className="hover:text-brand-primary transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 rounded"
             >
               Terms of Service
             </a>
             <a 
               href="#" 
               onClick={(e) => handleLinkClick(e, 'Support')}
-              className="hover:text-brand-primary transition-colors cursor-pointer"
+              className="hover:text-brand-primary transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 rounded"
             >
               Support
             </a>

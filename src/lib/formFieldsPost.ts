@@ -33,8 +33,8 @@ export interface FormFieldData {
 export interface FormFieldResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -120,7 +120,7 @@ export const postFormField = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'Form field posted successfully', 
           status: response.status 
@@ -135,13 +135,10 @@ export const postFormField = async (
       message: 'Form field posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post form field';
     console.error('❌ Error posting form field:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post form field',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

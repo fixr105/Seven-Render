@@ -25,8 +25,8 @@ export function useApiCall<T>() {
         setError(response.error || 'Unknown error');
         return { success: false, error: response.error };
       }
-    } catch (err: any) {
-      const errorMessage = err.message || 'Network error';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Network error';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     } finally {
@@ -43,7 +43,7 @@ export function useApiCall<T>() {
   return { loading, error, data, execute, reset };
 }
 
-export function useApiMutation<T, P = any>() {
+export function useApiMutation<T, P = unknown>() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,8 +63,8 @@ export function useApiMutation<T, P = any>() {
         setError(response.error || 'Unknown error');
         return { success: false, error: response.error };
       }
-    } catch (err: any) {
-      const errorMessage = err.message || 'Network error';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Network error';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     } finally {

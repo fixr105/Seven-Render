@@ -31,8 +31,8 @@ export interface FileAuditLogData {
 export interface FileAuditLogResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -113,7 +113,7 @@ export const postFileAuditLog = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'File audit log posted successfully', 
           status: response.status 
@@ -128,13 +128,10 @@ export const postFileAuditLog = async (
       message: 'File audit log posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post file audit log';
     console.error('❌ Error posting file audit log:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post file audit log',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

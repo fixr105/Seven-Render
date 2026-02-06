@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 export const ForgotPassword: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-neutral-100">
     <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-level-2 text-center">
-      <h1 className="text-xl font-semibold text-neutral-900 mb-2">Forgot password?</h1>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Forgot password?</h1>
       <p className="text-neutral-600 mb-6">
         Password reset is being set up. Please contact your administrator to reset your password.
       </p>

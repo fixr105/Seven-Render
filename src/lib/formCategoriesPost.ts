@@ -25,8 +25,8 @@ export interface FormCategoryData {
 export interface FormCategoryResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -98,7 +98,7 @@ export const postFormCategory = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'Form category posted successfully', 
           status: response.status 
@@ -113,13 +113,10 @@ export const postFormCategory = async (
       message: 'Form category posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post form category';
     console.error('❌ Error posting form category:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post form category',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

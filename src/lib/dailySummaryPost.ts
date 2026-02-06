@@ -23,8 +23,8 @@ export interface DailySummaryData {
 export interface DailySummaryResponse {
   success: boolean;
   message: string;
-  data?: any;
-  error?: any;
+  data?: unknown;
+  error?: string;
 }
 
 /**
@@ -100,7 +100,7 @@ export const postDailySummary = async (
     } else {
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch (_e) {
         result = { 
           message: responseText || 'Daily summary posted successfully', 
           status: response.status 
@@ -115,13 +115,10 @@ export const postDailySummary = async (
       message: 'Daily summary posted successfully',
       data: result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to post daily summary';
     console.error('❌ Error posting daily summary:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to post daily summary',
-      error: error,
-    };
+    return { success: false, message, error: String(error) };
   }
 };
 

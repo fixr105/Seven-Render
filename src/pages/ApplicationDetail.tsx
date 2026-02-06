@@ -15,25 +15,21 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
+import { getStatusDisplayNameForViewer } from '../lib/statusUtils';
 
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
   const statusLower = status.toLowerCase();
   if (['approved', 'disbursed'].includes(statusLower)) return 'success';
-  if (['kam_query_raised', 'pending_kam_review', 'credit_query_raised'].includes(statusLower)) return 'warning';
+  if (['action required', 'kam_query_raised', 'pending_kam_review', 'credit_query_raised'].includes(statusLower)) return 'warning';
   if (statusLower === 'rejected') return 'error';
   if (['forwarded_to_credit', 'in_negotiation', 'sent_to_nbfc'].includes(statusLower)) return 'info';
   return 'neutral';
 };
 
-const formatStatus = (status: string | undefined | null): string => {
-  if (!status) return '';
-  return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-};
-
-const formatAmount = (amount: any): string => {
-  const num = parseFloat(amount);
-  if (isNaN(num)) return '₹0';
+const formatAmount = (amount: unknown): string => {
+  const num = typeof amount === 'number' ? amount : parseFloat(String(amount ?? ''));
+  if (Number.isNaN(num)) return '₹0';
   return `₹${num.toLocaleString('en-IN')}`;
 };
 
@@ -72,11 +68,11 @@ export const ApplicationDetail: React.FC = () => {
   };
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(true);
-  const [application, setApplication] = useState<any>(null);
+  const [application, setApplication] = useState<import('../services/api').LoanApplication | null>(null);
   const [queries, setQueries] = useState<Query[]>([]);
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
-  const [, _setAuditLogs] = useState<any[]>([]);
-  const [, _setKamEdits] = useState<any[]>([]);
+  const [, _setAuditLogs] = useState<unknown[]>([]);
+  const [, _setKamEdits] = useState<unknown[]>([]);
   const [showQueryModal, setShowQueryModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [queryMessage, setQueryMessage] = useState('');
@@ -91,8 +87,14 @@ export const ApplicationDetail: React.FC = () => {
   const [decisionStatus, setDecisionStatus] = useState<string>('');
   const [decisionRemarks, setDecisionRemarks] = useState<string>('');
   const [approvedAmount, setApprovedAmount] = useState<string>('');
+  const [rejectionReasonOption, setRejectionReasonOption] = useState<string>('');
+  const [rejectionReasonsList, setRejectionReasonsList] = useState<Array<{ value: string; label: string }>>([]);
   const [documentsViewMode, setDocumentsViewMode] = useState<'grid' | 'list'>('grid');
+  const [editingQueryId, setEditingQueryId] = useState<string | null>(null);
+  const [editMessage, setEditMessage] = useState('');
+  const [submittingEdit, setSubmittingEdit] = useState(false);
 
+  const QUERY_EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
   const sidebarItems = useSidebarItems();
 
   // Load application data ONLY on initial mount or when navigating to a different application
@@ -105,7 +107,16 @@ export const ApplicationDetail: React.FC = () => {
       fetchQueries();
       fetchStatusHistory();
     }
-  }, [id]); // Only fetch when id changes (route navigation)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally only depend on id; fetch functions are stable per mount.
+  }, [id]);
+
+  useEffect(() => {
+    if (userRole === 'nbfc') {
+      apiService.getNbfcRejectionReasons().then((res) => {
+        if (res.success && res.data) setRejectionReasonsList(res.data);
+      }).catch(() => {});
+    }
+  }, [userRole]);
 
   const fetchApplicationDetails = async () => {
     try {
@@ -119,7 +130,7 @@ export const ApplicationDetail: React.FC = () => {
         console.log(`[ApplicationDetail] Application found:`, { id: response.data.id, fileId: response.data.fileId });
         setApplication(response.data);
         // Set AI summary if available
-        setAiSummary(response.data.aiFileSummary || (response.data as any)['AI File Summary'] || null);
+        setAiSummary((response.data.aiFileSummary || (response.data as Record<string, unknown>)['AI File Summary']) ?? null);
       } else {
         console.error(`[ApplicationDetail] Error fetching application ${id}:`, response.error);
         // Check if it's an authentication error
@@ -309,6 +320,25 @@ export const ApplicationDetail: React.FC = () => {
       alert(error.message || 'Failed to resolve query');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!id || !editingQueryId || !editMessage.trim()) return;
+    setSubmittingEdit(true);
+    try {
+      const response = await apiService.updateQuery(id, editingQueryId, editMessage.trim());
+      if (response.success) {
+        await fetchQueries();
+        setEditingQueryId(null);
+        setEditMessage('');
+      } else {
+        throw new Error(response.error || 'Failed to update query');
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to update query');
+    } finally {
+      setSubmittingEdit(false);
     }
   };
 
@@ -511,7 +541,7 @@ export const ApplicationDetail: React.FC = () => {
               <div className="flex items-center gap-3">
                 <CardTitle>Application Details</CardTitle>
                 <Badge variant={getStatusVariant(application?.status)}>
-                  {formatStatus(application?.status)}
+                  {getStatusDisplayNameForViewer(application?.status || '', userRole || '')}
                 </Badge>
               </div>
             </CardHeader>
@@ -720,12 +750,12 @@ export const ApplicationDetail: React.FC = () => {
                             {/* File Icon */}
                             <div className="flex-shrink-0">
                               {isImage ? (
-                                <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                                  <Image className="w-6 h-6 text-blue-600" />
+                                <div className="w-12 h-12 bg-info/10 rounded-lg flex items-center justify-center">
+                                  <Image className="w-6 h-6 text-info" />
                                 </div>
                               ) : isPdf ? (
-                                <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
-                                  <FileText className="w-6 h-6 text-red-600" />
+                                <div className="w-12 h-12 bg-error/10 rounded-lg flex items-center justify-center">
+                                  <FileText className="w-6 h-6 text-error" />
                                 </div>
                               ) : (
                                 <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center">
@@ -880,6 +910,11 @@ export const ApplicationDetail: React.FC = () => {
                   {queries.map((thread: any) => {
                     // Get root query with fallback
                     const rootQuery = thread.rootQuery || {};
+                    const isOwnQuery = user?.email && (rootQuery.actor || '').toLowerCase() === (user.email || '').toLowerCase();
+                    const created = rootQuery.timestamp ? new Date(rootQuery.timestamp).getTime() : 0;
+                    const withinEditWindow = created > 0 && (Date.now() - created <= QUERY_EDIT_WINDOW_MS);
+                    const canEdit = isOwnQuery && withinEditWindow && !thread.isResolved;
+                    const isEditing = editingQueryId === rootQuery.id;
                     
                     // Calculate last activity timestamp
                     const allTimestamps = [
@@ -947,13 +982,48 @@ export const ApplicationDetail: React.FC = () => {
                                 </span>
                               )}
                         </div>
-                            <p className="text-sm text-neutral-700 mb-2">{rootQuery.message || 'No message'}</p>
+                            {isEditing ? (
+                              <div className="mb-2">
+                                <TextArea
+                                  value={editMessage}
+                                  onChange={(e) => setEditMessage(e.target.value)}
+                                  rows={3}
+                                  className="w-full"
+                                />
+                                <div className="flex gap-2 mt-2">
+                                  <Button size="sm" onClick={handleSaveEdit} disabled={submittingEdit} loading={submittingEdit}>
+                                    Save
+                                  </Button>
+                                  <Button size="sm" variant="secondary" onClick={() => { setEditingQueryId(null); setEditMessage(''); }} disabled={submittingEdit}>
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-neutral-700 mb-2">{rootQuery.message || 'No message'}</p>
+                            )}
+                            {rootQuery.editHistory && rootQuery.editHistory.length > 0 && (
+                              <p className="text-xs text-neutral-500 mb-2">
+                                Edited on {formatDateSafe(rootQuery.editHistory[0].editedAt)}
+                                {rootQuery.editHistory.length > 1 ? ` (${rootQuery.editHistory.length} edits)` : ''}
+                              </p>
+                            )}
                             {rootQuery.targetUserRole && (
                               <p className="text-xs text-neutral-500">
                                 To: {rootQuery.targetUserRole}
                               </p>
                             )}
                       </div>
+                          {canEdit && !isEditing && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={Edit}
+                              onClick={() => { setEditingQueryId(rootQuery.id); setEditMessage(rootQuery.message || ''); }}
+                            >
+                              Edit
+                            </Button>
+                          )}
                           {!thread.isResolved && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && rootQuery.id && (
                             <Button
                               variant="secondary"
@@ -1032,7 +1102,7 @@ export const ApplicationDetail: React.FC = () => {
                       <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-brand-primary" />
                       <div>
                         <Badge variant={getStatusVariant(item.to_status)}>
-                          {formatStatus(item.to_status)}
+                          {getStatusDisplayNameForViewer(item.to_status || '', userRole || '')}
                         </Badge>
                         <p className="text-xs text-neutral-500 mt-1">{formatDateSafe(item.created_at)}</p>
                         {item.notes && (
@@ -1161,6 +1231,7 @@ export const ApplicationDetail: React.FC = () => {
             setDecisionStatus('');
             setDecisionRemarks('');
             setApprovedAmount('');
+            setRejectionReasonOption('');
           }}
           size="md"
         >
@@ -1172,7 +1243,11 @@ export const ApplicationDetail: React.FC = () => {
               <Select
                 label="Decision Status"
                 value={decisionStatus}
-                onChange={(e) => setDecisionStatus(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDecisionStatus(v);
+                  if (v !== 'Rejected') setRejectionReasonOption('');
+                }}
                 required
                 options={[
                   { value: '', label: 'Select decision...' },
@@ -1197,20 +1272,44 @@ export const ApplicationDetail: React.FC = () => {
                 </div>
               )}
 
-              <TextArea
-                label={`Decision Remarks${decisionStatus === 'Rejected' ? ' (Required)' : ''}`}
-                placeholder={
-                  decisionStatus === 'Approved' 
-                    ? 'Enter approval terms and conditions...'
-                    : decisionStatus === 'Rejected'
-                    ? 'Enter rejection reason (required)...'
-                    : 'Enter clarification request...'
-                }
-                value={decisionRemarks}
-                onChange={(e) => setDecisionRemarks(e.target.value)}
-                required={decisionStatus === 'Rejected'}
-                rows={6}
-              />
+              {decisionStatus === 'Rejected' && (
+                <>
+                  <Select
+                    label="Rejection reason"
+                    value={rejectionReasonOption}
+                    onChange={(e) => setRejectionReasonOption(e.target.value)}
+                    required
+                    options={[
+                      { value: '', label: 'Select reason...' },
+                      ...rejectionReasonsList.map((r) => ({ value: r.value, label: r.label })),
+                    ]}
+                  />
+                  {rejectionReasonOption === 'other' && (
+                    <TextArea
+                      label="Other (required)"
+                      placeholder="Enter rejection reason..."
+                      value={decisionRemarks}
+                      onChange={(e) => setDecisionRemarks(e.target.value)}
+                      required
+                      rows={3}
+                    />
+                  )}
+                </>
+              )}
+
+              {decisionStatus !== 'Rejected' && (
+                <TextArea
+                  label={decisionStatus === 'Approved' ? 'Decision Remarks (Optional)' : 'Decision Remarks'}
+                  placeholder={
+                    decisionStatus === 'Approved'
+                      ? 'Enter approval terms and conditions...'
+                      : 'Enter clarification request...'
+                  }
+                  value={decisionRemarks}
+                  onChange={(e) => setDecisionRemarks(e.target.value)}
+                  rows={6}
+                />
+              )}
             </div>
           </ModalBody>
           <ModalFooter>
@@ -1221,6 +1320,7 @@ export const ApplicationDetail: React.FC = () => {
                 setDecisionStatus('');
                 setDecisionRemarks('');
                 setApprovedAmount('');
+                setRejectionReasonOption('');
               }}
             >
               Cancel
@@ -1232,17 +1332,30 @@ export const ApplicationDetail: React.FC = () => {
                   alert('Please select a decision status');
                   return;
                 }
-                if (decisionStatus === 'Rejected' && !decisionRemarks.trim()) {
-                  alert('Remarks are required when rejecting an application');
-                  return;
+                if (decisionStatus === 'Rejected') {
+                  if (!rejectionReasonOption) {
+                    alert('Please select a rejection reason');
+                    return;
+                  }
+                  if (rejectionReasonOption === 'other' && !decisionRemarks.trim()) {
+                    alert('Please enter the rejection reason for "Other"');
+                    return;
+                  }
                 }
                 if (!id) return;
+
+                const remarksForReject =
+                  decisionStatus === 'Rejected'
+                    ? rejectionReasonOption === 'other'
+                      ? `Other: ${decisionRemarks.trim()}`
+                      : rejectionReasonsList.find((r) => r.value === rejectionReasonOption)?.label || rejectionReasonOption
+                    : decisionRemarks.trim();
 
                 setSubmitting(true);
                 try {
                   const response = await apiService.recordNBFCDecision(id, {
                     lenderDecisionStatus: decisionStatus,
-                    lenderDecisionRemarks: decisionRemarks.trim(),
+                    lenderDecisionRemarks: remarksForReject,
                     approvedAmount: approvedAmount ? parseFloat(approvedAmount) : undefined,
                   });
 
@@ -1251,6 +1364,7 @@ export const ApplicationDetail: React.FC = () => {
                     setDecisionStatus('');
                     setDecisionRemarks('');
                     setApprovedAmount('');
+                    setRejectionReasonOption('');
                     fetchApplicationDetails();
                     fetchStatusHistory();
                     alert('Decision recorded successfully!');
@@ -1264,7 +1378,11 @@ export const ApplicationDetail: React.FC = () => {
                   setSubmitting(false);
                 }
               }}
-              disabled={!decisionStatus || (decisionStatus === 'Rejected' && !decisionRemarks.trim()) || submitting}
+              disabled={
+                !decisionStatus ||
+                (decisionStatus === 'Rejected' && (!rejectionReasonOption || (rejectionReasonOption === 'other' && !decisionRemarks.trim()))) ||
+                submitting
+              }
               loading={submitting}
             >
               Record Decision
@@ -1374,7 +1492,7 @@ export const ApplicationDetail: React.FC = () => {
               <p className="text-sm text-neutral-700">
                 <span className="font-medium">Current Status:</span>{' '}
                 <Badge variant={getStatusVariant(application?.status)}>
-                  {formatStatus(application?.status)}
+                  {getStatusDisplayNameForViewer(application?.status || '', userRole || '')}
                 </Badge>
               </p>
             </div>
