@@ -5,6 +5,9 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
+import { authService } from '../auth/auth.service.js';
+
+const VALID_ROLES = ['client', 'kam', 'credit_team', 'nbfc', 'admin'];
 
 export class UsersController {
   /**
@@ -13,8 +16,8 @@ export class UsersController {
    */
   async listKAMUsers(req: Request, res: Response): Promise<void> {
     try {
-      // Only credit team can list KAM users
-      if (req.user!.role !== 'credit_team') {
+      // Credit team and admin can list KAM users
+      if (req.user!.role !== 'credit_team' && req.user!.role !== 'admin') {
         res.status(403).json({
           success: false,
           error: 'Forbidden',
@@ -83,6 +86,68 @@ export class UsersController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to fetch KAM user',
+      });
+    }
+  }
+
+  /**
+   * POST /user-accounts
+   * Create new user account (credit_team and admin)
+   */
+  async createUserAccount(req: Request, res: Response): Promise<void> {
+    try {
+      if (req.user!.role !== 'credit_team' && req.user!.role !== 'admin') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { username, password, role, associatedProfile, accountStatus } = req.body;
+
+      if (!username || typeof username !== 'string' || !username.trim()) {
+        res.status(400).json({ success: false, error: 'Username (email) is required' });
+        return;
+      }
+      if (!password || typeof password !== 'string' || password.length < 6) {
+        res.status(400).json({ success: false, error: 'Password is required and must be at least 6 characters' });
+        return;
+      }
+      const normalizedRole = (role && typeof role === 'string' && VALID_ROLES.includes(role)) ? role : 'client';
+      const status = accountStatus === 'Inactive' ? 'Inactive' : 'Active';
+
+      const hashedPassword = await authService.hashPassword(password);
+      const newId = `USER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      const userAccountData = {
+        id: newId,
+        Username: username.trim().toLowerCase(),
+        Password: hashedPassword,
+        Role: normalizedRole,
+        'Associated Profile': associatedProfile != null ? String(associatedProfile).trim() : '',
+        'Last Login': '',
+        'Account Status': status,
+      };
+
+      await n8nClient.postUserAccount(userAccountData);
+
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'create_user_account',
+        'Description/Details': `Created user account ${username}`,
+        'Target Entity': 'user_account',
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'User account created successfully',
+        data: { id: newId, username: userAccountData.Username, role: normalizedRole, accountStatus: status },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create user account',
       });
     }
   }

@@ -14,6 +14,8 @@ export function useRoleAccess() {
   const isCredit = user?.role === 'credit_team';
   const isNBFC = user?.role === 'nbfc';
   const isAdmin = user?.role === 'admin';
+  /** Credit has full admin-level access; admin is treated as credit for dashboard/sidebar */
+  const hasAdminAccess = isCredit || isAdmin;
 
   const canAccess = (requiredRole: UserRole | UserRole[]): boolean => {
     if (!user) return false;
@@ -25,10 +27,10 @@ export function useRoleAccess() {
     return user.role === requiredRole;
   };
 
-  const canManageClients = isKAM || isCredit || isAdmin;
-  const canApprovePayouts = isCredit || isAdmin;
-  const canViewAllApplications = isCredit || isAdmin;
-  const canAssignNBFC = isCredit || isAdmin;
+  const canManageClients = isKAM || hasAdminAccess;
+  const canApprovePayouts = hasAdminAccess;
+  const canViewAllApplications = hasAdminAccess;
+  const canAssignNBFC = hasAdminAccess;
   const canGenerateReports = isCredit || isKAM || isAdmin;
 
   return {
@@ -38,6 +40,7 @@ export function useRoleAccess() {
     isCredit,
     isNBFC,
     isAdmin,
+    hasAdminAccess,
     canAccess,
     canManageClients,
     canApprovePayouts,

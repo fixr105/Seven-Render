@@ -798,6 +798,16 @@ export class KAMController {
         }
       }
 
+      // When creating mappings in bulk (FormConfiguration), a loan product is required
+      // so each Client Form Mapping row is tied to a specific Product ID.
+      if (modules && Array.isArray(modules) && modules.length > 0 && !productId) {
+        res.status(400).json({
+          success: false,
+          error: 'productId is required when creating form mappings for modules.',
+        });
+        return;
+      }
+
       // Support bulk creation via modules array
       if (modules && Array.isArray(modules)) {
         // Module 1: Versioning - store version timestamp for form config

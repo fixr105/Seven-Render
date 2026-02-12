@@ -65,7 +65,10 @@ export class AuthService {
     const isValid = await bcrypt.compare(password, hash);
     if (!isValid) return null;
 
-    return this.toAuthUser(user);
+    // Map User Account to AuthUser with role-specific profile IDs (clientId, kamId, etc.)
+    const baseUser = this.toAuthUser(user);
+    const enrichedUser = await this.populateProfileIds(baseUser, user);
+    return enrichedUser;
   }
 
   private toAuthUser(account: UserAccount): AuthUser {
@@ -81,6 +84,95 @@ export class AuthService {
       kamId: null,
       nbfcId: null,
       creditTeamId: null,
+    };
+  }
+
+  /**
+   * Populate profile IDs (clientId, kamId, nbfcId, creditTeamId) based on role.
+   * This mirrors the intended n8n login workflow mapping so that:
+   * - Client users get clientId from Clients table
+   * - KAM users get kamId from KAM Users table
+   * - Credit team users get creditTeamId from Credit Team Users table
+   * - NBFC users get nbfcId from NBFC Partners table
+   */
+  private async populateProfileIds(base: AuthUser, account: UserAccount): Promise<AuthUser> {
+    let clientId = base.clientId ?? null;
+    let kamId = base.kamId ?? null;
+    let nbfcId = base.nbfcId ?? null;
+    let creditTeamId = base.creditTeamId ?? null;
+
+    const username = (account.Username || '').trim();
+    const normalizedEmail = username.toLowerCase();
+    const associatedProfile = (account['Associated Profile'] || '').toString().trim().toLowerCase();
+
+    try {
+      if (base.role === UserRole.CLIENT) {
+        // Map client users to Clients table
+        const clients = await n8nClient.fetchTable('Clients');
+        const matchingClient = clients.find((c: any) => {
+          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
+          const clientName = (c['Client Name'] || c.clientName || '').toString().trim().toLowerCase();
+
+          // Match rule (from N8N_LOGIN_WORKFLOW_FIX.md):
+          // - Contact Email/Phone contains username (email)
+          // - OR Client Name matches associated_profile
+          const emailMatch = normalizedEmail && contact.includes(normalizedEmail);
+          const nameMatch = associatedProfile && clientName === associatedProfile;
+          return emailMatch || nameMatch;
+        });
+
+        if (matchingClient) {
+          clientId = (matchingClient['Client ID'] || matchingClient.clientId || matchingClient.id || null)?.toString() ?? null;
+        }
+      } else if (base.role === UserRole.KAM) {
+        // Map KAM users to KAM Users table
+        const kamUsers = await n8nClient.fetchTable('KAM Users');
+        const matchingKam = kamUsers.find((k: any) => {
+          const email = (k.Email || k['Email'] || '').toString().trim().toLowerCase();
+          return email && email === normalizedEmail;
+        });
+
+        if (matchingKam) {
+          kamId = (matchingKam['KAM ID'] || matchingKam.kamId || matchingKam.id || null)?.toString() ?? null;
+        }
+      } else if (base.role === UserRole.CREDIT) {
+        // Map Credit Team users to Credit Team Users table
+        const creditUsers = await n8nClient.fetchTable('Credit Team Users');
+        const matchingCredit = creditUsers.find((c: any) => {
+          const email = (c.Email || c['Email'] || '').toString().trim().toLowerCase();
+          return email && email === normalizedEmail;
+        });
+
+        if (matchingCredit) {
+          creditTeamId = (matchingCredit['Credit Team ID'] || matchingCredit.creditTeamId || matchingCredit.id || null)?.toString() ?? null;
+        }
+      } else if (base.role === UserRole.NBFC) {
+        // Map NBFC users to NBFC Partners table
+        const partners = await n8nClient.fetchTable('NBFC Partners');
+        const matchingPartner = partners.find((p: any) => {
+          const contact = (p['Contact Email/Phone'] || p.contactEmailPhone || '').toString().toLowerCase();
+          return normalizedEmail && contact.includes(normalizedEmail);
+        });
+
+        if (matchingPartner) {
+          nbfcId = (matchingPartner['Lender ID'] || matchingPartner.lenderId || matchingPartner.id || null)?.toString() ?? null;
+        }
+      }
+    } catch (error) {
+      // Log and continue with base IDs to avoid breaking login
+      defaultLogger.warn('Failed to populate profile IDs from Airtable tables', {
+        username,
+        role: base.role,
+        error: (error as Error).message,
+      });
+    }
+
+    return {
+      ...base,
+      clientId,
+      kamId,
+      nbfcId,
+      creditTeamId,
     };
   }
 

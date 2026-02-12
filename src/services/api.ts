@@ -407,6 +407,22 @@ class ApiService {
   }
 
   /**
+   * Create user account (credit_team/admin)
+   */
+  async createUserAccount(payload: {
+    username: string;
+    password: string;
+    role: string;
+    associatedProfile?: string;
+    accountStatus?: string;
+  }): Promise<ApiResponse<{ id: string; username: string; role: string; accountStatus: string }>> {
+    return this.request('/user-accounts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Get single user account
    */
   async getUserAccount(id: string): Promise<

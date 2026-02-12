@@ -15,12 +15,13 @@ export const Dashboard: React.FC = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const sidebarItems = useSidebarItems();
 
-  // Get role display name
+  // Get role display name (admin treated as Credit Team with full admin access)
   const getRoleDisplayName = () => {
     switch (userRole) {
       case 'client': return 'Client';
       case 'kam': return 'Key Account Manager';
-      case 'credit_team': return 'Credit Team';
+      case 'credit_team':
+      case 'admin': return 'Credit Team';
       case 'nbfc': return 'NBFC Partner';
       default: return '';
     }
@@ -37,7 +38,7 @@ export const Dashboard: React.FC = () => {
     return '';
   };
 
-  // Render role-specific dashboard
+  // Render role-specific dashboard (admin sees Credit dashboard with full admin features)
   const renderDashboard = () => {
     switch (userRole) {
       case 'client':
@@ -45,6 +46,7 @@ export const Dashboard: React.FC = () => {
       case 'kam':
         return <KAMDashboard />;
       case 'credit_team':
+      case 'admin':
         return <CreditDashboard />;
       case 'nbfc':
         return <NBFCDashboard />;
@@ -55,7 +57,7 @@ export const Dashboard: React.FC = () => {
               Unknown user role: <span className="font-mono text-neutral-700">{userRole || 'null'}</span>
             </p>
             <p className="text-sm text-neutral-400">
-              Valid roles are: client, kam, credit_team, nbfc
+              Valid roles are: client, kam, credit_team, admin, nbfc
             </p>
             <p className="text-sm text-neutral-400 mt-2">
               Please contact administrator to update your role in the system.

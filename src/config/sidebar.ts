@@ -22,7 +22,7 @@ const baseItems: SidebarNavItem[] = [
  * Returns sidebar items for the given role. Same order and set everywhere.
  * - client: Dashboard, Applications, Ledger (if M1 enabled), Reports, Settings
  * - kam: Dashboard, Applications, Clients, Reports, Settings
- * - credit_team: Dashboard, Applications, Clients, Ledger, Reports, Settings
+ * - credit_team / admin: Dashboard, Applications, Clients, Ledger, Reports, Activity Log, User Accounts, NBFC Partners, Settings
  * - nbfc: Dashboard, Applications, Reports, Settings
  * @param role - User role
  * @param enabledModules - For client role only: if provided and does not include 'M1', Ledger is hidden
@@ -49,6 +49,7 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
       ];
     case 'credit_team':
+    case 'admin':
       return [
         ...baseItems,
         { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },

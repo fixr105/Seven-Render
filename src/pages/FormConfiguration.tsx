@@ -254,6 +254,12 @@ export const FormConfiguration: React.FC = () => {
       return;
     }
 
+    // Module 1: Require loan product selection when configuring modules
+    if (selectedModules.size > 0 && !selectedProduct) {
+      alert('Please select a loan product before saving the form configuration.');
+      return;
+    }
+
     if (selectedModules.size === 0) {
       alert('Please select at least one module');
       return;
@@ -265,7 +271,8 @@ export const FormConfiguration: React.FC = () => {
       const modulesArray = Array.from(selectedModules);
       const response = await apiService.createFormMapping(selectedClient, {
         modules: modulesArray,
-        productId: selectedProduct || undefined, // Module 1: Include productId if selected
+        // Module 1: productId is required so each Client Form Mapping row has a Product ID
+        productId: selectedProduct,
       });
 
       if (!response.success) {
@@ -375,14 +382,14 @@ export const FormConfiguration: React.FC = () => {
               )}
             </div>
 
-            {/* Module 1: Loan Product Selection */}
+            {/* Module 1: Loan Product Selection (Required) */}
             {selectedClient && (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-neutral-900 mb-2">
-                  Select Loan Product (Optional)
+                  Select Loan Product *
                 </label>
                 <p className="text-xs text-neutral-500 mb-2">
-                  If selected, this form configuration will only apply to applications for this specific loan product. Leave empty to apply to all products.
+                  Select the loan product this form configuration applies to. A loan product is required so each Client Form Mapping row is tied to a specific product.
                 </p>
                 {loadingProducts ? (
                   <div className="text-sm text-neutral-500 py-2">Loading loan products...</div>
@@ -391,7 +398,7 @@ export const FormConfiguration: React.FC = () => {
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
                     options={[
-                      { value: '', label: '-- All Products (Default) --' },
+                      { value: '', label: '-- Select a Loan Product --' },
                       ...loanProducts.map((product, index) => ({
                         value: product.id || `product-${index}`,
                         label: product.name || 'Unnamed Product',
@@ -466,7 +473,7 @@ export const FormConfiguration: React.FC = () => {
                   variant="primary"
                   onClick={handleSaveForm}
                   loading={saving}
-                  disabled={!selectedClient || selectedModules.size === 0 || saving}
+                  disabled={!selectedClient || selectedModules.size === 0 || !selectedProduct || saving}
                 >
                   Save Form Configuration
                 </Button>

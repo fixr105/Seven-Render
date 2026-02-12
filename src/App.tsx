@@ -80,7 +80,7 @@ function AppRoutes() {
       <Route
         path="/ledger"
         element={
-          <ProtectedRoute allowedRoles={['client', 'credit_team']}>
+          <ProtectedRoute allowedRoles={['client', 'credit_team', 'admin']}>
             <Ledger />
           </ProtectedRoute>
         }
@@ -89,7 +89,7 @@ function AppRoutes() {
       <Route
         path="/clients"
         element={
-          <ProtectedRoute allowedRoles={['kam', 'credit_team']}>
+          <ProtectedRoute allowedRoles={['kam', 'credit_team', 'admin']}>
             <Clients />
           </ProtectedRoute>
         }

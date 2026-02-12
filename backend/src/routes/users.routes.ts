@@ -16,6 +16,7 @@ router.get('/kam-users', usersController.listKAMUsers.bind(usersController));
 router.get('/kam-users/:id', usersController.getKAMUser.bind(usersController));
 
 // User Accounts
+router.post('/user-accounts', usersController.createUserAccount.bind(usersController));
 router.get('/user-accounts', usersController.listUserAccounts.bind(usersController));
 router.get('/user-accounts/:id', usersController.getUserAccount.bind(usersController));
 router.patch('/user-accounts/:id/settings', usersController.updateUserSettings.bind(usersController));

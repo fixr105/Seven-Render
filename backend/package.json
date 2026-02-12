@@ -34,6 +34,8 @@
     "test:fixes": "tsx scripts/test-functionality-fixes.ts",
     "verify:login": "tsx scripts/verify-login-flow.ts",
     "test:login-script": "tsx scripts/test-login.ts",
+    "debug:clients-table": "tsx scripts/print-clients-table.ts",
+    "debug:client-form-mapping": "tsx scripts/print-client-form-mapping.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
