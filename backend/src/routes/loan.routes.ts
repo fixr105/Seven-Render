@@ -27,8 +27,8 @@ router.get('/:id/queries', loanController.getQueries.bind(loanController));
 router.patch('/:id/queries/:queryId', loanController.updateQuery.bind(loanController));
 router.post('/:id/queries/:queryId/resolve', loanController.resolveQuery.bind(loanController));
 
-// Query reply - CLIENT only (for replying to KAM/Credit queries)
-router.post('/:id/queries/:queryId/reply', requireClient, clientController.respondToQuery.bind(clientController));
+// Query reply - all roles with access (client, KAM, credit_team) for chat-style threads
+router.post('/:id/queries/:queryId/reply', loanController.replyToQuery.bind(loanController));
 
 export default router;
 

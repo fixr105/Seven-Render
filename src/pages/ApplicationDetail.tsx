@@ -93,6 +93,8 @@ export const ApplicationDetail: React.FC = () => {
   const [editingQueryId, setEditingQueryId] = useState<string | null>(null);
   const [editMessage, setEditMessage] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [submittingReplyForId, setSubmittingReplyForId] = useState<string | null>(null);
 
   const QUERY_EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
   const sidebarItems = useSidebarItems();
@@ -128,7 +130,43 @@ export const ApplicationDetail: React.FC = () => {
       
       if (response.success && response.data) {
         console.log(`[ApplicationDetail] Application found:`, { id: response.data.id, fileId: response.data.fileId });
-        setApplication(response.data);
+        const d = response.data as Record<string, unknown>;
+        const rawForm = d.form_data ?? d.formData ?? d['Form Data'];
+        let form_data: Record<string, unknown> = {};
+        if (rawForm != null) {
+          if (typeof rawForm === 'string') {
+            try {
+              const parsed = JSON.parse(rawForm);
+              form_data = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
+            } catch {
+              form_data = {};
+            }
+          } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+            form_data = rawForm as Record<string, unknown>;
+          }
+        }
+        const requestedAmount = d.requested_loan_amount ?? d.requestedAmount ?? d['Requested Loan Amount'];
+        const requested_loan_amount =
+          typeof requestedAmount === 'number' ? requestedAmount
+            : requestedAmount != null ? (typeof requestedAmount === 'string' ? parseFloat(String(requestedAmount)) : Number(requestedAmount)) : undefined;
+        const normalized = {
+          ...d,
+          file_number: d.file_number ?? d.fileId ?? d['File ID'],
+          applicant_name: d.applicant_name ?? d.applicantName ?? d['Applicant Name'],
+          form_data,
+          requested_loan_amount: Number.isNaN(requested_loan_amount) ? undefined : requested_loan_amount,
+          created_at: d.created_at ?? d.creationDate ?? d['Creation Date'],
+          updated_at: d.updated_at ?? d.lastUpdated ?? d['Last Updated'],
+          client:
+            d.client != null && typeof d.client === 'object' && !Array.isArray(d.client) && 'company_name' in (d.client as object)
+              ? d.client
+              : { company_name: d.client ?? d['Client Name'] ?? d.clientId ?? '' },
+          loan_product:
+            d.loan_product != null && typeof d.loan_product === 'object' && !Array.isArray(d.loan_product) && 'name' in (d.loan_product as object)
+              ? d.loan_product
+              : { name: d.product ?? d['Loan Product'] ?? d.loanProduct ?? '', code: d.productId ?? d['Loan Product'] ?? '' },
+        };
+        setApplication(normalized as import('../services/api').LoanApplication);
         // Set AI summary if available
         setAiSummary((response.data.aiFileSummary || (response.data as Record<string, unknown>)['AI File Summary']) ?? null);
       } else {
@@ -305,12 +343,17 @@ export const ApplicationDetail: React.FC = () => {
 
   const handleResolveQuery = async (queryId: string) => {
     if (!id) return;
-    
+
     setSubmitting(true);
     try {
       const response = await apiService.resolveQuery(id, queryId);
       if (response.success) {
         fetchQueries();
+        setReplyDrafts((prev) => {
+          const next = { ...prev };
+          delete next[queryId];
+          return next;
+        });
         alert('Query resolved successfully!');
       } else {
         throw new Error(response.error || 'Failed to resolve query');
@@ -320,6 +363,30 @@ export const ApplicationDetail: React.FC = () => {
       alert(error.message || 'Failed to resolve query');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRespondToQueryForThread = async (rootId: string, message: string) => {
+    if (!id || !message.trim()) return;
+
+    setSubmittingReplyForId(rootId);
+    try {
+      const response = await apiService.replyToQuery(id, rootId, message.trim());
+      if (response.success) {
+        setReplyDrafts((prev) => {
+          const next = { ...prev };
+          delete next[rootId];
+          return next;
+        });
+        fetchQueries();
+      } else {
+        throw new Error(response.error || 'Failed to send reply');
+      }
+    } catch (error: any) {
+      console.error('Error sending reply:', error);
+      alert((error as Error).message || 'Failed to send reply');
+    } finally {
+      setSubmittingReplyForId(null);
     }
   };
 
@@ -525,9 +592,11 @@ export const ApplicationDetail: React.FC = () => {
                 Update Status
               </Button>
             )}
-            <Button variant="secondary" icon={MessageSquare} onClick={() => setShowQueryModal(true)}>
-              Raise Query
-            </Button>
+            {(userRole === 'kam' || userRole === 'credit_team') && (
+              <Button variant="secondary" icon={MessageSquare} onClick={() => setShowQueryModal(true)}>
+                Raise Query
+              </Button>
+            )}
           </>
         }
       />
@@ -844,18 +913,34 @@ export const ApplicationDetail: React.FC = () => {
               <CardTitle>Application Information</CardTitle>
             </CardHeader>
             <CardContent>
-              {!application.form_data || Object.keys(application.form_data).length === 0 ? (
-                <p className="text-center text-neutral-500 py-6">No form data recorded</p>
-              ) : (
-                <div className="space-y-3">
-                  {Object.entries(application.form_data).map(([key, value]) => (
-                    <div key={key} className="grid grid-cols-3 gap-2">
-                      <p className="text-sm text-neutral-500 capitalize">{key.replace(/_/g, ' ')}</p>
-                      <p className="col-span-2 text-sm text-neutral-900">{String(value)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const rawForm = (application as Record<string, unknown>).form_data ?? (application as Record<string, unknown>).formData ?? (application as Record<string, unknown>)['Form Data'];
+                let formDataToShow: Record<string, unknown> = {};
+                if (rawForm != null) {
+                  if (typeof rawForm === 'string') {
+                    try {
+                      const parsed = JSON.parse(rawForm);
+                      formDataToShow = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
+                    } catch {
+                      formDataToShow = {};
+                    }
+                  } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+                    formDataToShow = rawForm as Record<string, unknown>;
+                  }
+                }
+                return !formDataToShow || Object.keys(formDataToShow).length === 0 ? (
+                  <p className="text-center text-neutral-500 py-6">No form data recorded</p>
+                ) : (
+                  <div className="space-y-3">
+                    {Object.entries(formDataToShow).map(([key, value]) => (
+                      <div key={key} className="grid grid-cols-3 gap-2">
+                        <p className="text-sm text-neutral-500 capitalize">{key.replace(/_/g, ' ')}</p>
+                        <p className="col-span-2 text-sm text-neutral-900">{String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
@@ -908,82 +993,106 @@ export const ApplicationDetail: React.FC = () => {
                   })()}
                   
                   {queries.map((thread: any) => {
-                    // Get root query with fallback
                     const rootQuery = thread.rootQuery || {};
-                    const isOwnQuery = user?.email && (rootQuery.actor || '').toLowerCase() === (user.email || '').toLowerCase();
+                    const isOwnRoot = user?.email && (rootQuery.actor || '').toLowerCase() === (user.email || '').toLowerCase();
                     const created = rootQuery.timestamp ? new Date(rootQuery.timestamp).getTime() : 0;
                     const withinEditWindow = created > 0 && (Date.now() - created <= QUERY_EDIT_WINDOW_MS);
-                    const canEdit = isOwnQuery && withinEditWindow && !thread.isResolved;
+                    const canEdit = isOwnRoot && withinEditWindow && !thread.isResolved;
                     const isEditing = editingQueryId === rootQuery.id;
-                    
-                    // Calculate last activity timestamp
-                    const allTimestamps = [
-                      rootQuery.timestamp,
-                      ...((thread.replies || []).map((r: any) => r.timestamp) || [])
-                    ].filter(Boolean);
-                    const lastActivity = allTimestamps.length > 0 
-                      ? allTimestamps.reduce((latest: string, ts: string) => {
-                          try {
-                            return new Date(ts) > new Date(latest) ? ts : latest;
-                          } catch {
-                            return latest;
-                          }
-                        })
-                      : null;
-                    
-                    // Check if credit raised query and no KAM reply yet
-                    // More reliable detection: check targetUserRole and actionEventType
-                    const isCreditQuery = rootQuery.targetUserRole === 'kam' && 
-                                         (rootQuery.actionEventType === 'credit_query' ||
-                                          rootQuery.actor?.toLowerCase().includes('credit') || 
-                                          (userRole === 'credit_team' && rootQuery.targetUserRole === 'kam'));
-                    const hasKAMReply = (thread.replies || []).some((r: any) => 
-                      r.targetUserRole === 'credit_team' ||
-                      r.actor?.toLowerCase().includes('kam')
-                    ) || false;
+
+                    const isCreditQuery = rootQuery.targetUserRole === 'kam' && (
+                                      rootQuery.actionEventType === 'credit_query' ||
+                                      (rootQuery.actor || '').toLowerCase().includes('credit')
+                                    );
+                    const hasKAMReply = (thread.replies || []).some((r: any) =>
+                                      r.targetUserRole === 'credit_team' || (r.actor || '').toLowerCase().includes('kam'));
                     const awaitingKAMResponse = isCreditQuery && !hasKAMReply && !thread.isResolved;
-                    
+
+                    const getActorLabel = (actorEmail: string, isRootMsg?: boolean) => {
+                                      if (!actorEmail) return 'Unknown';
+                                      if (user?.email && (actorEmail || '').toLowerCase() === (user.email || '').toLowerCase())
+                                        return 'You';
+                                      const a = (actorEmail || '').toLowerCase();
+                                      if (a.includes('credit')) return 'Credit Team';
+                                      if (a.includes('kam')) return 'KAM';
+                                      if (isRootMsg && rootQuery.actionEventType === 'credit_query') return 'Credit Team';
+                                      if (isRootMsg && (rootQuery.actionEventType === 'query_raised' || rootQuery.targetUserRole === 'client')) return 'KAM';
+                                      const beforeAt = (actorEmail || '').split('@')[0];
+                                      return beforeAt || 'Client';
+                                    };
+
+                    const messages: Array<{ id: string; actor: string; actorLabel: string; message: string; timestamp: string; isRoot: boolean }> = [
+                      {
+                                        id: rootQuery.id,
+                                        actor: rootQuery.actor || '',
+                                        actorLabel: getActorLabel(rootQuery.actor || '', true),
+                                        message: rootQuery.message || 'No message',
+                                        timestamp: rootQuery.timestamp || '',
+                                        isRoot: true,
+                      },
+                      ...(thread.replies || []).map((r: any) => ({
+                                        id: r.id,
+                                        actor: r.actor || '',
+                                        actorLabel: getActorLabel(r.actor || '', false),
+                                        message: r.message || '',
+                                        timestamp: r.timestamp || '',
+                                        isRoot: false,
+                      })),
+                    ].sort((a, b) => (a.timestamp && b.timestamp ? new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() : 0));
+
                     return (
-                    <div 
-                      key={thread.rootQuery.id} 
+                    <div
+                      key={thread.rootQuery.id}
                       className={`border rounded-lg p-4 ${
-                        awaitingKAMResponse && userRole === 'credit_team' 
-                          ? 'border-warning bg-warning/5' 
+                        awaitingKAMResponse && userRole === 'credit_team'
+                          ? 'border-warning bg-warning/5'
                           : 'border-neutral-200'
                       }`}
                     >
-                      {/* Root Query */}
-                      <div className="mb-4 pb-4 border-b border-neutral-200">
-                      <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
+                      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <span className="text-xs text-neutral-500">
+                          To: {rootQuery.targetUserRole === 'client' ? 'Client' : rootQuery.targetUserRole === 'kam' ? 'KAM' : (rootQuery.targetUserRole || '—')}
+                        </span>
+                        {rootQuery.resolved || thread.isResolved ? (
+                          <Badge variant="success" className="text-xs">Resolved</Badge>
+                        ) : (
+                          <Badge variant="warning" className="text-xs">Open</Badge>
+                        )}
+                        {awaitingKAMResponse && userRole === 'credit_team' && (
+                          <Badge variant="warning" className="text-xs">Awaiting KAM Response</Badge>
+                        )}
+                        {!thread.isResolved && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && rootQuery.id && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleResolveQuery(rootQuery.id)}
+                            disabled={submitting}
+                            loading={submitting}
+                          >
+                            Mark Resolved
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Chat thread: sequential messages */}
+                      <div className="space-y-3 mb-4">
+                        {messages.map((msg) => (
+                          <div
+                            key={msg.id}
+                            className={`rounded-lg p-3 ${
+                              msg.actorLabel === 'You'
+                                ? 'bg-brand-primary/10 ml-6 border border-brand-primary/20'
+                                : 'bg-neutral-50 mr-6 border border-neutral-200'
+                            }`}
+                          >
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="text-sm font-medium text-neutral-900">
-                                {rootQuery.actor || 'Unknown'}
-                              </span>
-                              {rootQuery.timestamp && (
-                                <span className="text-xs text-neutral-500">
-                                  {formatDateSafe(rootQuery.timestamp)}
-                                </span>
+                              <span className="text-sm font-medium text-neutral-900">{msg.actorLabel}</span>
+                              {msg.timestamp && (
+                                <span className="text-xs text-neutral-500">{formatDateSafe(msg.timestamp)}</span>
                               )}
-                              {rootQuery.resolved ? (
-                                <Badge variant="success" className="text-xs">Resolved</Badge>
-                              ) : (
-                                <Badge variant="warning" className="text-xs">Open</Badge>
-                              )}
-                              {awaitingKAMResponse && userRole === 'credit_team' && (
-                                <Badge variant="warning" className="text-xs">Awaiting KAM Response</Badge>
-                              )}
-                              {!awaitingKAMResponse && !thread.isResolved && hasKAMReply && userRole === 'credit_team' && (
-                                <Badge variant="info" className="text-xs">KAM Responded</Badge>
-                              )}
-                              {lastActivity && (
-                                <span className="text-xs text-neutral-500">
-                                  Last activity: {formatDateSafe(lastActivity)}
-                                </span>
-                              )}
-                        </div>
-                            {isEditing ? (
-                              <div className="mb-2">
+                            </div>
+                            {msg.isRoot && isEditing ? (
+                              <div className="mt-2">
                                 <TextArea
                                   value={editMessage}
                                   onChange={(e) => setEditMessage(e.target.value)}
@@ -1000,76 +1109,51 @@ export const ApplicationDetail: React.FC = () => {
                                 </div>
                               </div>
                             ) : (
-                              <p className="text-sm text-neutral-700 mb-2">{rootQuery.message || 'No message'}</p>
+                              <p className="text-sm text-neutral-700 whitespace-pre-wrap">{msg.message}</p>
                             )}
-                            {rootQuery.editHistory && rootQuery.editHistory.length > 0 && (
-                              <p className="text-xs text-neutral-500 mb-2">
-                                Edited on {formatDateSafe(rootQuery.editHistory[0].editedAt)}
-                                {rootQuery.editHistory.length > 1 ? ` (${rootQuery.editHistory.length} edits)` : ''}
-                              </p>
-                            )}
-                            {rootQuery.targetUserRole && (
-                              <p className="text-xs text-neutral-500">
-                                To: {rootQuery.targetUserRole}
-                              </p>
-                            )}
-                      </div>
-                          {canEdit && !isEditing && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              icon={Edit}
-                              onClick={() => { setEditingQueryId(rootQuery.id); setEditMessage(rootQuery.message || ''); }}
-                            >
-                              Edit
-                            </Button>
-                          )}
-                          {!thread.isResolved && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && rootQuery.id && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleResolveQuery(rootQuery.id)}
-                              disabled={submitting}
-                              loading={submitting}
-                            >
-                              Mark Resolved
-                            </Button>
-                          )}
-                        </div>
+                          </div>
+                        ))}
                       </div>
 
-                      {/* Replies */}
-                      {thread.replies && thread.replies.length > 0 && (
-                        <div className="ml-4 space-y-3 border-l-2 border-neutral-200 pl-4">
-                          {thread.replies.map((reply: any) => (
-                            <div key={reply.id} className="bg-neutral-50 rounded p-3">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-medium text-neutral-900">
-                                  {reply.actor}
-                                </span>
-                                <span className="text-xs text-neutral-500">
-                                  {formatDateSafe(reply.timestamp)}
-                                </span>
-                              </div>
-                              <p className="text-sm text-neutral-700">{reply.message}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Reply Button */}
-                      {!thread.isResolved && (
-                        <div className="mt-4">
+                      {canEdit && !isEditing && (
+                        <div className="mb-3">
                           <Button
                             variant="secondary"
                             size="sm"
-                            icon={MessageSquare}
-                            onClick={() => {
-                              setSelectedQuery(thread.rootQuery);
-                              setShowQueryModal(true);
-                            }}
+                            icon={Edit}
+                            onClick={() => { setEditingQueryId(rootQuery.id); setEditMessage(rootQuery.message || ''); }}
                           >
-                            Reply
+                            Edit query
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Inline reply: text input + Send (chat-style) */}
+                      {!thread.isResolved && (
+                        <div className="mt-4 flex gap-2 items-end">
+                          <TextArea
+                            placeholder="Type your response..."
+                            value={replyDrafts[thread.rootQuery.id] ?? ''}
+                            onChange={(e) =>
+                              setReplyDrafts((prev) => ({ ...prev, [thread.rootQuery.id]: e.target.value }))
+                            }
+                            rows={2}
+                            className="flex-1 min-w-0"
+                          />
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={MessageSquare}
+                            onClick={() =>
+                              handleRespondToQueryForThread(
+                                thread.rootQuery.id,
+                                replyDrafts[thread.rootQuery.id] ?? ''
+                              )
+                            }
+                            disabled={!(replyDrafts[thread.rootQuery.id] ?? '').trim() || submittingReplyForId === thread.rootQuery.id}
+                            loading={submittingReplyForId === thread.rootQuery.id}
+                          >
+                            Send
                           </Button>
                         </div>
                       )}
@@ -1445,7 +1529,7 @@ export const ApplicationDetail: React.FC = () => {
             <div className="space-y-4">
               <div className="bg-neutral-50 p-3 rounded">
                 <p className="text-sm font-medium text-neutral-700 mb-1">Original Query:</p>
-                <p className="text-sm text-neutral-900">{selectedQuery.query_text}</p>
+                <p className="text-sm text-neutral-900">{(selectedQuery as any).message ?? (selectedQuery as any).query_text ?? 'No message'}</p>
               </div>
               <TextArea
                 label="Your Response"

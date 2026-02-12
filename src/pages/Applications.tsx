@@ -52,6 +52,19 @@ const URL_STATUS_TO_FILTER: Record<string, string> = {
   disbursed: 'disbursed',
 };
 
+/** Map dropdown filter value to raw backend status(es). Filter by raw status so it works for all roles (e.g. client sees "Action required" but raw is kam_query_raised). */
+const FILTER_TO_RAW_STATUSES: Record<string, string[]> = {
+  draft: ['draft'],
+  pending: ['under_kam_review', 'pending_credit_review'],
+  query: ['kam_query_raised', 'query_with_client', 'credit_query_with_kam', 'credit_query_raised'],
+  credit: ['pending_credit_review'],
+  negotiation: ['in_negotiation'],
+  nbfc: ['sent_to_nbfc'],
+  approved: ['approved'],
+  rejected: ['rejected'],
+  disbursed: ['disbursed'],
+};
+
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -223,12 +236,16 @@ export const Applications: React.FC = () => {
     if (statusFilter === 'all') {
       matchesStatus = true;
     } else if (statusFilter === 'awaiting_kam_response') {
-      // Filter for applications where credit has raised a query and is waiting for KAM response
-      // Status is credit_query_with_kam OR has unresolved queries targeting KAM
-      matchesStatus = app.rawStatus === 'credit_query_with_kam' || 
+      matchesStatus = app.rawStatus === 'credit_query_with_kam' ||
                      (app.hasUnresolvedQueries && app.rawStatus !== 'closed');
     } else {
-      matchesStatus = app.status.toLowerCase().includes(statusFilter);
+      const rawStatuses = FILTER_TO_RAW_STATUSES[statusFilter];
+      const raw = (app.rawStatus || '').toLowerCase();
+      if (rawStatuses) {
+        matchesStatus = rawStatuses.some(s => s.toLowerCase() === raw);
+      } else {
+        matchesStatus = app.status.toLowerCase().includes(statusFilter);
+      }
     }
 
     return matchesSearch && matchesStatus;

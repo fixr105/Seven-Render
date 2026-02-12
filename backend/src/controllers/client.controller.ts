@@ -208,30 +208,70 @@ export class ClientController {
 
   /**
    * GET /client/configured-products
-   * Get list of product IDs that have configured forms for the authenticated client
+   * Get list of product IDs that have configured forms for the authenticated client.
+   * Matches Client Form Mapping by both business Client ID and Airtable record id,
+   * since KAM Form Configuration may save either depending on dropdown value.
+   * If the user has no clientId in the JWT (e.g. linked after login), resolves client
+   * from Clients table by matching Contact Email/Phone to the user's email.
    */
   async getConfiguredProducts(req: Request, res: Response): Promise<void> {
     try {
-      // Check if user is authenticated
-      if (!req.user || !req.user.clientId) {
+      if (!req.user || req.user.role !== 'client') {
         res.status(401).json({
           success: false,
-          error: 'Authentication required. Client ID not found.',
+          error: 'Authentication required.',
         });
         return;
       }
 
-      // Fetch ClientFormMapping table
+      const clients = await n8nClient.fetchTable('Clients');
+      const userEmail = (req.user.email || '').trim().toLowerCase();
+
+      // Resolve effective clientId: use JWT clientId, or look up by email if missing
+      let authClientId: string | null = req.user.clientId ? req.user.clientId.toString().trim() : null;
+      let matchingClient = authClientId
+        ? clients.find(
+            (c: any) =>
+              (c.id && c.id.toString().trim() === authClientId) ||
+              (c['Client ID'] && c['Client ID'].toString().trim() === authClientId) ||
+              (c.clientId && c.clientId.toString().trim() === authClientId)
+          )
+        : null;
+
+      if (!matchingClient && userEmail) {
+        matchingClient = clients.find((c: any) => {
+          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
+          return contact && contact.includes(userEmail);
+        });
+        if (matchingClient) {
+          authClientId = (matchingClient['Client ID'] || matchingClient.clientId || matchingClient.id || null)?.toString().trim() ?? null;
+        }
+      }
+
+      if (!authClientId) {
+        res.status(401).json({
+          success: false,
+          error:
+            'Client account not linked. Your login email must match the Contact Email/Phone on a Clients record, or you need to re-login after your account is linked.',
+        });
+        return;
+      }
+
+      // Build set of all identifiers for this client (id and Client ID) for mapping match
+      const acceptedClientIds = new Set<string>([authClientId]);
+      if (matchingClient) {
+        if (matchingClient.id) acceptedClientIds.add(matchingClient.id.toString().trim());
+        if (matchingClient['Client ID']) acceptedClientIds.add(matchingClient['Client ID'].toString().trim());
+        if (matchingClient.clientId) acceptedClientIds.add(matchingClient.clientId.toString().trim());
+      }
+
+      // Fetch Client Form Mapping table
       const mappings = await n8nClient.fetchTable('Client Form Mapping');
 
-      // Filter mappings for this client
+      // Filter mappings for this client (match on any accepted identifier)
       const clientMappings = mappings.filter((m: any) => {
-        const mappingClientId = m.Client || m.client || m['Client ID'];
-        return (
-          mappingClientId === req.user!.clientId ||
-          mappingClientId === req.user!.clientId?.toString() ||
-          req.user!.clientId === mappingClientId?.toString()
-        );
+        const mappingClientId = (m.Client || m.client || m['Client ID'] || '').toString().trim();
+        return mappingClientId && acceptedClientIds.has(mappingClientId);
       });
 
       // Extract unique Product IDs (where Product ID is not null/empty)
@@ -244,7 +284,7 @@ export class ClientController {
       });
 
       console.log(
-        `[getConfiguredProducts] Client ${req.user!.clientId} has ${productIds.size} configured products:`,
+        `[getConfiguredProducts] Client ${authClientId} (acceptedIds: ${Array.from(acceptedClientIds).join(', ')}) has ${productIds.size} configured products:`,
         Array.from(productIds)
       );
 
@@ -273,7 +313,8 @@ export class ClientController {
       }
 
       const { id, queryId } = req.params;
-      const { message, newDocs, answers } = req.body;
+      const { message: bodyMessage, reply, newDocs, answers } = req.body;
+      const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
       // Fetch only the tables we need
       const [applications, auditLogs] = await Promise.all([
         n8nClient.fetchTable('Loan Application'),

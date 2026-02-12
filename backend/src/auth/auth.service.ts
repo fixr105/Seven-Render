@@ -217,7 +217,7 @@ export class AuthService {
         nbfcId?: string | null;
         creditTeamId?: string | null;
       };
-      return {
+      const user: AuthUser = {
         id: decoded.userId,
         email: decoded.email,
         role: decoded.role,
@@ -227,9 +227,43 @@ export class AuthService {
         nbfcId: decoded.nbfcId ?? null,
         creditTeamId: decoded.creditTeamId ?? null,
       };
+      return this.resolveClientIdForClientUser(user);
     } catch {
       return null;
     }
+  }
+
+  /**
+   * If the user is a client and clientId is null (e.g. linked after login or match failed at login),
+   * resolve clientId from Clients table by matching Contact Email/Phone to the user's email.
+   * This ensures RBAC and client endpoints see a valid clientId without requiring re-login.
+   */
+  async resolveClientIdForClientUser(user: AuthUser): Promise<AuthUser> {
+    if (user.role !== UserRole.CLIENT || user.clientId) {
+      return user;
+    }
+    const email = (user.email || '').trim().toLowerCase();
+    if (!email) return user;
+    try {
+      const clients = await n8nClient.fetchTable('Clients');
+      const matching = clients.find((c: any) => {
+        const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
+        return contact && contact.includes(email);
+      });
+      if (matching) {
+        const resolved = (matching['Client ID'] || matching.clientId || matching.id || null)?.toString() ?? null;
+        if (resolved) {
+          defaultLogger.debug('Resolved clientId for client user from Clients table', {
+            email: user.email,
+            clientId: resolved,
+          });
+          return { ...user, clientId: resolved };
+        }
+      }
+    } catch (err: any) {
+      defaultLogger.warn('Failed to resolve clientId for client user', { email: user.email, error: err.message });
+    }
+    return user;
   }
 
   async hashPassword(password: string): Promise<string> {

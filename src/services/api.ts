@@ -345,7 +345,10 @@ class ApiService {
         if (isRelativeUrl) {
           errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-dash.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
         } else {
-          errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.`;
+          const corsHint = endpoint.includes('/auth/login')
+            ? '\n\nFor login: ensure the backend CORS_ORIGIN (Fly.io secrets) includes your exact frontend URL (e.g. https://seven-dashboard-seven.vercel.app with no trailing slash), then redeploy the backend.'
+            : '';
+          errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration (backend must allow your frontend origin)\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.${corsHint}`;
         }
       } else if (error.message?.includes('JSON.parse')) {
         errorMessage = `Invalid response from server. The API may not be responding correctly.`;
@@ -521,11 +524,11 @@ class ApiService {
   async replyToQuery(
     applicationId: string,
     queryId: string,
-    reply: string
+    message: string
   ): Promise<ApiResponse> {
     return this.request(`/loan-applications/${applicationId}/queries/${queryId}/reply`, {
       method: 'POST',
-      body: JSON.stringify({ reply }),
+      body: JSON.stringify({ message, reply: message }),
     });
   }
 

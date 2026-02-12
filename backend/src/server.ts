@@ -64,10 +64,16 @@ app.use(helmet({
 const corsOriginRaw =
   process.env.CORS_ORIGIN ||
   (process.env.NODE_ENV === 'production' ? 'https://lms.sevenfincorp.com' : undefined);
+
+function normalizeOrigin(o: string): string {
+  const t = o.trim();
+  return t.endsWith('/') ? t.slice(0, -1) : t;
+}
+
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = corsOriginRaw
-      ? corsOriginRaw.split(',').map((o) => o.trim()).filter(Boolean)
+      ? corsOriginRaw.split(',').map((o) => normalizeOrigin(o)).filter(Boolean)
       : ['*'];
 
     // Allow requests with no origin (curl, Postman, mobile, etc.)
@@ -75,16 +81,22 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const allowed =
+      allowedOrigins.includes('*') ||
+      allowedOrigins.includes(origin) ||
+      allowedOrigins.includes(normalizedOrigin);
+
+    if (allowed) {
       callback(null, true);
     } else {
-      defaultLogger.warn('CORS blocked request', { origin, allowedOrigins });
+      defaultLogger.warn('CORS blocked request', { origin, normalizedOrigin, allowedOrigins });
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   optionsSuccessStatus: 204,
 };
 

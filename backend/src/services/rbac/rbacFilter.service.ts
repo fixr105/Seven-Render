@@ -109,7 +109,11 @@ export class RBACFilterService {
         }
         return applications.filter((app: any) => {
           const appClient = app.Client || app['Client'] || app['Client ID'] || app.clientId;
-          return managedClientIds.some((clientId) => matchIds(appClient, clientId));
+          const matches = managedClientIds.some((clientId) => matchIds(appClient, clientId));
+          if (!matches && appClient) {
+            console.log(`[RBACFilter] KAM application excluded: fileId=${app['File ID'] || app.id}, appClient=${appClient}, managedClientIdsCount=${managedClientIds.length}`);
+          }
+          return matches;
         });
 
       case UserRole.NBFC:
@@ -432,9 +436,21 @@ export class RBACFilterService {
         return matches;
       });
 
-      const result = managedClients
-        .map((client: any) => client.id || client['Client ID'] || client['ID'])
-        .filter(Boolean);
+      // Build combined set: for each managed client include both record id and business ID (no duplicates)
+      const result: string[] = [];
+      for (const client of managedClients) {
+        const idsToAdd = [
+          client.id,
+          client['Client ID'],
+          client['ID'],
+        ].filter(Boolean).map(String);
+        for (const id of idsToAdd) {
+          const alreadyAdded = result.some((existing) => matchIds(existing, id));
+          if (!alreadyAdded) {
+            result.push(id);
+          }
+        }
+      }
 
       if (result.length === 0) {
         const sample = clients.slice(0, 5).map((c: any) => {

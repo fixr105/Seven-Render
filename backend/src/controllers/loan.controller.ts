@@ -684,6 +684,102 @@ export class LoanController {
   }
 
   /**
+   * POST /loan-applications/:id/queries/:queryId/reply
+   * Reply to a query (client, KAM, or credit_team). Chat-style thread replies.
+   */
+  async replyToQuery(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, queryId } = req.params;
+      const { message: bodyMessage, reply, newDocs, answers } = req.body;
+      const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
+
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app) => app.id === id);
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({ success: false, error: 'Access denied' });
+        return;
+      }
+
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
+      const rootQuery = auditLogs.find((q: any) => q.id === queryId && (q.File === application['File ID']));
+      if (!rootQuery) {
+        res.status(404).json({ success: false, error: 'Query not found' });
+        return;
+      }
+
+      const hasContent = message.trim() || (answers && Object.keys(answers).length > 0) || (newDocs && newDocs.length > 0);
+      if (!hasContent) {
+        res.status(400).json({ success: false, error: 'Message, answers, or new documents are required' });
+        return;
+      }
+
+      const role = (req.user!.role || '').toLowerCase();
+
+      if (role === 'client') {
+        if (answers) {
+          const currentFormData = application['Form Data'] ? JSON.parse(application['Form Data']) : {};
+          const updatedFormData = { ...currentFormData, ...answers };
+          await n8nClient.postLoanApplication({
+            ...application,
+            'Form Data': JSON.stringify(updatedFormData),
+            'Last Updated': new Date().toISOString(),
+          });
+        }
+        if (newDocs && newDocs.length > 0) {
+          const documents = application.Documents ? application.Documents.split(',').filter(Boolean) : [];
+          newDocs.forEach((doc: any) => documents.push(`${doc.fieldId}:${doc.fileUrl}`));
+          await n8nClient.postLoanApplication({
+            ...application,
+            Documents: documents.join(','),
+            'Last Updated': new Date().toISOString(),
+          });
+        }
+      }
+
+      const targetRole = (rootQuery['Target User/Role'] || '').toLowerCase().trim();
+      const replyTarget = targetRole === 'client' ? 'kam' : targetRole === 'kam' ? 'credit_team' : (rootQuery['Target User/Role'] || 'kam');
+      const replyMessage = [
+        message.trim(),
+        answers && Object.keys(answers).length ? `Answers provided: ${Object.keys(answers).join(', ')}` : '',
+        newDocs?.length ? `New documents uploaded: ${newDocs.length}` : '',
+      ].filter(Boolean).join('. ') || 'Response submitted.';
+
+      const { queryService } = await import('../services/queries/query.service.js');
+      await queryService.createQueryReply(
+        queryId,
+        application['File ID'],
+        application.Client,
+        req.user!.email,
+        role,
+        replyMessage,
+        replyTarget
+      );
+
+      if (role === 'client' && application.Status === 'query_with_client') {
+        await n8nClient.postLoanApplication({
+          ...application,
+          Status: LoanStatus.UNDER_KAM_REVIEW,
+          'Last Updated': new Date().toISOString(),
+        });
+      }
+
+      res.json({ success: true, message: 'Reply submitted successfully' });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to submit reply',
+      });
+    }
+  }
+
+  /**
    * GET /loan-applications/:id
    * Get single application
    * 
@@ -788,6 +884,18 @@ export class LoanController {
         });
       }
 
+      // Parse Form Data safely (invalid or empty string must not throw 500)
+      let formData: Record<string, unknown> = {};
+      const rawFormData = application['Form Data'];
+      if (rawFormData) {
+        try {
+          const parsed = typeof rawFormData === 'string' ? JSON.parse(rawFormData) : rawFormData;
+          formData = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
+        } catch {
+          formData = {};
+        }
+      }
+
       // Ensure id is included in response (use Airtable record ID)
       res.json({
         success: true,
@@ -795,7 +903,7 @@ export class LoanController {
           id: application.id, // Airtable record ID (e.g., recCHVlPoZQYfeKlG)
           fileId: application['File ID'] || application.id, // File ID for display
           ...application,
-          formData: application['Form Data'] ? JSON.parse(application['Form Data']) : {},
+          formData,
           documents, // Parsed documents array
           auditLog: fileAuditLog,
           aiFileSummary: application['AI File Summary'] || null, // AI File Summary field

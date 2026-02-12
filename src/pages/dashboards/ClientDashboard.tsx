@@ -28,6 +28,7 @@ export const ClientDashboard: React.FC = () => {
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
+  const [configuredProductsError, setConfiguredProductsError] = useState<string | null>(null);
 
   // Fetch on mount (including SPA navigation) and via Refresh.
   useEffect(() => {
@@ -41,6 +42,11 @@ export const ClientDashboard: React.FC = () => {
     fetchLoanProducts();
     fetchConfiguredProducts();
   };
+
+  const showAccountNotLinkedBanner =
+    !loadingProducts &&
+    (configuredProductsError != null ||
+      (applications.length === 0 && configuredProductIds.size === 0 && loanProducts.length > 0));
 
   const fetchLoanProducts = async () => {
     try {
@@ -71,15 +77,16 @@ export const ClientDashboard: React.FC = () => {
 
   const fetchConfiguredProducts = async () => {
     try {
+      setConfiguredProductsError(null);
       const response = await apiService.getConfiguredProducts();
       
       if (response.success && response.data) {
         setConfiguredProductIds(new Set(response.data));
       } else if (response.error) {
-        // Leave configured product IDs unchanged
+        setConfiguredProductsError(response.error);
       }
     } catch (_error) {
-      // Leave configured product IDs unchanged
+      setConfiguredProductsError('Could not load your configured products.');
     }
   };
 
@@ -122,6 +129,20 @@ export const ClientDashboard: React.FC = () => {
 
   return (
     <>
+      {showAccountNotLinkedBanner && (
+        <Card className="mb-6 border-warning bg-warning/5">
+          <CardContent className="p-4">
+            <p className="text-sm font-medium text-neutral-900">
+              Your account may not be linked to a client record.
+            </p>
+            <p className="text-sm text-neutral-600 mt-1">
+              {configuredProductsError ||
+                'To see applications and available loan products, your login email must match the Contact Email/Phone on your client record in the system. Please contact your KAM or administrator to link your account.'}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
         <Card>

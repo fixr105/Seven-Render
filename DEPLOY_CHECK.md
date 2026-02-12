@@ -25,6 +25,9 @@
 3. **Frontend (Vercel)**  
    In Vercel dashboard, confirm the latest production deployment for this repo succeeded and that `VITE_API_BASE_URL` is set to `https://seven-dash.fly.dev` (or your backend URL) for production.
 
+4. **If the live site still does not work**  
+   Follow [LIVE_SITE_SETUP.md](LIVE_SITE_SETUP.md): set `VITE_API_BASE_URL` and redeploy frontend, set `CORS_ORIGIN` on Fly.io to your Vercel URL (e.g. `./scripts/set-fly-cors.sh "https://your-app.vercel.app"`), and ensure `N8N_BASE_URL` and `JWT_SECRET` on Fly.io.
+
 ## Summary
 - Repo is clean and up to date; builds pass.
 - Backend root health at https://seven-dash.fly.dev/health is responding.

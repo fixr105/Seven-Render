@@ -25,13 +25,21 @@ export const authenticate = async (
   try {
     const token = req.cookies?.[authConfig.cookieName];
     if (!token) {
-      res.status(401).json({ success: false, error: 'Authentication required. Please login.' });
+      res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please login.',
+        code: 'LOGIN_REQUIRED',
+      });
       return;
     }
 
     const user = await authService.verifyToken(token);
     if (!user) {
-      res.status(401).json({ success: false, error: 'Session expired. Please login again.' });
+      res.status(401).json({
+        success: false,
+        error: 'Session expired. Please login again.',
+        code: 'LOGIN_REQUIRED',
+      });
       return;
     }
 
