@@ -966,6 +966,7 @@ export class LoanController {
           fileId: application['File ID'] || application.id, // File ID for display
           ...application,
           formData,
+          form_data: formData, // Alias for frontend compatibility
           documents, // Parsed documents array
           auditLog: fileAuditLog,
           aiFileSummary: application['AI File Summary'] || null, // AI File Summary field

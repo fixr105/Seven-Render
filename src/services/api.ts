@@ -64,9 +64,17 @@ export interface DashboardSummary {
   pendingQueries?: Array<{
     id: string;
     fileId: string;
+    applicationId?: string;
     message: string;
-    raisedBy: string;
-    timestamp: string;
+    raisedBy?: string;
+    timestamp?: string;
+  }>;
+  /** KAM dashboard: queries raised to KAM (from Credit or Client) */
+  pendingQuestionsFromCredit?: Array<{
+    id: string;
+    fileId: string;
+    applicationId?: string;
+    message: string;
   }>;
   payoutRequests?: Array<{
     id: string;

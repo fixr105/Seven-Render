@@ -5,6 +5,7 @@
 
 import { n8nClient } from '../airtable/n8nClient.js';
 import { notificationService } from '../notifications/notification.service.js';
+import { parseQueryContent } from '../../utils/queryParser.js';
 
 export interface QueryThread {
   rootQuery: {
@@ -207,8 +208,10 @@ export class QueryService {
 
     // Build threads
     const threads: QueryThread[] = rootQueries.map((root: any) => {
-      let rootMessage = (root['Details/Message'] ?? '').toString().trim();
-      if (!rootMessage || /^Reply to query\s+\S+\s*:?\s*$/.test(rootMessage)) {
+      const rawMessage = (root['Details/Message'] ?? '').toString();
+      const parsed = parseQueryContent(rawMessage);
+      let rootMessage = parsed.message?.trim() || '(No message)';
+      if (/^Reply to query\s+\S+\s*:?\s*$/.test(rootMessage)) {
         rootMessage = '(No message)';
       }
       const rootId = root.id;
@@ -338,7 +341,7 @@ export class QueryService {
 
   /**
    * Resolve a query and create resolution log entry.
-   * Only the query author can resolve, except KAM and Credit who can resolve any query.
+   * Only the query author can resolve, regardless of role.
    */
   async resolveQuery(
     queryId: string,
@@ -346,7 +349,7 @@ export class QueryService {
     clientId: string,
     resolvedBy: string,
     resolutionMessage?: string,
-    resolverRole?: string
+    _resolverRole?: string
   ): Promise<void> {
     const auditLogs = await n8nClient.fetchTable('File Auditing Log');
     const query = auditLogs.find((q: any) => q.id === queryId);
@@ -355,14 +358,10 @@ export class QueryService {
       throw new Error('Query not found');
     }
 
-    const role = (resolverRole || '').toLowerCase();
-    const isKamOrCredit = role === 'kam' || role === 'credit_team' || role === 'admin';
-    if (!isKamOrCredit) {
-      const queryActor = (query.Actor || '').trim().toLowerCase();
-      const resolverEmail = (resolvedBy || '').trim().toLowerCase();
-      if (queryActor && resolverEmail !== queryActor) {
-        throw new Error('Only the query author can resolve this query');
-      }
+    const queryActor = (query.Actor || '').trim().toLowerCase();
+    const resolverEmail = (resolvedBy || '').trim().toLowerCase();
+    if (queryActor && resolverEmail !== queryActor) {
+      throw new Error('Only the query author can resolve this query');
     }
 
     // Update query to resolved

@@ -1,6 +1,6 @@
 /**
  * Unit tests for QueryService.resolveQuery
- * Covers author-only resolution (non-KAM/Credit), KAM/Credit can resolve any, query not found
+ * Covers author-only resolution: only the query author can resolve, regardless of role
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
@@ -52,50 +52,7 @@ describe('QueryService.resolveQuery', () => {
     expect(mockPostFileAuditLog).not.toHaveBeenCalled();
   });
 
-  it('allows KAM to resolve any query (not author)', async () => {
-    await queryService.resolveQuery(
-      'QUERY-123',
-      'file-1',
-      'client-1',
-      'kam@example.com',
-      undefined,
-      'kam'
-    );
-
-    expect(mockPostFileAuditLog).toHaveBeenCalledTimes(2); // update query + resolution log
-    expect(mockPostFileAuditLog).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      ...mockQuery,
-      Resolved: 'True',
-    }));
-  });
-
-  it('allows Credit to resolve any query (not author)', async () => {
-    await queryService.resolveQuery(
-      'QUERY-123',
-      'file-1',
-      'client-1',
-      'credit@example.com',
-      undefined,
-      'credit_team'
-    );
-
-    expect(mockPostFileAuditLog).toHaveBeenCalledTimes(2);
-  });
-
-  it('allows Admin to resolve any query (not author)', async () => {
-    await queryService.resolveQuery(
-      'QUERY-123',
-      'file-1',
-      'client-1',
-      'admin@example.com',
-      undefined,
-      'admin'
-    );
-
-    expect(mockPostFileAuditLog).toHaveBeenCalledTimes(2);
-  });
-
-  it('allows author (client) to resolve own query when not KAM/Credit', async () => {
+  it('allows author (client) to resolve own query', async () => {
     await queryService.resolveQuery(
       'QUERY-123',
       'file-1',
@@ -106,9 +63,47 @@ describe('QueryService.resolveQuery', () => {
     );
 
     expect(mockPostFileAuditLog).toHaveBeenCalledTimes(2);
+    expect(mockPostFileAuditLog).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      ...mockQuery,
+      Resolved: 'True',
+    }));
   });
 
-  it('throws when non-author (non-KAM/Credit) tries to resolve', async () => {
+  it('throws when KAM tries to resolve Credit\'s query (not author)', async () => {
+    mockFetchTable.mockResolvedValue([{ ...mockQuery, Actor: 'credit@example.com' }]);
+
+    await expect(
+      queryService.resolveQuery(
+        'QUERY-123',
+        'file-1',
+        'client-1',
+        'kam@example.com',
+        undefined,
+        'kam'
+      )
+    ).rejects.toThrow('Only the query author can resolve this query');
+
+    expect(mockPostFileAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('throws when Credit tries to resolve KAM\'s query (not author)', async () => {
+    mockFetchTable.mockResolvedValue([{ ...mockQuery, Actor: 'kam@example.com' }]);
+
+    await expect(
+      queryService.resolveQuery(
+        'QUERY-123',
+        'file-1',
+        'client-1',
+        'credit@example.com',
+        undefined,
+        'credit_team'
+      )
+    ).rejects.toThrow('Only the query author can resolve this query');
+
+    expect(mockPostFileAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('throws when non-author tries to resolve', async () => {
     await expect(
       queryService.resolveQuery(
         'QUERY-123',

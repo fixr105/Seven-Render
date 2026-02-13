@@ -57,7 +57,7 @@ export class KAMController {
         ).length,
       };
 
-      // Pending questions from Credit
+      // Pending questions from Credit or Client (Target User/Role === 'kam')
       const pendingQuestions = auditLogs
         .filter(
           (log) =>
@@ -65,11 +65,15 @@ export class KAMController {
             log.Resolved === 'False' &&
             clientApplications.some((app) => app['File ID'] === log.File)
         )
-        .map((log) => ({
-          id: log.id,
-          fileId: log.File,
-          message: log['Details/Message'],
-        }));
+        .map((log) => {
+          const app = clientApplications.find((a: any) => a['File ID'] === log.File);
+          return {
+            id: log.id,
+            fileId: log.File,
+            applicationId: app?.id || app?.['Record ID'] || log.File,
+            message: log['Details/Message'] || '',
+          };
+        });
 
       // Ledger disputes for managed clients (use matchIds; entry.Client is Client ID)
       const ledgerDisputes = ledgerEntries

@@ -68,11 +68,34 @@ export class CreditController {
         pendingQueries: auditLogs.filter((log) => log.Resolved === 'False').length,
       };
 
+      // Pending queries (client + credit) for dashboard display
+      const actionType = (log: any) => (log['Action/Event Type'] || '').toLowerCase();
+      const pendingQueriesList = auditLogs
+        .filter(
+          (log: any) =>
+            actionType(log).includes('query') &&
+            log.Resolved === 'False' &&
+            !actionType(log).includes('query_resolved') &&
+            !actionType(log).includes('query_edited')
+        )
+        .filter((log: any) => !(log['Details/Message'] || '').includes('Reply to query'))
+        .map((log: any) => {
+          const fileId = log.File || log['File'] || log['File ID'];
+          const app = applications.find((a: any) => (a['File ID'] || a.fileId) === fileId);
+          return {
+            id: log.id,
+            fileId,
+            applicationId: app?.id || app?.['Record ID'] || fileId,
+            message: (log['Details/Message'] || '').toString().trim().slice(0, 100),
+          };
+        });
+
       res.json({
         success: true,
         data: {
           filesByStage,
           aggregateMetrics,
+          pendingQueries: pendingQueriesList,
         },
       });
     } catch (error: any) {
@@ -1191,7 +1214,11 @@ export class CreditController {
 
       const clientsData = (clients as any[]).map((client: any) => {
         const assignedKAM = client['Assigned KAM'] || client.assignedKAM;
-        const assignedKAMName = resolveKAMName(assignedKAM, kamNameMap);
+        let assignedKAMName = resolveKAMName(assignedKAM, kamNameMap);
+        // Defensive: if resolution returned raw ID (no match in KAM Users), prefer expanded name from Airtable if present
+        if (assignedKAMName === assignedKAM && (client['Assigned KAM Name'] || client.assignedKAMName)) {
+          assignedKAMName = client['Assigned KAM Name'] || client.assignedKAMName || assignedKAMName;
+        }
         return {
           id: client.id || client['Client ID'],
           clientId: client['Client ID'] || client.id,

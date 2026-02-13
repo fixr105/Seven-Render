@@ -36,6 +36,29 @@ export const KAMDashboard: React.FC = () => {
   const [clients, setClients] = useState<ClientStats[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [clientsError, setClientsError] = useState<string | null>(null);
+  const [pendingQueries, setPendingQueries] = useState<Array<{ id: string; fileId: string; applicationId?: string; message: string }>>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  // Fetch KAM dashboard (pending queries) on mount and refresh
+  const fetchDashboard = async () => {
+    try {
+      setDashboardLoading(true);
+      const res = await apiService.getKAMDashboard();
+      if (res.success && res.data?.pendingQuestionsFromCredit) {
+        setPendingQueries(res.data.pendingQuestionsFromCredit);
+      } else {
+        setPendingQueries([]);
+      }
+    } catch {
+      setPendingQueries([]);
+    } finally {
+      setDashboardLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
 
   // Fetch on mount (including SPA navigation) and via Refresh when userRoleId is available.
   useEffect(() => {
@@ -150,6 +173,41 @@ export const KAMDashboard: React.FC = () => {
         </Card>
       )}
 
+      {/* Pending Queries (from Client or Credit) */}
+      {!dashboardLoading && pendingQueries.length > 0 && (
+        <Card id="pending-queries" className="mb-6 border-warning/30 bg-warning/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-warning" />
+              Pending Queries
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-neutral-600 mb-3">
+              {pendingQueries.length} query{pendingQueries.length !== 1 ? 'ies' : ''} from clients or credit awaiting your response.
+            </p>
+            <ul className="space-y-2">
+              {pendingQueries.map((q) => (
+                <li key={q.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/applications/${q.applicationId || q.fileId}`)}
+                    className="text-sm font-medium text-brand-primary hover:underline"
+                  >
+                    {q.fileId}
+                  </button>
+                  {q.message && (
+                    <span className="text-neutral-500 ml-2">
+                      — {String(q.message).slice(0, 80)}{String(q.message).length > 80 ? '…' : ''}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
@@ -218,7 +276,7 @@ export const KAMDashboard: React.FC = () => {
       <Card className="mb-6">
         <CardHeader className="flex items-center justify-between">
           <CardTitle>Action Center</CardTitle>
-          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => { refetch(); fetchClients(); }}>
+          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => { refetch(); fetchClients(); fetchDashboard(); }}>
             Refresh
           </Button>
         </CardHeader>

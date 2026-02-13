@@ -32,6 +32,8 @@ export const CreditDashboard: React.FC = () => {
   const { payoutRequests } = useLedger();
   const [slaPastDue, setSlaPastDue] = useState<SlaPastDueItem[]>([]);
   const [slaLoading, setSlaLoading] = useState(true);
+  const [pendingQueries, setPendingQueries] = useState<Array<{ id: string; fileId: string; applicationId?: string; message: string }>>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +42,17 @@ export const CreditDashboard: React.FC = () => {
       setSlaLoading(false);
       if (res.success && res.data?.items) setSlaPastDue(res.data.items);
     }).catch(() => { if (!cancelled) setSlaLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiService.getCreditDashboard().then((res) => {
+      if (cancelled) return;
+      setDashboardLoading(false);
+      if (res.success && res.data?.pendingQueries) setPendingQueries(res.data.pendingQueries);
+      else setPendingQueries([]);
+    }).catch(() => { if (!cancelled) setDashboardLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -195,6 +208,41 @@ export const CreditDashboard: React.FC = () => {
                   <span className="text-neutral-500 ml-2">
                     — {item.daysPastSLA} day(s) past SLA
                   </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Queries */}
+      {!dashboardLoading && pendingQueries.length > 0 && (
+        <Card id="pending-queries" className="mb-6 border-warning/30 bg-warning/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-warning" />
+              Pending Queries
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-neutral-600 mb-3">
+              {pendingQueries.length} query{pendingQueries.length !== 1 ? 'ies' : ''} requiring your attention.
+            </p>
+            <ul className="space-y-2">
+              {pendingQueries.map((q) => (
+                <li key={q.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/applications/${q.applicationId || q.fileId}`)}
+                    className="text-sm font-medium text-brand-primary hover:underline"
+                  >
+                    {q.fileId}
+                  </button>
+                  {q.message && (
+                    <span className="text-neutral-500 ml-2">
+                      — {String(q.message).slice(0, 80)}{String(q.message).length > 80 ? '…' : ''}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

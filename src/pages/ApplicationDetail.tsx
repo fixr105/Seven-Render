@@ -15,7 +15,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
-import { getStatusDisplayNameForViewer } from '../lib/statusUtils';
+import { getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
 
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
@@ -151,6 +151,7 @@ export const ApplicationDetail: React.FC = () => {
             : requestedAmount != null ? (typeof requestedAmount === 'string' ? parseFloat(String(requestedAmount)) : Number(requestedAmount)) : undefined;
         const normalized = {
           ...d,
+          status: normalizeStatus(String(d.status ?? d.Status ?? 'draft')),
           file_number: d.file_number ?? d.fileId ?? d['File ID'],
           applicant_name: d.applicant_name ?? d.applicantName ?? d['Applicant Name'],
           form_data,
@@ -485,7 +486,7 @@ export const ApplicationDetail: React.FC = () => {
       { value: 'withdrawn', label: 'Withdrawn' },
       { value: 'closed', label: 'Closed/Archived' },
     ];
-    const currentStatus = (application?.status || '').toLowerCase();
+    const currentStatus = (application?.status || application?.Status || '').toString().toLowerCase();
     if (userRole === 'client' && currentStatus === 'draft') {
       return [
         { value: 'under_kam_review', label: 'Submit' },
@@ -617,9 +618,9 @@ export const ApplicationDetail: React.FC = () => {
         actions={
           <>
             {((userRole === 'kam' || userRole === 'credit_team') ||
-              (userRole === 'client' && ['draft', 'under_kam_review', 'query_with_client', 'pending_kam_review', 'kam_query_raised'].includes((application?.status || '').toLowerCase()))) && (
+              (userRole === 'client' && ['draft', 'under_kam_review', 'query_with_client', 'pending_kam_review', 'kam_query_raised'].includes((application?.status || application?.Status || '').toString().toLowerCase()))) && (
               <Button variant="primary" icon={Edit} onClick={() => setShowStatusModal(true)}>
-                {userRole === 'client' && (application?.status || '').toLowerCase() === 'draft' ? 'Submit / Withdraw' : 'Update Status'}
+                {userRole === 'client' && (application?.status || application?.Status || '').toString().toLowerCase() === 'draft' ? 'Submit / Withdraw' : 'Update Status'}
               </Button>
             )}
             {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && (
@@ -1093,7 +1094,7 @@ export const ApplicationDetail: React.FC = () => {
                         )}
                         {!thread.isResolved && rootQuery.id && (() => {
                           const isAuthor = user?.email && (rootQuery.actor || '').toLowerCase() === (user.email || '').toLowerCase();
-                          const canResolve = userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin' || (userRole === 'client' && isAuthor);
+                          const canResolve = isAuthor;
                           return canResolve ? (
                             <Button
                               variant="secondary"
