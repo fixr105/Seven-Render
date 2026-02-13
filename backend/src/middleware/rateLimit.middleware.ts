@@ -13,8 +13,8 @@ const RATE_LIMIT_CONFIG = {
   AUTH_PER_ACCOUNT_MAX: parseInt(process.env.AUTH_RATE_LIMIT_PER_ACCOUNT || '5', 10),
   AUTH_WINDOW_MS: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000), 10),
   
-  // API rate limits
-  API_MAX: parseInt(process.env.API_RATE_LIMIT_MAX || '100', 10),
+  // API rate limits (higher default for dashboard: many parallel requests on page load)
+  API_MAX: parseInt(process.env.API_RATE_LIMIT_MAX || '500', 10),
   API_WINDOW_MS: parseInt(process.env.API_RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000), 10),
   
   // Upload rate limits
