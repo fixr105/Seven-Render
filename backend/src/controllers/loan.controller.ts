@@ -946,9 +946,38 @@ export class LoanController {
         });
       }
 
-      // Parse Form Data safely (invalid or empty string must not throw 500)
+      // Parse Form Data safely (defensive reads for n8n/Airtable field name variants)
       let formData: Record<string, unknown> = {};
-      const rawFormData = application['Form Data'];
+      const rawFormData =
+        application['Form Data'] ??
+        application.formData ??
+        application['form_data'] ??
+        (application as any).FormData;
+      const formDataSource =
+        application['Form Data'] !== undefined
+          ? 'Form Data'
+          : application.formData !== undefined
+            ? 'formData'
+            : application['form_data'] !== undefined
+              ? 'form_data'
+              : (application as any).FormData !== undefined
+                ? 'FormData'
+                : 'none';
+      console.log(
+        '[getApplication] Form Data source:',
+        formDataSource,
+        'type:',
+        typeof rawFormData,
+        'length:',
+        typeof rawFormData === 'string' ? rawFormData.length : 'N/A'
+      );
+      if (rawFormData) {
+        const preview =
+          typeof rawFormData === 'string'
+            ? rawFormData.slice(0, 100)
+            : JSON.stringify(rawFormData).slice(0, 100);
+        console.log('[getApplication] Form Data preview:', preview);
+      }
       if (rawFormData) {
         try {
           const parsed = typeof rawFormData === 'string' ? JSON.parse(rawFormData) : rawFormData;
@@ -957,6 +986,14 @@ export class LoanController {
           formData = {};
         }
       }
+      console.log('[getApplication] Parsed formData keys:', Object.keys(formData).length, 'keys:', Object.keys(formData).slice(0, 5));
+      if (Object.keys(formData).length === 0) {
+        console.log(`[getApplication] No form data for application ${application.id} (File ID: ${application['File ID']}) source: ${formDataSource}`);
+      }
+
+      // Normalize status for frontend (Submit/Withdraw visibility for draft)
+      const rawStatus = application.Status || application.status || 'draft';
+      const normalizedStatus = String(rawStatus).toLowerCase().trim();
 
       // Ensure id is included in response (use Airtable record ID)
       res.json({
@@ -965,6 +1002,8 @@ export class LoanController {
           id: application.id, // Airtable record ID (e.g., recCHVlPoZQYfeKlG)
           fileId: application['File ID'] || application.id, // File ID for display
           ...application,
+          status: normalizedStatus,
+          Status: normalizedStatus,
           formData,
           form_data: formData, // Alias for frontend compatibility
           documents, // Parsed documents array

@@ -51,11 +51,19 @@ Use this checklist to verify each fix after deployment.
 - [ ] Confirm the query appears in the Queries section
 - [ ] Log in as **KAM** and verify they see the client's query
 
+### 2b. Pending Queries Card (KAM/Credit Dashboard)
+
+- [ ] Ensure at least one unresolved query exists (Client or Credit raises query to KAM)
+- [ ] Log in as **KAM** → Go to **Dashboard**
+- [ ] Verify "Pending Queries" card appears with query count and links to applications
+- [ ] Log in as **Credit** → Go to **Dashboard**
+- [ ] Verify "Pending Queries" card appears when there are unresolved queries for credit
+
 ### 3. Query Section Data
 
 - [ ] Log in as **KAM** or **Credit**
 - [ ] Open an application that has queries
-- [ ] Verify query messages display (not "No message")
+- [ ] Verify query messages display correctly (not "No message" or "(No message)")
 - [ ] Verify "Application Information" section shows form data (or "No form data recorded" if empty)
 
 ### 4. Query Resolution Permissions

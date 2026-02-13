@@ -234,6 +234,19 @@ export class RBACFilterService {
             return managedClientIds.some((clientId) => matchIds(appClient, clientId));
           })
           .map((app: any) => app['File ID'] || app['fileId'] || app.id);
+        console.log('[filterFileAuditLog] KAM managedFileIds count:', managedFileIds.length, 'sample:', managedFileIds.slice(0, 3));
+        const excluded = entries.filter((entry: any) => {
+          const fileId = entry.File || entry['File'] || entry['File ID'] || entry.fileId;
+          return !managedFileIds.includes(fileId);
+        });
+        if (excluded.length > 0) {
+          const sampleExcluded = excluded.slice(0, 3).map((e: any) => ({
+            File: e.File,
+            FileAlt: e['File ID'],
+            TargetUserRole: e['Target User/Role'],
+          }));
+          console.log('[filterFileAuditLog] KAM excluded entries count:', excluded.length, 'sample:', sampleExcluded);
+        }
         return entries.filter((entry: any) => {
           const fileId = entry.File || entry['File'] || entry['File ID'] || entry.fileId;
           return managedFileIds.includes(fileId);

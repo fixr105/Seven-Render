@@ -68,7 +68,7 @@ export class CreditController {
         pendingQueries: auditLogs.filter((log) => log.Resolved === 'False').length,
       };
 
-      // Pending queries (client + credit) for dashboard display
+      const normFileId = (v: any) => String(v ?? '').trim().toLowerCase();
       const actionType = (log: any) => (log['Action/Event Type'] || '').toLowerCase();
       const pendingQueriesList = auditLogs
         .filter(
@@ -80,12 +80,15 @@ export class CreditController {
         )
         .filter((log: any) => !(log['Details/Message'] || '').includes('Reply to query'))
         .map((log: any) => {
-          const fileId = log.File || log['File'] || log['File ID'];
-          const app = applications.find((a: any) => (a['File ID'] || a.fileId) === fileId);
+          const rawFileId = log.File || log['File ID'];
+          const fileIdNorm = normFileId(rawFileId);
+          const app = applications.find(
+            (a: any) => normFileId(a['File ID'] || a.fileId) === fileIdNorm
+          );
           return {
             id: log.id,
-            fileId,
-            applicationId: app?.id || app?.['Record ID'] || fileId,
+            fileId: rawFileId,
+            applicationId: app?.id || app?.['Record ID'] || rawFileId,
             message: (log['Details/Message'] || '').toString().trim().slice(0, 100),
           };
         });
@@ -312,7 +315,12 @@ export class CreditController {
   async raiseQuery(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { message, requestedDocs, clarifications } = req.body;
+      const message = req.body.message ?? req.body.query ?? '';
+      const { requestedDocs, clarifications } = req.body;
+      if (!message || !String(message).trim()) {
+        res.status(400).json({ success: false, error: 'Message is required' });
+        return;
+      }
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
@@ -331,7 +339,7 @@ export class CreditController {
 
       // Build query message
       const queryMessage = [
-        message,
+        String(message).trim(),
         requestedDocs?.length ? `Documents requested: ${requestedDocs.join(', ')}` : '',
         clarifications?.length ? `Clarifications: ${clarifications.join(', ')}` : '',
       ]
@@ -1211,6 +1219,27 @@ export class CreditController {
       ]);
 
       const kamNameMap = buildKAMNameMap(kamUsers as any[]);
+      const mapKeys = Array.from(kamNameMap.keys());
+      console.log('[listCreditClients] kamNameMap size:', kamNameMap.size, 'sample keys:', mapKeys.slice(0, 5));
+      let logged = 0;
+      for (const client of clients as any[]) {
+        if (logged >= 3) break;
+        const assignedKAM = client['Assigned KAM'] || client.assignedKAM;
+        if (!assignedKAM) continue;
+        const resolved = resolveKAMName(assignedKAM, kamNameMap);
+        const failed = resolved === assignedKAM;
+        console.log(
+          '[listCreditClients] Client',
+          client['Client Name'] || client.clientName,
+          'assignedKAM:',
+          assignedKAM,
+          'resolved:',
+          resolved,
+          'lookupFailed:',
+          failed
+        );
+        logged++;
+      }
 
       const clientsData = (clients as any[]).map((client: any) => {
         const assignedKAM = client['Assigned KAM'] || client.assignedKAM;

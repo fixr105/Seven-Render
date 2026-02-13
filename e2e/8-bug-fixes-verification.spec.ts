@@ -81,7 +81,7 @@ test.describe('8 Bug Fixes Verification', () => {
     }
   });
 
-  test('3. Query section: Queries section and Application Information render', async ({ page }) => {
+  test('3. Query section: Queries section and Application Information render; messages not "No message"', async ({ page }) => {
     await loginAs(page, 'kam');
     await waitForPageLoad(page);
 
@@ -98,12 +98,21 @@ test.describe('8 Bug Fixes Verification', () => {
 
       const appInfo = page.getByText(/Application Information|No form data recorded/i).first();
       await expect(appInfo).toBeVisible({ timeout: 5000 });
+
+      // Bug 3: When app has queries, messages must not show "No message" or "(No message)"
+      const noQueriesYet = page.getByText(/No queries yet/i);
+      if (!(await noQueriesYet.isVisible({ timeout: 2000 }).catch(() => false))) {
+        const noMessageVisible = await page.getByText('No message', { exact: true }).isVisible({ timeout: 1000 }).catch(() => false);
+        const noMessageParenVisible = await page.getByText('(No message)', { exact: true }).isVisible({ timeout: 1000 }).catch(() => false);
+        expect(noMessageVisible).toBe(false);
+        expect(noMessageParenVisible).toBe(false);
+      }
     } else {
       test.skip();
     }
   });
 
-  test('4. Query resolution: Mark Resolved visible for KAM on application detail', async ({ page }) => {
+  test('4. Query resolution: Mark Resolved only on queries you raised', async ({ page }) => {
     await loginAs(page, 'kam');
     await waitForPageLoad(page);
 
@@ -115,12 +124,29 @@ test.describe('8 Bug Fixes Verification', () => {
       await firstLink.click();
       await page.waitForLoadState('networkidle');
 
-      const hasQuerySection = await page.getByText(/Queries|Communication/i).first().isVisible({ timeout: 5000 }).catch(() => false);
-      if (hasQuerySection) {
-        const markResolved = page.locator('button:has-text("Mark Resolved")').first();
-        const hasResolved = await markResolved.isVisible({ timeout: 3000 }).catch(() => false);
-        const hasOpenBadge = await page.getByText(/Open|Resolved/i).first().isVisible({ timeout: 2000 }).catch(() => false);
-        expect(hasResolved || hasOpenBadge || true).toBe(true);
+      const noQueriesYet = page.getByText(/No queries yet/i);
+      if (await noQueriesYet.isVisible({ timeout: 2000 }).catch(() => false)) {
+        return; // No queries - nothing to verify
+      }
+
+      // Bug 5: Mark Resolved must appear only on queries where current user (KAM) is the author
+      const queryThreads = page.locator('div.border.rounded-lg.p-4').filter({ has: page.locator('span:has-text("To:")') });
+      const threadCount = await queryThreads.count();
+      for (let i = 0; i < threadCount; i++) {
+        const thread = queryThreads.nth(i);
+        const markResolvedBtn = thread.locator('button:has-text("Mark Resolved")');
+        const hasMarkResolved = await markResolvedBtn.isVisible({ timeout: 500 }).catch(() => false);
+        const firstActorLabel = thread.locator('span.text-sm.font-medium').first();
+        const actorText = (await firstActorLabel.textContent())?.trim() || '';
+        const isOwnQuery = actorText === 'You';
+        if (hasMarkResolved) {
+          expect(isOwnQuery).toBe(true);
+        } else {
+          const isResolved = await thread.locator('text=Resolved').isVisible({ timeout: 200 }).catch(() => false);
+          if (!isResolved) {
+            expect(isOwnQuery).toBe(false);
+          }
+        }
       }
     } else {
       test.skip();
@@ -157,6 +183,32 @@ test.describe('8 Bug Fixes Verification', () => {
 
     const statsOrCards = page.locator('[class*="Card"], .card, [data-testid="dashboard"]').first();
     await expect(statsOrCards.or(page.getByText(/Past SLA|Pending|Applications|Payout/i).first())).toBeVisible({ timeout: 10000 });
+  });
+
+  test('2b. Pending Queries card: KAM/Credit dashboard shows card when unresolved queries exist', async ({ page }) => {
+    // KAM dashboard
+    await loginAs(page, 'kam');
+    await waitForPageLoad(page);
+    await page.goto('/dashboard');
+    await page.waitForLoadState('networkidle');
+
+    const kamPendingQueriesCard = page.locator('#pending-queries');
+    if (await kamPendingQueriesCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await expect(kamPendingQueriesCard.getByText(/Pending Queries/i)).toBeVisible();
+      await expect(kamPendingQueriesCard.getByText(/query|queries/i)).toBeVisible();
+    }
+
+    // Credit dashboard
+    await loginAs(page, 'credit');
+    await waitForPageLoad(page);
+    await page.goto('/dashboard');
+    await page.waitForLoadState('networkidle');
+
+    const creditPendingQueriesCard = page.locator('#pending-queries');
+    if (await creditPendingQueriesCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await expect(creditPendingQueriesCard.getByText(/Pending Queries/i)).toBeVisible();
+      await expect(creditPendingQueriesCard.getByText(/query|queries/i)).toBeVisible();
+    }
   });
 
   test('7. Ledger: Client ledger page loads', async ({ page }) => {

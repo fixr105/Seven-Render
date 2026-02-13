@@ -1093,7 +1093,14 @@ export const ApplicationDetail: React.FC = () => {
                           <Badge variant="warning" className="text-xs">Awaiting KAM Response</Badge>
                         )}
                         {!thread.isResolved && rootQuery.id && (() => {
-                          const isAuthor = user?.email && (rootQuery.actor || '').toLowerCase() === (user.email || '').toLowerCase();
+                          const actor = (rootQuery.actor || '').trim();
+                          const userEmail = (user?.email || '').trim().toLowerCase();
+                          const actorLower = actor.toLowerCase();
+                          const isAuthor =
+                            userEmail &&
+                            actor &&
+                            actor.includes('@') &&
+                            actorLower === userEmail;
                           const canResolve = isAuthor;
                           return canResolve ? (
                             <Button

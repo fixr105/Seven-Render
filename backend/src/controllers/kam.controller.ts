@@ -7,6 +7,7 @@ import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus, Module } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 import { matchIds } from '../utils/idMatcher.js';
+import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 
 export class KAMController {
   /**
@@ -35,6 +36,9 @@ export class KAMController {
       const ledgerEntries = await rbacFilterService.filterCommissionLedger(allLedgerEntries, req.user!);
       const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
 
+      console.log('[getKAMDashboard] Audit logs: before RBAC', allAuditLogs.length, 'after RBAC', auditLogs.length);
+      console.log('[getKAMDashboard] managedClientIds (first 5):', managedClientIds.slice(0, 5));
+
       // Managed clients from Clients table; filter by getKAMManagedClientIds (Client IDs only)
       const managedClients = clients.filter((c: any) => {
         const cid = c.id || c['Client ID'] || c['ID'];
@@ -43,6 +47,8 @@ export class KAMController {
 
       // applications already KAM-scoped by rbacFilterService
       const clientApplications = applications;
+      const appFileIds = clientApplications.map((a: any) => a['File ID'] || a.fileId);
+      console.log('[getKAMDashboard] clientApplications File IDs (first 5):', appFileIds.slice(0, 5));
 
       // Files by stage
       const filesByStage = {
@@ -57,16 +63,33 @@ export class KAMController {
         ).length,
       };
 
-      // Pending questions from Credit or Client (Target User/Role === 'kam')
+      const normFileId = (v: any) => String(v ?? '').trim().toLowerCase();
+      const queryLogsToKam = auditLogs.filter(
+        (l: any) => l['Target User/Role'] === 'kam' && l.Resolved === 'False'
+      );
+      console.log('[getKAMDashboard] Query logs to KAM (unresolved):', queryLogsToKam.length);
+      if (queryLogsToKam.length > 0) {
+        console.log('[getKAMDashboard] Sample query log:', {
+          File: queryLogsToKam[0].File,
+          FileAlt: queryLogsToKam[0]['File ID'],
+          TargetUserRole: queryLogsToKam[0]['Target User/Role'],
+          Resolved: queryLogsToKam[0].Resolved,
+        });
+      }
       const pendingQuestions = auditLogs
         .filter(
           (log) =>
             log['Target User/Role'] === 'kam' &&
             log.Resolved === 'False' &&
-            clientApplications.some((app) => app['File ID'] === log.File)
+            clientApplications.some((app) =>
+              normFileId(app['File ID'] || app.fileId) === normFileId(log.File || log['File ID'])
+            )
         )
         .map((log) => {
-          const app = clientApplications.find((a: any) => a['File ID'] === log.File);
+          const logFileId = normFileId(log.File || log['File ID']);
+          const app = clientApplications.find(
+            (a: any) => normFileId(a['File ID'] || a.fileId) === logFileId
+          );
           return {
             id: log.id,
             fileId: log.File,
@@ -74,6 +97,7 @@ export class KAMController {
             message: log['Details/Message'] || '',
           };
         });
+      console.log('[getKAMDashboard] pendingQuestions count:', pendingQuestions.length);
 
       // Ledger disputes for managed clients (use matchIds; entry.Client is Client ID)
       const ledgerDisputes = ledgerEntries
@@ -210,6 +234,15 @@ export class KAMController {
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
       const managedClients = await rbacFilterService.filterClients(clients, { ...req.user, kamId });
 
+      // Fetch KAM Users to resolve Assigned KAM IDs to names (show "Sagar" instead of "USER-1767430957573-81645wu26")
+      let kamNameMap = new Map<string, string>();
+      try {
+        const kamUsers = await n8nClient.fetchTable('KAM Users', !bypassCache);
+        kamNameMap = buildKAMNameMap(kamUsers as any[]);
+      } catch (err) {
+        console.warn('[listClients] Could not fetch KAM Users for name resolution:', err);
+      }
+
       console.log(`[listClients] Managed clients found: ${managedClients.length} out of ${clients.length} total`);
       if (managedClients.length === 0) {
         console.warn('[listClients] ⚠️  No managed clients found', { 
@@ -232,18 +265,26 @@ export class KAMController {
         });
       }
 
-      // Transform to API response format
-      const clientList = managedClients.map((client: any) => ({
-        id: client.id,
-        clientId: client['Client ID'] || client.id,
-        clientName: client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
-        primaryContactName: client['Primary Contact Name'],
-        contactEmailPhone: client['Contact Email / Phone'],
-        assignedKAM: client['Assigned KAM'],
-        enabledModules: client['Enabled Modules'] ? client['Enabled Modules'].split(',').map((m: string) => m.trim()) : [],
-        commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
-        status: client.Status,
-      }));
+      // Transform to API response format (resolve Assigned KAM ID to name for display)
+      const clientList = managedClients.map((client: any) => {
+        const assignedKAM = client['Assigned KAM'] || client.assignedKAM;
+        let assignedKAMName = resolveKAMName(assignedKAM, kamNameMap);
+        if (assignedKAMName === assignedKAM && (client['Assigned KAM Name'] || client.assignedKAMName)) {
+          assignedKAMName = client['Assigned KAM Name'] || client.assignedKAMName || assignedKAMName;
+        }
+        return {
+          id: client.id,
+          clientId: client['Client ID'] || client.id,
+          clientName: client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
+          primaryContactName: client['Primary Contact Name'],
+          contactEmailPhone: client['Contact Email / Phone'],
+          assignedKAM,
+          assignedKAMName,
+          enabledModules: client['Enabled Modules'] ? client['Enabled Modules'].split(',').map((m: string) => m.trim()) : [],
+          commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
+          status: client.Status,
+        };
+      });
 
       // Add debug info if there are filtered clients
       const responseData: any = {
@@ -1163,7 +1204,12 @@ export class KAMController {
   async raiseQuery(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { message, fieldsRequested, documentsRequested, allowsClientToEdit } = req.body;
+      const message = req.body.message ?? req.body.query ?? '';
+      const { fieldsRequested, documentsRequested, allowsClientToEdit } = req.body;
+      if (!message || !String(message).trim()) {
+        res.status(400).json({ success: false, error: 'Message is required' });
+        return;
+      }
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
@@ -1182,7 +1228,7 @@ export class KAMController {
 
       // Build query message
       const queryMessage = [
-        message,
+        String(message).trim(),
         fieldsRequested?.length ? `Fields requested: ${fieldsRequested.join(', ')}` : '',
         documentsRequested?.length ? `Documents requested: ${documentsRequested.join(', ')}` : '',
       ]

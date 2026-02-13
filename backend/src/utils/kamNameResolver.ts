@@ -19,19 +19,23 @@ export interface ClientRecord {
 
 /**
  * Build a map of KAM ID -> KAM name from KAM Users table.
- * Supports both record id and KAM ID field for lookup.
+ * Supports record id, KAM ID field, and common n8n/Airtable field name variants.
  */
 export function buildKAMNameMap(kamUsers: KAMUserRecord[]): Map<string, string> {
   const kamById = new Map<string, string>();
   for (const k of kamUsers) {
-    const name = (k.Name || k['Name'] || '').trim();
-    const kid = k.id || k['KAM ID'];
-    if (kid) {
-      kamById.set(String(kid), name);
+    const name = (k.Name || k['Name'] || (k as any).name || '').trim();
+    const kid = k.id || k['KAM ID'] || (k as any)['kam id'] || (k as any).kamId;
+    if (kid && name) {
+      const key = String(kid).trim();
+      kamById.set(key, name);
     }
-    const kamId = k['KAM ID'];
-    if (kamId && String(kamId) !== String(kid)) {
-      kamById.set(String(kamId), name);
+    const kamId = k['KAM ID'] || (k as any)['kam id'] || (k as any).kamId;
+    if (kamId) {
+      const key = String(kamId).trim();
+      if (!kamById.has(key)) {
+        kamById.set(key, (k.Name || k['Name'] || (k as any).name || '').trim());
+      }
     }
   }
   return kamById;
