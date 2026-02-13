@@ -299,8 +299,8 @@ export const ApplicationDetail: React.FC = () => {
       } else if (userRole === 'credit_team') {
         response = await apiService.raiseQueryToKAM(id, queryMessage);
       } else {
-        // Client raising query - use generic query endpoint
-        response = await apiService.replyToQuery(id, '', queryMessage);
+        // Client raising query - use dedicated create endpoint
+        response = await apiService.createClientQuery(id, queryMessage);
       }
 
       if (response.success) {
@@ -416,23 +416,33 @@ export const ApplicationDetail: React.FC = () => {
     try {
       // Use API service based on role and status
       let response;
-      
-      if (userRole === 'kam' && newStatus === 'forwarded_to_credit') {
+      const currentStatus = (application?.status || '').toLowerCase();
+
+      // Client with DRAFT: use submitApplication for Submit, withdrawApplication for Withdraw
+      if (userRole === 'client' && currentStatus === 'draft') {
+        if (newStatus === 'under_kam_review') {
+          response = await apiService.submitApplication(id);
+        } else if (newStatus === 'withdrawn') {
+          response = await apiService.withdrawApplication(id);
+        } else {
+          response = await apiService.editApplication(id, { status: newStatus });
+        }
+      } else if (userRole === 'client' && newStatus === 'withdrawn') {
+        response = await apiService.withdrawApplication(id);
+      } else if (userRole === 'kam' && (newStatus === 'forwarded_to_credit' || newStatus === 'pending_credit_review')) {
         response = await apiService.forwardToCredit(id);
       } else if (userRole === 'credit_team') {
         if (newStatus === 'in_negotiation') {
           response = await apiService.markInNegotiation(id);
         } else if (newStatus === 'disbursed') {
           response = await apiService.markDisbursed(id, {
-            disbursedAmount: application.disbursedAmount || '0',
+            disbursedAmount: application?.disbursedAmount || '0',
             disbursedDate: new Date().toISOString(),
           });
         } else {
-          // Generic status update via edit
           response = await apiService.editApplication(id, { status: newStatus });
         }
       } else {
-        // Generic edit for other cases
         response = await apiService.editApplication(id, { status: newStatus });
       }
 
@@ -455,19 +465,38 @@ export const ApplicationDetail: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const statusOptions = [
-    { value: 'draft', label: 'Draft' },
-    { value: 'pending_kam_review', label: 'Submitted / Pending KAM Review' },
-    { value: 'kam_query_raised', label: 'KAM Query Raised' },
-    { value: 'forwarded_to_credit', label: 'Approved by KAM / Forwarded to Credit' },
-    { value: 'credit_query_raised', label: 'Credit Query Raised' },
-    { value: 'in_negotiation', label: 'In Negotiation' },
-    { value: 'sent_to_nbfc', label: 'Sent to NBFC' },
-    { value: 'approved', label: 'NBFC Approved' },
-    { value: 'rejected', label: 'NBFC Rejected' },
-    { value: 'disbursed', label: 'Disbursed' },
-    { value: 'closed', label: 'Closed/Archived' },
-  ];
+  // Role and status-aware options. Clients with DRAFT only get Submit and Withdraw.
+  const statusOptions = (() => {
+    const allOptions = [
+      { value: 'draft', label: 'Draft' },
+      { value: 'under_kam_review', label: 'Submitted / Pending KAM Review' },
+      { value: 'pending_kam_review', label: 'Submitted / Pending KAM Review' },
+      { value: 'query_with_client', label: 'KAM Query Raised' },
+      { value: 'kam_query_raised', label: 'KAM Query Raised' },
+      { value: 'pending_credit_review', label: 'Approved by KAM / Forwarded to Credit' },
+      { value: 'forwarded_to_credit', label: 'Approved by KAM / Forwarded to Credit' },
+      { value: 'credit_query_with_kam', label: 'Credit Query Raised' },
+      { value: 'credit_query_raised', label: 'Credit Query Raised' },
+      { value: 'in_negotiation', label: 'In Negotiation' },
+      { value: 'sent_to_nbfc', label: 'Sent to NBFC' },
+      { value: 'approved', label: 'NBFC Approved' },
+      { value: 'rejected', label: 'NBFC Rejected' },
+      { value: 'disbursed', label: 'Disbursed' },
+      { value: 'withdrawn', label: 'Withdrawn' },
+      { value: 'closed', label: 'Closed/Archived' },
+    ];
+    const currentStatus = (application?.status || '').toLowerCase();
+    if (userRole === 'client' && currentStatus === 'draft') {
+      return [
+        { value: 'under_kam_review', label: 'Submit' },
+        { value: 'withdrawn', label: 'Withdraw' },
+      ];
+    }
+    if (userRole === 'client' && (currentStatus === 'under_kam_review' || currentStatus === 'query_with_client' || currentStatus === 'pending_kam_review' || currentStatus === 'kam_query_raised')) {
+      return [{ value: 'withdrawn', label: 'Withdraw' }];
+    }
+    return allOptions;
+  })();
 
   if (loading) {
     return (
@@ -587,12 +616,13 @@ export const ApplicationDetail: React.FC = () => {
         onBack={() => navigate(-1)}
         actions={
           <>
-            {(userRole === 'kam' || userRole === 'credit_team') && (
+            {((userRole === 'kam' || userRole === 'credit_team') ||
+              (userRole === 'client' && ['draft', 'under_kam_review', 'query_with_client', 'pending_kam_review', 'kam_query_raised'].includes((application?.status || '').toLowerCase()))) && (
               <Button variant="primary" icon={Edit} onClick={() => setShowStatusModal(true)}>
-                Update Status
+                {userRole === 'client' && (application?.status || '').toLowerCase() === 'draft' ? 'Submit / Withdraw' : 'Update Status'}
               </Button>
             )}
-            {(userRole === 'kam' || userRole === 'credit_team') && (
+            {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && (
               <Button variant="secondary" icon={MessageSquare} onClick={() => setShowQueryModal(true)}>
                 Raise Query
               </Button>
@@ -1061,17 +1091,21 @@ export const ApplicationDetail: React.FC = () => {
                         {awaitingKAMResponse && userRole === 'credit_team' && (
                           <Badge variant="warning" className="text-xs">Awaiting KAM Response</Badge>
                         )}
-                        {!thread.isResolved && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && rootQuery.id && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleResolveQuery(rootQuery.id)}
-                            disabled={submitting}
-                            loading={submitting}
-                          >
-                            Mark Resolved
-                          </Button>
-                        )}
+                        {!thread.isResolved && rootQuery.id && (() => {
+                          const isAuthor = user?.email && (rootQuery.actor || '').toLowerCase() === (user.email || '').toLowerCase();
+                          const canResolve = userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin' || (userRole === 'client' && isAuthor);
+                          return canResolve ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleResolveQuery(rootQuery.id)}
+                              disabled={submitting}
+                              loading={submitting}
+                            >
+                              Mark Resolved
+                            </Button>
+                          ) : null;
+                        })()}
                       </div>
 
                       {/* Chat thread: sequential messages */}

@@ -19,6 +19,21 @@ export type LoanStatus =
   | 'closed';
 
 /**
+ * Normalize status to canonical backend values.
+ * Maps legacy/alias values from frontend or inconsistent sources to canonical values.
+ */
+export function normalizeStatus(status: string): string {
+  const s = (status || '').toLowerCase().trim();
+  const aliasMap: Record<string, string> = {
+    forwarded_to_credit: 'pending_credit_review',
+    credit_query_raised: 'credit_query_with_kam',
+    pending_kam_review: 'under_kam_review',
+    kam_query_raised: 'query_with_client',
+  };
+  return (aliasMap[s] ?? s) || 'draft';
+}
+
+/**
  * Statuses that mean "client action required" (query raised to client or awaiting client response).
  * For client role these are shown as "Action required" instead of technical labels.
  */

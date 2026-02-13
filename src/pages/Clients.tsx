@@ -23,6 +23,7 @@ interface Client {
   email: string;
   phone: string;
   kam_id: string | null;
+  kam_name?: string | null;
   is_active: boolean;
   created_at: string;
   _count?: {
@@ -93,6 +94,7 @@ export const Clients: React.FC = () => {
           email: client.contactEmailPhone?.split(' / ')[0] || client.email || '',
           phone: client.contactEmailPhone?.split(' / ')[1] || client.phone || '',
           kam_id: client.assignedKAM || client['Assigned KAM'] || null,
+          kam_name: client.assignedKAMName || client['Assigned KAM Name'] || null,
           is_active: client.status === 'Active' || client.Status === 'Active',
           created_at: client.createdAt || client['Created At'] || new Date().toISOString(),
           _count: { applications: 0 },
@@ -255,9 +257,9 @@ export const Clients: React.FC = () => {
       key: 'kam_id',
       label: 'Assigned KAM',
       sortable: false,
-      render: (value) => (
+      render: (value, row) => (
         value ? (
-          <Badge variant="info">{String(value)}</Badge>
+          <Badge variant="info">{String((row as Client).kam_name || value)}</Badge>
         ) : (
           <Badge variant="warning">Unassigned</Badge>
         )

@@ -3,6 +3,7 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { DataTable, Column } from '../components/ui/DataTable';
+import { Select } from '../components/ui/Select';
 import { ClipboardList, RefreshCw, Filter } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
@@ -31,6 +32,8 @@ export const AdminActivityLog: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   const [performedBy, setPerformedBy] = useState('');
   const [actionType, setActionType] = useState('');
+  const [performedByOptions, setPerformedByOptions] = useState<{ value: string; label: string }[]>([]);
+  const [actionTypeOptions, setActionTypeOptions] = useState<{ value: string; label: string }[]>([]);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -46,7 +49,24 @@ export const AdminActivityLog: React.FC = () => {
         actionType: actionType || undefined,
       });
       if (response.success && response.data) {
-        setEntries(Array.isArray(response.data) ? response.data : []);
+        const data = Array.isArray(response.data) ? response.data : [];
+        setEntries(data);
+        const bySet = new Set<string>();
+        const typeSet = new Set<string>();
+        data.forEach((e: ActivityLogEntry) => {
+          if (e.performedBy?.trim()) bySet.add(e.performedBy.trim());
+          if (e.actionType?.trim()) typeSet.add(e.actionType.trim());
+        });
+        setPerformedByOptions((prev) => {
+          const prevValues = prev.filter((o) => o.value).map((o) => o.value);
+          const merged = new Set([...prevValues, ...bySet]);
+          return [{ value: '', label: 'All' }, ...Array.from(merged).sort().map((v) => ({ value: v, label: v }))];
+        });
+        setActionTypeOptions((prev) => {
+          const prevValues = prev.filter((o) => o.value).map((o) => o.value);
+          const merged = new Set([...prevValues, ...typeSet]);
+          return [{ value: '', label: 'All' }, ...Array.from(merged).sort().map((v) => ({ value: v, label: v }))];
+        });
       } else {
         setEntries([]);
         setError(response.error || 'Failed to load activity log');
@@ -164,23 +184,19 @@ export const AdminActivityLog: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Performed by</label>
-                <input
-                  type="text"
-                  placeholder="User email or name"
+                <Select
+                  label="Performed by"
+                  options={performedByOptions.length > 0 ? performedByOptions : [{ value: '', label: 'All' }]}
                   value={performedBy}
                   onChange={(e) => setPerformedBy(e.target.value)}
-                  className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Action type</label>
-                <input
-                  type="text"
-                  placeholder="Action type"
+                <Select
+                  label="Action type"
+                  options={actionTypeOptions.length > 0 ? actionTypeOptions : [{ value: '', label: 'All' }]}
                   value={actionType}
                   onChange={(e) => setActionType(e.target.value)}
-                  className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
                 />
               </div>
             </div>

@@ -1181,21 +1181,38 @@ export class CreditController {
    */
   async listClients(req: Request, res: Response): Promise<void> {
     try {
-      // Fetch only Clients table
-      const clients = await n8nClient.fetchTable('Clients');
+      const [clients, kamUsers] = await Promise.all([
+        n8nClient.fetchTable('Clients'),
+        n8nClient.fetchTable('KAM Users'),
+      ]);
 
-      // Transform to API response format
-      const clientsData = clients.map((client: any) => ({
-        id: client.id || client['Client ID'],
-        clientId: client['Client ID'] || client.id,
-        clientName: client['Client Name'] || client.clientName,
-        primaryContactName: client['Primary Contact Name'] || client.primaryContactName,
-        contactEmailPhone: client['Contact Email / Phone'] || client.contactEmailPhone,
-        assignedKAM: client['Assigned KAM'] || client.assignedKAM,
-        enabledModules: client['Enabled Modules'] || client.enabledModules,
-        commissionRate: client['Commission Rate'] || client.commissionRate,
-        status: client['Status'] || client.status || 'Active',
-      }));
+      const kamById = new Map<string, { name: string }>();
+      for (const k of kamUsers as any[]) {
+        const kid = k.id || k['KAM ID'];
+        if (kid) {
+          kamById.set(kid, { name: k.Name || k['Name'] || '' });
+        }
+        const kamId = k['KAM ID'];
+        if (kamId && kamId !== kid) kamById.set(kamId, { name: k.Name || k['Name'] || '' });
+      }
+
+      const clientsData = (clients as any[]).map((client: any) => {
+        const assignedKAM = client['Assigned KAM'] || client.assignedKAM;
+        const kam = assignedKAM ? kamById.get(assignedKAM) : null;
+        const assignedKAMName = (kam?.name && kam.name.trim()) ? kam.name.trim() : (assignedKAM || '');
+        return {
+          id: client.id || client['Client ID'],
+          clientId: client['Client ID'] || client.id,
+          clientName: client['Client Name'] || client.clientName,
+          primaryContactName: client['Primary Contact Name'] || client.primaryContactName,
+          contactEmailPhone: client['Contact Email / Phone'] || client.contactEmailPhone,
+          assignedKAM,
+          assignedKAMName,
+          enabledModules: client['Enabled Modules'] || client.enabledModules,
+          commissionRate: client['Commission Rate'] || client.commissionRate,
+          status: client['Status'] || client.status || 'Active',
+        };
+      });
 
       res.json({
         success: true,

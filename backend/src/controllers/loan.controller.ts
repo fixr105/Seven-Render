@@ -552,9 +552,13 @@ export class LoanController {
       // Role-based visibility: Client and NBFC only see threads targeted at them
       const viewerRole = (req.user!.role || '').toLowerCase();
       if (viewerRole === 'client') {
-        threads = threads.filter(
-          (t) => (t.rootQuery.targetUserRole || '').toLowerCase().trim() === 'client'
-        );
+        const clientEmail = (req.user!.email || '').toLowerCase();
+        threads = threads.filter((t) => {
+          const targetRole = (t.rootQuery.targetUserRole || '').toLowerCase().trim();
+          const actor = (t.rootQuery.actor || '').toLowerCase().trim();
+          // Show: KAM→Client threads (targetUserRole=client) OR Client→KAM threads (targetUserRole=kam and client is actor)
+          return targetRole === 'client' || (targetRole === 'kam' && actor === clientEmail);
+        });
       } else if (viewerRole === 'nbfc') {
         threads = threads.filter(
           (t) => (t.rootQuery.targetUserRole || '').toLowerCase().trim() === 'nbfc'
@@ -569,6 +573,63 @@ export class LoanController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to fetch queries',
+      });
+    }
+  }
+
+  /**
+   * POST /loan-applications/:id/queries
+   * Create a new query (client only). Client raises query to their assigned KAM.
+   */
+  async createClientQuery(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { id } = req.params;
+      const { message } = req.body;
+      const queryMessage = typeof message === 'string' ? message.trim() : '';
+
+      if (!queryMessage) {
+        res.status(400).json({ success: false, error: 'message is required' });
+        return;
+      }
+
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app) => app.id === id);
+
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      const clientId = application.Client || application['Client'];
+      if (clientId !== req.user.clientId) {
+        res.status(403).json({ success: false, error: 'Access denied. You can only raise queries for your own applications.' });
+        return;
+      }
+
+      const { queryService } = await import('../services/queries/query.service.js');
+      await queryService.createQuery(
+        application['File ID'],
+        clientId,
+        req.user.email,
+        'client',
+        queryMessage,
+        'kam',
+        'client_query'
+      );
+
+      res.json({
+        success: true,
+        message: 'Query raised successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create query',
       });
     }
   }
@@ -668,7 +729,8 @@ export class LoanController {
         application['File ID'],
         application.Client,
         req.user!.email,
-        resolutionMessage
+        resolutionMessage,
+        req.user!.role
       );
 
       res.json({

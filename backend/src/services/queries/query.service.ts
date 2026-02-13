@@ -207,7 +207,10 @@ export class QueryService {
 
     // Build threads
     const threads: QueryThread[] = rootQueries.map((root: any) => {
-      const rootMessage = root['Details/Message'] || '';
+      let rootMessage = (root['Details/Message'] ?? '').toString().trim();
+      if (!rootMessage || /^Reply to query\s+\S+\s*:?\s*$/.test(rootMessage)) {
+        rootMessage = '(No message)';
+      }
       const rootId = root.id;
 
       // Edit history for this root query
@@ -334,20 +337,32 @@ export class QueryService {
   }
 
   /**
-   * Resolve a query and create resolution log entry
+   * Resolve a query and create resolution log entry.
+   * Only the query author can resolve, except KAM and Credit who can resolve any query.
    */
   async resolveQuery(
     queryId: string,
     fileId: string,
     clientId: string,
     resolvedBy: string,
-    resolutionMessage?: string
+    resolutionMessage?: string,
+    resolverRole?: string
   ): Promise<void> {
     const auditLogs = await n8nClient.fetchTable('File Auditing Log');
     const query = auditLogs.find((q: any) => q.id === queryId);
 
     if (!query) {
       throw new Error('Query not found');
+    }
+
+    const role = (resolverRole || '').toLowerCase();
+    const isKamOrCredit = role === 'kam' || role === 'credit_team' || role === 'admin';
+    if (!isKamOrCredit) {
+      const queryActor = (query.Actor || '').trim().toLowerCase();
+      const resolverEmail = (resolvedBy || '').trim().toLowerCase();
+      if (queryActor && resolverEmail !== queryActor) {
+        throw new Error('Only the query author can resolve this query');
+      }
     }
 
     // Update query to resolved

@@ -24,6 +24,7 @@ router.get('/:id', loanController.getApplication.bind(loanController));
 
 // Queries - all authenticated users (filtered by role)
 router.get('/:id/queries', loanController.getQueries.bind(loanController));
+router.post('/:id/queries', requireClient, loanController.createClientQuery.bind(loanController));
 router.patch('/:id/queries/:queryId', loanController.updateQuery.bind(loanController));
 router.post('/:id/queries/:queryId/resolve', loanController.resolveQuery.bind(loanController));
 

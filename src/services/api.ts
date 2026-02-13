@@ -519,6 +519,16 @@ class ApiService {
   }
 
   /**
+   * Create a new query (client only - client raises query to KAM)
+   */
+  async createClientQuery(applicationId: string, message: string): Promise<ApiResponse> {
+    return this.request(`/loan-applications/${applicationId}/queries`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  /**
    * Reply to a query
    */
   async replyToQuery(
@@ -657,6 +667,15 @@ class ApiService {
    */
   async submitApplication(applicationId: string): Promise<ApiResponse> {
     return this.request(`/loan-applications/${applicationId}/submit`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Withdraw application (client only)
+   */
+  async withdrawApplication(applicationId: string): Promise<ApiResponse> {
+    return this.request(`/loan-applications/${applicationId}/withdraw`, {
       method: 'POST',
     });
   }

@@ -43,8 +43,13 @@ const getStatusVariant = (status: string) => {
 const URL_STATUS_TO_FILTER: Record<string, string> = {
   draft: 'draft',
   pending_kam_review: 'pending',
+  under_kam_review: 'pending',
   forwarded_to_credit: 'credit',
+  pending_credit_review: 'credit',
   kam_query_raised: 'query',
+  query_with_client: 'query',
+  credit_query_raised: 'query',
+  credit_query_with_kam: 'query',
   in_negotiation: 'negotiation',
   sent_to_nbfc: 'nbfc',
   approved: 'approved',

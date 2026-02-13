@@ -36,6 +36,16 @@ export class LedgerController {
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
       const ledgerEntries = await rbacFilterService.filterCommissionLedger(allLedgerEntries, req.user!);
 
+      if (ledgerEntries.length === 0 && allLedgerEntries.length > 0) {
+        console.log('[getClientLedger] No entries after filter', {
+          clientId: req.user!.clientId,
+          totalFetched: allLedgerEntries.length,
+          sampleClientIds: allLedgerEntries.slice(0, 3).map((e: any) => e.Client || e['Client']),
+        });
+      } else if (allLedgerEntries.length === 0) {
+        console.log('[getClientLedger] Commission Ledger table empty', { clientId: req.user!.clientId });
+      }
+
       // Sort by date (oldest first for running balance calculation)
       ledgerEntries.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));
 

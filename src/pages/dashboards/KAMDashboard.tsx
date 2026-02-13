@@ -100,9 +100,9 @@ export const KAMDashboard: React.FC = () => {
 
   // Calculate stats
   const totalClients = clients.length;
-  const pendingReview = applications.filter(a => a.status === 'pending_kam_review').length;
-  const awaitingResponse = applications.filter(a => a.status === 'kam_query_raised').length;
-  const forwarded = applications.filter(a => a.status === 'forwarded_to_credit').length;
+  const pendingReview = applications.filter(a => a.status === 'under_kam_review').length;
+  const awaitingResponse = applications.filter(a => a.status === 'query_with_client').length;
+  const forwarded = applications.filter(a => a.status === 'pending_credit_review').length;
 
   // Format table data
   const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({

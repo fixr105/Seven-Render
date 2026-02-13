@@ -46,7 +46,7 @@ export const CreditDashboard: React.FC = () => {
   // Calculate stats
   const totalApplications = applications.length;
   const pendingReview = applications.filter(a => 
-    a.status === 'forwarded_to_credit' || a.status === 'credit_query_raised'
+    a.status === 'pending_credit_review' || a.status === 'credit_query_with_kam'
   ).length;
   const inNegotiation = applications.filter(a => a.status === 'in_negotiation').length;
   const sentToNBFC = applications.filter(a => a.status === 'sent_to_nbfc').length;
@@ -210,7 +210,7 @@ export const CreditDashboard: React.FC = () => {
         <CardContent>
           <div className="flex flex-wrap gap-3">
             {pendingReview > 0 && (
-              <Button variant="primary" onClick={() => navigate('/applications?status=forwarded_to_credit')} title="Review files forwarded to credit">
+              <Button variant="primary" onClick={() => navigate('/applications?status=pending_credit_review')} title="Review files forwarded to credit">
                 Review Files ({pendingReview})
               </Button>
             )}
