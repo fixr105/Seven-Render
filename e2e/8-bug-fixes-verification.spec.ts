@@ -21,14 +21,13 @@ import { waitForPageLoad } from './helpers/navigation';
 test.describe('8 Bug Fixes Verification', () => {
   test.setTimeout(90000);
 
-  test('1. Draft status: Client sees Submit/Withdraw button on draft application', async ({ page }) => {
+  test('1. Draft status: Client sees Submit/Withdraw button; modal shows only Submit and Withdraw options', async ({ page }) => {
     await loginAs(page, 'client');
     await waitForPageLoad(page);
 
     await page.goto('/applications');
     await page.waitForLoadState('networkidle');
 
-    // Find a draft application link or create new
     const draftLink = page.locator('a[href*="/applications/"]').filter({ hasText: /draft|Draft/i }).first();
     const anyLink = page.locator('a[href*="/applications/"]').first();
 
@@ -41,6 +40,18 @@ test.describe('8 Bug Fixes Verification', () => {
       if (await statusBadge.isVisible({ timeout: 5000 }).catch(() => false)) {
         const submitBtn = page.locator('button:has-text("Submit"), button:has-text("Submit / Withdraw")').first();
         await expect(submitBtn).toBeVisible({ timeout: 5000 });
+
+        // Strengthen: Click Submit/Withdraw and assert modal shows ONLY Submit and Withdraw (not full status list)
+        await submitBtn.click();
+        const modal = page.getByRole('dialog').or(page.locator('[role="dialog"]'));
+        await expect(modal).toBeVisible({ timeout: 3000 });
+
+        const options = modal.locator('select option');
+        const optionCount = await options.count();
+        expect(optionCount).toBe(2);
+
+        const optionTexts = await options.allTextContents();
+        expect(optionTexts.sort()).toEqual(['Submit', 'Withdraw']);
       }
     } else {
       test.skip();
@@ -116,7 +127,7 @@ test.describe('8 Bug Fixes Verification', () => {
     }
   });
 
-  test('5. Assigned KAM: Credit Clients page loads and shows Assigned KAM column', async ({ page }) => {
+  test('5. Assigned KAM: Credit Clients page shows KAM names, not raw IDs', async ({ page }) => {
     await loginAs(page, 'credit');
     await waitForPageLoad(page);
 
@@ -126,6 +137,15 @@ test.describe('8 Bug Fixes Verification', () => {
     await expect(page).not.toHaveURL(/\/unauthorized/);
     const tableOrHeader = page.getByText(/Assigned KAM|Client Management|Company Name/i).first();
     await expect(tableOrHeader).toBeVisible({ timeout: 10000 });
+
+    // Strengthen: Assigned KAM column cells must NOT contain raw ID patterns (USER-*, KAM-* with long suffix)
+    const rawIdPattern = /USER-\d+-[a-z0-9]+|KAM-\d+-[a-z0-9]+/i;
+    const tableCells = page.locator('table td');
+    const cellCount = await tableCells.count();
+    for (let i = 0; i < cellCount; i++) {
+      const text = await tableCells.nth(i).textContent();
+      expect(text).not.toMatch(rawIdPattern);
+    }
   });
 
   test('6. Dashboard tiles: Credit dashboard shows stats with correct status filters', async ({ page }) => {
@@ -151,7 +171,7 @@ test.describe('8 Bug Fixes Verification', () => {
     await expect(ledgerContent).toBeVisible({ timeout: 10000 });
   });
 
-  test('8. Admin activity log: Credit sees dropdowns for Performed by and Action type', async ({ page }) => {
+  test('8. Admin activity log: Performed by and Action type are dropdowns (select), not text inputs', async ({ page }) => {
     await loginAs(page, 'credit');
     await waitForPageLoad(page);
 
@@ -166,8 +186,13 @@ test.describe('8 Bug Fixes Verification', () => {
     const actionTypeLabel = page.getByText('Action type', { exact: true }).first();
     await expect(actionTypeLabel).toBeVisible({ timeout: 5000 });
 
-    const selects = page.locator('select');
-    const selectCount = await selects.count();
-    expect(selectCount).toBeGreaterThanOrEqual(2);
+    // Strengthen: Verify labels are associated with select elements (not input type="text")
+    const performedBySection = performedByLabel.locator('..');
+    const performedBySelect = performedBySection.locator('select');
+    await expect(performedBySelect.first()).toBeVisible({ timeout: 2000 });
+
+    const actionTypeSection = actionTypeLabel.locator('..');
+    const actionTypeSelect = actionTypeSection.locator('select');
+    await expect(actionTypeSelect.first()).toBeVisible({ timeout: 2000 });
   });
 });

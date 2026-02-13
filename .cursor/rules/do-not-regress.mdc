@@ -1,0 +1,64 @@
+---
+description: Do not regress the 8 bug fixes - regression safeguards and test pointers
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Do Not Regress - 8 Bug Fixes
+
+When modifying status handling, query resolution, KAM display, activity log, ledger, or dashboard code, ensure these fixes are not regressed.
+
+## 1. Draft Status (Client Submit/Withdraw)
+
+- **Fix:** Client with draft application sees "Submit / Withdraw" button; modal shows only **Submit** and **Withdraw** options (not full status list).
+- **Code:** `src/pages/ApplicationDetail.tsx` - statusOptions for client+draft, `submitApplication` / `withdrawApplication` API.
+- **Tests:** `e2e/8-bug-fixes-verification.spec.ts` (test 1)
+
+## 2. Client Query (Raise Query to KAM)
+
+- **Fix:** Client can raise query via "Raise Query" button; query appears in Queries section.
+- **Code:** `src/pages/ApplicationDetail.tsx`, `backend/src/services/queries/query.service.ts` - `createQuery`.
+- **Tests:** `e2e/8-bug-fixes-verification.spec.ts` (test 2)
+
+## 3. Query Section Data
+
+- **Fix:** Query messages display (not "No message"); Application Information shows form data.
+- **Code:** `src/pages/ApplicationDetail.tsx`, query parsing.
+- **Tests:** `e2e/8-bug-fixes-verification.spec.ts` (test 3)
+
+## 4. Query Resolution Permissions
+
+- **Fix:** Only query author can resolve (except KAM/Credit who can resolve any).
+- **Code:** `backend/src/services/queries/query.service.ts` - `resolveQuery` role check.
+- **Tests:** `backend/src/services/queries/__tests__/query.service.test.ts`, `e2e/8-bug-fixes-verification.spec.ts` (test 4)
+
+## 5. Assigned KAM Display (Credit Dashboard)
+
+- **Fix:** Credit Clients page shows **KAM names** (e.g. "Sagar") instead of raw IDs (e.g. USER-1767430957573-81645wu26).
+- **Code:** `backend/src/utils/kamNameResolver.ts`, `backend/src/controllers/credit.controller.ts` - `listClients`.
+- **Tests:** `backend/src/utils/__tests__/kamNameResolver.test.ts`, `e2e/8-bug-fixes-verification.spec.ts` (test 5)
+
+## 6. Dashboard Tiles
+
+- **Fix:** Status normalization (`forwarded_to_credit` → `pending_credit_review`, etc.); tile counts match.
+- **Code:** `src/lib/statusUtils.ts` - `normalizeStatus`, `src/hooks/useApplications.ts`.
+- **Tests:** `src/lib/__tests__/statusUtils.test.ts`, `e2e/8-bug-fixes-verification.spec.ts` (test 6)
+
+## 7. Ledger
+
+- **Fix:** Client ledger loads; entries and balance display.
+- **Code:** `backend/src/controllers/ledger.controller.ts`, `src/pages/Ledger.tsx`.
+- **Tests:** `e2e/8-bug-fixes-verification.spec.ts` (test 7)
+
+## 8. Admin Activity Log Filters
+
+- **Fix:** "Performed by" and "Action type" are **dropdowns** (Select), not text inputs.
+- **Code:** `src/pages/AdminActivityLog.tsx` - uses Select components.
+- **Tests:** `e2e/8-bug-fixes-verification.spec.ts` (test 8)
+
+---
+
+## Verification
+
+- **E2E:** `npm run test:e2e -- e2e/8-bug-fixes-verification.spec.ts --project=chromium`
+- **Manual:** See `E2E_8_BUG_FIXES_VERIFICATION.md`

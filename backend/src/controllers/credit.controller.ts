@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus, LenderDecisionStatus, DisputeStatus, SLA_SENT_TO_NBFC_DAYS } from '../config/constants.js';
 import { getStatusHistory } from '../services/statusTracking/statusHistory.service.js';
+import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 
 export class CreditController {
   /**
@@ -1186,20 +1187,11 @@ export class CreditController {
         n8nClient.fetchTable('KAM Users'),
       ]);
 
-      const kamById = new Map<string, { name: string }>();
-      for (const k of kamUsers as any[]) {
-        const kid = k.id || k['KAM ID'];
-        if (kid) {
-          kamById.set(kid, { name: k.Name || k['Name'] || '' });
-        }
-        const kamId = k['KAM ID'];
-        if (kamId && kamId !== kid) kamById.set(kamId, { name: k.Name || k['Name'] || '' });
-      }
+      const kamNameMap = buildKAMNameMap(kamUsers as any[]);
 
       const clientsData = (clients as any[]).map((client: any) => {
         const assignedKAM = client['Assigned KAM'] || client.assignedKAM;
-        const kam = assignedKAM ? kamById.get(assignedKAM) : null;
-        const assignedKAMName = (kam?.name && kam.name.trim()) ? kam.name.trim() : (assignedKAM || '');
+        const assignedKAMName = resolveKAMName(assignedKAM, kamNameMap);
         return {
           id: client.id || client['Client ID'],
           clientId: client['Client ID'] || client.id,

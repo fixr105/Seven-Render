@@ -1,0 +1,38 @@
+name: Post-Deploy Smoke Test
+
+on:
+  workflow_run:
+    workflows: [Deploy]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      - name: Wait for deploy propagation
+        run: sleep 90
+
+      - name: Check backend health
+        run: |
+          BACKEND_URL="${BACKEND_URL:-https://seven-dash.fly.dev}"
+          echo "Checking backend at $BACKEND_URL/health"
+          curl -sf "$BACKEND_URL/health" || (echo "Backend health check failed" && exit 1)
+        env:
+          BACKEND_URL: ${{ secrets.SMOKE_BACKEND_URL }}
+
+      - name: Check frontend
+        run: |
+          FRONTEND_URL="${FRONTEND_URL:-${{ secrets.SMOKE_FRONTEND_URL }}}"
+          if [ -z "$FRONTEND_URL" ]; then
+            echo "Skipping frontend check (SMOKE_FRONTEND_URL not set)"
+          else
+            echo "Checking frontend at $FRONTEND_URL"
+            curl -sf -o /dev/null -w "%{http_code}" "$FRONTEND_URL" | grep -qE '^200|^30[0-9]' || (echo "Frontend check failed" && exit 1)
+          fi
+        env:
+          FRONTEND_URL: ${{ secrets.SMOKE_FRONTEND_URL }}
