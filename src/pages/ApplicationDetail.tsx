@@ -158,6 +158,7 @@ export const ApplicationDetail: React.FC = () => {
           requested_loan_amount: Number.isNaN(requested_loan_amount) ? undefined : requested_loan_amount,
           created_at: d.created_at ?? d.creationDate ?? d['Creation Date'],
           updated_at: d.updated_at ?? d.lastUpdated ?? d['Last Updated'],
+          assignedKAMName: d.assignedKAMName ?? (d as any).assigned_kam_name,
           client:
             d.client != null && typeof d.client === 'object' && !Array.isArray(d.client) && 'company_name' in (d.client as object)
               ? d.client
@@ -441,7 +442,7 @@ export const ApplicationDetail: React.FC = () => {
             disbursedDate: new Date().toISOString(),
           });
         } else {
-          response = await apiService.editApplication(id, { status: newStatus });
+          response = await apiService.updateCreditApplicationStatus(id, newStatus, statusNotes);
         }
       } else {
         response = await apiService.editApplication(id, { status: newStatus });
@@ -640,7 +641,7 @@ export const ApplicationDetail: React.FC = () => {
             <CardHeader className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle>Application Details</CardTitle>
-                <Badge variant={getStatusVariant(application?.status)}>
+                <Badge variant={getStatusVariant(application?.status)} data-testid="status-badge">
                   {getStatusDisplayNameForViewer(application?.status || '', userRole || '')}
                 </Badge>
               </div>
@@ -674,6 +675,14 @@ export const ApplicationDetail: React.FC = () => {
                     <p className="text-sm text-neutral-500">Approved Amount</p>
                     <p className="font-semibold text-success">
                       {formatAmount(application.approved_loan_amount)}
+                    </p>
+                  </div>
+                )}
+                {(application.assignedKAMName || (application as any).assigned_kam) && (
+                  <div>
+                    <p className="text-sm text-neutral-500">Assigned KAM</p>
+                    <p className="font-semibold text-neutral-900">
+                      {(application as any).assignedKAMName || (application as any).assigned_kam || ''}
                     </p>
                   </div>
                 )}
@@ -1351,6 +1360,7 @@ export const ApplicationDetail: React.FC = () => {
       {/* NBFC Decision Modal */}
       {userRole === 'nbfc' && (
         <Modal
+          testId="decision-modal"
           isOpen={showDecisionModal}
           onClose={() => {
             setShowDecisionModal(false);
@@ -1519,6 +1529,7 @@ export const ApplicationDetail: React.FC = () => {
 
       {/* Raise Query Modal */}
       <Modal
+        testId="query-modal"
         isOpen={showQueryModal}
         onClose={() => {
           setShowQueryModal(false);
@@ -1601,6 +1612,7 @@ export const ApplicationDetail: React.FC = () => {
 
       {/* Update Status Modal */}
       <Modal
+        testId="status-modal"
         isOpen={showStatusModal}
         onClose={() => {
           setShowStatusModal(false);

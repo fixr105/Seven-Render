@@ -493,6 +493,7 @@ export const Applications: React.FC = () => {
             sortDirection={sortDirection}
             onSort={handleSort}
             onRowClick={(row) => navigate(`/applications/${row.id}`)}
+            rowTestId="application-row"
             getRowClassName={(row) => {
               if (userRole === 'credit_team' && row.hasUnresolvedQueries) {
                 return 'bg-warning/5 border-l-4 border-warning';

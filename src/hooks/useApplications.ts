@@ -93,6 +93,13 @@ export const useApplications = () => {
     fetchApplications();
   }, []);
 
+  // Refetch when tab/window regains focus (user returns to app or navigates back)
+  useEffect(() => {
+    const handleFocus = () => fetchApplications();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   const fetchApplications = async () => {
     try {
       setLoading(true);

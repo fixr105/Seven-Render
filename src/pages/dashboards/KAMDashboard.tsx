@@ -60,6 +60,13 @@ export const KAMDashboard: React.FC = () => {
     fetchDashboard();
   }, []);
 
+  // Refetch dashboard when tab/window regains focus (e.g. after KAM updates status and returns)
+  useEffect(() => {
+    const handleFocus = () => fetchDashboard();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   // Fetch on mount (including SPA navigation) and via Refresh when userRoleId is available.
   useEffect(() => {
     if (userRoleId) {

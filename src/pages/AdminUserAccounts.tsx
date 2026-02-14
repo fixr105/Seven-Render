@@ -125,10 +125,20 @@ export const AdminUserAccounts: React.FC = () => {
         setShowCreateModal(false);
         await fetchAccounts();
       } else {
-        setCreateError(res.error || 'Failed to create user');
+        const errMsg = res.error || 'Failed to create user';
+        setCreateError(
+          errMsg.includes('403') || errMsg.includes('Forbidden') || errMsg.includes('Insufficient')
+            ? 'You do not have permission to create user accounts.'
+            : errMsg
+        );
       }
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create user');
+      const message = err instanceof Error ? err.message : 'Failed to create user';
+      if (message.includes('403') || message.includes('Forbidden') || message.includes('Insufficient')) {
+        setCreateError('You do not have permission to create user accounts.');
+      } else {
+        setCreateError(message);
+      }
     } finally {
       setSaving(false);
     }

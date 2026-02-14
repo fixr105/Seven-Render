@@ -203,18 +203,20 @@ export class RBACFilterService {
   ): Promise<any[]> {
     switch (user.role) {
       case UserRole.CLIENT:
-        // Clients see audit logs for their own files
+        // Clients see audit logs for their own files (case-insensitive File ID matching)
         if (!user.clientId) {
           return [];
         }
-        // Get client's file IDs
+        const clientNorm = (v: any) => String(v ?? '').trim().toLowerCase();
         const clientApplications = await this.getClientApplications(user.clientId);
-        const clientFileIds = clientApplications.map((app: any) => 
-          app['File ID'] || app['fileId'] || app.id
+        const clientFileIdSet = new Set(
+          clientApplications
+            .map((app: any) => clientNorm(app['File ID'] || app['fileId'] || app.id))
+            .filter(Boolean)
         );
         return entries.filter((entry: any) => {
           const fileId = entry.File || entry['File'] || entry['File ID'] || entry.fileId;
-          return clientFileIds.includes(fileId);
+          return fileId && clientFileIdSet.has(clientNorm(fileId));
         });
 
       case UserRole.KAM:
@@ -226,44 +228,38 @@ export class RBACFilterService {
         if (managedClientIds.length === 0) {
           return [];
         }
-        // Get all file IDs for managed clients
+        // Get all file IDs for managed clients (case-insensitive for cross-source matching)
+        const norm = (v: any) => String(v ?? '').trim().toLowerCase();
         const allApplications = await n8nClient.fetchTable('Loan Application');
         const managedFileIds = allApplications
           .filter((app: any) => {
             const appClient = app.Client || app['Client'] || app['Client ID'] || app.clientId;
             return managedClientIds.some((clientId) => matchIds(appClient, clientId));
           })
-          .map((app: any) => app['File ID'] || app['fileId'] || app.id);
-        console.log('[filterFileAuditLog] KAM managedFileIds count:', managedFileIds.length, 'sample:', managedFileIds.slice(0, 3));
-        const excluded = entries.filter((entry: any) => {
-          const fileId = entry.File || entry['File'] || entry['File ID'] || entry.fileId;
-          return !managedFileIds.includes(fileId);
-        });
-        if (excluded.length > 0) {
-          const sampleExcluded = excluded.slice(0, 3).map((e: any) => ({
-            File: e.File,
-            FileAlt: e['File ID'],
-            TargetUserRole: e['Target User/Role'],
-          }));
-          console.log('[filterFileAuditLog] KAM excluded entries count:', excluded.length, 'sample:', sampleExcluded);
-        }
+          .map((app: any) => norm(app['File ID'] || app['fileId'] || app.id))
+          .filter(Boolean);
+        const managedFileIdSet = new Set(managedFileIds);
+        console.log('[filterFileAuditLog] KAM managedFileIds count:', managedFileIdSet.size, 'sample:', [...managedFileIdSet].slice(0, 3));
         return entries.filter((entry: any) => {
           const fileId = entry.File || entry['File'] || entry['File ID'] || entry.fileId;
-          return managedFileIds.includes(fileId);
+          return fileId && managedFileIdSet.has(norm(fileId));
         });
 
       case UserRole.NBFC:
-        // NBFCs see audit logs for files assigned to them
+        // NBFCs see audit logs for files assigned to them (case-insensitive File ID matching)
         if (!user.nbfcId) {
           return [];
         }
+        const nbfcNorm = (v: any) => String(v ?? '').trim().toLowerCase();
         const nbfcApplications = await this.getNBFCApplications(user.nbfcId);
-        const nbfcFileIds = nbfcApplications.map((app: any) => 
-          app['File ID'] || app['fileId'] || app.id
+        const nbfcFileIdSet = new Set(
+          nbfcApplications
+            .map((app: any) => nbfcNorm(app['File ID'] || app['fileId'] || app.id))
+            .filter(Boolean)
         );
         return entries.filter((entry: any) => {
           const fileId = entry.File || entry['File'] || entry['File ID'] || entry.fileId;
-          return nbfcFileIds.includes(fileId);
+          return fileId && nbfcFileIdSet.has(nbfcNorm(fileId));
         });
 
       case UserRole.CREDIT:

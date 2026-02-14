@@ -6,9 +6,11 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Optional data-testid for E2E tests */
+  testId?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 'md' }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 'md', testId }) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -37,7 +39,10 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className={`relative bg-white rounded-lg shadow-level-3 w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col border border-neutral-200`}>
+      <div
+        className={`relative bg-white rounded-lg shadow-level-3 w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col border border-neutral-200`}
+        data-testid={testId}
+      >
         {children}
       </div>
     </div>

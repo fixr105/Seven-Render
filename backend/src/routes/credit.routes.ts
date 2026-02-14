@@ -20,6 +20,7 @@ router.get('/sla-past-due', creditController.getSlaPastDue.bind(creditController
 router.get('/loan-applications', creditController.listApplications.bind(creditController));
 router.get('/loan-applications/:id', creditController.getApplication.bind(creditController));
 router.post('/loan-applications/:id/queries', creditController.raiseQuery.bind(creditController));
+router.post('/loan-applications/:id/status', creditController.updateStatus.bind(creditController));
 router.post('/loan-applications/:id/mark-in-negotiation', creditController.markInNegotiation.bind(creditController));
 router.post('/loan-applications/:id/assign-nbfcs', creditController.assignNBFCs.bind(creditController));
 router.post('/loan-applications/:id/nbfc-decision', creditController.captureNBFCDecision.bind(creditController));

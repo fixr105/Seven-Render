@@ -952,7 +952,10 @@ export class LoanController {
         application['Form Data'] ??
         application.formData ??
         application['form_data'] ??
-        (application as any).FormData;
+        (application as any).FormData ??
+        (application as any)['form data'] ??
+        (application as any).fields?.['Form Data'] ??
+        (application as any).fields?.formData;
       const formDataSource =
         application['Form Data'] !== undefined
           ? 'Form Data'
@@ -962,7 +965,11 @@ export class LoanController {
               ? 'form_data'
               : (application as any).FormData !== undefined
                 ? 'FormData'
-                : 'none';
+                : (application as any)?.fields?.['Form Data'] !== undefined
+                  ? 'fields.Form Data'
+                  : (application as any)?.fields?.formData !== undefined
+                    ? 'fields.formData'
+                    : 'none';
       console.log(
         '[getApplication] Form Data source:',
         formDataSource,
@@ -995,6 +1002,34 @@ export class LoanController {
       const rawStatus = application.Status || application.status || 'draft';
       const normalizedStatus = String(rawStatus).toLowerCase().trim();
 
+      // Enrich with client name and Assigned KAM (resolve KAM ID to name)
+      const clientId = application.Client || application['Client'];
+      let clientEnriched: { company_name: string } | undefined;
+      let assignedKAMName: string | undefined;
+      if (clientId) {
+        try {
+          const clients = await n8nClient.fetchTable('Clients');
+          const client = clients.find((c: any) => {
+            const cid = c.id || c['Client ID'] || c['ID'];
+            return cid === clientId || String(cid) === String(clientId);
+          });
+          if (client) {
+            clientEnriched = {
+              company_name: (client['Client Name'] || client['Primary Contact Name'] || client.clientName || '').toString(),
+            };
+            const assignedKAM = client['Assigned KAM'] || client.assignedKAM || client['KAM ID'];
+            if (assignedKAM) {
+              const { buildKAMNameMap, resolveKAMName } = await import('../utils/kamNameResolver.js');
+              const kamUsers = await n8nClient.fetchTable('KAM Users');
+              const kamNameMap = buildKAMNameMap(kamUsers as any[]);
+              assignedKAMName = resolveKAMName(assignedKAM, kamNameMap);
+            }
+          }
+        } catch (err) {
+          console.warn('[getApplication] Could not enrich client/KAM:', err);
+        }
+      }
+
       // Ensure id is included in response (use Airtable record ID)
       res.json({
         success: true,
@@ -1002,6 +1037,8 @@ export class LoanController {
           id: application.id, // Airtable record ID (e.g., recCHVlPoZQYfeKlG)
           fileId: application['File ID'] || application.id, // File ID for display
           ...application,
+          client: clientEnriched ?? application.client ?? application.Client,
+          assignedKAMName: assignedKAMName ?? application.assignedKAMName,
           status: normalizedStatus,
           Status: normalizedStatus,
           formData,

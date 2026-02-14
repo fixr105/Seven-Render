@@ -430,6 +430,58 @@ export class CreditController {
   }
 
   /**
+   * POST /credit/loan-applications/:id/status
+   * Update application status (Credit only - for approved, rejected, credit_query_with_kam, sent_to_nbfc, etc.)
+   */
+  async updateStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { status: newStatusRaw, notes } = req.body;
+      if (!newStatusRaw || typeof newStatusRaw !== 'string') {
+        res.status(400).json({ success: false, error: 'Status is required' });
+        return;
+      }
+      const newStatus = (newStatusRaw as string).trim().toLowerCase().replace(/-/g, '_') as LoanStatus;
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = applications.find((app: any) => app.id === id);
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+      const previousStatus = (application.Status || '').toString().trim().toLowerCase().replace(/-/g, '_') as LoanStatus;
+      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+      try {
+        validateTransition(previousStatus, newStatus, req.user!.role);
+      } catch (transitionError: any) {
+        res.status(400).json({
+          success: false,
+          error: transitionError.message || 'Invalid status transition',
+        });
+        return;
+      }
+      await n8nClient.postLoanApplication({
+        ...application,
+        Status: newStatus,
+        'Last Updated': new Date().toISOString(),
+      });
+      await recordStatusChange(
+        req.user!,
+        application['File ID'],
+        previousStatus,
+        newStatus,
+        notes || `Status updated to ${newStatus}`
+      );
+      res.json({ success: true, message: 'Status updated successfully' });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to update status',
+      });
+    }
+  }
+
+  /**
    * POST /credit/loan-applications/:id/assign-nbfcs
    */
   async assignNBFCs(req: Request, res: Response): Promise<void> {

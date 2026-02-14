@@ -45,8 +45,17 @@ export const CreditDashboard: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const fetchDashboard = () => {
+    apiService.getCreditDashboard().then((res) => {
+      setDashboardLoading(false);
+      if (res.success && res.data?.pendingQueries) setPendingQueries(res.data.pendingQueries);
+      else setPendingQueries([]);
+    }).catch(() => setDashboardLoading(false));
+  };
+
   useEffect(() => {
     let cancelled = false;
+    setDashboardLoading(true);
     apiService.getCreditDashboard().then((res) => {
       if (cancelled) return;
       setDashboardLoading(false);
@@ -54,6 +63,13 @@ export const CreditDashboard: React.FC = () => {
       else setPendingQueries([]);
     }).catch(() => { if (!cancelled) setDashboardLoading(false); });
     return () => { cancelled = true; };
+  }, []);
+
+  // Refetch dashboard when tab/window regains focus
+  useEffect(() => {
+    const handleFocus = () => fetchDashboard();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   // Calculate stats

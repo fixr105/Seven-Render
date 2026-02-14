@@ -64,8 +64,22 @@ export class KAMController {
       };
 
       const normFileId = (v: any) => String(v ?? '').trim().toLowerCase();
+      const isUnresolved = (log: any) => {
+        const r = String(log.Resolved ?? '').trim().toLowerCase();
+        return r === 'false' || r === 'no' || r === '0' || r === '';
+      };
+      // Build set of resolved query IDs from query_resolved entries
+      const resolvedQueryIds = new Set<string>();
+      auditLogs.forEach((log: any) => {
+        const actionType = (log['Action/Event Type'] || '').toString();
+        const details = (log['Details/Message'] || '').toString();
+        if (actionType === 'query_resolved' && details) {
+          const match = details.match(/Query ([^\s]+) resolved/i);
+          if (match) resolvedQueryIds.add(match[1]);
+        }
+      });
       const queryLogsToKam = auditLogs.filter(
-        (l: any) => l['Target User/Role'] === 'kam' && l.Resolved === 'False'
+        (l: any) => l['Target User/Role'] === 'kam' && isUnresolved(l)
       );
       console.log('[getKAMDashboard] Query logs to KAM (unresolved):', queryLogsToKam.length);
       if (queryLogsToKam.length > 0) {
@@ -80,7 +94,8 @@ export class KAMController {
         .filter(
           (log) =>
             log['Target User/Role'] === 'kam' &&
-            log.Resolved === 'False' &&
+            isUnresolved(log) &&
+            !resolvedQueryIds.has(log.id) &&
             clientApplications.some((app) =>
               normFileId(app['File ID'] || app.fileId) === normFileId(log.File || log['File ID'])
             )

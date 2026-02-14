@@ -5,6 +5,8 @@
 import { Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import { apiRateLimiter } from '../middleware/rateLimit.middleware.js';
+import { requireClient } from '../middleware/rbac.middleware.js';
+import { loanController } from '../controllers/loan.controller.js';
 import healthRoutes, { trackMetrics } from './health.routes.js';
 import authRoutes from './auth.routes.js';
 import clientRoutes from './client.routes.js';
@@ -160,6 +162,16 @@ router.get('/debug/webhook-config', (req, res) => {
 
 // Auth routes (login, validate use authRateLimiter; /me, logout, refresh use authenticate)
 router.use('/auth', authRoutes);
+
+// Explicit route for client query creation - must be before /loan-applications mount
+// to ensure POST /loan-applications/:id/queries is matched (fixes routing to catch-all)
+router.post(
+  '/loan-applications/:id/queries',
+  apiRateLimiter,
+  authenticate,
+  requireClient,
+  loanController.createClientQuery.bind(loanController)
+);
 
 // Mount route modules with rate limiting
 router.use('/client', apiRateLimiter, clientRoutes);

@@ -74,6 +74,13 @@ const PERMISSION_RULES: PermissionRule[] = [
     method: 'POST',
   },
   {
+    action: 'update_loan_status',
+    allowedRoles: [UserRole.CREDIT],
+    allowAdminOverride: false,
+    endpoint: '/credit/loan-applications/:id/status',
+    method: 'POST',
+  },
+  {
     action: 'post_admin_activity_log',
     allowedRoles: [UserRole.CREDIT, UserRole.KAM],
     allowAdminOverride: true,

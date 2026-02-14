@@ -888,6 +888,7 @@ export const NewApplication: React.FC = () => {
             onClick={(e) => handleSubmit(e as any, true)}
             loading={loading}
             disabled={loading}
+            data-testid="save-draft"
           >
             Save as Draft
           </Button>
@@ -897,6 +898,7 @@ export const NewApplication: React.FC = () => {
             icon={Send}
             loading={loading}
             disabled={loading}
+            data-testid="submit-application"
           >
             Submit Application
           </Button>

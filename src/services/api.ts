@@ -951,6 +951,20 @@ class ApiService {
   }
 
   /**
+   * Update application status (Credit only - for approved, rejected, credit_query_with_kam, sent_to_nbfc, etc.)
+   */
+  async updateCreditApplicationStatus(
+    applicationId: string,
+    status: string,
+    notes?: string
+  ): Promise<ApiResponse> {
+    return this.request(`/credit/loan-applications/${applicationId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, notes }),
+    });
+  }
+
+  /**
    * Mark application in negotiation
    */
   async markInNegotiation(applicationId: string): Promise<ApiResponse> {

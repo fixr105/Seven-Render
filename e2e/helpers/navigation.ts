@@ -35,12 +35,28 @@ export async function navigateToPage(page: Page, pageName: string) {
 }
 
 /**
- * Click on a specific application in the list
+ * Click on a specific application in the list (by file number or ID)
  */
 export async function clickApplication(page: Page, fileNumber: string) {
   const applicationLink = page.locator(`a:has-text("${fileNumber}"), [data-testid="application-${fileNumber}"]`).first();
   await applicationLink.click();
   await page.waitForLoadState('networkidle');
+}
+
+/**
+ * Open application by applicant name (clicks row or View button in Applications list)
+ */
+export async function openApplicationByApplicant(page: Page, applicantName: string): Promise<string | null> {
+  await page.goto('/applications');
+  await page.waitForLoadState('networkidle');
+  const row = page.locator('tr').filter({ hasText: applicantName }).first();
+  if (!(await row.isVisible({ timeout: 5000 }).catch(() => false))) {
+    return null;
+  }
+  await row.click();
+  await page.waitForLoadState('networkidle');
+  const match = page.url().match(/\/applications\/([^/]+)/);
+  return match ? match[1] : null;
 }
 
 /**

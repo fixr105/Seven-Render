@@ -20,6 +20,8 @@ interface DataTableProps<T> {
   loading?: boolean;
   emptyMessage?: string;
   getRowClassName?: (row: T) => string;
+  /** Optional data-testid prefix for rows (e.g. "application-row" yields "application-row-{key}") */
+  rowTestId?: string;
 }
 
 export function DataTable<T>({
@@ -33,6 +35,7 @@ export function DataTable<T>({
   loading,
   emptyMessage = 'No data available',
   getRowClassName,
+  rowTestId,
 }: DataTableProps<T>) {
   const handleSort = (column: Column<T>) => {
     if (column.sortable && onSort) {
@@ -90,6 +93,7 @@ export function DataTable<T>({
                 key={keyExtractor(row)}
                 className={`${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} ${rowClassName} transition-colors`}
                 onClick={() => onRowClick?.(row)}
+                data-testid={rowTestId ? `${rowTestId}-${keyExtractor(row)}` : undefined}
               >
                 {columns.map((column) => {
                   const value = (row as Record<string, unknown>)[column.key];
@@ -120,6 +124,7 @@ export function DataTable<T>({
             key={keyExtractor(row)}
             className={`p-4 ${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} ${rowClassName} transition-colors`}
             onClick={() => onRowClick?.(row)}
+            data-testid={rowTestId ? `${rowTestId}-${keyExtractor(row)}` : undefined}
           >
             {columns.map((column) => {
               const value = (row as Record<string, unknown>)[column.key];
