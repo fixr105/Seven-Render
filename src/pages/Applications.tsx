@@ -267,11 +267,23 @@ export const Applications: React.FC = () => {
 
   const handleRaiseQuery = async () => {
     if (!selectedApplication || !queryMessage.trim()) return;
-    
-    console.log('Raising query for application:', selectedApplication?.id, queryMessage);
-    setShowQueryModal(false);
-    setQueryMessage('');
-    setSelectedApplication(null);
+    try {
+      const response =
+        userRole === 'credit_team'
+          ? await apiService.raiseQueryToKAM(selectedApplication.id, queryMessage.trim())
+          : await apiService.raiseQueryToClient(selectedApplication.id, queryMessage.trim());
+      if (response.success) {
+        setShowQueryModal(false);
+        setQueryMessage('');
+        setSelectedApplication(null);
+        refetch();
+      } else {
+        alert(response.error || 'Failed to raise query');
+      }
+    } catch (error) {
+      console.error('Error raising query:', error);
+      alert(error instanceof Error ? error.message : 'Failed to raise query');
+    }
   };
 
   const columns: Column<typeof displayApplications[0]>[] = [
@@ -317,8 +329,7 @@ export const Applications: React.FC = () => {
             icon={MessageSquare}
             onClick={(e) => {
               e.stopPropagation();
-              const fullApp = applications.find(a => a.id === row.id);
-              setSelectedApplication(fullApp || row);
+              setSelectedApplication(row);
               setShowQueryModal(true);
             }}
           >

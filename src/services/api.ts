@@ -410,11 +410,13 @@ class ApiService {
 
   /**
    * List all user accounts (admin/credit_team)
+   * @param fresh - If true, bypass cache (use after creating a new user)
    */
-  async listUserAccounts(): Promise<
+  async listUserAccounts(fresh = false): Promise<
     ApiResponse<Array<{ id: string; username: string; role: string; associatedProfile?: string; lastLogin?: string; accountStatus?: string }>>
   > {
-    return this.request('/user-accounts');
+    const query = fresh ? '?fresh=true' : '';
+    return this.request(`/user-accounts${query}`);
   }
 
   /**

@@ -56,11 +56,11 @@ export const AdminUserAccounts: React.FC = () => {
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = async (fresh = false) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.listUserAccounts();
+      const response = await apiService.listUserAccounts(fresh);
       if (response.success && response.data) {
         setAccounts(
           response.data.map((a) => ({
@@ -123,7 +123,9 @@ export const AdminUserAccounts: React.FC = () => {
       });
       if (res.success) {
         setShowCreateModal(false);
-        await fetchAccounts();
+        // Bypass cache and add short delay for n8n/Airtable sync
+        await new Promise((r) => setTimeout(r, 300));
+        await fetchAccounts(true);
       } else {
         const errMsg = res.error || 'Failed to create user';
         setCreateError(

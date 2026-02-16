@@ -160,7 +160,8 @@ function isActionAllowed(
  * Find permission rule for request
  */
 function findPermissionRule(req: Request): PermissionRule | null {
-  const path = req.path;
+  const rawPath = req.path;
+  const path = rawPath.replace(/^\/api/, '') || '/';
   const method = req.method;
   
   // Try to match endpoint pattern

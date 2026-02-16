@@ -167,8 +167,9 @@ export class UsersController {
         return;
       }
 
-      // Fetch only User Accounts table
-      const userAccounts = await n8nClient.fetchTable('User Accounts');
+      // Fetch only User Accounts table (bypass cache when ?fresh=true for post-create visibility)
+      const bypassCache = req.query.fresh === 'true' || req.query.bypassCache === 'true';
+      const userAccounts = await n8nClient.fetchTable('User Accounts', !bypassCache);
 
       res.json({
         success: true,

@@ -178,9 +178,9 @@ export class AuthService {
 
   private normalizeRole(role: unknown): UserRole {
     if (typeof role !== 'string') return UserRole.CLIENT;
-    const r = role.toLowerCase();
+    const r = role.trim().toLowerCase().replace(/\s+/g, '_');
     if (r === 'kam') return UserRole.KAM;
-    if (r === 'credit_team' || r === 'credit') return UserRole.CREDIT;
+    if (r === 'credit_team' || r === 'credit' || r === 'creditteam') return UserRole.CREDIT;
     if (r === 'nbfc') return UserRole.NBFC;
     if (r === 'admin') return UserRole.ADMIN;
     return UserRole.CLIENT;

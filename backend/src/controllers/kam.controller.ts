@@ -74,8 +74,15 @@ export class KAMController {
         const actionType = (log['Action/Event Type'] || '').toString();
         const details = (log['Details/Message'] || '').toString();
         if (actionType === 'query_resolved' && details) {
-          const match = details.match(/Query ([^\s]+) resolved/i);
-          if (match) resolvedQueryIds.add(match[1]);
+          // Match [[parent:queryId]] format first (centralizedLogger)
+          const parentMatch = details.match(/\[\[parent:([^\]]+)\]\]/);
+          if (parentMatch) {
+            resolvedQueryIds.add(parentMatch[1]);
+          } else {
+            // Fallback to legacy "Query X resolved" format (queryService)
+            const match = details.match(/Query ([^\s]+) resolved/i);
+            if (match) resolvedQueryIds.add(match[1]);
+          }
         }
       });
       const queryLogsToKam = auditLogs.filter(
