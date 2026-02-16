@@ -19,8 +19,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check (no auth needed)
+// Health check (no auth needed) - also triggers route loading in background to warm serverless
 app.get('/health', (req, res) => {
+  loadRoutes().catch((err) => console.error('[MinimalServer] Health warm-up loadRoutes failed:', err));
   res.json({ success: true, message: 'API is running' });
 });
 

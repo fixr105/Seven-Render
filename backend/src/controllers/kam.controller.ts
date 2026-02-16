@@ -85,6 +85,15 @@ export class KAMController {
           }
         }
       });
+      const getActionType = (log: any) => (log['Action/Event Type'] || '').toString().toLowerCase();
+      const getDetails = (log: any) => (log['Details/Message'] || '').toString();
+      const isActionableQuery = (log: any) =>
+        getActionType(log).includes('query') &&
+        !getActionType(log).includes('query_resolved') &&
+        !getActionType(log).includes('query_edited') &&
+        !getDetails(log).includes('Reply to query') &&
+        !getDetails(log).includes('Status changed from') &&
+        !getDetails(log).includes('Edit of query');
       const queryLogsToKam = auditLogs.filter(
         (l: any) => l['Target User/Role'] === 'kam' && isUnresolved(l)
       );
@@ -102,6 +111,7 @@ export class KAMController {
           (log) =>
             log['Target User/Role'] === 'kam' &&
             isUnresolved(log) &&
+            isActionableQuery(log) &&
             !resolvedQueryIds.has(log.id) &&
             clientApplications.some((app) =>
               normFileId(app['File ID'] || app.fileId) === normFileId(log.File || log['File ID'])
@@ -879,7 +889,20 @@ export class KAMController {
       if (modules && Array.isArray(modules)) {
         // Module 1: Versioning - store version timestamp for form config
         const versionTimestamp = new Date().toISOString();
-        
+
+        // Normalize modules: support legacy string[] or new { moduleId, includedFieldIds }[]
+        type ModuleEntry = { moduleId: string; includedFieldIds: string[] };
+        const normalizedModules: ModuleEntry[] = modules.map((m: string | ModuleEntry) => {
+          if (typeof m === 'string') {
+            return { moduleId: m, includedFieldIds: [] }; // Legacy: empty = all fields
+          }
+          const mod = m as ModuleEntry;
+          return {
+            moduleId: mod.moduleId,
+            includedFieldIds: Array.isArray(mod.includedFieldIds) ? mod.includedFieldIds : [],
+          };
+        });
+
         const formStructure: any = {
           clientId: id,
           productId: productId || null, // Optional: link to specific loan product
@@ -888,7 +911,9 @@ export class KAMController {
           version: versionTimestamp, // Version timestamp for form config
         };
 
-        const mappingPromises = modules.map(async (moduleId: string, index: number) => {
+        const mappingPromises = normalizedModules.map(async (entry: ModuleEntry, index: number) => {
+          const moduleId = entry.moduleId;
+          const includedFieldIds = entry.includedFieldIds;
           // Module definitions (matching frontend FORM_MODULES)
           const moduleDefinitions: Record<string, any> = {
             universal_checklist: {
@@ -986,6 +1011,19 @@ export class KAMController {
             throw new Error(`Unknown module: ${moduleId}`);
           }
 
+          // Filter fields: legacy (empty includedFieldIds) = all fields; new format = only included
+          const fieldsToCreate =
+            includedFieldIds.length === 0
+              ? moduleDef.fields
+              : moduleDef.fields.filter((f: { id: string }) => includedFieldIds.includes(f.id));
+
+          // Skip module if no fields to include (new format with all unchecked)
+          if (fieldsToCreate.length === 0) {
+            return null;
+          }
+
+          const effectiveFieldIds = fieldsToCreate.map((f: { id: string }) => f.id);
+
           // Create Form Category for this module
           const categoryId = `CAT-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
           const categoryData = {
@@ -998,8 +1036,8 @@ export class KAMController {
           };
           await n8nClient.postFormCategory(categoryData);
 
-          // Create Form Fields for each field in the module
-          const fieldPromises = moduleDef.fields.map(async (field: any, fieldIndex: number) => {
+          // Create Form Fields for each included field
+          const fieldPromises = fieldsToCreate.map(async (field: any, fieldIndex: number) => {
             const fieldId = `FLD-${Date.now()}-${index}-${fieldIndex}-${Math.random().toString(36).substr(2, 9)}`;
             const fieldData = {
               id: fieldId,
@@ -1024,11 +1062,11 @@ export class KAMController {
             moduleId,
             categoryId,
             name: moduleDef.name,
-            fields: moduleDef.fields,
+            fields: fieldsToCreate,
           });
 
-          // Create Client Form Mapping with versioning
-          const mappingData = {
+          // Create Client Form Mapping with versioning and included field IDs
+          const mappingData: Record<string, any> = {
             id: `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
             'Mapping ID': `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
             Client: id,
@@ -1038,6 +1076,8 @@ export class KAMController {
             'Version': versionTimestamp, // Module 1: Store version timestamp
             'Product ID': productId || '', // Optional: link to loan product
           };
+          // Store included field IDs for ClientForm to render only these fields
+          mappingData['Included Field IDs'] = JSON.stringify(effectiveFieldIds);
           
           console.log(`[createFormMapping] Creating mapping ${index + 1}/${modules.length}:`, mappingData);
           try {
@@ -1052,15 +1092,16 @@ export class KAMController {
           return mappingData;
         });
 
-        const createdMappings = await Promise.all(mappingPromises);
+        const createdMappings = (await Promise.all(mappingPromises)).filter((m): m is NonNullable<typeof m> => m !== null);
 
         // Store form structure as JSON (can be stored in a field or logged)
         const formJson = JSON.stringify(formStructure, null, 2);
 
         // Module 0: Use admin logger helper
+        const moduleIdsForLog = normalizedModules.map((m) => m.moduleId).join(', ');
         await logClientAction(req.user!, AdminActionType.CONFIGURE_FORM, id, 
-          `Created ${modules.length} form mapping(s) for client: ${modules.join(', ')}${productId ? ` (Product: ${productId})` : ''}`, 
-          { modules, productId, version: versionTimestamp }
+          `Created ${createdMappings.length} form mapping(s) for client: ${moduleIdsForLog}${productId ? ` (Product: ${productId})` : ''}`, 
+          { modules: normalizedModules, productId, version: versionTimestamp }
         );
 
         res.json({

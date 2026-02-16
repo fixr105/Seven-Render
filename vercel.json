@@ -5,26 +5,14 @@
   "installCommand": "npm install && cd backend && npm install && cd ..",
   "framework": "vite",
   "rewrites": [
-    {
-      "source": "/api/health",
-      "destination": "/api/health.ts"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.ts"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    {"source": "/api/(.*)", "destination": "/api/index.ts"},
+    {"source": "/(.*)", "destination": "/index.html"}
   ],
   "functions": {
     "api/index.ts": {
       "includeFiles": "backend/**",
-      "maxDuration": 60
-    },
-    "api/health.ts": {
-      "maxDuration": 10
+      "maxDuration": 60,
+      "memory": 1024
     }
   }
 }

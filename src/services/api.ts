@@ -833,7 +833,7 @@ class ApiService {
       category?: string;
       isRequired?: boolean;
       displayOrder?: number;
-      modules?: string[]; // For bulk creation
+      modules?: string[] | Array<{ moduleId: string; includedFieldIds: string[] }>; // Bulk: string[] (legacy) or object with field IDs
       productId?: string; // Module 1: Optional loan product ID
     }
   ): Promise<ApiResponse> {
@@ -954,16 +954,29 @@ class ApiService {
 
   /**
    * Update application status (Credit only - for approved, rejected, credit_query_with_kam, sent_to_nbfc, etc.)
+   * Retries once after 2.5s on 404-like failures to mitigate serverless cold-start (timeout, HTML fallback, etc.).
    */
   async updateCreditApplicationStatus(
     applicationId: string,
     status: string,
     notes?: string
   ): Promise<ApiResponse> {
-    return this.request(`/credit/loan-applications/${applicationId}/status`, {
-      method: 'POST',
-      body: JSON.stringify({ status, notes }),
-    });
+    const endpoint = `/credit/loan-applications/${applicationId}/status`;
+    const opts = { method: 'POST' as const, body: JSON.stringify({ status, notes }) };
+    const result = await this.request(endpoint, opts);
+    const err = result.error ?? '';
+    const shouldRetry =
+      !result.success &&
+      (err.includes('Endpoint not found') ||
+        err.includes('Server returned HTML') ||
+        err.includes('timed out') ||
+        err.includes('HTTP 404') ||
+        err.includes('Empty response'));
+    if (shouldRetry) {
+      await new Promise((r) => setTimeout(r, 2500));
+      return this.request(endpoint, opts);
+    }
+    return result;
   }
 
   /**

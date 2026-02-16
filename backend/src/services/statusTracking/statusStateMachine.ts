@@ -23,6 +23,7 @@ export const STATUS_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
   ],
   [LoanStatus.QUERY_WITH_CLIENT]: [
     LoanStatus.UNDER_KAM_REVIEW, // Client responds, back to KAM
+    LoanStatus.PENDING_CREDIT_REVIEW, // KAM satisfied, forwards to credit
     LoanStatus.WITHDRAWN, // Client withdraws
   ],
   [LoanStatus.PENDING_CREDIT_REVIEW]: [

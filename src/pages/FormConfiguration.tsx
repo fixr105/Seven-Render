@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 // Checkbox is handled inline with native input
-import { CheckCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -143,7 +143,8 @@ export const FormConfiguration: React.FC = () => {
   const [, _setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<string>(''); // Module 1: Loan product selection
-  const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
+  const [selectedModulesWithFields, setSelectedModulesWithFields] = useState<Record<string, Set<string>>>({});
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
@@ -239,13 +240,57 @@ export const FormConfiguration: React.FC = () => {
   }, [userRole, navigate]);
 
   const handleModuleToggle = (moduleId: string) => {
-    const newSelected = new Set(selectedModules);
-    if (newSelected.has(moduleId)) {
-      newSelected.delete(moduleId);
+    const module = FORM_MODULES.find((m) => m.id === moduleId);
+    if (!module) return;
+
+    const isCurrentlySelected = !!selectedModulesWithFields[moduleId];
+    if (isCurrentlySelected) {
+      setSelectedModulesWithFields((prev) => {
+        const next = { ...prev };
+        delete next[moduleId];
+        return next;
+      });
+      setExpandedModules((exp) => {
+        const e = new Set(exp);
+        e.delete(moduleId);
+        return e;
+      });
     } else {
-      newSelected.add(moduleId);
+      setSelectedModulesWithFields((prev) => ({
+        ...prev,
+        [moduleId]: new Set(module.fields.map((f) => f.id)),
+      }));
+      setExpandedModules((exp) => new Set([...exp, moduleId]));
     }
-    setSelectedModules(newSelected);
+  };
+
+  const handleFieldToggle = (moduleId: string, fieldId: string) => {
+    setSelectedModulesWithFields((prev) => {
+      const moduleFields = prev[moduleId];
+      if (!moduleFields) return prev;
+      const next = { ...prev, [moduleId]: new Set(moduleFields) };
+      if (next[moduleId].has(fieldId)) {
+        next[moduleId].delete(fieldId);
+      } else {
+        next[moduleId].add(fieldId);
+      }
+      if (next[moduleId].size === 0) {
+        delete next[moduleId];
+      }
+      return next;
+    });
+  };
+
+  const handleExpandToggle = (moduleId: string) => {
+    setExpandedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) {
+        next.delete(moduleId);
+      } else {
+        next.add(moduleId);
+      }
+      return next;
+    });
   };
 
   const handleSaveForm = async () => {
@@ -254,23 +299,30 @@ export const FormConfiguration: React.FC = () => {
       return;
     }
 
+    const moduleCount = Object.keys(selectedModulesWithFields).length;
     // Module 1: Require loan product selection when configuring modules
-    if (selectedModules.size > 0 && !selectedProduct) {
+    if (moduleCount > 0 && !selectedProduct) {
       alert('Please select a loan product before saving the form configuration.');
       return;
     }
 
-    if (selectedModules.size === 0) {
+    if (moduleCount === 0) {
       alert('Please select at least one module');
       return;
     }
 
     setSaving(true);
     try {
-      // Create form mappings in bulk
-      const modulesArray = Array.from(selectedModules);
+      // Create form mappings in bulk - send modules with included field IDs
+      const modulesPayload = Object.entries(selectedModulesWithFields)
+        .filter(([, fields]) => fields.size > 0)
+        .map(([moduleId, fields]) => ({
+          moduleId,
+          includedFieldIds: Array.from(fields),
+        }));
+
       const response = await apiService.createFormMapping(selectedClient, {
-        modules: modulesArray,
+        modules: modulesPayload,
         // Module 1: productId is required so each Client Form Mapping row has a Product ID
         productId: selectedProduct,
       });
@@ -290,7 +342,8 @@ export const FormConfiguration: React.FC = () => {
 
       // Reset form after a delay
       setTimeout(() => {
-        setSelectedModules(new Set());
+        setSelectedModulesWithFields({});
+        setExpandedModules(new Set());
         setSelectedClient('');
         setSelectedProduct(''); // Module 1: Reset product selection
         setSuccessMessage(null);
@@ -304,8 +357,8 @@ export const FormConfiguration: React.FC = () => {
   };
 
 
-  const selectedModulesList = Array.from(selectedModules).map(id => 
-    FORM_MODULES.find(m => m.id === id)
+  const selectedModulesList = Object.keys(selectedModulesWithFields).map((id) =>
+    FORM_MODULES.find((m) => m.id === id)
   ).filter(Boolean) as FormModule[];
 
   return (
@@ -332,7 +385,7 @@ export const FormConfiguration: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-neutral-600 mb-4">
-              Create custom forms for clients by selecting a loan product and modules. All fields within selected modules will be automatically included. The configured form will be automatically available to the client when they create a new loan application from their dashboard.
+              Create custom forms for clients by selecting a loan product and modules. Expand a module to include or exclude individual fields. The configured form will be automatically available to the client when they create a new loan application from their dashboard.
             </p>
 
             {/* Client Selection */}
@@ -354,7 +407,7 @@ export const FormConfiguration: React.FC = () => {
                     value={selectedClient}
                     onChange={(e) => {
                       setSelectedClient(e.target.value);
-                      setSelectedModules(new Set());
+                      setSelectedModulesWithFields({});
                     }}
                     options={[
                       { value: '', label: '-- Select a Client --' },
@@ -416,43 +469,90 @@ export const FormConfiguration: React.FC = () => {
                 <label className="block text-sm font-medium text-neutral-900 mb-3">
                   Select Modules * (Select one or many)
                 </label>
+                <p className="text-xs text-neutral-500 mb-2">
+                  Expand a module to see and optionally untick individual fields. Unselecting a module clears all its fields.
+                </p>
                 <div className="space-y-3 max-h-96 overflow-y-auto border border-neutral-200 rounded-lg p-4">
-                  {FORM_MODULES.map((module) => (
-                    <div
-                      key={module.id}
-                      className="flex items-start gap-3 p-3 border border-neutral-200 rounded hover:bg-neutral-50 transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedModules.has(module.id)}
-                        onChange={() => handleModuleToggle(module.id)}
-                        className="mt-1 w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-neutral-900">{module.name}</h4>
-                          {selectedModules.has(module.id) && (
-                            <CheckCircle className="w-4 h-4 text-success" />
-                          )}
+                  {FORM_MODULES.map((module) => {
+                    const isSelected = !!selectedModulesWithFields[module.id];
+                    const selectedFieldCount = selectedModulesWithFields[module.id]?.size ?? 0;
+                    const isExpanded = expandedModules.has(module.id);
+                    return (
+                      <div
+                        key={module.id}
+                        className="flex flex-col gap-0 p-3 border border-neutral-200 rounded hover:bg-neutral-50 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleModuleToggle(module.id)}
+                            className="mt-1 w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => isSelected && handleExpandToggle(module.id)}
+                                className="p-0.5 -ml-0.5 rounded hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-default disabled:hover:bg-transparent"
+                                disabled={!isSelected}
+                                aria-label={isExpanded ? 'Collapse fields' : 'Expand fields'}
+                              >
+                                {isSelected && isExpanded ? (
+                                  <ChevronDown className="w-4 h-4 text-neutral-600" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-neutral-600" />
+                                )}
+                              </button>
+                              <h4 className="font-medium text-neutral-900">{module.name}</h4>
+                              {isSelected && (
+                                <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-neutral-500 mt-1 ml-6">{module.description}</p>
+                            {isSelected && (
+                              <div className="mt-2 text-xs text-neutral-600 ml-6">
+                                <span className="font-medium">
+                                  {selectedFieldCount} of {module.fields.length} field(s) selected
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-neutral-500 mt-1">{module.description}</p>
-                        {selectedModules.has(module.id) && (
-                          <div className="mt-2 text-xs text-neutral-600">
-                            <span className="font-medium">{module.fields.length} field(s) will be included automatically</span>
+                        {isSelected && isExpanded && (
+                          <div className="mt-3 ml-7 pl-4 border-l-2 border-neutral-200 space-y-2">
+                            {module.fields.map((field) => (
+                              <div key={field.id} className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  id={`${module.id}-${field.id}`}
+                                  checked={selectedModulesWithFields[module.id]?.has(field.id) ?? false}
+                                  onChange={() => handleFieldToggle(module.id, field.id)}
+                                  className="w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary"
+                                />
+                                <label
+                                  htmlFor={`${module.id}-${field.id}`}
+                                  className="text-sm text-neutral-700 cursor-pointer"
+                                >
+                                  {field.label}
+                                  {field.required && <span className="text-error ml-0.5">*</span>}
+                                </label>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <p className="text-xs text-neutral-500 mt-2">
-                  {selectedModules.size} module(s) selected
+                  {Object.keys(selectedModulesWithFields).length} module(s) selected
                 </p>
               </div>
             )}
 
             {/* Selected Modules Summary */}
-            {selectedModules.size > 0 && (
+            {Object.keys(selectedModulesWithFields).length > 0 && (
               <div className="mb-6 p-4 bg-brand-primary/5 border border-brand-primary/20 rounded-lg">
                 <h4 className="font-medium text-neutral-900 mb-2">Selected Modules:</h4>
                 <ul className="space-y-1">
@@ -467,13 +567,13 @@ export const FormConfiguration: React.FC = () => {
             )}
 
             {/* Save Button */}
-            {selectedClient && selectedModules.size > 0 && (
+            {selectedClient && Object.keys(selectedModulesWithFields).length > 0 && (
               <div className="flex justify-end">
                 <Button
                   variant="primary"
                   onClick={handleSaveForm}
                   loading={saving}
-                  disabled={!selectedClient || selectedModules.size === 0 || !selectedProduct || saving}
+                  disabled={!selectedClient || Object.keys(selectedModulesWithFields).length === 0 || !selectedProduct || saving}
                 >
                   Save Form Configuration
                 </Button>

@@ -56,26 +56,28 @@ export const AdminUserAccounts: React.FC = () => {
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const fetchAccounts = async (fresh = false) => {
+  const fetchAccounts = async (fresh = false): Promise<UserAccountRow[]> => {
     try {
       setLoading(true);
       setError(null);
       const response = await apiService.listUserAccounts(fresh);
       if (response.success && response.data) {
-        setAccounts(
-          response.data.map((a) => ({
-            id: a.id,
-            username: a.username ?? '-',
-            role: a.role ?? '-',
-            accountStatus: a.accountStatus ?? '-',
-            lastLogin: a.lastLogin ? new Date(a.lastLogin).toLocaleString() : '-',
-          }))
-        );
+        const accountsData = response.data.map((a) => ({
+          id: a.id,
+          username: a.username ?? '-',
+          role: a.role ?? '-',
+          accountStatus: a.accountStatus ?? '-',
+          lastLogin: a.lastLogin ? new Date(a.lastLogin).toLocaleString() : '-',
+        }));
+        setAccounts(accountsData);
+        return accountsData;
       } else {
         setError(response.error || 'Failed to load user accounts');
+        return [];
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load user accounts');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -123,9 +125,16 @@ export const AdminUserAccounts: React.FC = () => {
       });
       if (res.success) {
         setShowCreateModal(false);
-        // Bypass cache and add short delay for n8n/Airtable sync
-        await new Promise((r) => setTimeout(r, 300));
-        await fetchAccounts(true);
+        const emailLower = email.toLowerCase();
+        await new Promise((r) => setTimeout(r, 1500));
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const accountsData = await fetchAccounts(true);
+          const found = accountsData.some((a) => (a.username ?? '').toLowerCase() === emailLower);
+          if (found) break;
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
       } else {
         const errMsg = res.error || 'Failed to create user';
         setCreateError(

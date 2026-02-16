@@ -188,11 +188,11 @@ export default async function handlerWrapper(
     // Vercel's rewrite rule sends /api/* to this handler
     // Based on testing, req.url contains the full path including /api (e.g., /api/debug/test)
     
-    // Get the original URL
-    let path = req.url || '/';
+    // Get the original URL and preserve query string before normalization
+    const originalUrl = req.url || '/';
+    const queryPart = originalUrl.includes('?') ? originalUrl.split('?')[1] : '';
     
-    // Remove query string first
-    path = path.split('?')[0];
+    let path = originalUrl.split('?')[0];
     
     // Remove /api prefix if present
     if (path.startsWith('/api')) {
@@ -208,19 +208,11 @@ export default async function handlerWrapper(
     console.log(`[Serverless] Normalized path for Express: ${path}`);
     
     // Update request URL for Express - serverless-http needs both url and path
-    // CRITICAL: Set both url and path properties for serverless-http to work correctly
-    (req as any).url = path;
-    (req as any).originalUrl = path;
+    // CRITICAL: Preserve query string so Express routing and req.query work correctly
+    const urlWithQuery = queryPart ? `${path}?${queryPart}` : path;
+    (req as any).url = urlWithQuery;
+    (req as any).originalUrl = urlWithQuery;
     (req as any).path = path;
-    
-    // Also update the query string handling
-    if (req.url && req.url.includes('?')) {
-      const queryString = req.url.split('?')[1];
-      if (queryString) {
-        (req as any).url = `${path}?${queryString}`;
-        (req as any).originalUrl = `${path}?${queryString}`;
-      }
-    }
     
     console.log(`[Serverless] Updated req.url: ${(req as any).url}`);
     console.log(`[Serverless] Updated req.path: ${(req as any).path}`);

@@ -29,6 +29,8 @@ interface FormField {
   options?: string[];
 }
 
+type ModuleWithFields = { moduleId: string; includedFieldIds: string[] };
+
 // Form Modules - must match FormConfiguration.tsx exactly
 const FORM_MODULES: FormModule[] = [
   {
@@ -142,16 +144,23 @@ export const ClientForm: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [clientInfo, setClientInfo] = useState<any>(null);
-  const [configuredModules, setConfiguredModules] = useState<string[]>([]);
+  const [configuredModulesWithFields, setConfiguredModulesWithFields] = useState<ModuleWithFields[]>([]);
 
-  // Decode modules from URL parameter
+  // Decode modules from URL parameter (legacy: no field-level info, use all fields)
   useEffect(() => {
     if (modulesParam) {
       try {
-        // Decode base64 and get module IDs
         const decoded = atob(modulesParam + '==='.slice((modulesParam.length + 3) % 4));
         const moduleIds = decoded.split(',').filter(Boolean);
-        setConfiguredModules(moduleIds);
+        setConfiguredModulesWithFields(
+          moduleIds.map((id) => {
+            const mod = FORM_MODULES.find((m) => m.id === id);
+            return {
+              moduleId: id,
+              includedFieldIds: mod ? mod.fields.map((f) => f.id) : [],
+            };
+          })
+        );
       } catch (e) {
         console.error('Error decoding modules:', e);
         setError('Invalid form link. Please contact your KAM.');
@@ -180,48 +189,54 @@ export const ClientForm: React.FC = () => {
           const categoriesResponse = await apiService.listFormCategories();
           
           if (categoriesResponse.success && categoriesResponse.data) {
-            // Get category IDs from mappings
-            const categoryIds = Array.from(
-              new Set(
-                mappingsResponse.data.map((m: any) => m.Category || m.category).filter(Boolean)
-              )
-            ) as string[];
-            
-            // Match categories to modules by name
-            const matchedModules: string[] = [];
-            categoryIds.forEach(categoryId => {
+            const matched: ModuleWithFields[] = [];
+            const seenModuleIds = new Set<string>();
+
+            for (const mapping of mappingsResponse.data) {
+              const categoryId = mapping.Category || mapping.category;
+              if (!categoryId) continue;
+
               const category = categoriesResponse.data?.find((c: any) => 
                 c.id === categoryId || c['Category ID'] === categoryId
               );
-              
-              if (category) {
-                const raw = category as unknown as Record<string, unknown>;
-                const categoryName = String(raw['Category Name'] ?? category.categoryName ?? '');
-                // Match category name to module name
-                const module = FORM_MODULES.find(m => 
-                  m.name === categoryName || 
-                  categoryName.toLowerCase().includes(m.name.toLowerCase()) ||
-                  m.name.toLowerCase().includes(categoryName.toLowerCase())
-                );
-                
-                if (module) {
-                  matchedModules.push(module.id);
+              if (!category) continue;
+
+              const raw = category as unknown as Record<string, unknown>;
+              const categoryName = String(raw['Category Name'] ?? category.categoryName ?? '');
+              const module = FORM_MODULES.find(m => 
+                m.name === categoryName || 
+                categoryName.toLowerCase().includes(m.name.toLowerCase()) ||
+                m.name.toLowerCase().includes(categoryName.toLowerCase())
+              );
+              if (!module || seenModuleIds.has(module.id)) continue;
+              seenModuleIds.add(module.id);
+
+              // Parse included field IDs from mapping (legacy: missing = all fields)
+              let includedFieldIds: string[] = [];
+              const rawFieldIds = mapping['Included Field IDs'] ?? mapping.includedFieldIds;
+              if (rawFieldIds) {
+                try {
+                  includedFieldIds = typeof rawFieldIds === 'string' ? JSON.parse(rawFieldIds) : rawFieldIds;
+                } catch {
+                  includedFieldIds = [];
                 }
               }
-            });
-            
-            if (matchedModules.length > 0) {
-              setConfiguredModules(matchedModules);
-            } else if (configuredModules.length === 0) {
-              // Fallback: use URL param if available
-              if (!modulesParam) {
-                setError('No form configuration found for this client. Please contact your KAM.');
+              if (includedFieldIds.length === 0) {
+                includedFieldIds = module.fields.map((f) => f.id);
               }
+
+              matched.push({ moduleId: module.id, includedFieldIds });
             }
-          } else if (configuredModules.length === 0 && !modulesParam) {
+            
+            if (matched.length > 0) {
+              setConfiguredModulesWithFields(matched);
+            } else if (!modulesParam) {
+              setError('No form configuration found for this client. Please contact your KAM.');
+            }
+          } else if (!modulesParam) {
             setError('No form configuration found for this client. Please contact your KAM.');
           }
-        } else if (configuredModules.length === 0 && !modulesParam) {
+        } else if (!modulesParam) {
           setError('No form configuration found for this client. Please contact your KAM.');
         }
 
@@ -248,7 +263,7 @@ export const ClientForm: React.FC = () => {
     };
 
     fetchFormData();
-  }, [clientId]);
+  }, [clientId, modulesParam]);
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
@@ -269,16 +284,18 @@ export const ClientForm: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    // Validate required fields
+    // Validate required fields (only for included fields)
     const requiredFields: string[] = [];
-    configuredModules.forEach(moduleId => {
+    configuredModulesWithFields.forEach(({ moduleId, includedFieldIds }) => {
       const module = FORM_MODULES.find(m => m.id === moduleId);
       if (module) {
-        module.fields.forEach(field => {
-          if (field.required && !formData[field.id] && !uploadedFiles[field.id]?.length) {
-            requiredFields.push(field.label);
-          }
-        });
+        module.fields
+          .filter((f) => includedFieldIds.includes(f.id))
+          .forEach((field) => {
+            if (field.required && !formData[field.id] && !uploadedFiles[field.id]?.length) {
+              requiredFields.push(field.label);
+            }
+          });
       }
     });
 
@@ -302,7 +319,7 @@ export const ClientForm: React.FC = () => {
             acc[key] = uploadedFiles[key].map(f => f.name);
             return acc;
           }, {} as Record<string, string[]>),
-          modules: configuredModules,
+          modules: configuredModulesWithFields.map((m) => m.moduleId),
           clientId: clientId,
         },
       };
@@ -348,7 +365,7 @@ export const ClientForm: React.FC = () => {
     );
   }
 
-  if (error && !configuredModules.length) {
+  if (error && !configuredModulesWithFields.length) {
     return (
       <MainLayout
         sidebarItems={sidebarItems}
@@ -432,9 +449,11 @@ export const ClientForm: React.FC = () => {
             <CardTitle>Loan Application Form</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {configuredModules.map(moduleId => {
+            {configuredModulesWithFields.map(({ moduleId, includedFieldIds }) => {
               const module = FORM_MODULES.find(m => m.id === moduleId);
               if (!module) return null;
+
+              const fieldsToRender = module.fields.filter((f) => includedFieldIds.includes(f.id));
 
               return (
                 <div key={moduleId} className="border-b border-neutral-200 pb-6 last:border-b-0 last:pb-0">
@@ -444,7 +463,7 @@ export const ClientForm: React.FC = () => {
                   )}
                   
                   <div className="space-y-4">
-                    {module.fields.map(field => (
+                    {fieldsToRender.map(field => (
                       <div key={field.id}>
                         {field.type === 'file' ? (
                           <div>
