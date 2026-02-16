@@ -183,10 +183,13 @@ export const FormConfiguration: React.FC = () => {
       setLoadingProducts(true);
       const response = await apiService.listLoanProducts(true);
       if (response.success && response.data) {
-        const products = response.data.map((product: any) => ({
-          id: product.productId || product.id,
-          name: product.productName || product['Product Name'] || product.name,
-        }));
+        const products = response.data.map((product: any) => {
+          const id = product.productId ?? product.id;
+          return {
+            id: typeof id === 'string' ? id : (id?.id ?? String(id ?? '')),
+            name: product.productName || product['Product Name'] || product.name,
+          };
+        });
         setLoanProducts(products);
       }
     } catch (error) {
@@ -317,8 +320,8 @@ export const FormConfiguration: React.FC = () => {
       const modulesPayload = Object.entries(selectedModulesWithFields)
         .filter(([, fields]) => fields.size > 0)
         .map(([moduleId, fields]) => ({
-          moduleId,
-          includedFieldIds: Array.from(fields),
+          moduleId: String(moduleId),
+          includedFieldIds: Array.from(fields).map(String),
         }));
 
       const response = await apiService.createFormMapping(selectedClient, {
@@ -412,12 +415,14 @@ export const FormConfiguration: React.FC = () => {
                     options={[
                       { value: '', label: '-- Select a Client --' },
                       ...managedClients.map((client: any) => {
-                        // Handle different client data formats
-                        const clientId = client.id || client.clientId || client['Client ID'];
+                        // Handle different client data formats; ensure value is always a string
+                        const clientId = client.id ?? client.clientId ?? client['Client ID'];
+                        const safeId = Array.isArray(clientId) ? clientId[0] : clientId;
+                        const value = typeof safeId === 'string' ? safeId : String(safeId ?? '');
                         const clientName = client.clientName || client['Client Name'] || client.company_name || client['Primary Contact Name'] || '';
                         return {
-                          value: clientId,
-                          label: `${clientName}${clientId ? ` (${clientId})` : ''}`,
+                          value,
+                          label: `${clientName}${value ? ` (${value})` : ''}`,
                         };
                       }),
                     ]}

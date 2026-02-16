@@ -892,13 +892,22 @@ export class KAMController {
 
         // Normalize modules: support legacy string[] or new { moduleId, includedFieldIds }[]
         type ModuleEntry = { moduleId: string; includedFieldIds: string[] };
+        const extractModuleId = (m: string | ModuleEntry): string => {
+          if (typeof m === 'string') return m;
+          const mod = m as any;
+          const raw = mod.moduleId ?? mod.id;
+          if (typeof raw === 'string') return raw;
+          if (raw && typeof raw === 'object' && typeof raw.id === 'string') return raw.id;
+          return String(raw ?? '');
+        };
         const normalizedModules: ModuleEntry[] = modules.map((m: string | ModuleEntry) => {
           if (typeof m === 'string') {
             return { moduleId: m, includedFieldIds: [] }; // Legacy: empty = all fields
           }
           const mod = m as ModuleEntry;
+          const moduleId = extractModuleId(m);
           return {
-            moduleId: mod.moduleId,
+            moduleId,
             includedFieldIds: Array.isArray(mod.includedFieldIds) ? mod.includedFieldIds : [],
           };
         });
@@ -1006,9 +1015,12 @@ export class KAMController {
             },
           };
 
+          if (!moduleId || typeof moduleId !== 'string') {
+            throw new Error(`Invalid module entry: expected moduleId string, got ${JSON.stringify(entry)}`);
+          }
           const moduleDef = moduleDefinitions[moduleId];
           if (!moduleDef) {
-            throw new Error(`Unknown module: ${moduleId}`);
+            throw new Error(`Unknown module: ${moduleId}. Valid modules: ${Object.keys(moduleDefinitions).join(', ')}`);
           }
 
           // Filter fields: legacy (empty includedFieldIds) = all fields; new format = only included
