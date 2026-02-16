@@ -315,3 +315,5 @@ This script greps `fetchTable` (backend) and `isPageReload` (frontend) and print
 - **Backend**: `backend/src/controllers/*` (loan, client, kam, credit, nbfc, audit, ledger, products, etc.). `n8nClient.fetchTable` in `backend/src/services/airtable/n8nClient.ts` (signature: `fetchTable(tableName, useCache?, cacheTTL?, timeoutMs?)`).
 
 When you add a new page or a new GET, update the **Page → Data Dependencies** table and the **Backend GETs** table, run the runbook, and add at least the “mount/SPA” and “loading/error” tests so GETs and page load stay correct and within time.
+
+**See also:** [System Sync Actions Checklist](SYSTEM_SYNC_ACTIONS_CHECKLIST.md) – frontend refetch after mutations and cache invalidation patterns.

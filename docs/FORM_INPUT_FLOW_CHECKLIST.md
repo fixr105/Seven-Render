@@ -228,3 +228,5 @@ Use this when adding or changing a form that submits data.
 - **Workflow / side‑effects**: `loanWorkflow.service.ts`, `centralizedLogger`, `logApplicationAction`, notification creation, Asana.
 
 When you add a new form or a new backend action, update the **Form‑to‑Endpoint Map** and the **Persist and side‑effects** table, and run the quick checklist so no logical step is dropped.
+
+**See also:** [System Sync Actions Checklist](SYSTEM_SYNC_ACTIONS_CHECKLIST.md) – webhooks, cache invalidation, status transitions, and frontend refetch for concurrent sync.

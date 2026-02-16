@@ -1,0 +1,25 @@
+---
+description: System-wide sync actions checklist for planning concurrent updates
+globs: backend/**/*.ts, src/**/*.tsx, docs/**/*.md
+alwaysApply: false
+---
+
+# System Sync Planning Checklist
+
+When adding new POST endpoints, changing status transitions, modifying cache invalidation, or implementing user actions that trigger multi-system updates, verify all sync actions are covered.
+
+**Full checklist:** [docs/SYSTEM_SYNC_ACTIONS_CHECKLIST.md](docs/SYSTEM_SYNC_ACTIONS_CHECKLIST.md)
+
+## Quick Verification
+
+1. **Webhooks:** Primary entity + Fileauditinglog (if applicable) + POSTLOG + adduser (if user) + notification (if notify)
+2. **Cache:** Invalidate primary + related tables after every POST
+3. **Status:** Use `statusStateMachine.validateTransition()` for status changes
+4. **Frontend:** Refetch list/detail views after mutations
+5. **Errors:** User feedback, retries (3x exponential backoff), no silent failures
+
+## Key Files
+
+- `backend/API_ENDPOINTS_WEBHOOK_MAPPING.md` – webhook mapping
+- `backend/src/services/statusTracking/statusStateMachine.ts` – transitions
+- `backend/src/services/airtable/n8nClient.ts` – POST methods + cache invalidation
