@@ -157,9 +157,11 @@ async function main() {
     process.exit(1);
   }
   
-  // Login to get token
+  // Login to get token (use env: E2E_CLIENT_USERNAME, E2E_CLIENT_PASSWORD - matches Airtable User Accounts Username)
+  const username = process.env.E2E_CLIENT_USERNAME || 'Sagar@gmail.com';
+  const passcode = process.env.E2E_CLIENT_PASSWORD || 'pass@123';
   console.log('\nLogging in...');
-  const token = await login('Sagar', 'pass@123');
+  const token = await login(username, passcode);
   
   if (!token) {
     console.log('❌ Failed to login - cannot test upload endpoints');

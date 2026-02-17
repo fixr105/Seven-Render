@@ -73,10 +73,19 @@ export const NewApplication: React.FC = () => {
     }
   }, [configuredProductIds, configuredProductsFetched, userRole]);
 
+  // Refetch form config when user selects a loan product (e.g. Money Multiplier)
+  // Product-specific configs require productId to load correctly
+  useEffect(() => {
+    if (userRole === 'client' && formData.loan_product_id && user?.clientId) {
+      fetchFormConfig(formData.loan_product_id);
+    }
+  }, [formData.loan_product_id]);
+
   const loadForm = () => {
     if (userRole !== 'client') return;
     fetchClientId();
-    fetchFormConfig();
+    // Pass selected product so Money Multiplier (and other product-specific configs) load correctly
+    fetchFormConfig(formData.loan_product_id || undefined);
     fetchConfiguredProducts();
   };
 
@@ -89,7 +98,7 @@ export const NewApplication: React.FC = () => {
     }
   };
 
-  const fetchFormConfig = async () => {
+  const fetchFormConfig = async (productId?: string) => {
     if (userRole !== 'client') {
       setFormConfigLoading(false);
       return;
@@ -104,8 +113,8 @@ export const NewApplication: React.FC = () => {
 
     try {
       setFormConfigLoading(true);
-      // Fetch form configuration for this client
-      const response = await apiService.getFormConfig();
+      // Fetch form configuration for this client (product-specific when productId provided)
+      const response = await apiService.getFormConfig(productId);
       
       if (response.success && response.data) {
         // The backend returns an array of categories with fields
@@ -872,7 +881,7 @@ export const NewApplication: React.FC = () => {
               <p className="text-sm text-neutral-600 mb-4">
                 {formConfigLoading
                   ? 'Loading form configuration...'
-                  : 'No form configuration loaded. Click "Load form" to fetch your configuration, or contact your KAM to configure your form.'}
+                  : 'No form configuration loaded. Select a loan product above (e.g. Money Multiplier), then click "Load form" to fetch your configuration, or contact your KAM to configure your form.'}
               </p>
             </CardContent>
           </Card>

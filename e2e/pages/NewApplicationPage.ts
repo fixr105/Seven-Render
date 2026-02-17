@@ -70,7 +70,7 @@ export class NewApplicationPage {
    * Navigate to new application page
    */
   async goto() {
-    await this.page.goto('/new-application');
+    await this.page.goto('/applications/new');
     await this.page.waitForLoadState('networkidle');
     // Wait for form to be visible
     await this.applicantNameInput.waitFor({ state: 'visible', timeout: 10000 });

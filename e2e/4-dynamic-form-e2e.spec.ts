@@ -6,7 +6,7 @@
  * Test 3: Data Persistence & Submission - Submit form, reload page, verify data persists
  * 
  * Requirements:
- * - No authentication (uses role selection)
+ * - Real authentication via loginAs (env: E2E_CLIENT_USERNAME, E2E_CLIENT_PASSWORD)
  * - Data-driven from JSON file
  * - Page Object Model pattern
  * - Comprehensive assertions
@@ -14,7 +14,8 @@
 
 import { test, expect } from '@playwright/test';
 import { NewApplicationPage, FormTestData } from './pages/NewApplicationPage';
-import { selectRole } from './helpers/roleSelection';
+import { loginAs } from './helpers/auth';
+import { waitForPageLoad } from './helpers/navigation';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -53,8 +54,9 @@ test.describe('E2E: Dynamic Form Workflow', () => {
   test.beforeEach(async ({ page }) => {
     newApplicationPage = new NewApplicationPage(page);
     
-    // Select client role (no authentication needed)
-    await selectRole(page, 'client');
+    // Log in as client with real auth (required for createApplication API)
+    await loginAs(page, 'client');
+    await waitForPageLoad(page);
     
     // Navigate to new application page
     await newApplicationPage.goto();
