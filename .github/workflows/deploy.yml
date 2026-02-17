@@ -18,7 +18,9 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
       
       - name: Deploy to Fly.io
-        run: flyctl deploy backend --config backend/fly.toml --app seven-dash --local-only
+        run: |
+          cd backend
+          flyctl deploy --config fly.toml --app seven-dash --local-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
