@@ -49,6 +49,7 @@ export class NewApplicationPage {
   readonly formContainer: Locator;
   readonly successMessage: Locator;
   readonly errorMessage: Locator;
+  readonly loadFormButton: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -64,6 +65,50 @@ export class NewApplicationPage {
     this.formContainer = page.locator('form, [data-testid="new-application-form"]').first();
     this.successMessage = page.locator('text=/success|created|submitted/i, [data-testid="success-message"]').first();
     this.errorMessage = page.locator('.text-error, [role="alert"]').first();
+    this.loadFormButton = page.locator('button:has-text("Load form")').first();
+  }
+
+  /**
+   * Wait for at least one form category section to be visible (indicates form config loaded)
+   */
+  async waitForFormCategoriesVisible(timeout = 15000): Promise<void> {
+    const categoryPattern = this.page.locator('text=/Personal|KYC|Document|Information|Checklist|Income|Asset|Invoice|Security|Additional/i').first();
+    await expect(categoryPattern).toBeVisible({ timeout });
+  }
+
+  /**
+   * Select a loan product by name or ID, then wait for form config to load.
+   * Clicks "Load form" if form is still empty after 3s.
+   */
+  async selectProductAndWaitForForm(productNameOrId: string): Promise<void> {
+    await this.loanProductSelect.waitFor({ state: 'visible', timeout: 10000 });
+    // Wait for product option to appear (products loaded from API)
+    await this.page.locator(`select option:has-text("${productNameOrId}")`).first()
+      .waitFor({ state: 'attached', timeout: 15000 })
+      .catch(() => this.page.waitForTimeout(3000));
+
+    // Try select by label first, then by value
+    const optionByLabel = this.page.locator(`select[id="loan_product_id"], select[name="loan_product_id"] option:has-text("${productNameOrId}")`).first();
+    if (await optionByLabel.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await this.loanProductSelect.selectOption({ label: productNameOrId });
+    } else {
+      await this.loanProductSelect.selectOption({ value: productNameOrId });
+    }
+
+    // Wait for form to load (either auto-load on product change or after Load form click)
+    const formLoaded = await this.page.locator('text=/Personal|KYC|Document|Information|Checklist|Income|Asset|Invoice|Security|Additional/i').first()
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
+
+    if (!formLoaded) {
+      // Form still empty - click Load form
+      if (await this.loadFormButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await this.loadFormButton.click();
+        await this.waitForFormCategoriesVisible(15000);
+      } else {
+        await this.waitForFormCategoriesVisible(15000);
+      }
+    }
   }
 
   /**

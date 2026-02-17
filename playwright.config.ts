@@ -53,29 +53,31 @@ export default defineConfig({
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: [
-    {
-      command: 'npm run dev',
-      url: 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
-      timeout: 180 * 1000,
-      env: {
-        VITE_API_BASE_URL: 'http://localhost:3001/api',
-      },
-    },
-    {
-      command: 'cd backend && npm run dev',
-      url: 'http://localhost:3001/health',
-      reuseExistingServer: !process.env.CI,
-      timeout: 180 * 1000,
-      env: {
-        N8N_BASE_URL: process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud',
-        NODE_ENV: 'development',
-        SKIP_AUTH_RATE_LIMIT: 'true',
-        SKIP_E2E_RATE_LIMITS: 'true',
-      },
-    },
-  ],
+  /* Run your local dev server before starting the tests. Disabled when PLAYWRIGHT_TEST_BASE_URL is set (deployed mode). */
+  webServer: process.env.PLAYWRIGHT_TEST_BASE_URL
+    ? undefined
+    : [
+        {
+          command: 'npm run dev',
+          url: 'http://localhost:3000',
+          reuseExistingServer: !process.env.CI,
+          timeout: 180 * 1000,
+          env: {
+            VITE_API_BASE_URL: 'http://localhost:3001/api',
+          },
+        },
+        {
+          command: 'cd backend && npm run dev',
+          url: 'http://localhost:3001/health',
+          reuseExistingServer: !process.env.CI,
+          timeout: 180 * 1000,
+          env: {
+            N8N_BASE_URL: process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud',
+            NODE_ENV: 'development',
+            SKIP_AUTH_RATE_LIMIT: 'true',
+            SKIP_E2E_RATE_LIMITS: 'true',
+          },
+        },
+      ],
 });
 
