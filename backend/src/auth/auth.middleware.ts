@@ -17,13 +17,21 @@ declare global {
   }
 }
 
+function getTokenFromRequest(req: Request): string | null {
+  const fromCookie = req.cookies?.[authConfig.cookieName];
+  if (fromCookie) return fromCookie;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) return authHeader.slice(7).trim();
+  return null;
+}
+
 export const authenticate = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const token = req.cookies?.[authConfig.cookieName];
+    const token = getTokenFromRequest(req);
     if (!token) {
       res.status(401).json({
         success: false,

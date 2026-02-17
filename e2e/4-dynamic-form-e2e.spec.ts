@@ -18,6 +18,9 @@ import { loginAs } from './helpers/auth';
 import { waitForPageLoad } from './helpers/navigation';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load test data from JSON file
 const testDataPath = path.join(__dirname, 'test-data', 'form-test-data.json');

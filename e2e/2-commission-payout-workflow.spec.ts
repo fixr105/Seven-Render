@@ -123,7 +123,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await submitButton.click();
 
       // Wait for success message or confirmation
-      await clientPage.waitForSelector('text=/success|requested|submitted/i, [data-testid="success"]', { timeout: 10000 }).catch(() => {
+      await clientPage.waitForSelector('text=/success|requested|submitted/i, [data-testid="success"]', { timeout: 10000 }).catch(async () => {
         // If no explicit success message, verify modal closed
         await expect(payoutModal).not.toBeVisible({ timeout: 3000 });
       });
@@ -186,7 +186,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
         }
 
         // Wait for success message
-        await creditPage.waitForSelector('text=/approved|success/i, [data-testid="success"]', { timeout: 10000 }).catch(() => {
+        await creditPage.waitForSelector('text=/approved|success/i, [data-testid="success"]', { timeout: 10000 }).catch(async () => {
           // If no explicit message, verify request status changed
           await creditPage.waitForTimeout(2000);
         });

@@ -194,6 +194,8 @@ export interface AuditLogEntry {
 
 class ApiService {
   private baseUrl: string;
+  /** Bearer token for when cookies are not sent (e.g. E2E, some proxies). Set on login, cleared on logout. */
+  private bearerToken: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
@@ -210,10 +212,10 @@ class ApiService {
       ...options.headers,
     };
 
-    // Note: Auth tokens are in HTTP-only cookies
-    // Browser automatically includes cookies in requests (credentials: 'include' is default for same-origin)
-    // No need to manually add Authorization header
-    // Cookies are sent automatically by the browser
+    // Auth: cookies (primary) or Bearer token (fallback when cookies blocked)
+    if (this.bearerToken && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/validate')) {
+      (headers as Record<string, string>)['Authorization'] = `Bearer ${this.bearerToken}`;
+    }
 
     try {
       // Add timeout for fetch requests
@@ -373,13 +375,16 @@ class ApiService {
 
   /**
    * Login with email and password.
-   * Token is set in HTTP-only cookie by server; browser sends it automatically on subsequent requests.
+   * Token is set in HTTP-only cookie by server; also stored in memory for Bearer fallback when cookies blocked.
    */
-  async login(email: string, password: string): Promise<ApiResponse<{ user: UserContext }>> {
-    const response = await this.request<{ user: UserContext }>('/auth/login', {
+  async login(email: string, password: string): Promise<ApiResponse<{ user: UserContext; token?: string }>> {
+    const response = await this.request<{ user: UserContext; token?: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+    if (response.success && response.data?.token) {
+      this.bearerToken = response.data.token;
+    }
     return response;
   }
 
@@ -392,9 +397,10 @@ class ApiService {
   }
 
   /**
-   * Logout - clears auth cookie on server.
+   * Logout - clears auth cookie on server and in-memory Bearer token.
    */
   async logout(): Promise<ApiResponse<{ message: string }>> {
+    this.bearerToken = null;
     return this.request<{ message: string }>('/auth/logout', { method: 'POST' });
   }
 
@@ -821,6 +827,17 @@ class ApiService {
    */
   async getPublicFormMappings(clientId: string): Promise<ApiResponse> {
     return this.request(`/public/clients/${clientId}/form-mappings`);
+  }
+
+  /**
+   * Get full form config for client (Public - for form links)
+   * Returns categories with fields from Form Fields table.
+   */
+  async getPublicFormConfig(clientId: string, productId?: string): Promise<ApiResponse<any[]>> {
+    const url = productId
+      ? `/public/clients/${clientId}/form-config?productId=${productId}`
+      : `/public/clients/${clientId}/form-config`;
+    return this.request<any[]>(url);
   }
 
   /**

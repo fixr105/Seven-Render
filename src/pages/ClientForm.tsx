@@ -12,131 +12,30 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
-// Form Modules Configuration (same as FormConfiguration)
-interface FormModule {
-  id: string;
-  name: string;
-  description: string;
-  fields: FormField[];
-}
-
-interface FormField {
-  id: string;
-  label: string;
-  type: 'text' | 'file' | 'date' | 'number' | 'select' | 'checkbox' | 'textarea';
-  required: boolean;
-  placeholder?: string;
-  options?: string[];
-}
-
-type ModuleWithFields = { moduleId: string; includedFieldIds: string[] };
-
-// Form Modules - must match FormConfiguration.tsx exactly
-const FORM_MODULES: FormModule[] = [
-  {
-    id: 'universal_checklist',
-    name: 'Universal Checklist',
-    description: 'Housing Loan/LAP, Credit Line, Business Loan',
-    fields: [
-      { id: 'checklist_complete', label: 'Checklist Complete', type: 'checkbox', required: false },
-    ],
-  },
-  {
-    id: 'personal_kyc',
-    name: 'Personal KYC (All Applicants/Co-Applicants)',
-    description: 'Personal identification and address documents',
-    fields: [
-      { id: 'pan_card', label: 'PAN Card – Applicant/Co-applicant', type: 'file', required: true },
-      { id: 'aadhaar_passport_voter', label: 'Aadhaar Card / Passport / Voter ID', type: 'file', required: true },
-      { id: 'passport_photo', label: 'Passport Size Photograph – 2 Copies', type: 'file', required: true },
-      { id: 'residence_proof', label: 'Residence Address Proof (Utility Bill / Rent Agreement)', type: 'file', required: true },
-      { id: 'bank_statement_personal', label: 'Latest 6 Months Bank Statement – Personal', type: 'file', required: true },
-      { id: 'itr_personal', label: 'ITR – Last 2 Years (if applicable)', type: 'file', required: false },
-    ],
-  },
-  {
-    id: 'company_kyc',
-    name: 'Company/Business KYC (Proprietor / Partnership / Pvt Ltd / LLP)',
-    description: 'Business registration and company documents',
-    fields: [
-      { id: 'business_registration', label: 'Business Registration Proof (GST / Udyam / Trade License / Partnership Deed / MOA & AOA)', type: 'file', required: true },
-      { id: 'company_pan', label: 'Company PAN Card', type: 'file', required: true },
-      { id: 'gst_certificate', label: 'GST Certificate', type: 'file', required: true },
-      { id: 'business_address_proof', label: 'Business Address Proof', type: 'file', required: true },
-      { id: 'partners_directors', label: 'List of Partners/Directors with Shareholding (if applicable)', type: 'file', required: false },
-      { id: 'bank_statement_business', label: 'Latest 12 Months Bank Statement – Business', type: 'file', required: true },
-      { id: 'company_itr', label: 'Latest 2 Years Company ITR', type: 'file', required: true },
-      { id: 'audited_financials', label: 'Latest Audited Financials (if available)', type: 'file', required: false },
-      { id: 'gst_3b', label: 'GST 3B – Last 12 Months', type: 'file', required: true },
-    ],
-  },
-  {
-    id: 'income_banking',
-    name: 'Income & Banking Documents',
-    description: 'Financial statements and banking documents',
-    fields: [
-      { id: 'itr_computation', label: 'Latest 2 Years ITR with Computation', type: 'file', required: true },
-      { id: 'balance_sheet', label: 'Balance Sheet & Profit/Loss Statement (if applicable)', type: 'file', required: false },
-      { id: 'bank_statement_main', label: '12 Months Bank Statement of Main Business Account', type: 'file', required: true },
-      { id: 'loan_sanction_letters', label: 'Existing Loan Sanction Letters (if any)', type: 'file', required: false },
-      { id: 'repayment_schedule', label: 'Repayment Schedule (for takeover cases)', type: 'file', required: false },
-    ],
-  },
-  {
-    id: 'asset_details',
-    name: 'Asset Details (HL/LAP Specific)',
-    description: 'Property and asset documentation',
-    fields: [
-      { id: 'property_title', label: 'Property Title Deed / Sale Deed', type: 'file', required: true },
-      { id: 'mother_deed', label: 'Mother Deed / Chain of Documents', type: 'file', required: true },
-      { id: 'encumbrance_certificate', label: 'Encumbrance Certificate (EC)', type: 'file', required: true },
-      { id: 'property_tax', label: 'Property Tax Receipt', type: 'file', required: true },
-      { id: 'building_plan', label: 'Approved Building Plan (if applicable)', type: 'file', required: false },
-      { id: 'occupation_certificate', label: 'Occupation/Completion Certificate (if applicable)', type: 'file', required: false },
-      { id: 'utility_bill_property', label: 'Latest Electricity/Water Bill (Property Proof)', type: 'file', required: true },
-    ],
-  },
-  {
-    id: 'invoice_financial',
-    name: 'Invoice / Financial Requirement Details (Credit Line / Business Loan Specific)',
-    description: 'Purchase orders and financial requirements',
-    fields: [
-      { id: 'purchase_order', label: 'Purchase Order (PO)', type: 'file', required: false },
-      { id: 'grn', label: 'Goods Received Note (GRN)', type: 'file', required: false },
-      { id: 'tax_invoice', label: 'Tax Invoice / Revised Proforma Invoice', type: 'file', required: false },
-      { id: 'quotation', label: 'Quotation (if applicable)', type: 'file', required: false },
-      { id: 'business_projections', label: 'Business Projections (if required)', type: 'file', required: false },
-    ],
-  },
-  {
-    id: 'security_documents',
-    name: 'Security Documents',
-    description: 'Security and guarantee documents',
-    fields: [
-      { id: 'pdc', label: 'Post-dated Cheques (if applicable)', type: 'file', required: false },
-      { id: 'nach_mandate', label: 'NACH Mandate Form', type: 'file', required: false },
-      { id: 'hypothecation_agreement', label: 'Hypothecation Agreement (if applicable)', type: 'file', required: false },
-      { id: 'insurance_copy', label: 'Insurance Copy (if applicable)', type: 'file', required: false },
-    ],
-  },
-  {
-    id: 'additional_requirements',
-    name: 'Additional Requirements (Common Across All Products)',
-    description: 'Credit checks and additional documentation',
-    fields: [
-      { id: 'cibil_report', label: 'CIBIL Report (Minimum score as per program)', type: 'file', required: true },
-      { id: 'no_dpd', label: 'No DPD in last 3 months / No 60+ in last 6 months', type: 'checkbox', required: true },
-      { id: 'financial_owners', label: 'All financial owners must be part of the loan structure', type: 'checkbox', required: true },
-    ],
-  },
-];
+type FormConfigCategory = {
+  categoryId: string;
+  categoryName: string;
+  description?: string;
+  isRequired?: boolean;
+  displayOrder?: number;
+  fields: Array<{
+    fieldId: string;
+    label: string;
+    type: string;
+    placeholder?: string;
+    options?: string[];
+    isRequired?: boolean;
+    isMandatory?: boolean;
+    displayOrder?: number;
+  }>;
+};
 
 export const ClientForm: React.FC = () => {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const modulesParam = searchParams.get('modules') || '';
-  
+  const productIdParam = searchParams.get('productId') || undefined;
+
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({});
@@ -144,31 +43,9 @@ export const ClientForm: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [clientInfo, setClientInfo] = useState<any>(null);
-  const [configuredModulesWithFields, setConfiguredModulesWithFields] = useState<ModuleWithFields[]>([]);
+  const [formConfig, setFormConfig] = useState<FormConfigCategory[]>([]);
 
-  // Decode modules from URL parameter (legacy: no field-level info, use all fields)
-  useEffect(() => {
-    if (modulesParam) {
-      try {
-        const decoded = atob(modulesParam + '==='.slice((modulesParam.length + 3) % 4));
-        const moduleIds = decoded.split(',').filter(Boolean);
-        setConfiguredModulesWithFields(
-          moduleIds.map((id) => {
-            const mod = FORM_MODULES.find((m) => m.id === id);
-            return {
-              moduleId: id,
-              includedFieldIds: mod ? mod.fields.map((f) => f.id) : [],
-            };
-          })
-        );
-      } catch (e) {
-        console.error('Error decoding modules:', e);
-        setError('Invalid form link. Please contact your KAM.');
-      }
-    }
-  }, [modulesParam]);
-
-  // Fetch client info and form mappings
+  // Fetch form config from Form Fields table (Client Form Mapping + Form Categories + Form Fields)
   useEffect(() => {
     const fetchFormData = async () => {
       if (!clientId) {
@@ -181,66 +58,22 @@ export const ClientForm: React.FC = () => {
         setLoading(true);
         setError('');
 
-        // Fetch form mappings for this client (public endpoint)
-        const mappingsResponse = await apiService.getPublicFormMappings(clientId);
-        
-        if (mappingsResponse.success && mappingsResponse.data && mappingsResponse.data.length > 0) {
-          // Fetch Form Categories to match category IDs to module names
-          const categoriesResponse = await apiService.listFormCategories();
-          
-          if (categoriesResponse.success && categoriesResponse.data) {
-            const matched: ModuleWithFields[] = [];
-            const seenModuleIds = new Set<string>();
+        const response = await apiService.getPublicFormConfig(clientId, productIdParam);
 
-            for (const mapping of mappingsResponse.data) {
-              const categoryId = mapping.Category || mapping.category;
-              if (!categoryId) continue;
-
-              const category = categoriesResponse.data?.find((c: any) => 
-                c.id === categoryId || c['Category ID'] === categoryId
-              );
-              if (!category) continue;
-
-              const raw = category as unknown as Record<string, unknown>;
-              const categoryName = String(raw['Category Name'] ?? category.categoryName ?? '');
-              const module = FORM_MODULES.find(m => 
-                m.name === categoryName || 
-                categoryName.toLowerCase().includes(m.name.toLowerCase()) ||
-                m.name.toLowerCase().includes(categoryName.toLowerCase())
-              );
-              if (!module || seenModuleIds.has(module.id)) continue;
-              seenModuleIds.add(module.id);
-
-              // Parse included field IDs from mapping (legacy: missing = all fields)
-              let includedFieldIds: string[] = [];
-              const rawFieldIds = mapping['Included Field IDs'] ?? mapping.includedFieldIds;
-              if (rawFieldIds) {
-                try {
-                  includedFieldIds = typeof rawFieldIds === 'string' ? JSON.parse(rawFieldIds) : rawFieldIds;
-                } catch {
-                  includedFieldIds = [];
-                }
-              }
-              if (includedFieldIds.length === 0) {
-                includedFieldIds = module.fields.map((f) => f.id);
-              }
-
-              matched.push({ moduleId: module.id, includedFieldIds });
-            }
-            
-            if (matched.length > 0) {
-              setConfiguredModulesWithFields(matched);
-            } else if (!modulesParam) {
-              setError('No form configuration found for this client. Please contact your KAM.');
-            }
-          } else if (!modulesParam) {
+        if (response.success && response.data && Array.isArray(response.data)) {
+          const categoriesList = response.data.filter(
+            (c: any) => c.fields && Array.isArray(c.fields) && c.fields.length > 0
+          );
+          setFormConfig(categoriesList);
+          if (categoriesList.length === 0) {
             setError('No form configuration found for this client. Please contact your KAM.');
           }
-        } else if (!modulesParam) {
+        } else {
+          setFormConfig([]);
           setError('No form configuration found for this client. Please contact your KAM.');
         }
 
-        // Fetch client info (optional - for display)
+        // Fetch client info (optional - for display; may fail if unauthenticated)
         try {
           const clientsResponse = await apiService.listClients();
           if (clientsResponse.success && clientsResponse.data) {
@@ -250,10 +83,8 @@ export const ClientForm: React.FC = () => {
             }
           }
         } catch (e) {
-          // Client info is optional, continue without it
           console.warn('Could not fetch client info:', e);
         }
-
       } catch (err: any) {
         console.error('Error fetching form data:', err);
         setError(err.message || 'Failed to load form. Please contact your KAM.');
@@ -263,40 +94,35 @@ export const ClientForm: React.FC = () => {
     };
 
     fetchFormData();
-  }, [clientId, modulesParam]);
+  }, [clientId, productIdParam]);
 
   const handleFieldChange = (fieldId: string, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [fieldId]: value,
     }));
   };
 
   const handleFileUpload = (fieldId: string, files: File[]) => {
-    setUploadedFiles(prev => ({
+    setUploadedFiles((prev) => ({
       ...prev,
       [fieldId]: files,
     }));
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [fieldId]: files.map(f => f.name).join(', '),
+      [fieldId]: files.map((f) => f.name).join(', '),
     }));
   };
 
   const handleSubmit = async () => {
-    // Validate required fields (only for included fields)
     const requiredFields: string[] = [];
-    configuredModulesWithFields.forEach(({ moduleId, includedFieldIds }) => {
-      const module = FORM_MODULES.find(m => m.id === moduleId);
-      if (module) {
-        module.fields
-          .filter((f) => includedFieldIds.includes(f.id))
-          .forEach((field) => {
-            if (field.required && !formData[field.id] && !uploadedFiles[field.id]?.length) {
-              requiredFields.push(field.label);
-            }
-          });
-      }
+    formConfig.forEach((category) => {
+      (category.fields || []).forEach((field) => {
+        const isRequired = field.isRequired || field.isMandatory;
+        if (isRequired && !formData[field.fieldId] && !uploadedFiles[field.fieldId]?.length) {
+          requiredFields.push(field.label);
+        }
+      });
     });
 
     if (requiredFields.length > 0) {
@@ -308,18 +134,19 @@ export const ClientForm: React.FC = () => {
     setError('');
 
     try {
-      // Create loan application with form data
       const applicationData = {
         productId: formData.loan_product || '',
         applicantName: formData.applicant_name || '',
         requestedLoanAmount: formData.requested_amount || '0',
         formData: {
           ...formData,
-          uploadedFiles: Object.keys(uploadedFiles).reduce((acc, key) => {
-            acc[key] = uploadedFiles[key].map(f => f.name);
-            return acc;
-          }, {} as Record<string, string[]>),
-          modules: configuredModulesWithFields.map((m) => m.moduleId),
+          uploadedFiles: Object.keys(uploadedFiles).reduce(
+            (acc, key) => {
+              acc[key] = uploadedFiles[key].map((f) => f.name);
+              return acc;
+            },
+            {} as Record<string, string[]>
+          ),
           clientId: clientId,
         },
       };
@@ -341,7 +168,6 @@ export const ClientForm: React.FC = () => {
     }
   };
 
-  // Get fields from configured modules
   const { user } = useAuth();
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -365,7 +191,7 @@ export const ClientForm: React.FC = () => {
     );
   }
 
-  if (error && !configuredModulesWithFields.length) {
+  if (error && !formConfig.length) {
     return (
       <MainLayout
         sidebarItems={sidebarItems}
@@ -449,92 +275,120 @@ export const ClientForm: React.FC = () => {
             <CardTitle>Loan Application Form</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {configuredModulesWithFields.map(({ moduleId, includedFieldIds }) => {
-              const module = FORM_MODULES.find(m => m.id === moduleId);
-              if (!module) return null;
+            {formConfig.map((category, categoryIndex) => (
+              <div
+                key={category.categoryId || categoryIndex}
+                className="border-b border-neutral-200 pb-6 last:border-b-0 last:pb-0"
+              >
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+                  {category.categoryName || category['Category Name']}
+                </h3>
+                {category.description && (
+                  <p className="text-sm text-neutral-600 mb-4">{category.description}</p>
+                )}
 
-              const fieldsToRender = module.fields.filter((f) => includedFieldIds.includes(f.id));
+                <div className="space-y-4">
+                  {(category.fields || []).map((field) => {
+                    const fieldId = field.fieldId || field['Field ID'] || field.id;
+                    const fieldLabel = field.label || field['Field Label'] || field.fieldLabel;
+                    const fieldType = (field.type || field['Field Type'] || field.fieldType || 'text') as string;
+                    const isRequired = field.isRequired || field.isMandatory || field['Is Required'] === 'True';
+                    const placeholder = field.placeholder || field['Field Placeholder'] || field.fieldPlaceholder;
+                    let options: string[] = [];
+                    try {
+                      options =
+                        field.options ||
+                        (field['Field Options']
+                          ? typeof field['Field Options'] === 'string'
+                            ? JSON.parse(field['Field Options'])
+                            : field['Field Options']
+                          : []);
+                    } catch {
+                      options = [];
+                    }
 
-              return (
-                <div key={moduleId} className="border-b border-neutral-200 pb-6 last:border-b-0 last:pb-0">
-                  <h3 className="text-lg font-semibold text-neutral-900 mb-2">{module.name}</h3>
-                  {module.description && (
-                    <p className="text-sm text-neutral-600 mb-4">{module.description}</p>
-                  )}
-                  
-                  <div className="space-y-4">
-                    {fieldsToRender.map(field => (
-                      <div key={field.id}>
-                        {field.type === 'file' ? (
+                    return (
+                      <div key={fieldId}>
+                        {fieldType === 'file' ? (
                           <div>
                             <label className="block text-sm font-medium text-neutral-700 mb-1">
-                              {field.label}
-                              {field.required && <span className="text-error ml-1">*</span>}
+                              {fieldLabel}
+                              {isRequired && <span className="text-error ml-1">*</span>}
                             </label>
                             <FileUpload
-                              acceptedTypes={['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']}
-                              onFilesSelected={(files) => handleFileUpload(field.id, files)}
-                              uploadedFiles={(uploadedFiles[field.id] || []).map((f, i) => ({
-                                id: `${field.id}-${i}`,
+                              acceptedTypes={[
+                                'application/pdf',
+                                'image/jpeg',
+                                'image/png',
+                                'application/msword',
+                                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                              ]}
+                              onFilesSelected={(files) => handleFileUpload(fieldId, files)}
+                              uploadedFiles={(uploadedFiles[fieldId] || []).map((f, i) => ({
+                                id: `${fieldId}-${i}`,
                                 name: f.name,
                                 size: f.size,
                                 type: f.type,
                               }))}
                             />
                           </div>
-                        ) : field.type === 'checkbox' ? (
+                        ) : fieldType === 'checkbox' ? (
                           <div className="flex items-center gap-2">
                             <input
                               type="checkbox"
-                              id={field.id}
-                              checked={formData[field.id] || false}
-                              onChange={(e) => handleFieldChange(field.id, e.target.checked)}
+                              id={fieldId}
+                              checked={formData[fieldId] || false}
+                              onChange={(e) => handleFieldChange(fieldId, e.target.checked)}
                               className="w-4 h-4 text-brand-primary border-neutral-300 rounded focus:ring-brand-primary"
                             />
-                            <label htmlFor={field.id} className="text-sm font-medium text-neutral-700">
-                              {field.label}
-                              {field.required && <span className="text-error ml-1">*</span>}
+                            <label htmlFor={fieldId} className="text-sm font-medium text-neutral-700">
+                              {fieldLabel}
+                              {isRequired && <span className="text-error ml-1">*</span>}
                             </label>
                           </div>
-                        ) : field.type === 'select' ? (
+                        ) : fieldType === 'select' ? (
                           <Select
-                            label={field.label}
-                            required={field.required}
-                            value={formData[field.id] || ''}
-                            onChange={(value) => handleFieldChange(field.id, value)}
-                            options={(field.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : o))}
+                            label={fieldLabel}
+                            required={isRequired}
+                            value={formData[fieldId] || ''}
+                            onChange={(value) => handleFieldChange(fieldId, value)}
+                            options={(options || []).map((o) =>
+                              typeof o === 'string' ? { value: o, label: o } : o
+                            )}
                           />
-                        ) : field.type === 'textarea' ? (
+                        ) : fieldType === 'textarea' ? (
                           <div>
                             <label className="block text-sm font-medium text-neutral-700 mb-1">
-                              {field.label}
-                              {field.required && <span className="text-error ml-1">*</span>}
+                              {fieldLabel}
+                              {isRequired && <span className="text-error ml-1">*</span>}
                             </label>
                             <textarea
-                              value={formData[field.id] || ''}
-                              onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                              placeholder={field.placeholder}
-                              required={field.required}
+                              value={formData[fieldId] || ''}
+                              onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+                              placeholder={placeholder}
+                              required={isRequired}
                               rows={4}
                               className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                             />
                           </div>
                         ) : (
                           <Input
-                            type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
-                            label={field.label}
-                            required={field.required}
-                            placeholder={field.placeholder}
-                            value={formData[field.id] || ''}
-                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                            type={
+                              fieldType === 'date' ? 'date' : fieldType === 'number' ? 'number' : 'text'
+                            }
+                            label={fieldLabel}
+                            required={isRequired}
+                            placeholder={placeholder}
+                            value={formData[fieldId] || ''}
+                            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
                           />
                         )}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
 
             <div className="flex justify-end gap-4 pt-4 border-t border-neutral-200">
               <Button variant="secondary" onClick={() => navigate('/dashboard')}>
@@ -556,4 +410,3 @@ export const ClientForm: React.FC = () => {
     </MainLayout>
   );
 };
-

@@ -49,6 +49,7 @@ export class AuthController {
             nbfcId: user.nbfcId,
             creditTeamId: user.creditTeamId,
           },
+          token, // For clients that cannot use cookies (e.g. E2E, some proxies)
         },
       });
     } catch (err: any) {
@@ -89,6 +90,7 @@ export class AuthController {
             nbfcId: user.nbfcId,
             creditTeamId: user.creditTeamId,
           },
+          token,
         },
       });
     } catch (err: any) {

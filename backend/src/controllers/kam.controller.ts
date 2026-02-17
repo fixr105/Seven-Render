@@ -799,14 +799,37 @@ export class KAMController {
   /**
    * GET /public/clients/:id/form-mappings
    * Get form mappings for a client (Public - for form link access)
+   * Supports multiple client ID formats: URL id may be record id or Client ID;
+   * mappings may use either. Resolves via Clients table for consistency.
    */
   async getPublicFormMappings(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Fetch only Client Form Mapping table
-      const mappings = await n8nClient.fetchTable('Client Form Mapping');
+      const [mappings, clients] = await Promise.all([
+        n8nClient.fetchTable('Client Form Mapping'),
+        n8nClient.fetchTable('Clients'),
+      ]);
 
-      const clientMappings = mappings.filter((m) => m.Client === id);
+      const client = clients.find((c: any) =>
+        c.id === id ||
+        c['Client ID'] === id ||
+        c.clientId === id ||
+        String(c.id) === String(id) ||
+        String(c['Client ID']) === String(id)
+      );
+
+      const acceptedClientIds = new Set<string>([id, id?.toString()].filter(Boolean));
+      if (client) {
+        acceptedClientIds.add((client.id || '').toString().trim());
+        acceptedClientIds.add((client['Client ID'] || '').toString().trim());
+        acceptedClientIds.add((client.clientId || '').toString().trim());
+      }
+      acceptedClientIds.delete('');
+
+      const clientMappings = mappings.filter((m: any) => {
+        const mappingClientId = (m.Client || m.client || m['Client ID'] || '').toString().trim();
+        return mappingClientId && acceptedClientIds.has(mappingClientId);
+      });
 
       res.json({
         success: true,
@@ -816,6 +839,58 @@ export class KAMController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to fetch form mappings',
+      });
+    }
+  }
+
+  /**
+   * GET /public/clients/:id/form-config
+   * Get full form configuration for a client (Public - for form link access)
+   * Returns same structure as GET /client/form-config: flat categories with fields from Form Fields table.
+   * No auth required.
+   */
+  async getPublicFormConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { productId } = req.query;
+
+      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
+
+      const config = await formConfigService.getClientDashboardConfig(
+        id,
+        productId as string | undefined,
+        undefined
+      );
+
+      // Transform to match expected frontend format (same as client.controller.getFormConfig)
+      const categoriesArray: any[] = [];
+      config.modules.forEach((module) => {
+        module.categories.forEach((cat) => {
+          categoriesArray.push({
+            categoryId: cat.categoryId,
+            categoryName: cat.categoryName,
+            description: cat.description,
+            isRequired: cat.isRequired,
+            displayOrder: cat.displayOrder,
+            fields: cat.fields,
+          });
+        });
+      });
+
+      categoriesArray.sort((a, b) => {
+        const orderA = parseInt(a.displayOrder || '0') || 0;
+        const orderB = parseInt(b.displayOrder || '0') || 0;
+        return orderA - orderB;
+      });
+
+      res.json({
+        success: true,
+        data: categoriesArray,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch form config',
       });
     }
   }

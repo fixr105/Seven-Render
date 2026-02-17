@@ -62,9 +62,10 @@ export default defineConfig({
           url: 'http://localhost:3000',
           reuseExistingServer: !process.env.CI,
           timeout: 180 * 1000,
-          env: {
-            VITE_API_BASE_URL: 'http://localhost:3001/api',
-          },
+          // Do NOT set VITE_API_BASE_URL - use Vite proxy (/api -> localhost:3001) so requests
+          // are same-origin. Cross-origin (localhost:3000 -> localhost:3001) causes cookies to be
+          // blocked as third-party, leading to 401 on authenticated API calls.
+          env: {},
         },
         {
           command: 'cd backend && npm run dev',

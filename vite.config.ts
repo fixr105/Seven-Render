@@ -10,8 +10,9 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
-        changeOrigin: true,
-        // Forward /api as-is; backend mounts routes at app.use('/api', routes)
+        // changeOrigin: false so backend sees Host: localhost:3000; cookie is set for same host
+        // that receives subsequent API requests, avoiding third-party cookie blocking
+        changeOrigin: false,
       },
     },
   },
