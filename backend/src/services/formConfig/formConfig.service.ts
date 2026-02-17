@@ -121,6 +121,13 @@ export class FormConfigService {
 
     const clientName = client['Client Name'] || client.clientName || '';
     
+    // Build set of accepted client identifiers (Client Form Mapping may use record id or Client ID)
+    const acceptedClientIds = new Set<string>([clientId, clientId?.toString()].filter(Boolean));
+    acceptedClientIds.add((client.id || '').toString().trim());
+    acceptedClientIds.add((client['Client ID'] || '').toString().trim());
+    acceptedClientIds.add((client.clientId || '').toString().trim());
+    acceptedClientIds.delete('');
+    
     // Get enabled modules from client record
     const enabledModulesStr = client['Enabled Modules'] || client.enabledModules || '';
     const enabledModules = enabledModulesStr
@@ -133,12 +140,10 @@ export class FormConfigService {
       ? formCategoriesStr.split(',').map((c: string) => c.trim()).filter(Boolean)
       : [];
 
-    // Filter mappings for this client
+    // Filter mappings for this client (match on any accepted identifier)
     let clientMappings = mappings.filter((m: any) => {
-      const mappingClientId = m.Client || m.client || m['Client ID'];
-      return mappingClientId === clientId || 
-             mappingClientId === clientId?.toString() ||
-             clientId === mappingClientId?.toString();
+      const mappingClientId = (m.Client || m.client || m['Client ID'] || '').toString().trim();
+      return mappingClientId && acceptedClientIds.has(mappingClientId);
     });
 
     // Filter by version if specified

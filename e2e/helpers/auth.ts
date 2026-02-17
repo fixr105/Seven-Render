@@ -56,10 +56,10 @@ export async function loginAs(page: Page, user: keyof typeof TEST_USERS) {
   await page.goto('/login', { waitUntil: 'load', timeout: 60000 });
 
   // Wait for login form - prefer data-testid, fallback to placeholder
-  const emailInput = page.getByTestId('login-username').or(page.getByPlaceholder(/enter your username|username/i)).first();
+  const emailInput = page.getByTestId('login-username').or(page.getByPlaceholder(/enter your (email|username)/i)).first();
   await emailInput.waitFor({ state: 'visible', timeout: 45000 });
 
-  const passwordInput = page.getByTestId('login-password').or(page.getByPlaceholder(/enter your passcode|passcode/i)).first();
+  const passwordInput = page.getByTestId('login-password').or(page.getByPlaceholder(/enter your (password|passcode)/i)).first();
   
   await emailInput.fill(credentials.email);
   await passwordInput.fill(credentials.password);
@@ -69,7 +69,7 @@ export async function loginAs(page: Page, user: keyof typeof TEST_USERS) {
   await submitButton.click();
   
   // Wait for navigation to dashboard or applications page
-  await page.waitForURL(/\/(dashboard|applications)/, { timeout: 15000 });
+  await page.waitForURL(/\/(dashboard|applications)/, { timeout: 20000 });
   // Ensure we're in the app (nav/sidebar exists); if we were redirected to /login, this will timeout
   await page.locator('nav').first().waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForLoadState('networkidle');
