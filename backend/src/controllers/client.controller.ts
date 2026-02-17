@@ -130,7 +130,8 @@ export class ClientController {
   async getFormConfig(req: Request, res: Response): Promise<void> {
     try {
       if (!req.user || req.user.role !== 'client') {
-        return res.status(401).json({ success: false, error: 'Authentication required.' });
+        res.status(401).json({ success: false, error: 'Authentication required.' });
+        return;
       }
 
       // Resolve clientId: use JWT, or look up by email (same as getConfiguredProducts)
@@ -148,10 +149,11 @@ export class ClientController {
         }
       }
       if (!effectiveClientId) {
-        return res.status(401).json({
+        res.status(401).json({
           success: false,
           error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.',
         });
+        return;
       }
 
       // Use centralized form config service
@@ -239,7 +241,8 @@ export class ClientController {
   async getFormConfigDebug(req: Request, res: Response): Promise<void> {
     try {
       if (!req.user || req.user.role !== 'client') {
-        return res.status(401).json({ success: false, error: 'Authentication required.' });
+        res.status(401).json({ success: false, error: 'Authentication required.' });
+        return;
       }
       let effectiveClientId: string | null = req.user.clientId ? req.user.clientId.toString().trim() : null;
       if (!effectiveClientId && req.user.email) {
@@ -254,7 +257,8 @@ export class ClientController {
         }
       }
       if (!effectiveClientId) {
-        return res.status(401).json({ success: false, error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.' });
+        res.status(401).json({ success: false, error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.' });
+        return;
       }
       const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
       const { productId } = req.query;
