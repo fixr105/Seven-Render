@@ -9,6 +9,17 @@ import { authConfig } from '../config/auth.js';
 import { defaultLogger } from '../utils/logger.js';
 import { tokenBlacklist } from '../services/auth/tokenBlacklist.service.js';
 
+/** Append Partitioned to auth cookie so Chrome accepts it in cross-site (Vercel→Fly) requests. */
+function addPartitionedToAuthCookie(res: Response): void {
+  const setCookie = res.getHeader('Set-Cookie');
+  if (!setCookie) return;
+  const arr = Array.isArray(setCookie) ? setCookie : [setCookie];
+  const modified = arr.map((v: string) =>
+    typeof v === 'string' && v.includes(authConfig.cookieName) ? v + '; Partitioned' : v
+  );
+  res.setHeader('Set-Cookie', modified);
+}
+
 export class AuthController {
   async login(req: Request, res: Response): Promise<void> {
     try {
@@ -35,6 +46,7 @@ export class AuthController {
       const expiry = authService.getTokenExpiry(token);
 
       res.cookie(authConfig.cookieName, token, authConfig.cookieOptions);
+      addPartitionedToAuthCookie(res);
 
       res.json({
         success: true,
@@ -76,6 +88,7 @@ export class AuthController {
 
       const token = authService.createToken(user);
       res.cookie(authConfig.cookieName, token, authConfig.cookieOptions);
+      addPartitionedToAuthCookie(res);
 
       res.json({
         success: true,
@@ -166,6 +179,7 @@ export class AuthController {
       if (expiry) tokenBlacklist.addToken(oldToken, expiry, 'rotation');
     }
     res.cookie(authConfig.cookieName, token, authConfig.cookieOptions);
+    addPartitionedToAuthCookie(res);
     res.json({
       success: true,
       data: {
