@@ -67,7 +67,13 @@ export class AuthService {
 
     // Map User Account to AuthUser with role-specific profile IDs (clientId, kamId, etc.)
     const baseUser = this.toAuthUser(user);
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/563cd7b3-2e60-463f-bd89-f5fcf7921d98',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.service.ts:validateCredentials',message:'Login role mapping',data:{email:baseUser.email,rawRole:user.Role,normalizedRole:baseUser.role,accountId:user.id},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     const enrichedUser = await this.populateProfileIds(baseUser, user);
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/563cd7b3-2e60-463f-bd89-f5fcf7921d98',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.service.ts:validateCredentials',message:'Post-enrich role',data:{email:enrichedUser.email,role:enrichedUser.role,clientId:enrichedUser.clientId},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
     return enrichedUser;
   }
 

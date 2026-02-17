@@ -97,7 +97,8 @@ export class FormConfigService {
   async getClientDashboardConfig(
     clientId: string,
     productId?: string,
-    version?: string
+    version?: string,
+    diagnosticsOut?: { clientFound: boolean; mappingsCount: number; clientMappingsCount: number; afterProductFilter?: number; mappedCategoryIdsCount: number }
   ): Promise<ClientFormConfiguration> {
     // Fetch all required tables
     const [mappings, categories, fields, clients] = await Promise.all([
@@ -114,6 +115,11 @@ export class FormConfigService {
       c.id === clientId?.toString() ||
       c['Client ID'] === clientId?.toString()
     );
+
+    if (diagnosticsOut) {
+      diagnosticsOut.clientFound = !!client;
+      diagnosticsOut.mappingsCount = mappings.length;
+    }
 
     if (!client) {
       throw new Error(`Client not found: ${clientId}`);
@@ -146,6 +152,8 @@ export class FormConfigService {
       return mappingClientId && acceptedClientIds.has(mappingClientId);
     });
 
+    if (diagnosticsOut) diagnosticsOut.clientMappingsCount = clientMappings.length;
+
     // Filter by version if specified
     if (version) {
       clientMappings = clientMappings.filter((m: any) => {
@@ -170,16 +178,19 @@ export class FormConfigService {
 
     // Filter by productId if specified
     if (productId) {
+      const beforeProductFilter = clientMappings.length;
       clientMappings = clientMappings.filter((m: any) => {
         const mappingProductId = m['Product ID'] || m.productId;
         return !mappingProductId || mappingProductId === productId || mappingProductId === productId?.toString();
       });
+      if (diagnosticsOut) diagnosticsOut.afterProductFilter = clientMappings.length;
     }
 
     // Get category IDs that have mappings for this client
     const mappedCategoryIds = new Set(
       clientMappings.map((m: any) => m.Category || m.category).filter(Boolean)
     );
+    if (diagnosticsOut) diagnosticsOut.mappedCategoryIdsCount = mappedCategoryIds.size;
 
     // Build module configuration
     // Map module IDs to their configurations
@@ -318,11 +329,16 @@ export class FormConfigService {
       ? (clientMappings[0]['Product ID'] || clientMappings[0].productId)
       : undefined;
 
+    // When client has no Enabled Modules set, include all modules with mappings (form was configured)
+    const modulesToReturn = enabledModules.length === 0
+      ? Object.values(moduleConfigs)
+      : Object.values(moduleConfigs).filter((m) => m.enabled);
+
     return {
       clientId,
       clientName,
       enabledModules,
-      modules: Object.values(moduleConfigs).filter((m) => m.enabled),
+      modules: modulesToReturn,
       version: configVersion,
       productId: configProductId || productId,
     };

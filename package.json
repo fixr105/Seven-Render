@@ -17,6 +17,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:anya-form": "E2E_CLIENT_USERNAME=anyaaa@gmail.com E2E_CLIENT_PASSWORD=pass@123 npm run test:e2e -- --project=chromium e2e/anya-form-load.spec.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:deployed": "PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL:-https://seven-dashboard-seven.vercel.app} npx playwright test e2e/money-multiplier-form-load.spec.ts",

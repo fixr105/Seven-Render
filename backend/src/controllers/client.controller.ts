@@ -129,13 +129,29 @@ export class ClientController {
    */
   async getFormConfig(req: Request, res: Response): Promise<void> {
     try {
-      // Check if user is authenticated
-      if (!req.user || !req.user.clientId) {
-        res.status(401).json({
-          success: false,
-          error: 'Authentication required. Client ID not found.',
+      if (!req.user || req.user.role !== 'client') {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+      }
+
+      // Resolve clientId: use JWT, or look up by email (same as getConfiguredProducts)
+      let effectiveClientId: string | null = req.user.clientId ? req.user.clientId.toString().trim() : null;
+      if (!effectiveClientId && req.user.email) {
+        const clients = await n8nClient.fetchTable('Clients');
+        const userEmail = (req.user.email || '').trim().toLowerCase();
+        const matchingClient = clients.find((c: any) => {
+          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
+          return contact && contact.includes(userEmail);
         });
-        return;
+        if (matchingClient) {
+          // Prefer record id (matches public form /form/recXXX and Client Form Mapping Client field)
+          effectiveClientId = (matchingClient.id || matchingClient['Client ID'] || matchingClient.clientId || null)?.toString().trim() ?? null;
+        }
+      }
+      if (!effectiveClientId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.',
+        });
       }
 
       // Use centralized form config service
@@ -150,19 +166,29 @@ export class ClientController {
       if (applicationId) {
         const applications = await n8nClient.fetchTable('Loan Application');
         const application = applications.find((app: any) => app.id === applicationId);
-        if (application && application.Client === req.user!.clientId) {
+        if (application && application.Client === effectiveClientId) {
           version = application['Form Config Version'] || undefined;
         }
       }
 
       // Get client dashboard configuration (only enabled modules)
-      const config = await formConfigService.getClientDashboardConfig(
-        req.user!.clientId!,
+      let config = await formConfigService.getClientDashboardConfig(
+        effectiveClientId,
         productId as string | undefined,
         version
       );
 
-      console.log(`[getFormConfig] Returning configuration for client ${req.user!.clientId} with ${config.modules.length} enabled modules`);
+      // Fallback: when productId filter yields empty config, retry without productId
+      // (mappings may have different Product ID format or be product-agnostic)
+      if (config.modules.length === 0 && productId) {
+        config = await formConfigService.getClientDashboardConfig(
+          effectiveClientId,
+          undefined,
+          version
+        );
+      }
+
+      console.log(`[getFormConfig] Returning configuration for client ${effectiveClientId} with ${config.modules.length} enabled modules`);
 
       // Transform to match expected frontend format
       // Frontend expects a flat array of categories with fields, not nested modules
@@ -188,7 +214,7 @@ export class ClientController {
         return orderA - orderB;
       });
 
-      console.log(`[getFormConfig] Returning ${categoriesArray.length} categories with fields for client ${req.user!.clientId}`);
+      console.log(`[getFormConfig] Returning ${categoriesArray.length} categories with fields for client ${effectiveClientId}`);
       
       // Return flat array format expected by frontend
       res.json({
@@ -203,6 +229,87 @@ export class ClientController {
         error: error.message || 'Failed to fetch form config',
       };
       res.status(500).json(errorResponse);
+    }
+  }
+
+  /**
+   * GET /client/form-config-debug?productId=X
+   * Same as form-config but includes _debug with diagnostic counts. For debugging form loading.
+   */
+  async getFormConfigDebug(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+      }
+      let effectiveClientId: string | null = req.user.clientId ? req.user.clientId.toString().trim() : null;
+      if (!effectiveClientId && req.user.email) {
+        const clients = await n8nClient.fetchTable('Clients');
+        const userEmail = (req.user.email || '').trim().toLowerCase();
+        const matchingClient = clients.find((c: any) => {
+          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
+          return contact && contact.includes(userEmail);
+        });
+        if (matchingClient) {
+          effectiveClientId = (matchingClient.id || matchingClient['Client ID'] || matchingClient.clientId || null)?.toString().trim() ?? null;
+        }
+      }
+      if (!effectiveClientId) {
+        return res.status(401).json({ success: false, error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.' });
+      }
+      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
+      const { productId } = req.query;
+      const diagnostics: { clientFound: boolean; mappingsCount: number; clientMappingsCount: number; afterProductFilter?: number; mappedCategoryIdsCount: number } = {
+        clientFound: false,
+        mappingsCount: 0,
+        clientMappingsCount: 0,
+        mappedCategoryIdsCount: 0,
+      };
+      let config = await formConfigService.getClientDashboardConfig(
+        effectiveClientId,
+        productId as string | undefined,
+        undefined,
+        diagnostics
+      );
+      if (config.modules.length === 0 && productId) {
+        config = await formConfigService.getClientDashboardConfig(
+          effectiveClientId,
+          undefined,
+          undefined,
+          diagnostics
+        );
+      }
+      const categoriesArray: any[] = [];
+      config.modules.forEach((module: any) => {
+        module.categories.forEach((cat: any) => {
+          categoriesArray.push({
+            categoryId: cat.categoryId,
+            categoryName: cat.categoryName,
+            description: cat.description,
+            isRequired: cat.isRequired,
+            displayOrder: cat.displayOrder,
+            fields: cat.fields,
+          });
+        });
+      });
+      categoriesArray.sort((a, b) => {
+        const orderA = parseInt(a.displayOrder || '0') || 0;
+        const orderB = parseInt(b.displayOrder || '0') || 0;
+        return orderA - orderB;
+      });
+      res.json({
+        success: true,
+        data: categoriesArray,
+        _debug: {
+          clientId: effectiveClientId,
+          productId: productId || null,
+          ...diagnostics,
+          modulesCount: config.modules.length,
+          categoriesCount: categoriesArray.length,
+        },
+      });
+    } catch (error: any) {
+      console.error('[getFormConfigDebug] Error:', error);
+      res.status(500).json({ success: false, error: error.message || 'Failed to fetch form config' });
     }
   }
 

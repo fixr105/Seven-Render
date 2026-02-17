@@ -20,6 +20,9 @@ export const requireRole = (...allowedRoles: UserRole[]) => {
       return;
     }
     if (!allowedRoles.includes(req.user.role)) {
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/563cd7b3-2e60-463f-bd89-f5fcf7921d98',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rbac.middleware.ts:requireRole',message:'403 role rejected',data:{email:req.user.email,userRole:req.user.role,allowedRoles,path:req.path},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       res.status(403).json({
         success: false,
         error: 'Insufficient permissions',

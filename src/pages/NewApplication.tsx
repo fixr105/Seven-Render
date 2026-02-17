@@ -115,7 +115,6 @@ export const NewApplication: React.FC = () => {
       setFormConfigLoading(true);
       // Fetch form configuration for this client (product-specific when productId provided)
       const response = await apiService.getFormConfig(productId);
-      
       if (response.success && response.data) {
         // The backend returns an array of categories with fields
         const configData = Array.isArray(response.data) ? response.data : [];
@@ -568,7 +567,7 @@ export const NewApplication: React.FC = () => {
           <CardHeader className="flex items-center justify-between">
             <CardTitle>Application Details</CardTitle>
             {userRole === 'client' && (
-              <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
+              <Button data-testid="load-form-button" variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
                 Load form
               </Button>
             )}
@@ -577,6 +576,7 @@ export const NewApplication: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 id="applicant_name"
+                data-testid="applicant-name-input"
                 label="Applicant Name *"
                 placeholder="Enter applicant's full name"
                 value={formData.applicant_name}
@@ -595,6 +595,7 @@ export const NewApplication: React.FC = () => {
                 error={fieldErrors.applicant_name}
               />
               <Select
+                data-testid="loan-product-select"
                 label="Loan Product *"
                 options={[
                   { value: '', label: loanProductsLoading ? 'Loading products...' : loanProducts.length === 0 ? 'No products available' : 'Select Loan Product' },
@@ -872,7 +873,7 @@ export const NewApplication: React.FC = () => {
             <CardHeader className="flex items-center justify-between">
               <CardTitle>Form Configuration</CardTitle>
               {userRole === 'client' && (
-                <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
+                <Button data-testid="load-form-button" variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
                   Load form
                 </Button>
               )}

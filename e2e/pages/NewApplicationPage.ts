@@ -55,8 +55,8 @@ export class NewApplicationPage {
     this.page = page;
 
     // Core form selectors
-    this.applicantNameInput = page.locator('input[id="applicant_name"], input[name="applicant_name"], input[placeholder*="Applicant"]').first();
-    this.loanProductSelect = page.locator('select[id="loan_product_id"], select[name="loan_product_id"]').first();
+    this.applicantNameInput = page.locator('[data-testid="applicant-name-input"], input[id="applicant_name"], input[name="applicant_name"], input[placeholder*="Applicant"]').first();
+    this.loanProductSelect = page.locator('[data-testid="loan-product-select"], select[id="loan_product_id"], select[name="loan_product_id"]').first();
     this.requestedAmountInput = page.locator('input[id="requested_loan_amount"], input[name="requested_loan_amount"]').first();
     this.submitButton = page.locator('button:has-text("Submit"), button:has-text("Create Application"), button[type="submit"]:not(:has-text("Draft"))').first();
     this.saveDraftButton = page.locator('button:has-text("Save Draft"), button:has-text("Draft")').first();
@@ -65,7 +65,7 @@ export class NewApplicationPage {
     this.formContainer = page.locator('form, [data-testid="new-application-form"]').first();
     this.successMessage = page.locator('text=/success|created|submitted/i, [data-testid="success-message"]').first();
     this.errorMessage = page.locator('.text-error, [role="alert"]').first();
-    this.loadFormButton = page.locator('button:has-text("Load form")').first();
+    this.loadFormButton = page.locator('[data-testid="load-form-button"], button:has-text("Load form")').first();
   }
 
   /**
@@ -88,7 +88,7 @@ export class NewApplicationPage {
       .catch(() => this.page.waitForTimeout(3000));
 
     // Try select by label first, then by value
-    const optionByLabel = this.page.locator(`select[id="loan_product_id"], select[name="loan_product_id"] option:has-text("${productNameOrId}")`).first();
+    const optionByLabel = this.page.locator(`[data-testid="loan-product-select"] option:has-text("${productNameOrId}"), select[id="loan_product_id"] option:has-text("${productNameOrId}"), select[name="loan_product_id"] option:has-text("${productNameOrId}")`).first();
     if (await optionByLabel.isVisible({ timeout: 2000 }).catch(() => false)) {
       await this.loanProductSelect.selectOption({ label: productNameOrId });
     } else {
@@ -117,8 +117,13 @@ export class NewApplicationPage {
   async goto() {
     await this.page.goto('/applications/new');
     await this.page.waitForLoadState('networkidle');
-    // Wait for form to be visible
-    await this.applicantNameInput.waitFor({ state: 'visible', timeout: 10000 });
+    // Fail fast if redirected to login (auth issue)
+    if (this.page.url().includes('/login')) {
+      throw new Error('Redirected to /login - auth may have failed. Check credentials and API base URL.');
+    }
+    // Wait for form to be visible - applicant name or loan product select (whichever loads first)
+    const formReady = this.page.locator('[data-testid="applicant-name-input"], [data-testid="loan-product-select"], input[id="applicant_name"]').first();
+    await formReady.waitFor({ state: 'visible', timeout: 15000 });
   }
 
   /**

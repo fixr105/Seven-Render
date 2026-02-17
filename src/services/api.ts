@@ -322,10 +322,12 @@ class ApiService {
         };
       }
 
-      return {
+      const result: ApiResponse<T> & { _debug?: unknown } = {
         success: true,
         data: data.data || data,
       };
+      if (data._debug !== undefined) (result as any)._debug = data._debug;
+      return result;
     } catch (error: any) {
       defaultLogger.error('API request error', {
         endpoint,
@@ -524,6 +526,14 @@ class ApiService {
    */
   async getFormConfig(productId?: string): Promise<ApiResponse<any[]>> {
     const url = productId ? `/client/form-config?productId=${productId}` : '/client/form-config';
+    return this.request<any[]>(url);
+  }
+
+  /**
+   * Get form config with debug diagnostics (temporary - for form loading debug)
+   */
+  async getFormConfigDebug(productId?: string): Promise<ApiResponse<any[]>> {
+    const url = productId ? `/client/form-config-debug?productId=${productId}` : '/client/form-config-debug';
     return this.request<any[]>(url);
   }
 
