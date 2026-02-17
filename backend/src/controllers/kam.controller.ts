@@ -9,6 +9,23 @@ import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adm
 import { matchIds } from '../utils/idMatcher.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 
+/**
+ * Ensures M2 is in the client's Enabled Modules and updates the Client record if needed.
+ * Required so getClientDashboardConfig returns form config.
+ */
+async function ensureClientHasM2Enabled(client: Record<string, any>): Promise<void> {
+  const enabledStr = client['Enabled Modules'] || client.enabledModules || '';
+  const currentModules = enabledStr ? enabledStr.split(',').map((m: string) => m.trim()).filter(Boolean) : [];
+  if (!currentModules.includes(Module.M2)) {
+    currentModules.push(Module.M2);
+    console.log(`[createFormMapping] Adding M2 to client ${client.id || client['Client ID']} Enabled Modules (was: ${enabledStr || '(empty)'})`);
+    await n8nClient.postClient({
+      ...client,
+      'Enabled Modules': currentModules.join(', '),
+    });
+  }
+}
+
 export class KAMController {
   /**
    * GET /kam/dashboard
@@ -1106,6 +1123,9 @@ export class KAMController {
 
         const createdMappings = (await Promise.all(mappingPromises)).filter((m): m is NonNullable<typeof m> => m !== null);
 
+        // Update Client's Enabled Modules so getClientDashboardConfig returns form config
+        await ensureClientHasM2Enabled(client);
+
         // Store form structure as JSON (can be stored in a field or logged)
         const formJson = JSON.stringify(formStructure, null, 2);
 
@@ -1129,6 +1149,7 @@ export class KAMController {
       }
 
       // Single mapping creation (backward compatibility)
+      const versionTimestamp = new Date().toISOString();
       const mappingData = {
         id: `MAP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         'Mapping ID': `MAP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1136,9 +1157,14 @@ export class KAMController {
         Category: category,
         'Is Required': isRequired !== false ? 'True' : 'False',
         'Display Order': displayOrder?.toString() || '0',
+        'Version': versionTimestamp,
+        'Product ID': productId || '',
       };
 
       await n8nClient.postClientFormMapping(mappingData);
+
+      // Update Client's Enabled Modules so getClientDashboardConfig returns form config
+      await ensureClientHasM2Enabled(client);
 
       // Module 0: Use admin logger helper
       await logClientAction(req.user!, AdminActionType.CONFIGURE_FORM, id, 
