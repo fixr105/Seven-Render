@@ -572,14 +572,12 @@ class ApiService {
 
   /**
    * Create new loan application
-   * Module 2: Supports documentUploads array with OneDrive links
    */
   async createApplication(data: {
     productId: string;
     applicantName?: string;
     requestedLoanAmount?: number;
     formData?: Record<string, any>;
-    documentUploads?: Array<{ fieldId: string; fileUrl: string; fileName: string }>; // Module 2: OneDrive links
     saveAsDraft?: boolean;
     // Legacy format support
     borrowerIdentifiers?: {
@@ -598,81 +596,6 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(data),
     });
-  }
-
-  /**
-   * Module 2: Upload document to OneDrive
-   * Returns OneDrive share link for storage in Airtable
-   */
-  async uploadDocument(
-    file: File,
-    fieldId: string,
-    fileName?: string
-  ): Promise<ApiResponse<{ shareLink: string; fileId: string; webUrl: string; fieldId: string; fileName: string }>> {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('fieldId', fieldId);
-    if (fileName) {
-      formData.append('fileName', fileName);
-    }
-
-    const url = `${this.baseUrl}/documents/upload`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {},
-        body: formData,
-        credentials: 'include',
-      });
-
-      const text = await response.text();
-      if (!text || text.trim().length === 0) {
-        return {
-          success: false,
-          error: `Empty response from server (${response.status})`,
-        };
-      }
-
-      const data = JSON.parse(text);
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          return {
-            success: false,
-            error: data.error || 'Authentication failed',
-          };
-        }
-        return {
-          success: false,
-          error: data.error || `HTTP ${response.status}`,
-        };
-      }
-
-      return {
-        success: true,
-        data: data.data || data,
-      };
-    } catch (error: any) {
-      defaultLogger.error('Document upload error', {
-        fieldId,
-        error: error.message,
-      });
-
-      if (error instanceof Error) {
-        errorTracker.captureException(error, {
-          metadata: {
-            fieldId,
-            operation: 'document_upload',
-          },
-        });
-      }
-
-      return {
-        success: false,
-        error: error.message || 'Failed to upload document',
-      };
-    }
   }
 
   /**
@@ -868,6 +791,41 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * Create Form Link row for a client (KAM only)
+   */
+  async createFormLink(
+    clientId: string,
+    data: { formLink?: string; productId?: string; mappingId: string }
+  ): Promise<ApiResponse> {
+    return this.request(`/kam/clients/${clientId}/form-links`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Create Record Title row (KAM only)
+   */
+  async createRecordTitle(data: {
+    mappingId: string;
+    recordTitle: string;
+    displayOrder?: number;
+    isRequired?: boolean;
+  }): Promise<ApiResponse> {
+    return this.request('/kam/record-titles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Get Record Titles for a Mapping ID (KAM only)
+   */
+  async getRecordTitles(mappingId: string): Promise<ApiResponse<any[]>> {
+    return this.request(`/kam/record-titles?mappingId=${encodeURIComponent(mappingId)}`);
   }
 
   /**

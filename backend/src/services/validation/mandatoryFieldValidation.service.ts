@@ -1,13 +1,13 @@
 /**
  * Strict Mandatory Field Validation Service
- * 
- * Enforces "Is Mandatory" flag from Form Fields Airtable table (tbl5oZ6zI0dc5eutw)
- * Blocks submission if any mandatory fields are missing
- * 
+ *
+ * Uses simple form config (Form Link + Record Titles). File fields are satisfied by
+ * checklist: added_to_link or to_be_shared. Blocks submission if mandatory fields are missing.
+ *
  * Used in POST /loan-applications/:id/submit endpoint
  */
 
-import { n8nClient } from '../airtable/n8nClient.js';
+import { getSimpleFormConfig } from '../formConfig/simpleFormConfig.service.js';
 
 /** Indian PAN format: 5 letters + 4 digits + 1 letter */
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
@@ -44,8 +44,8 @@ export interface MandatoryFieldValidationResult {
 }
 
 /**
- * Load form fields configuration for a client/product
- * Returns fields with their mandatory status
+ * Load form fields configuration for a client/product from simple form config
+ * (Form Link + Record Titles). Returns fields with mandatory status.
  */
 async function loadFormFieldsConfig(
   clientId: string,
@@ -57,42 +57,11 @@ async function loadFormFieldsConfig(
   isMandatory: boolean;
   category: string;
 }>> {
-  // Fetch form configuration tables
-  const [mappings, categories, fields] = await Promise.all([
-    n8nClient.fetchTable('Client Form Mapping'),
-    n8nClient.fetchTable('Form Categories'),
-    n8nClient.fetchTable('Form Fields'),
-  ]);
-
-  // Filter mappings for this client
-  let clientMappings = mappings.filter((m) => {
-    const mappingClientId = m.Client || m.client || m['Client ID'];
-    return mappingClientId === clientId || 
-           mappingClientId === clientId?.toString() ||
-           clientId === mappingClientId?.toString();
-  });
-
-  // Filter by productId if specified
-  if (productId) {
-    clientMappings = clientMappings.filter((m) => {
-      const mappingProductId = m['Product ID'] || m.productId;
-      return !mappingProductId || mappingProductId === productId || mappingProductId === productId?.toString();
-    });
+  let config = await getSimpleFormConfig(clientId, productId);
+  if (config.categories.length === 0 && productId) {
+    config = await getSimpleFormConfig(clientId, undefined);
   }
 
-  // Get category IDs that have mappings for this client
-  const mappedCategoryIds = new Set(
-    clientMappings.map((m) => m.Category || m.category).filter(Boolean)
-  );
-
-  // Get active categories
-  const activeCategories = categories.filter((cat) => {
-    const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
-    const isActive = cat.Active === 'True' || cat.active === true;
-    return isActive && mappedCategoryIds.has(categoryId);
-  });
-
-  // Build field configuration with mandatory status
   const fieldConfigs: Array<{
     fieldId: string;
     label: string;
@@ -101,40 +70,17 @@ async function loadFormFieldsConfig(
     category: string;
   }> = [];
 
-  activeCategories.forEach((cat) => {
-    const categoryId = cat['Category ID'] || cat.id || cat.categoryId;
-    
-    // Find all fields for this category
-    const categoryFields = fields.filter((f) => {
-      const fieldCategory = f.Category || f.category;
-      const fieldActive = f.Active === 'True' || f.active === true;
-      return fieldCategory === categoryId && fieldActive;
-    });
-
-    categoryFields.forEach((f) => {
-      // Find mapping for this field (if exists)
-      const mapping = clientMappings.find(
-        (m) => (m.Category || m.category) === categoryId
-      );
-
-      // Determine if field is mandatory:
-      // 1. Check "Is Mandatory" flag from Form Fields table (primary source)
-      // 2. Check "Is Required" flag from Client Form Mapping (can override)
-      const isMandatoryFromField = f['Is Mandatory'] === 'True' || f.isMandatory === true;
-      const isRequiredFromMapping = mapping?.['Is Required'] === 'True' || mapping?.isRequired === true;
-      
-      // Field is mandatory if either flag is true
-      const isMandatory = isMandatoryFromField || isRequiredFromMapping;
-
+  for (const cat of config.categories) {
+    for (const f of cat.fields) {
       fieldConfigs.push({
-        fieldId: f['Field ID'] || f.fieldId || f.id,
-        label: f['Field Label'] || f.fieldLabel || f.label,
-        type: f['Field Type'] || f.fieldType || f.type || 'text',
-        isMandatory,
-        category: categoryId,
+        fieldId: f.fieldId,
+        label: f.label,
+        type: f.type,
+        isMandatory: f.isRequired,
+        category: cat.categoryId,
       });
-    });
-  });
+    }
+  }
 
   return fieldConfigs;
 }
@@ -171,7 +117,8 @@ export async function validateMandatoryFields(
 
   mandatoryFields.forEach((field) => {
     const value = formData[field.fieldId];
-    const hasDocument = documentLinks?.[field.fieldId] && documentLinks[field.fieldId].trim().length > 0;
+    // For file fields (3-checkbox): added_to_link or to_be_shared counts as satisfied
+    const fileFieldSatisfied = field.type === 'file' && (value === 'added_to_link' || value === 'to_be_shared');
 
     // Format validation for PAN fields (when value is present)
     if (isPanField(field) && value && typeof value === 'string' && value.trim().length > 0) {
@@ -188,8 +135,7 @@ export async function validateMandatoryFields(
     let isEmpty = false;
 
     if (field.type === 'file') {
-      // For file fields, check if document link exists
-      isEmpty = !hasDocument && (!value || (typeof value === 'string' && value.trim().length === 0));
+      isEmpty = !fileFieldSatisfied;
     } else if (field.type === 'checkbox') {
       // For checkboxes, check if value is true
       isEmpty = value !== true && value !== 'true';

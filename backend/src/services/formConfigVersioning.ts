@@ -1,36 +1,32 @@
 /**
  * Module 1: Form Config Versioning Service
- * 
+ *
  * Handles form configuration versioning logic:
  * - Applies to drafts + new apps only (submitted files frozen)
  * - Field removal = hidden for new/drafts, retained for old submitted files
+ *
+ * Form Link table has no Version field; returns null (callers use || '').
  */
 
-import { n8nClient } from './airtable/n8nClient.js';
+import { getFormLinkRowsForClient } from './formConfig/simpleFormConfig.service.js';
 
 /**
- * Get the latest form config version for a client
+ * Get the latest form config version for a client.
+ * Form Link table has no Version field; returns null.
+ * Callers (loan workflow, etc.) handle null with || ''.
  */
 export async function getLatestFormConfigVersion(clientId: string): Promise<string | null> {
   try {
-    const mappings = await n8nClient.fetchTable('Client Form Mapping');
-    const clientMappings = mappings.filter((m: any) => {
-      const mappingClientId = m.Client || m.client || m['Client ID'];
-      return mappingClientId === clientId || 
-             mappingClientId === clientId?.toString();
-    });
-    
-    if (clientMappings.length === 0) {
-      return null;
-    }
-    
-    // Get latest version timestamp
-    const versions = clientMappings
-      .map((m: any) => m.Version || m.version)
+    const acceptedIds = new Set<string>([clientId, clientId?.toString()].filter(Boolean));
+    const rows = await getFormLinkRowsForClient(acceptedIds);
+    if (rows.length === 0) return null;
+
+    // Form Link has no Version field; optionally use createdTime if present
+    const versions = rows
+      .map((r: any) => r.Version ?? r.version ?? r.createdTime ?? r['Created Time'])
       .filter(Boolean)
       .sort()
       .reverse();
-    
     return versions[0] || null;
   } catch (error) {
     console.error('[FormConfigVersioning] Error getting latest version:', error);

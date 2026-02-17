@@ -59,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
 
         {/* Navigation */}
         <nav data-testid="sidebar-nav" className="flex-1 overflow-y-auto py-4">
-          {items.map((item) => {
+          {(items || []).map((item) => {
             const Icon = item.icon;
             const isActive = activeItem === item.id;
 

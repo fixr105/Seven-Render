@@ -17,7 +17,6 @@ vi.mock('../../services/api', () => {
     listLoanProducts: vi.fn(),
     getConfiguredProducts: vi.fn(),
     createApplication: vi.fn(),
-    uploadDocument: vi.fn(),
   };
   return {
     apiService: mockApiService,
@@ -127,11 +126,6 @@ describe('NewApplication Page - P0 Tests', () => {
     (apiService.createApplication as any).mockResolvedValue({
       success: true,
       data: { id: 'app-123' },
-    });
-    
-    (apiService.uploadDocument as any).mockResolvedValue({
-      success: true,
-      data: { shareLink: 'https://onedrive.com/file1', fileName: 'test.pdf' },
     });
   });
 
@@ -313,16 +307,9 @@ describe('NewApplication Page - P0 Tests', () => {
       const loanPurposeSelect = document.querySelectorAll('select')[1];
       if (loanPurposeSelect) await user.selectOptions(loanPurposeSelect as HTMLElement, 'Business');
 
-      const file = new File(['test'], 'pan.pdf', { type: 'application/pdf' });
-      const fileInput = screen.getByText(/PAN Card/i).closest('div')?.querySelector('input[type="file"]');
-      if (fileInput) {
-        await user.upload(fileInput, file);
-      }
-
-      // Wait for file upload to complete
-      await waitFor(() => {
-        expect(apiService.uploadDocument).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      // File field (PAN Card) uses 3-checkbox: select "Added to link"
+      const addedToLinkRadio = screen.getByRole('radio', { name: /added to link/i });
+      await user.click(addedToLinkRadio);
 
       // Submit form
       const submitButton = screen.getByRole('button', { name: /submit|send|create/i });

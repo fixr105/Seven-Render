@@ -56,6 +56,14 @@ export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
     url: n8nEndpoints.get.formFields,
     tableName: AIRTABLE_TABLE_NAMES.FORM_FIELDS,
   },
+  [AIRTABLE_TABLE_NAMES.FORM_LINK]: {
+    url: n8nEndpoints.get.formLink,
+    tableName: AIRTABLE_TABLE_NAMES.FORM_LINK,
+  },
+  [AIRTABLE_TABLE_NAMES.RECORD_TITLES]: {
+    url: n8nEndpoints.get.recordTitles,
+    tableName: AIRTABLE_TABLE_NAMES.RECORD_TITLES,
+  },
   [AIRTABLE_TABLE_NAMES.KAM_USERS]: {
     url: n8nEndpoints.get.kamUsers,
     tableName: AIRTABLE_TABLE_NAMES.KAM_USERS,

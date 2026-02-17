@@ -1,7 +1,6 @@
 /**
- * Module 2: Stepper Component
- * 
- * Multi-step form stepper for sectioned loan application form
+ * Multi-step form stepper – horizontal layout with numbered steps, title and subtitle.
+ * Matches New Loan Application design: light card, current step in dark blue, optional vertical progress.
  */
 
 import React from 'react';
@@ -21,74 +20,59 @@ export const Stepper: React.FC<StepperProps> = ({
   completedSteps = [],
 }) => {
   return (
-    <div className="w-full mb-8">
-      <div className="flex items-center justify-between">
+    <div className="w-full rounded-xl bg-neutral-50 border border-neutral-200 p-6">
+      <div className="flex gap-2 overflow-x-auto pb-2">
         {steps.map((step, index) => {
           const isActive = index === currentStep;
           const isCompleted = completedSteps.includes(index) || index < currentStep;
-          const isClickable = onStepClick && (isCompleted || index === currentStep);
+          const isClickable = !!onStepClick && (isCompleted || index === currentStep);
 
           return (
-            <React.Fragment key={step.id}>
-              <div className="flex flex-col items-center flex-1">
-                <button
-                  type="button"
-                  onClick={() => isClickable && onStepClick?.(index)}
-                  disabled={!isClickable}
-                  className={`
-                    w-10 h-10 rounded-full flex items-center justify-center
-                    transition-all duration-200
-                    ${isCompleted
-                      ? 'bg-success text-white'
-                      : isActive
-                      ? 'bg-brand-primary text-white ring-4 ring-brand-primary/20'
-                      : 'bg-neutral-200 text-neutral-600'
-                    }
-                    ${isClickable ? 'cursor-pointer hover:scale-110' : 'cursor-not-allowed'}
-                  `}
-                >
-                  {isCompleted ? (
-                    <Check className="w-5 h-5" />
-                  ) : (
-                    <span className="font-semibold">{index + 1}</span>
-                  )}
-                </button>
-                <div className="mt-2 text-center">
-                  <p
-                    className={`
-                      text-sm font-medium
-                      ${isActive ? 'text-brand-primary' : isCompleted ? 'text-success' : 'text-neutral-600'}
-                    `}
-                  >
-                    {step.label}
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => isClickable && onStepClick(index)}
+              disabled={!isClickable}
+              className={`
+                flex-shrink-0 flex items-start gap-3 rounded-lg px-4 py-3 min-w-[180px] max-w-[220px] text-left
+                transition-all duration-200
+                ${isActive ? 'bg-brand-primary text-white shadow-md' : 'bg-white border border-neutral-200 text-neutral-700 hover:border-neutral-300'}
+                ${isClickable ? 'cursor-pointer' : 'cursor-default'}
+              `}
+            >
+              <span
+                className={`
+                  flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold
+                  ${isCompleted && !isActive ? 'bg-success text-white' : ''}
+                  ${isActive ? 'bg-white/20 text-white' : ''}
+                  ${!isActive && !isCompleted ? 'bg-neutral-200 text-neutral-600' : ''}
+                `}
+              >
+                {isCompleted && !isActive ? <Check className="w-5 h-5" /> : index + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm font-semibold truncate ${isActive ? 'text-white' : 'text-neutral-900'}`}>
+                  {step.label}
+                </p>
+                {step.description && (
+                  <p className={`text-xs mt-0.5 truncate ${isActive ? 'text-white/90' : 'text-neutral-500'}`}>
+                    {step.description}
                   </p>
-                  {step.description && (
-                    <p className="text-xs text-neutral-500 mt-1">{step.description}</p>
-                  )}
-                </div>
+                )}
               </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={`
-                    flex-1 h-0.5 mx-2
-                    ${isCompleted ? 'bg-success' : 'bg-neutral-200'}
-                  `}
-                />
-              )}
-            </React.Fragment>
+            </button>
           );
         })}
+        {/* Vertical progress indicator on the right */}
+        <div className="flex-shrink-0 flex flex-col justify-center items-center w-1 ml-2 bg-neutral-200 rounded-full overflow-hidden self-stretch min-h-[60px]">
+          {steps.slice(0, Math.min(4, steps.length)).map((_, i) => (
+            <div
+              key={i}
+              className={`w-full flex-1 min-h-[4px] ${i <= currentStep ? 'bg-brand-primary' : 'bg-neutral-200'}`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
 };
-
-
-
-
-
-
-
-
-
-

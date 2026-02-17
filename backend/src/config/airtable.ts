@@ -57,6 +57,14 @@ export const n8nConfig = {
   // n8n path: /FormFields → Airtable: Form Fields
   postFormFieldsUrl: n8nEndpoints.post.formFields,
   
+  // POST: Form Link (new simple config)
+  // n8n path: /Formlink → Airtable: Form Link
+  postFormLinkUrl: n8nEndpoints.post.formLink,
+  
+  // POST: Record Titles (new simple config)
+  // n8n path: /Recordtitle → Airtable: Record Titles
+  postRecordTitlesUrl: n8nEndpoints.post.recordTitles,
+  
   // POST: KAM Users
   // n8n path: /KAMusers → Airtable: KAM Users
   postKamUsersUrl: n8nEndpoints.post.kamUsers,
@@ -89,5 +97,8 @@ export const n8nConfig = {
   // POST: Email (Outlook Send a message)
   // n8n path: /email → Outlook email sending
   postEmailUrl: n8nEndpoints.post.email,
+
+  // POST: Link (custom webhook for document/share links)
+  postLinkUrl: n8nEndpoints.post.link,
 } as const;
 

@@ -94,7 +94,7 @@ export class ExampleLoanController {
     try {
       const { id: fileId } = req.params;
       const { documentType } = req.body;
-      const file = req.file; // From multer
+      const file = (req as any).file; // From multer (when used)
       const user = req.user!;
 
       if (!file) {

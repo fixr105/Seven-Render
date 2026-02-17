@@ -5,7 +5,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { FileUpload } from '../components/ui/FileUpload';
 import { Save, Send, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../services/api';
@@ -28,9 +27,6 @@ export const NewApplication: React.FC = () => {
   const userRole = user?.role || null;
   const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({});
-  const [documentLinks, setDocumentLinks] = useState<Record<string, string>>({}); // Module 2: OneDrive links
-  const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({}); // Module 2: Upload progress
   const [loading, setLoading] = useState(false);
   const [formConfigLoading, setFormConfigLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -74,9 +70,9 @@ export const NewApplication: React.FC = () => {
   }, [configuredProductIds, configuredProductsFetched, userRole]);
 
   // Refetch form config when user selects a loan product (e.g. Money Multiplier)
-  // Product-specific configs require productId to load correctly
+  // Product-specific configs require productId to load correctly; backend resolves clientId by email if needed
   useEffect(() => {
-    if (userRole === 'client' && formData.loan_product_id && user?.clientId) {
+    if (userRole === 'client' && formData.loan_product_id) {
       fetchFormConfig(formData.loan_product_id);
     }
   }, [formData.loan_product_id]);
@@ -104,13 +100,7 @@ export const NewApplication: React.FC = () => {
       return;
     }
 
-    // Check if clientId is available
-    if (!user?.clientId) {
-      setFormConfigLoading(false);
-      setFormConfig([]);
-      return;
-    }
-
+    // Backend resolves clientId from email when missing in JWT (e.g. cross-origin deploy)
     try {
       setFormConfigLoading(true);
       // Fetch form configuration for this client (product-specific when productId provided)
@@ -206,72 +196,6 @@ export const NewApplication: React.FC = () => {
     }
   };
 
-  // Module 2: Enhanced file upload with OneDrive integration
-  const handleFileUpload = async (fieldId: string, files: File[]) => {
-    setUploadedFiles(prev => ({
-      ...prev,
-      [fieldId]: files,
-    }));
-
-    // Module 2: Upload files to OneDrive immediately
-    setUploadingFiles(prev => ({ ...prev, [fieldId]: true }));
-    
-    try {
-      const uploadPromises = files.map(async (file) => {
-        const uploadResponse = await apiService.uploadDocument(file, fieldId, file.name);
-        if (uploadResponse.success && uploadResponse.data) {
-          return {
-            fieldId,
-            fileUrl: uploadResponse.data.shareLink || uploadResponse.data.webUrl,
-            fileName: uploadResponse.data.fileName || file.name,
-          };
-        }
-        throw new Error(uploadResponse.error || 'Upload failed');
-      });
-
-      const uploadResults = await Promise.all(uploadPromises);
-      
-      // Store OneDrive links
-      const links = uploadResults.map(r => r.fileUrl).join(', ');
-      setDocumentLinks(prev => ({
-        ...prev,
-        [fieldId]: links,
-      }));
-
-      // Update form data with file names (for display)
-      setFormData(prev => ({
-        ...prev,
-        form_data: {
-          ...prev.form_data,
-          [fieldId]: files.map(f => f.name).join(', '),
-        },
-      }));
-    } catch (error: any) {
-      // Log error for debugging
-      console.error(`[NewApplication] File upload failed for field ${fieldId}:`, error);
-      
-      // Show user-friendly error message
-      const errorMessage = error.message || 'Failed to upload files. Please try again.';
-      alert(`Upload failed: ${errorMessage}`);
-      
-      // Remove failed files from state to allow retry
-      setUploadedFiles(prev => {
-        const updated = { ...prev };
-        delete updated[fieldId];
-        return updated;
-      });
-      
-      // Clear document links for this field
-      setDocumentLinks(prev => {
-        const updated = { ...prev };
-        delete updated[fieldId];
-        return updated;
-      });
-    } finally {
-      setUploadingFiles(prev => ({ ...prev, [fieldId]: false }));
-    }
-  };
-
   const handleFieldChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -311,12 +235,13 @@ export const NewApplication: React.FC = () => {
         const isRequired = field.isRequired || field['Is Required'] === 'True' || field['Is Mandatory'] === 'True' || field.isMandatory === true;
 
         const value = formData.form_data[fieldId];
-        const hasDocument = documentLinks[fieldId] && documentLinks[fieldId].trim().length > 0;
+        // For file fields (3-checkbox approach): added_to_link or to_be_shared counts as satisfied
+        const fileFieldSatisfied = fieldType === 'file' && (value === 'added_to_link' || value === 'to_be_shared');
 
         if (isRequired) {
           let isEmpty = false;
           if (fieldType === 'file') {
-            isEmpty = !hasDocument && (!value || (typeof value === 'string' && value.trim().length === 0));
+            isEmpty = !fileFieldSatisfied;
           } else if (fieldType === 'checkbox') {
             isEmpty = value !== true && value !== 'true';
           } else {
@@ -356,13 +281,6 @@ export const NewApplication: React.FC = () => {
       return;
     }
 
-    // Module 2: Check if files are still uploading
-    const isUploading = Object.values(uploadingFiles).some(uploading => uploading);
-    if (isUploading) {
-      alert('Please wait for file uploads to complete before submitting.');
-      return;
-    }
-
     // Strict validation for non-draft submissions
     if (!saveAsDraft) {
       const validation = validateMandatoryFields(saveAsDraft);
@@ -383,27 +301,11 @@ export const NewApplication: React.FC = () => {
     setLoading(true);
 
     try {
-      // Module 2: Prepare document uploads array with OneDrive links
-      const documentUploads: Array<{ fieldId: string; fileUrl: string; fileName: string }> = [];
-      Object.keys(documentLinks).forEach(fieldId => {
-        const links = documentLinks[fieldId].split(',').map(l => l.trim()).filter(Boolean);
-        const files = uploadedFiles[fieldId] || [];
-        links.forEach((link, index) => {
-          documentUploads.push({
-            fieldId,
-            fileUrl: link,
-            fileName: files[index]?.name || `${fieldId}_${index + 1}`,
-          });
-        });
-      });
-
-      // Use API service to create application
       const response = await apiService.createApplication({
         productId: formData.loan_product_id,
         applicantName: formData.applicant_name,
         requestedLoanAmount: parseFloat(formData.requested_loan_amount.replace(/[^0-9.]/g, '')) || 0,
         formData: formData.form_data,
-        documentUploads: documentUploads.length > 0 ? documentUploads : undefined, // Module 2: Include OneDrive links
         saveAsDraft: saveAsDraft,
       });
 
@@ -513,11 +415,11 @@ export const NewApplication: React.FC = () => {
             <CardContent className="p-6">
               <Stepper
                 steps={[
-                  { id: 'details', label: 'Application Details', description: 'Basic information' },
+                  { id: 'details', label: 'Application Details', description: 'Basic Information' },
                   ...formConfig.map((cat: any, idx: number) => ({
                     id: cat.categoryId || `category-${idx}`,
                     label: cat.categoryName || cat['Category Name'] || `Section ${idx + 1}`,
-                    description: cat.description,
+                    description: cat.description || '',
                   })),
                 ]}
                 currentStep={currentStep}
@@ -564,13 +466,9 @@ export const NewApplication: React.FC = () => {
 
         {/* Core Required Fields per JSON Specification */}
         <Card id="application-details" className="mb-6">
-          <CardHeader className="flex items-center justify-between">
+          <CardHeader>
             <CardTitle>Application Details</CardTitle>
-            {userRole === 'client' && (
-              <Button data-testid="load-form-button" variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
-                Load form
-              </Button>
-            )}
+            <p className="text-sm text-neutral-500 mt-0.5">Basic Information</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -594,30 +492,41 @@ export const NewApplication: React.FC = () => {
                 required
                 error={fieldErrors.applicant_name}
               />
-              <Select
-                data-testid="loan-product-select"
-                label="Loan Product *"
-                options={[
-                  { value: '', label: loanProductsLoading ? 'Loading products...' : loanProducts.length === 0 ? 'No products available' : 'Select Loan Product' },
-                  ...loanProducts.map(p => ({ value: p.id, label: p.name }))
-                ]}
-                value={formData.loan_product_id}
-                onChange={(e) => {
-                  setFormData({ ...formData, loan_product_id: e.target.value });
-                  // Clear error when field is changed
-                  if (fieldErrors.loan_product_id) {
-                    setFieldErrors(prev => {
-                      const next = { ...prev };
-                      delete next.loan_product_id;
-                      return next;
-                    });
-                  }
-                }}
-                required
-                error={fieldErrors.loan_product_id || loanProductsError || undefined}
-                disabled={loanProductsLoading || loanProducts.length === 0}
-                helperText={loanProductsError || (loanProducts.length === 0 ? 'No loan products are configured for your account. Please contact your KAM.' : undefined)}
-              />
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex-1 min-w-[200px]">
+                    <Select
+                      data-testid="loan-product-select"
+                      label="Loan Product *"
+                      options={[
+                        { value: '', label: loanProductsLoading ? 'Loading products...' : loanProducts.length === 0 ? 'No products available' : 'Select Loan Product' },
+                        ...loanProducts.map(p => ({ value: p.id, label: p.name }))
+                      ]}
+                      value={formData.loan_product_id}
+                      onChange={(e) => {
+                        setFormData({ ...formData, loan_product_id: e.target.value });
+                        // Clear error when field is changed
+                        if (fieldErrors.loan_product_id) {
+                          setFieldErrors(prev => {
+                            const next = { ...prev };
+                            delete next.loan_product_id;
+                            return next;
+                          });
+                        }
+                      }}
+                      required
+                      error={fieldErrors.loan_product_id || loanProductsError || undefined}
+                      disabled={loanProductsLoading || loanProducts.length === 0}
+                      helperText={loanProductsError || (loanProducts.length === 0 ? 'No loan products are configured for your account. Please contact your KAM.' : undefined)}
+                    />
+                  </div>
+                  {userRole === 'client' && (
+                    <Button data-testid="load-form-button" variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading} className="mb-1">
+                      Load form
+                    </Button>
+                  )}
+                </div>
+              </div>
               <Input
                 id="requested_loan_amount"
                 label="Requested Loan Amount *"
@@ -688,59 +597,41 @@ export const NewApplication: React.FC = () => {
                     return (
                       <div key={fieldId}>
                         {fieldType === 'file' ? (
-                          <div>
-                            <label className="block text-sm font-medium text-neutral-700 mb-2">
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium text-neutral-700">
                               {fieldLabel}
                               {isRequired && <span className="text-error ml-1">*</span>}
                             </label>
-                            <FileUpload
-                              acceptedTypes={['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']}
-                              maxSizeInMB={10}
-                              maxFiles={5}
-                              onFilesSelected={(files) => {
-                                handleFileUpload(fieldId, files);
-                                // Clear error when files are uploaded
-                                if (fieldErrors[fieldId]) {
-                                  setFieldErrors(prev => {
-                                    const next = { ...prev };
-                                    delete next[fieldId];
-                                    return next;
-                                  });
-                                }
-                              }}
-                              uploadedFiles={(uploadedFiles[fieldId] || []).map((file, idx) => ({
-                                id: `${fieldId}-${idx}`,
-                                name: file.name,
-                                size: file.size,
-                                type: file.type,
-                                progress: uploadingFiles[fieldId] ? 50 : 100, // Module 2: Show upload progress
-                              }))}
-                              onRemoveFile={(fileId) => {
-                                const fileIndex = parseInt(fileId.split('-').pop() || '0');
-                                const currentFiles = uploadedFiles[fieldId] || [];
-                                const newFiles = currentFiles.filter((_, idx) => idx !== fileIndex);
-                                handleFileUpload(fieldId, newFiles);
-                                // Remove document link
-                                const currentLinks = documentLinks[fieldId]?.split(',').map(l => l.trim()) || [];
-                                const newLinks = currentLinks.filter((_, idx) => idx !== fileIndex);
-                                setDocumentLinks(prev => ({
-                                  ...prev,
-                                  [fieldId]: newLinks.join(', '),
-                                }));
-                                // Check if field becomes empty and is required
-                                if (newFiles.length === 0 && isRequired) {
-                                  setFieldErrors(prev => ({
-                                    ...prev,
-                                    [fieldId]: `${fieldLabel} is required`,
-                                  }));
-                                }
-                              }}
-                            />
-                            {uploadingFiles[fieldId] && (
-                              <p className="text-xs text-neutral-500 mt-2">Uploading to OneDrive...</p>
-                            )}
-                            {documentLinks[fieldId] && !uploadingFiles[fieldId] && (
-                              <p className="text-xs text-success mt-2">✓ Documents uploaded to OneDrive</p>
+                            <div className="flex flex-wrap gap-4" role="radiogroup" aria-label={fieldLabel}>
+                              {[
+                                { value: 'added_to_link', label: 'Added to link' },
+                                { value: 'to_be_shared', label: 'To be shared' },
+                                { value: 'not_available', label: 'Not available' },
+                              ].map((opt) => (
+                                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={fieldId}
+                                    value={opt.value}
+                                    checked={(formData.form_data[fieldId] || '') === opt.value}
+                                    onChange={() => {
+                                      handleFieldChange(fieldId, opt.value);
+                                      if (fieldErrors[fieldId]) {
+                                        setFieldErrors(prev => {
+                                          const next = { ...prev };
+                                          delete next[fieldId];
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-brand-primary border-neutral-300 focus:ring-brand-primary"
+                                  />
+                                  <span className="text-sm text-neutral-700">{opt.label}</span>
+                                </label>
+                              ))}
+                            </div>
+                            {hasError && (
+                              <p className="text-sm text-error mt-1">{fieldError}</p>
                             )}
                           </div>
                         ) : fieldType === 'checkbox' ? (

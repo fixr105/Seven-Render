@@ -620,6 +620,14 @@ export class N8nClient {
     throw lastError || new Error('Failed to post data after all retries');
   }
 
+  /**
+   * POST a link to the link webhook (e.g. document/share URL).
+   * Payload: { file: string }
+   */
+  async postLink(link: string): Promise<any> {
+    return this.postData(n8nConfig.postLinkUrl, { file: link });
+  }
+
   // Specific POST methods for each webhook
   async postAdminActivityLog(data: Record<string, any>) {
     return this.postData(n8nConfig.postLogUrl, data);
@@ -790,6 +798,41 @@ export class N8nClient {
     // Invalidate cache for Form Fields and related tables
     this.invalidateCache('Form Fields');
     this.invalidateCache('Form Categories');
+    return result;
+  }
+
+  /**
+   * POST Form Link row (Client ID, Form link, Product ID, Mapping ID)
+   * Used by Form Configuration page for simple form config.
+   */
+  async postFormLink(data: Record<string, any>) {
+    const formLinkData = {
+      id: data.id,
+      'Client ID': data['Client ID'] || data.clientId || '',
+      'Form link': data['Form link'] || data.formLink || '',
+      'Product ID': data['Product ID'] || data.productId || '',
+      'Mapping ID': data['Mapping ID'] || data.mappingId || '',
+    };
+    const result = await this.postData(n8nConfig.postFormLinkUrl, formLinkData);
+    this.invalidateCache('Form Link');
+    return result;
+  }
+
+  /**
+   * POST Record Title row (Mapping ID, Record Title, Display Order, Is Required)
+   * Used by Form Configuration page for simple form config.
+   */
+  async postRecordTitle(data: Record<string, any>) {
+    const isRequired = data['Is Required'] ?? data.isRequired ?? false;
+    const recordTitleData = {
+      id: data.id,
+      'Mapping ID': data['Mapping ID'] || data.mappingId || '',
+      'Record Title': data['Record Title'] || data.recordTitle || '',
+      'Display Order': data['Display Order'] ?? data.displayOrder ?? 0,
+      'Is Required': isRequired === true || isRequired === 'True' || String(isRequired).toLowerCase() === 'true',
+    };
+    const result = await this.postData(n8nConfig.postRecordTitlesUrl, recordTitleData);
+    this.invalidateCache('Record Titles');
     return result;
   }
 

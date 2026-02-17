@@ -172,6 +172,38 @@ export const mockClientFormMapping: ParsedRecord[] = [
   },
 ];
 
+/** Form Link (new simple config) - used by getSimpleFormConfig */
+export const mockFormLink: ParsedRecord[] = [
+  {
+    id: 'fl1',
+    createdTime: '2025-01-01T00:00:00.000Z',
+    'Client ID': 'CLIENT001',
+    'Form link': 'https://example.com/form',
+    'Product ID': '',
+    'Mapping ID': 'MAP001',
+  },
+];
+
+/** Record Titles (new simple config) - used by getSimpleFormConfig */
+export const mockRecordTitles: ParsedRecord[] = [
+  {
+    id: 'rt1',
+    createdTime: '2025-01-01T00:00:00.000Z',
+    'Mapping ID': 'MAP001',
+    'Record Title': 'Applicant Name',
+    'Display Order': 1,
+    'Is Required': true,
+  },
+  {
+    id: 'rt2',
+    createdTime: '2025-01-01T00:00:00.000Z',
+    'Mapping ID': 'MAP001',
+    'Record Title': 'PAN Card',
+    'Display Order': 2,
+    'Is Required': true,
+  },
+];
+
 export const mockFormCategories: ParsedRecord[] = [
   {
     id: 'cat1',
@@ -249,6 +281,8 @@ export function createMockN8nClient() {
     'Commission Ledger': mockCommissionLedger,
     'Form Fields': mockFormFields,
     'Client Form Mapping': mockClientFormMapping,
+    'Form Link': mockFormLink,
+    'Record Titles': mockRecordTitles,
     'Form Categories': mockFormCategories,
     'File Auditing Log': mockFileAuditingLog,
     'Notifications': mockNotifications,

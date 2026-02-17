@@ -84,13 +84,9 @@ export function autoLogStatusChanges(req: Request, res: Response, next: NextFunc
 }
 
 /**
- * Middleware to automatically log file uploads
+ * Middleware to automatically log file uploads (no-op: document upload routes removed; link-first flow)
  */
 export function autoLogFileUploads(req: Request, res: Response, next: NextFunction): void {
-  if (req.path.includes('/documents') || req.path.includes('/upload')) {
-    // File uploads are handled by multer, so we'll log after the upload completes
-    // This is a placeholder - actual logging should happen in the upload handler
-  }
   next();
 }
 

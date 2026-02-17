@@ -4,27 +4,10 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { LoanStatus, Module } from '../config/constants.js';
+import { LoanStatus } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
-
-/**
- * Ensures M2 is in the client's Enabled Modules and updates the Client record if needed.
- * Required so getClientDashboardConfig returns form config.
- */
-async function ensureClientHasM2Enabled(client: Record<string, any>): Promise<void> {
-  const enabledStr = client['Enabled Modules'] || client.enabledModules || '';
-  const currentModules = enabledStr ? enabledStr.split(',').map((m: string) => m.trim()).filter(Boolean) : [];
-  if (!currentModules.includes(Module.M2)) {
-    currentModules.push(Module.M2);
-    console.log(`[createFormMapping] Adding M2 to client ${client.id || client['Client ID']} Enabled Modules (was: ${enabledStr || '(empty)'})`);
-    await n8nClient.postClient({
-      ...client,
-      'Enabled Modules': currentModules.join(', '),
-    });
-  }
-}
 
 export class KAMController {
   /**
@@ -774,15 +757,14 @@ export class KAMController {
 
   /**
    * GET /kam/clients/:id/form-mappings
-   * Get form mappings for a client (KAM only)
+   * Get form mappings for a client (KAM only). Uses Form Link table.
    */
   async getFormMappings(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Fetch only Client Form Mapping table
-      const mappings = await n8nClient.fetchTable('Client Form Mapping');
-
-      const clientMappings = mappings.filter((m) => m.Client === id);
+      const { getFormLinkRowsForClient } = await import('../services/formConfig/simpleFormConfig.service.js');
+      const acceptedIds = new Set<string>([id, id?.toString()].filter(Boolean));
+      const clientMappings = await getFormLinkRowsForClient(acceptedIds);
 
       res.json({
         success: true,
@@ -798,18 +780,13 @@ export class KAMController {
 
   /**
    * GET /public/clients/:id/form-mappings
-   * Get form mappings for a client (Public - for form link access)
-   * Supports multiple client ID formats: URL id may be record id or Client ID;
-   * mappings may use either. Resolves via Clients table for consistency.
+   * Get form mappings for a client (Public - for form link access).
+   * Uses Form Link table. Resolves via Clients table for accepted IDs.
    */
   async getPublicFormMappings(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const [mappings, clients] = await Promise.all([
-        n8nClient.fetchTable('Client Form Mapping'),
-        n8nClient.fetchTable('Clients'),
-      ]);
-
+      const clients = await n8nClient.fetchTable('Clients');
       const client = clients.find((c: any) =>
         c.id === id ||
         c['Client ID'] === id ||
@@ -826,10 +803,8 @@ export class KAMController {
       }
       acceptedClientIds.delete('');
 
-      const clientMappings = mappings.filter((m: any) => {
-        const mappingClientId = (m.Client || m.client || m['Client ID'] || '').toString().trim();
-        return mappingClientId && acceptedClientIds.has(mappingClientId);
-      });
+      const { getFormLinkRowsForClient } = await import('../services/formConfig/simpleFormConfig.service.js');
+      const clientMappings = await getFormLinkRowsForClient(acceptedClientIds);
 
       res.json({
         success: true,
@@ -846,7 +821,7 @@ export class KAMController {
   /**
    * GET /public/clients/:id/form-config
    * Get full form configuration for a client (Public - for form link access)
-   * Returns same structure as GET /client/form-config: flat categories with fields from Form Fields table.
+   * Uses simple form config: Form Link + Record Titles (Mapping ID).
    * No auth required.
    */
   async getPublicFormConfig(req: Request, res: Response): Promise<void> {
@@ -854,38 +829,16 @@ export class KAMController {
       const { id } = req.params;
       const { productId } = req.query;
 
-      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
+      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
 
-      const config = await formConfigService.getClientDashboardConfig(
-        id,
-        productId as string | undefined,
-        undefined
-      );
-
-      // Transform to match expected frontend format (same as client.controller.getFormConfig)
-      const categoriesArray: any[] = [];
-      config.modules.forEach((module) => {
-        module.categories.forEach((cat) => {
-          categoriesArray.push({
-            categoryId: cat.categoryId,
-            categoryName: cat.categoryName,
-            description: cat.description,
-            isRequired: cat.isRequired,
-            displayOrder: cat.displayOrder,
-            fields: cat.fields,
-          });
-        });
-      });
-
-      categoriesArray.sort((a, b) => {
-        const orderA = parseInt(a.displayOrder || '0') || 0;
-        const orderB = parseInt(b.displayOrder || '0') || 0;
-        return orderA - orderB;
-      });
+      let config = await getSimpleFormConfig(id, productId as string | undefined);
+      if (config.categories.length === 0 && productId) {
+        config = await getSimpleFormConfig(id, undefined);
+      }
 
       res.json({
         success: true,
-        data: categoriesArray,
+        data: config.categories,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -897,364 +850,125 @@ export class KAMController {
 
   /**
    * POST /kam/clients/:id/form-mappings
-   * Create/update form mappings for a client
-   * Supports single mapping or bulk creation via modules array
-   * 
-   * Webhook Mapping:
-   * - POST → n8nClient.postFormCategory() → /webhook/FormCategory → Airtable: Form Categories
-   * - POST → n8nClient.postFormField() → /webhook/FormFields → Airtable: Form Fields
-   * - POST → n8nClient.postClientFormMapping() → /webhook/POSTCLIENTFORMMAPPING → Airtable: Client Form Mapping
-   * 
-   * Frontend: src/pages/FormConfiguration.tsx (line 269)
-   * See WEBHOOK_MAPPING_TABLE.md for complete mapping
+   * DEPRECATED: Form configuration is now managed in Airtable (Form Link + Record Titles).
    */
   async createFormMapping(req: Request, res: Response): Promise<void> {
+    res.status(410).json({
+      success: false,
+      error: 'Form configuration is now managed in Airtable (Form Link + Record Titles tables). Please add or update records there.',
+      code: 'DEPRECATED',
+    });
+  }
+
+  /**
+   * POST /kam/clients/:id/form-links
+   * Create a Form Link row for a client. Validates client is KAM-managed.
+   */
+  async createFormLink(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'kam') {
-        res.status(403).json({ success: false, error: 'Forbidden' });
-        return;
-      }
+      const { id: clientId } = req.params;
+      const { formLink, productId, mappingId } = req.body;
 
-      const { id } = req.params;
-      const { category, isRequired, displayOrder, modules, productId } = req.body;
-
-      // Verify this client is managed by this KAM
-      // Fetch Clients table to check 'Assigned KAM' field
-      const clients = await n8nClient.fetchTable('Clients');
-      const client = clients.find((c: any) => (c.id === id || c['Client ID'] === id));
-      
-      if (!client) {
-        res.status(404).json({ success: false, error: 'Client not found' });
-        return;
-      }
-      
-      // Check if this client is assigned to the current KAM (with flexible matching)
-      const assignedKAM = client['Assigned KAM'] || '';
-      const kamId = req.user!.kamId || '';
-      const assignedKAMStr = String(assignedKAM || '').trim();
-      const kamIdStr = String(kamId || '').trim();
-      
-      // Use shared matchIds utility for consistent ID matching
-      // Check if assigned KAM matches KAM ID directly
-      if (!matchIds(assignedKAMStr, kamIdStr)) {
-        // Try to match by KAM Users table
-        const kamUsers = await n8nClient.fetchTable('KAM Users');
-        const kamUser = kamUsers.find((k: any) => 
-          matchIds(k.id, kamId) || 
-          matchIds(k['KAM ID'], kamId)
-        );
-        const kamUserEmail = kamUser?.Email || kamUser?.['Email'] || '';
-        const kamUserKamId = kamUser?.['KAM ID'] || kamUser?.id || '';
-        
-        // Check if assigned KAM matches KAM ID, email, or any variation
-        const matches = 
-          matchIds(assignedKAMStr, kamUserKamId) ||
-          matchIds(assignedKAMStr, kamUserEmail) ||
-          matchIds(assignedKAMStr, kamUser?.id) ||
-          assignedKAMStr.includes(kamUserKamId) ||
-          kamUserKamId.includes(assignedKAMStr) ||
-          assignedKAMStr.toLowerCase().includes(kamUserKamId.toLowerCase()) ||
-          kamUserKamId.toLowerCase().includes(assignedKAMStr.toLowerCase()) ||
-          kamIdStr.includes(assignedKAMStr) ||
-          assignedKAMStr.includes(kamIdStr);
-        
-        if (!matches) {
-          res.status(403).json({ 
-            success: false, 
-            error: `Access denied: Client not managed by this KAM. Client assigned to: ${assignedKAM || 'No KAM'}, Your KAM ID: ${kamId}` 
-          });
-          return;
-        }
-      }
-
-      // When creating mappings in bulk (FormConfiguration), a loan product is required
-      // so each Client Form Mapping row is tied to a specific Product ID.
-      if (modules && Array.isArray(modules) && modules.length > 0 && !productId) {
+      if (!clientId || !mappingId) {
         res.status(400).json({
           success: false,
-          error: 'productId is required when creating form mappings for modules.',
+          error: 'Client ID and Mapping ID are required',
         });
         return;
       }
 
-      // Support bulk creation via modules array
-      if (modules && Array.isArray(modules)) {
-        // Module 1: Versioning - store version timestamp for form config
-        const versionTimestamp = new Date().toISOString();
-
-        // Normalize modules: support legacy string[] or new { moduleId, includedFieldIds }[]
-        type ModuleEntry = { moduleId: string; includedFieldIds: string[] };
-        const extractModuleId = (m: string | ModuleEntry): string => {
-          if (typeof m === 'string') return m;
-          const mod = m as any;
-          const raw = mod.moduleId ?? mod.id;
-          if (typeof raw === 'string') return raw;
-          if (raw && typeof raw === 'object' && typeof raw.id === 'string') return raw.id;
-          return String(raw ?? '');
-        };
-        const normalizedModules: ModuleEntry[] = modules.map((m: string | ModuleEntry) => {
-          if (typeof m === 'string') {
-            return { moduleId: m, includedFieldIds: [] }; // Legacy: empty = all fields
-          }
-          const mod = m as ModuleEntry;
-          const moduleId = extractModuleId(m);
-          return {
-            moduleId,
-            includedFieldIds: Array.isArray(mod.includedFieldIds) ? mod.includedFieldIds : [],
-          };
-        });
-
-        const formStructure: any = {
-          clientId: id,
-          productId: productId || null, // Optional: link to specific loan product
-          modules: [],
-          createdAt: versionTimestamp,
-          version: versionTimestamp, // Version timestamp for form config
-        };
-
-        const mappingPromises = normalizedModules.map(async (entry: ModuleEntry, index: number) => {
-          const moduleId = entry.moduleId;
-          const includedFieldIds = entry.includedFieldIds;
-          // Module definitions (matching frontend FORM_MODULES)
-          const moduleDefinitions: Record<string, any> = {
-            universal_checklist: {
-              name: 'Universal Checklist',
-              description: 'Housing Loan/LAP, Credit Line, Business Loan',
-              fields: [
-                { id: 'checklist_complete', label: 'Checklist Complete', type: 'checkbox', required: false },
-              ],
-            },
-            personal_kyc: {
-              name: 'Personal KYC (All Applicants/Co-Applicants)',
-              description: 'Personal identification and address documents',
-              fields: [
-                { id: 'pan_card', label: 'PAN Card – Applicant/Co-applicant', type: 'file', required: true },
-                { id: 'aadhaar_passport_voter', label: 'Aadhaar Card / Passport / Voter ID', type: 'file', required: true },
-                { id: 'passport_photo', label: 'Passport Size Photograph – 2 Copies', type: 'file', required: true },
-                { id: 'residence_proof', label: 'Residence Address Proof (Utility Bill / Rent Agreement)', type: 'file', required: true },
-                { id: 'bank_statement_personal', label: 'Latest 6 Months Bank Statement – Personal', type: 'file', required: true },
-                { id: 'itr_personal', label: 'ITR – Last 2 Years (if applicable)', type: 'file', required: false },
-              ],
-            },
-            company_kyc: {
-              name: 'Company/Business KYC (Proprietor / Partnership / Pvt Ltd / LLP)',
-              description: 'Business registration and company documents',
-              fields: [
-                { id: 'business_registration', label: 'Business Registration Proof (GST / Udyam / Trade License / Partnership Deed / MOA & AOA)', type: 'file', required: true },
-                { id: 'company_pan', label: 'Company PAN Card', type: 'file', required: true },
-                { id: 'gst_certificate', label: 'GST Certificate', type: 'file', required: true },
-                { id: 'business_address_proof', label: 'Business Address Proof', type: 'file', required: true },
-                { id: 'partners_directors', label: 'List of Partners/Directors with Shareholding (if applicable)', type: 'file', required: false },
-                { id: 'bank_statement_business', label: 'Latest 12 Months Bank Statement – Business', type: 'file', required: true },
-                { id: 'company_itr', label: 'Latest 2 Years Company ITR', type: 'file', required: true },
-                { id: 'audited_financials', label: 'Latest Audited Financials (if available)', type: 'file', required: false },
-                { id: 'gst_3b', label: 'GST 3B – Last 12 Months', type: 'file', required: true },
-              ],
-            },
-            income_banking: {
-              name: 'Income & Banking Documents',
-              description: 'Financial statements and banking documents',
-              fields: [
-                { id: 'itr_computation', label: 'Latest 2 Years ITR with Computation', type: 'file', required: true },
-                { id: 'balance_sheet', label: 'Balance Sheet & Profit/Loss Statement (if applicable)', type: 'file', required: false },
-                { id: 'bank_statement_main', label: '12 Months Bank Statement of Main Business Account', type: 'file', required: true },
-                { id: 'loan_sanction_letters', label: 'Existing Loan Sanction Letters (if any)', type: 'file', required: false },
-                { id: 'repayment_schedule', label: 'Repayment Schedule (for takeover cases)', type: 'file', required: false },
-              ],
-            },
-            asset_details: {
-              name: 'Asset Details (HL/LAP Specific)',
-              description: 'Property and asset documentation',
-              fields: [
-                { id: 'property_title', label: 'Property Title Deed / Sale Deed', type: 'file', required: true },
-                { id: 'mother_deed', label: 'Mother Deed / Chain of Documents', type: 'file', required: true },
-                { id: 'encumbrance_certificate', label: 'Encumbrance Certificate (EC)', type: 'file', required: true },
-                { id: 'property_tax', label: 'Property Tax Receipt', type: 'file', required: true },
-                { id: 'building_plan', label: 'Approved Building Plan (if applicable)', type: 'file', required: false },
-                { id: 'occupation_certificate', label: 'Occupation/Completion Certificate (if applicable)', type: 'file', required: false },
-                { id: 'utility_bill_property', label: 'Latest Electricity/Water Bill (Property Proof)', type: 'file', required: true },
-              ],
-            },
-            invoice_financial: {
-              name: 'Invoice / Financial Requirement Details (Credit Line / Business Loan Specific)',
-              description: 'Purchase orders and financial requirements',
-              fields: [
-                { id: 'purchase_order', label: 'Purchase Order (PO)', type: 'file', required: false },
-                { id: 'grn', label: 'Goods Received Note (GRN)', type: 'file', required: false },
-                { id: 'tax_invoice', label: 'Tax Invoice / Revised Proforma Invoice', type: 'file', required: false },
-                { id: 'quotation', label: 'Quotation (if applicable)', type: 'file', required: false },
-                { id: 'business_projections', label: 'Business Projections (if required)', type: 'file', required: false },
-              ],
-            },
-            security_documents: {
-              name: 'Security Documents',
-              description: 'Security and guarantee documents',
-              fields: [
-                { id: 'pdc', label: 'Post-dated Cheques (if applicable)', type: 'file', required: false },
-                { id: 'nach_mandate', label: 'NACH Mandate Form', type: 'file', required: false },
-                { id: 'hypothecation_agreement', label: 'Hypothecation Agreement (if applicable)', type: 'file', required: false },
-                { id: 'insurance_copy', label: 'Insurance Copy (if applicable)', type: 'file', required: false },
-              ],
-            },
-            additional_requirements: {
-              name: 'Additional Requirements (Common Across All Products)',
-              description: 'Credit checks and additional documentation',
-              fields: [
-                { id: 'cibil_report', label: 'CIBIL Report (Minimum score as per program)', type: 'file', required: true },
-                { id: 'no_dpd', label: 'No DPD in last 3 months / No 60+ in last 6 months', type: 'checkbox', required: true },
-                { id: 'financial_owners', label: 'All financial owners must be part of the loan structure', type: 'checkbox', required: true },
-              ],
-            },
-          };
-
-          if (!moduleId || typeof moduleId !== 'string') {
-            throw new Error(`Invalid module entry: expected moduleId string, got ${JSON.stringify(entry)}`);
-          }
-          const moduleDef = moduleDefinitions[moduleId];
-          if (!moduleDef) {
-            throw new Error(`Unknown module: ${moduleId}. Valid modules: ${Object.keys(moduleDefinitions).join(', ')}`);
-          }
-
-          // Filter fields: legacy (empty includedFieldIds) = all fields; new format = only included
-          const fieldsToCreate =
-            includedFieldIds.length === 0
-              ? moduleDef.fields
-              : moduleDef.fields.filter((f: { id: string }) => includedFieldIds.includes(f.id));
-
-          // Skip module if no fields to include (new format with all unchecked)
-          if (fieldsToCreate.length === 0) {
-            return null;
-          }
-
-          const effectiveFieldIds = fieldsToCreate.map((f: { id: string }) => f.id);
-
-          // Create Form Category for this module
-          const categoryId = `CAT-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
-          const categoryData = {
-            id: categoryId,
-            'Category ID': categoryId,
-            'Category Name': moduleDef.name,
-            'Description': moduleDef.description,
-            'Display Order': (index + 1).toString(),
-            'Active': 'True',
-          };
-          await n8nClient.postFormCategory(categoryData);
-
-          // Create Form Fields for each included field
-          const fieldPromises = fieldsToCreate.map(async (field: any, fieldIndex: number) => {
-            const fieldId = `FLD-${Date.now()}-${index}-${fieldIndex}-${Math.random().toString(36).substr(2, 9)}`;
-            const fieldData = {
-              id: fieldId,
-              'Field ID': fieldId,
-              'Category': categoryId,
-              'Field Label': field.label,
-              'Field Type': field.type,
-              'Field Placeholder': field.placeholder || '',
-              'Field Options': field.options ? JSON.stringify(field.options) : '',
-              'Is Mandatory': field.required ? 'True' : 'False',
-              'Display Order': (fieldIndex + 1).toString(),
-              'Active': 'True',
-            };
-            await n8nClient.postFormField(fieldData);
-            return fieldData;
-          });
-
-          await Promise.all(fieldPromises);
-
-          // Add to form structure JSON
-          formStructure.modules.push({
-            moduleId,
-            categoryId,
-            name: moduleDef.name,
-            fields: fieldsToCreate,
-          });
-
-          // Create Client Form Mapping with versioning and included field IDs
-          const mappingData: Record<string, any> = {
-            id: `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
-            'Mapping ID': `MAP-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
-            Client: id,
-            Category: categoryId,
-            'Is Required': 'True',
-            'Display Order': (index + 1).toString(),
-            'Version': versionTimestamp, // Module 1: Store version timestamp
-            'Product ID': productId || '', // Optional: link to loan product
-          };
-          // Store included field IDs for ClientForm to render only these fields
-          mappingData['Included Field IDs'] = JSON.stringify(effectiveFieldIds);
-          
-          console.log(`[createFormMapping] Creating mapping ${index + 1}/${modules.length}:`, mappingData);
-          try {
-            const webhookResult = await n8nClient.postClientFormMapping(mappingData);
-            console.log(`[createFormMapping] Mapping ${index + 1} created successfully:`, webhookResult);
-          } catch (webhookError: any) {
-            console.error(`[createFormMapping] Failed to create mapping ${index + 1}:`, webhookError.message);
-            // Continue with other mappings even if one fails
-            // But log the error for debugging
-          }
-          
-          return mappingData;
-        });
-
-        const createdMappings = (await Promise.all(mappingPromises)).filter((m): m is NonNullable<typeof m> => m !== null);
-
-        // Update Client's Enabled Modules so getClientDashboardConfig returns form config
-        await ensureClientHasM2Enabled(client);
-
-        // Store form structure as JSON (can be stored in a field or logged)
-        const formJson = JSON.stringify(formStructure, null, 2);
-
-        // Module 0: Use admin logger helper
-        const moduleIdsForLog = normalizedModules.map((m) => m.moduleId).join(', ');
-        await logClientAction(req.user!, AdminActionType.CONFIGURE_FORM, id, 
-          `Created ${createdMappings.length} form mapping(s) for client: ${moduleIdsForLog}${productId ? ` (Product: ${productId})` : ''}`, 
-          { modules: normalizedModules, productId, version: versionTimestamp }
-        );
-
-        res.json({
-          success: true,
-          data: {
-            mappings: createdMappings,
-            count: createdMappings.length,
-            formStructure: formStructure,
-            formJson: formJson,
-          },
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const managedIds = await rbacFilterService.getKAMManagedClientIds(req.user!.kamId!);
+      const isManaged = managedIds.some((mid) => matchIds(mid, clientId));
+      if (!isManaged) {
+        res.status(403).json({
+          success: false,
+          error: 'Client is not managed by you',
         });
         return;
       }
 
-      // Single mapping creation (backward compatibility)
-      const versionTimestamp = new Date().toISOString();
-      const mappingData = {
-        id: `MAP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        'Mapping ID': `MAP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        Client: id,
-        Category: category,
-        'Is Required': isRequired !== false ? 'True' : 'False',
-        'Display Order': displayOrder?.toString() || '0',
-        'Version': versionTimestamp,
-        'Product ID': productId || '',
-      };
-
-      await n8nClient.postClientFormMapping(mappingData);
-
-      // Update Client's Enabled Modules so getClientDashboardConfig returns form config
-      await ensureClientHasM2Enabled(client);
-
-      // Module 0: Use admin logger helper
-      await logClientAction(req.user!, AdminActionType.CONFIGURE_FORM, id, 
-        `Created form mapping for client: ${category}`, 
-        { category, isRequired, displayOrder }
-      );
+      const result = await n8nClient.postFormLink({
+        clientId,
+        formLink: formLink || '',
+        productId: productId || '',
+        mappingId: String(mappingId).trim(),
+      });
 
       res.json({
         success: true,
-        data: mappingData,
+        data: result,
       });
     } catch (error: any) {
       res.status(500).json({
         success: false,
-        error: error.message || 'Failed to create form mapping',
+        error: error.message || 'Failed to create form link',
+      });
+    }
+  }
+
+  /**
+   * POST /kam/record-titles
+   * Create a Record Title row for a Mapping ID.
+   */
+  async createRecordTitle(req: Request, res: Response): Promise<void> {
+    try {
+      const { mappingId, recordTitle, displayOrder, isRequired } = req.body;
+
+      if (!mappingId || !recordTitle) {
+        res.status(400).json({
+          success: false,
+          error: 'Mapping ID and Record Title are required',
+        });
+        return;
+      }
+
+      const result = await n8nClient.postRecordTitle({
+        mappingId: String(mappingId).trim(),
+        recordTitle: String(recordTitle).trim(),
+        displayOrder: displayOrder ?? 0,
+        isRequired: isRequired ?? false,
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create record title',
+      });
+    }
+  }
+
+  /**
+   * GET /kam/record-titles?mappingId=X
+   * Get Record Titles for a Mapping ID.
+   */
+  async getRecordTitles(req: Request, res: Response): Promise<void> {
+    try {
+      const { mappingId } = req.query;
+
+      if (!mappingId || typeof mappingId !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: 'mappingId query parameter is required',
+        });
+        return;
+      }
+
+      const { getRecordTitlesByMappingId } = await import('../services/formConfig/simpleFormConfig.service.js');
+      const rows = await getRecordTitlesByMappingId(mappingId);
+
+      res.json({
+        success: true,
+        data: rows,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch record titles',
       });
     }
   }

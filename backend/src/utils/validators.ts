@@ -27,12 +27,6 @@ export const createLoanApplicationSchema = z.object({
 
 export const updateLoanApplicationFormSchema = z.object({
   formData: z.record(z.any()),
-  documentUploads: z.array(z.object({
-    fieldId: z.string().min(1).max(100),
-    fileUrl: z.string().url().max(500),
-    fileName: z.string().min(1).max(255),
-    mimeType: z.string().max(100),
-  })).optional(),
 });
 
 // Client Routes

@@ -35,7 +35,6 @@ export const createMockApiService = () => {
     createQueryReply: vi.fn<(...args: unknown[]) => Promise<ApiResponse>>(),
     getQueries: vi.fn<(...args: unknown[]) => Promise<ApiResponse>>(),
     generateAISummary: vi.fn<(...args: unknown[]) => Promise<ApiResponse>>(),
-    uploadDocument: vi.fn<(...args: unknown[]) => Promise<ApiResponse>>(),
   };
   return mockApiService;
 };

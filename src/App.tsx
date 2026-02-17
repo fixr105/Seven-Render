@@ -13,7 +13,6 @@ import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
-import { ClientForm } from './pages/ClientForm';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { AdminActivityLog } from './pages/AdminActivityLog';
 import { AdminUserAccounts } from './pages/AdminUserAccounts';
@@ -156,12 +155,6 @@ function AppRoutes() {
             </ProtectedRoute>
           </ErrorBoundary>
         }
-      />
-
-      {/* Client Form - accessible via link (may or may not require auth) */}
-      <Route
-        path="/form/:clientId"
-        element={<ClientForm />}
       />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

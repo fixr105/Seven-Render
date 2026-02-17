@@ -38,13 +38,13 @@ export interface FieldValidationRule {
  * 
  * @param formData - Form data to validate
  * @param formConfig - Form configuration from backend
- * @param uploadedFiles - Uploaded files by field ID
+ * @param uploadedFiles - Optional; file fields use formData checklist (added_to_link, to_be_shared) when not provided
  * @returns Validation result with warnings and errors
  */
 export function validateFormData(
   formData: Record<string, any>,
   formConfig: any[],
-  uploadedFiles: Record<string, File[]>
+  uploadedFiles?: Record<string, File[]>
 ): ValidationResult {
   const warnings: string[] = [];
   const errors: string[] = [];
@@ -66,12 +66,13 @@ export function validateFormData(
   // Validate each field
   allFields.forEach((field) => {
     const value = formData[field.fieldId];
-    const hasFile = uploadedFiles[field.fieldId] && uploadedFiles[field.fieldId].length > 0;
+    const hasFile = uploadedFiles?.[field.fieldId] && uploadedFiles[field.fieldId].length > 0;
+    const fileChecklistSatisfied = field.type === 'file' && (value === 'added_to_link' || value === 'to_be_shared');
 
     // Check required fields
     if (field.required) {
       if (field.type === 'file') {
-        if (!hasFile && (!value || value.trim().length === 0)) {
+        if (!fileChecklistSatisfied && !hasFile && (!value || (typeof value === 'string' && value.trim().length === 0))) {
           missingRequiredFields.push(field.label);
           warnings.push(`Required document missing: ${field.label}`);
         }

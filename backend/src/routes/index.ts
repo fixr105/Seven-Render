@@ -25,7 +25,6 @@ import notificationsRoutes from './notifications.routes.js';
 import productsRoutes from './products.routes.js';
 import usersRoutes from './users.routes.js';
 import publicRoutes from './public.routes.js';
-import documentsRoutes from './documents.routes.js';
 
 const router = Router();
 
@@ -190,7 +189,6 @@ router.use('/', apiRateLimiter, usersRoutes); // Users routes (kam-users, user-a
 router.use('/', apiRateLimiter, auditRoutes); // Audit routes (mounted at root for /loan-applications/:id/audit-log)
 router.use('/', apiRateLimiter, aiRoutes); // AI routes (mounted at root for /loan-applications/:id/summary)
 router.use('/public', publicRoutes); // Public routes (form links, etc.) - no rate limit for public access
-router.use('/documents', documentsRoutes); // Module 2: Document upload routes (OneDrive) - rate limit applied in route file
 
 // Catch-all route for debugging - MUST be last
 router.use('*', (req, res, next) => {

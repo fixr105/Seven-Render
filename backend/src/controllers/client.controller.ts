@@ -156,69 +156,20 @@ export class ClientController {
         return;
       }
 
-      // Use centralized form config service
-      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
+      // Simple form config: Form Link + Record Titles (Mapping ID)
+      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+      const { productId } = req.query;
 
-      // productId is optional - form config can be linked to specific product
-      // applicationId is optional - if provided, use form config version from that application (for versioning)
-      const { productId, applicationId } = req.query;
-      
-      // Get version from application if provided
-      let version: string | undefined;
-      if (applicationId) {
-        const applications = await n8nClient.fetchTable('Loan Application');
-        const application = applications.find((app: any) => app.id === applicationId);
-        if (application && application.Client === effectiveClientId) {
-          version = application['Form Config Version'] || undefined;
-        }
-      }
-
-      // Get client dashboard configuration (only enabled modules)
-      let config = await formConfigService.getClientDashboardConfig(
-        effectiveClientId,
-        productId as string | undefined,
-        version
-      );
+      let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
 
       // Fallback: when productId filter yields empty config, retry without productId
-      // (mappings may have different Product ID format or be product-agnostic)
-      if (config.modules.length === 0 && productId) {
-        config = await formConfigService.getClientDashboardConfig(
-          effectiveClientId,
-          undefined,
-          version
-        );
+      if (config.categories.length === 0 && productId) {
+        config = await getSimpleFormConfig(effectiveClientId, undefined);
       }
 
-      console.log(`[getFormConfig] Returning configuration for client ${effectiveClientId} with ${config.modules.length} enabled modules`);
+      const categoriesArray = config.categories;
+      console.log(`[getFormConfig] Returning ${categoriesArray.length} categories for client ${effectiveClientId}`);
 
-      // Transform to match expected frontend format
-      // Frontend expects a flat array of categories with fields, not nested modules
-      const categoriesArray: any[] = [];
-      
-      config.modules.forEach((module) => {
-        module.categories.forEach((cat) => {
-          categoriesArray.push({
-            categoryId: cat.categoryId,
-            categoryName: cat.categoryName,
-            description: cat.description,
-            isRequired: cat.isRequired,
-            displayOrder: cat.displayOrder,
-            fields: cat.fields,
-          });
-        });
-      });
-
-      // Sort by display order if available
-      categoriesArray.sort((a, b) => {
-        const orderA = parseInt(a.displayOrder || '0') || 0;
-        const orderB = parseInt(b.displayOrder || '0') || 0;
-        return orderA - orderB;
-      });
-
-      console.log(`[getFormConfig] Returning ${categoriesArray.length} categories with fields for client ${effectiveClientId}`);
-      
-      // Return flat array format expected by frontend
       res.json({
         success: true,
         data: categoriesArray,
@@ -260,55 +211,22 @@ export class ClientController {
         res.status(401).json({ success: false, error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.' });
         return;
       }
-      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
+      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
       const { productId } = req.query;
-      const diagnostics: { clientFound: boolean; mappingsCount: number; clientMappingsCount: number; afterProductFilter?: number; mappedCategoryIdsCount: number } = {
-        clientFound: false,
-        mappingsCount: 0,
-        clientMappingsCount: 0,
-        mappedCategoryIdsCount: 0,
-      };
-      let config = await formConfigService.getClientDashboardConfig(
-        effectiveClientId,
-        productId as string | undefined,
-        undefined,
-        diagnostics
-      );
-      if (config.modules.length === 0 && productId) {
-        config = await formConfigService.getClientDashboardConfig(
-          effectiveClientId,
-          undefined,
-          undefined,
-          diagnostics
-        );
+      let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
+      if (config.categories.length === 0 && productId) {
+        config = await getSimpleFormConfig(effectiveClientId, undefined);
       }
-      const categoriesArray: any[] = [];
-      config.modules.forEach((module: any) => {
-        module.categories.forEach((cat: any) => {
-          categoriesArray.push({
-            categoryId: cat.categoryId,
-            categoryName: cat.categoryName,
-            description: cat.description,
-            isRequired: cat.isRequired,
-            displayOrder: cat.displayOrder,
-            fields: cat.fields,
-          });
-        });
-      });
-      categoriesArray.sort((a, b) => {
-        const orderA = parseInt(a.displayOrder || '0') || 0;
-        const orderB = parseInt(b.displayOrder || '0') || 0;
-        return orderA - orderB;
-      });
+      const categoriesArray = config.categories;
+      const totalFields = categoriesArray.reduce((sum, c) => sum + (c.fields?.length || 0), 0);
       res.json({
         success: true,
         data: categoriesArray,
         _debug: {
           clientId: effectiveClientId,
           productId: productId || null,
-          ...diagnostics,
-          modulesCount: config.modules.length,
           categoriesCount: categoriesArray.length,
+          fieldsCount: totalFields,
         },
       });
     } catch (error: any) {
@@ -376,32 +294,18 @@ export class ClientController {
         if (matchingClient.clientId) acceptedClientIds.add(matchingClient.clientId.toString().trim());
       }
 
-      // Fetch Client Form Mapping table
-      const mappings = await n8nClient.fetchTable('Client Form Mapping');
-
-      // Filter mappings for this client (match on any accepted identifier)
-      const clientMappings = mappings.filter((m: any) => {
-        const mappingClientId = (m.Client || m.client || m['Client ID'] || '').toString().trim();
-        return mappingClientId && acceptedClientIds.has(mappingClientId);
-      });
-
-      // Extract unique Product IDs (where Product ID is not null/empty)
-      const productIds = new Set<string>();
-      clientMappings.forEach((m: any) => {
-        const productId = m['Product ID'] || m.productId;
-        if (productId && productId.trim() !== '') {
-          productIds.add(productId.toString());
-        }
-      });
+      // Fetch Form Link table and extract unique Product IDs
+      const { getConfiguredProductIds } = await import('../services/formConfig/simpleFormConfig.service.js');
+      const productIds = await getConfiguredProductIds(acceptedClientIds);
 
       console.log(
-        `[getConfiguredProducts] Client ${authClientId} (acceptedIds: ${Array.from(acceptedClientIds).join(', ')}) has ${productIds.size} configured products:`,
-        Array.from(productIds)
+        `[getConfiguredProducts] Client ${authClientId} (acceptedIds: ${Array.from(acceptedClientIds).join(', ')}) has ${productIds.length} configured products:`,
+        productIds
       );
 
       res.json({
         success: true,
-        data: Array.from(productIds),
+        data: productIds,
       });
     } catch (error: any) {
       console.error('[getConfiguredProducts] Error:', error);
@@ -454,22 +358,6 @@ export class ClientController {
         await n8nClient.postLoanApplication({
           ...application,
           'Form Data': JSON.stringify(updatedFormData),
-          'Last Updated': new Date().toISOString(),
-        });
-      }
-
-      // Update documents if new docs provided
-      if (newDocs && newDocs.length > 0) {
-        const documents = application.Documents
-          ? application.Documents.split(',').filter(Boolean)
-          : [];
-        newDocs.forEach((doc: any) => {
-          documents.push(`${doc.fieldId}:${doc.fileUrl}`);
-        });
-
-        await n8nClient.postLoanApplication({
-          ...application,
-          Documents: documents.join(','),
           'Last Updated': new Date().toISOString(),
         });
       }

@@ -21,12 +21,6 @@ export interface CreateLoanApplicationRequest {
 
 export interface UpdateLoanApplicationFormRequest {
   formData: Record<string, any>;
-  documentUploads?: Array<{
-    fieldId: string;
-    fileUrl: string;
-    fileName: string;
-    mimeType: string;
-  }>;
 }
 
 export interface RespondToQueryRequest {

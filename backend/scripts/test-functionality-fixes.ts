@@ -305,34 +305,7 @@ async function testPhase3(token: string | null) {
     },
   });
   
-  // Test 3.2: Test Upload Endpoint Availability
-  try {
-    // Just check if endpoint exists (will fail without file, but that's expected)
-    const { status, duration } = await apiRequest(
-      'POST',
-      '/documents/upload',
-      {},
-      token
-    );
-    
-    // 400 is expected (no file provided), 401 means auth issue, 500 means server error
-    const passed = status === 400 || status === 401;
-    
-    logTest('Phase 3.2', 'Upload endpoint availability', passed, {
-      statusCode: status,
-      duration,
-      error: status === 500 ? 'Server error on upload endpoint' : undefined,
-      details: {
-        status,
-        note: status === 400 ? 'Endpoint exists (expected: no file provided)' : 
-              status === 401 ? 'Auth required (expected)' : 'Unexpected status',
-      },
-    });
-  } catch (error: any) {
-    logTest('Phase 3.2', 'Upload endpoint availability', false, {
-      error: error.message,
-    });
-  }
+  // Test 3.2: Upload endpoint removed (link-first flow; no per-file uploads)
 }
 
 // Phase 4: Test All API Endpoints

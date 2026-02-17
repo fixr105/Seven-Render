@@ -8,5 +8,4 @@ export { Modal, ModalHeader, ModalBody, ModalFooter } from './Modal';
 export { DataTable } from './DataTable';
 export { SearchBar } from './SearchBar';
 export { Toast, ToastContainer } from './Toast';
-export { FileUpload } from './FileUpload';
 export type { Column } from './DataTable';

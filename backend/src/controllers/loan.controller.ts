@@ -37,7 +37,6 @@ export class LoanController {
         applicantName, 
         requestedLoanAmount, 
         formData,
-        documentUploads, // Module 2: Array of { fieldId, fileUrl, fileName } from OneDrive
         saveAsDraft = true 
       } = req.body;
 
@@ -63,31 +62,12 @@ export class LoanController {
 
       // Module 2: Soft validation - check required fields but allow submission with warnings
       const { validateFormData } = await import('../services/validation/formValidation.service.js');
-      // Fetch form config for validation
+      // Fetch form config for validation (Form Link + Record Titles)
       let formConfig: any[] = [];
       try {
-        const mappings = await n8nClient.fetchTable('Client Form Mapping');
-        const categories = await n8nClient.fetchTable('Form Categories');
-        const fields = await n8nClient.fetchTable('Form Fields');
-        
-        const clientMappings = mappings.filter((m: any) => 
-          m.Client === req.user!.clientId || m.Client === req.user!.clientId?.toString()
-        );
-        const mappedCategoryIds = new Set(clientMappings.map((m: any) => m.Category));
-        
-        formConfig = categories
-          .filter((cat: any) => mappedCategoryIds.has(cat['Category ID'] || cat.id))
-          .map((cat: any) => ({
-            categoryId: cat['Category ID'] || cat.id,
-            fields: fields
-              .filter((f: any) => (f.Category || f.category) === (cat['Category ID'] || cat.id))
-              .map((f: any) => ({
-                fieldId: f['Field ID'] || f.id,
-                label: f['Field Label'] || f.fieldLabel,
-                type: f['Field Type'] || f.fieldType,
-                isRequired: f['Is Mandatory'] === 'True' || f.isMandatory === true,
-              })),
-          }));
+        const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+        const config = await getSimpleFormConfig(req.user!.clientId!, productId);
+        formConfig = config.categories;
       } catch (configError) {
         console.warn('[createApplication] Could not fetch form config for validation:', configError);
       }
@@ -98,24 +78,6 @@ export class LoanController {
         : { isValid: true, warnings: [], errors: [], missingRequiredFields: [] };
       
       validationWarnings.push(...validationResult.warnings);
-
-      // Module 2: Process document uploads - store OneDrive links in Documents field
-      // Format: fieldId:url|fileName,fieldId:url|fileName
-      const documentsArray: string[] = [];
-      const documentLinks: Record<string, string> = {};
-      
-      if (documentUploads && Array.isArray(documentUploads)) {
-        documentUploads.forEach((upload: any) => {
-          if (upload.fieldId && upload.fileUrl) {
-            // Store as fieldId:url|fileName format for Documents field
-            const fileName = upload.fileName || upload.fileUrl.split('/').pop() || 'document';
-            documentsArray.push(`${upload.fieldId}:${upload.fileUrl}|${fileName}`);
-            
-            // Also store in documentLinks for validation
-            documentLinks[upload.fieldId] = upload.fileUrl;
-          }
-        });
-      }
 
       // Generate File ID
       const timestamp = Date.now().toString(36).toUpperCase();
@@ -133,7 +95,7 @@ export class LoanController {
           applicantName: finalApplicantName,
           requestedLoanAmount: finalRequestedAmount,
           formData: finalFormData,
-          documents: documentsArray.join(','),
+          documents: '',
           saveAsDraft,
         });
 
@@ -164,23 +126,11 @@ export class LoanController {
       // Strict mandatory field validation for non-draft submissions
       if (!saveAsDraft) {
         const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
-        
-        // Extract document links from documentUploads
-        const documentLinks: Record<string, string> = {};
-        if (documentUploads && Array.isArray(documentUploads)) {
-          documentUploads.forEach((upload: any) => {
-            if (upload.fieldId && upload.fileUrl) {
-              documentLinks[upload.fieldId] = upload.fileUrl;
-            }
-          });
-        }
 
-        // Validate mandatory fields
         const validationResult = await validateMandatoryFields(
           finalFormData,
           req.user!.clientId!,
-          productId,
-          documentLinks
+          productId
         );
 
         if (!validationResult.isValid) {
@@ -202,28 +152,6 @@ export class LoanController {
       const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
       const formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!);
 
-      // Module 2: Process document uploads - store OneDrive links in Documents field
-      // Format: fieldId:url|fileName,fieldId:url|fileName
-      // Note: documentsArray and documentLinks are already declared above, reuse them
-      if (documentUploads && Array.isArray(documentUploads)) {
-        documentUploads.forEach((upload: any) => {
-          if (upload.fieldId && upload.fileUrl) {
-            // Store as fieldId:url|fileName format for Documents field
-            const fileName = upload.fileName || upload.fileUrl.split('/').pop() || 'document';
-            documentsArray.push(`${upload.fieldId}:${upload.fileUrl}|${fileName}`);
-            
-            // Also store in documentLinks for validation
-            documentLinks[upload.fieldId] = upload.fileUrl;
-            
-            // Also add to form data
-            finalFormData[upload.fieldId] = upload.fileUrl;
-            if (upload.fileName) {
-              finalFormData[`${upload.fieldId}_fileName`] = upload.fileName;
-            }
-          }
-        });
-      }
-
       // Module 2: If submitting with warnings/issues, mark for KAM attention
       const needsAttention = !saveAsDraft && validationWarnings.length > 0;
       if (needsAttention) {
@@ -244,7 +172,7 @@ export class LoanController {
         'Last Updated': new Date().toISOString(),
         'Form Data': JSON.stringify(finalFormData),
         'Form Config Version': formConfigVersion || '', // Module 1: Store form config version
-        Documents: documentsArray.length > 0 ? documentsArray.join(',') : '', // Module 2: Store documents in format: fieldId:url|fileName
+        Documents: '', // Link-first flow: no per-file uploads; Drive link handled separately when implemented
         'Needs Attention': needsAttention ? 'True' : 'False', // Module 2: Flag for KAM attention
         'Validation Warnings': validationWarnings.length > 0 
           ? JSON.stringify(validationWarnings) 
@@ -1068,7 +996,7 @@ export class LoanController {
       }
 
       const { id } = req.params;
-      const { formData, documentUploads } = req.body;
+      const { formData } = req.body;
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
       const application = applications.find((app) => app.id === id);
@@ -1099,35 +1027,13 @@ export class LoanController {
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
 
-      // Update form data
+      // Update form data (preserve existing Documents for backward compatibility)
       const updatedData: any = {
         ...application,
         'Form Data': JSON.stringify(formData || {}),
         'Last Updated': new Date().toISOString(),
         'Form Config Version': formConfigVersion || '', // Module 1: Preserve or update version
       };
-
-      // Handle document uploads - append to Documents field
-      // Format: fieldId:url|fileName,fieldId:url|fileName
-      if (documentUploads && documentUploads.length > 0) {
-        const existingDocuments = application.Documents
-          ? application.Documents.split(',').filter(Boolean)
-          : [];
-        
-        documentUploads.forEach((doc: any) => {
-          if (doc.fieldId && doc.fileUrl) {
-            const fileName = doc.fileName || doc.fileUrl.split('/').pop() || 'document';
-            const documentEntry = `${doc.fieldId}:${doc.fileUrl}|${fileName}`;
-            
-            // Check if this fieldId already has documents, replace or append
-            const fieldIdPrefix = `${doc.fieldId}:`;
-            const filtered = existingDocuments.filter((d: string) => !d.startsWith(fieldIdPrefix));
-            filtered.push(documentEntry);
-            
-            updatedData.Documents = filtered.join(',');
-          }
-        });
-      }
 
       await n8nClient.postLoanApplication(updatedData);
 

@@ -3,7 +3,7 @@
  * All pages use this so the menu order and items are identical everywhere.
  */
 
-import { LucideIcon, Home, FileText, Users, DollarSign, BarChart3, Settings, ClipboardList, UserCog, Building2 } from 'lucide-react';
+import { LucideIcon, Home, FileText, Users, DollarSign, BarChart3, Settings, ClipboardList, UserCog, Building2, Link2 } from 'lucide-react';
 
 export interface SidebarNavItem {
   id: string;
@@ -45,6 +45,7 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
       return [
         ...baseItems,
         { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },
+        { id: 'form-configuration', label: 'Form Configuration', icon: Link2, path: '/form-configuration' },
         { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
       ];

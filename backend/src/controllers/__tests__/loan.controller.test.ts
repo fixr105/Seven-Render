@@ -8,7 +8,7 @@ import { Request, Response } from 'express';
 import { LoanController } from '../loan.controller.js';
 import { UserRole, LoanStatus } from '../../config/constants.js';
 import { AuthUser } from '../../types/auth.js';
-import { createMockN8nClient, mockLoanApplications, mockFormFields, mockClientFormMapping, mockFormCategories } from '../../__tests__/helpers/mockN8nClient.js';
+import { createMockN8nClient, mockLoanApplications, mockFormFields, mockFormLink, mockRecordTitles, mockClientFormMapping, mockFormCategories } from '../../__tests__/helpers/mockN8nClient.js';
 import * as n8nClientModule from '../../services/airtable/n8nClient.js';
 
 // Mock the n8nClient module
@@ -151,8 +151,10 @@ describe('LoanController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      // Mock form fields with mandatory fields
+      // Mock Form Link + Record Titles (used by getSimpleFormConfig for validation)
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Form Link') return mockFormLink;
+        if (tableName === 'Record Titles') return mockRecordTitles;
         if (tableName === 'Form Fields') return mockFormFields;
         if (tableName === 'Client Form Mapping') return mockClientFormMapping;
         if (tableName === 'Form Categories') return mockFormCategories;
@@ -191,8 +193,10 @@ describe('LoanController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      // Mock form fields
+      // Mock Form Link + Record Titles; file fields satisfied by added_to_link/to_be_shared
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Form Link') return mockFormLink;
+        if (tableName === 'Record Titles') return mockRecordTitles;
         if (tableName === 'Form Fields') return mockFormFields;
         if (tableName === 'Client Form Mapping') return mockClientFormMapping;
         if (tableName === 'Form Categories') return mockFormCategories;
@@ -202,9 +206,8 @@ describe('LoanController - P0 Tests', () => {
             id: 'rec1',
             Status: LoanStatus.DRAFT,
             'Form Data': JSON.stringify({
-              'FLD001': 'John Doe', // Applicant Name (mandatory)
-              'FLD002': 'ABCDE1234F', // PAN Card (mandatory)
-              'FLD003': 'test@example.com', // Email (optional)
+              rt1: 'added_to_link', // Record Title 1 (file, required)
+              rt2: 'to_be_shared',  // Record Title 2 (file, required)
             }),
           }];
         }
@@ -225,7 +228,7 @@ describe('LoanController - P0 Tests', () => {
       expect(responseCall.success).toBe(true);
     });
 
-    it('should validate mandatory fields from Client Form Mapping', async () => {
+    it('should validate mandatory fields from Form Link + Record Titles', async () => {
       const clientUser: AuthUser = {
         id: 'user-1',
         email: 'Sagar@gmail.com',
@@ -233,22 +236,19 @@ describe('LoanController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      // Mock with client-specific mapping
+      // Mock Form Link + Record Titles with required file fields
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Form Link') return mockFormLink;
+        if (tableName === 'Record Titles') return mockRecordTitles;
         if (tableName === 'Form Fields') return mockFormFields;
-        if (tableName === 'Client Form Mapping') {
-          return [{
-            ...mockClientFormMapping[0],
-            'Is Required': 'True', // Category is required
-          }];
-        }
+        if (tableName === 'Client Form Mapping') return mockClientFormMapping;
         if (tableName === 'Form Categories') return mockFormCategories;
         if (tableName === 'Loan Application') {
           return [{
             ...mockLoanApplications[0],
             id: 'rec1',
             Status: LoanStatus.DRAFT,
-            'Form Data': JSON.stringify({}), // Missing mandatory fields
+            'Form Data': JSON.stringify({}), // Missing mandatory file fields
           }];
         }
         return [];

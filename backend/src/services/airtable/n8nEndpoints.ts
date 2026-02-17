@@ -33,6 +33,8 @@ export const AIRTABLE_TABLE_IDS = {
   FILE_AUDITING_LOG: 'tblL1XJnqW3Q15ueZ', // File Auditing Log
   FORM_CATEGORIES: 'tblqCqXV0Hds0t0bH', // Form Categories
   FORM_FIELDS: 'tbl5oZ6zI0dc5eutw', // Form Fields
+  FORM_LINK: 'FormLinkTable', // Form Link (Client ID, Form link, Product ID, Mapping ID)
+  RECORD_TITLES: 'RecordTitlesTable', // Record Titles (Mapping ID, Record Title, Display Order)
   KAM_USERS: 'tblM7nP4rS9tU2vW5', // KAM Users
   LOAN_APPLICATIONS: 'tblN8oQ5sT0vX3yZ6', // Loan Applications
   LOAN_PRODUCTS: 'tblO9pR6uU1wY4zA7', // Loan Products
@@ -54,6 +56,8 @@ export const AIRTABLE_TABLE_NAMES = {
   FILE_AUDITING_LOG: 'File Auditing Log',
   FORM_CATEGORIES: 'Form Categories',
   FORM_FIELDS: 'Form Fields',
+  FORM_LINK: 'Form Link',
+  RECORD_TITLES: 'Record Titles',
   KAM_USERS: 'KAM Users',
   LOAN_APPLICATIONS: 'Loan Application',
   LOAN_PRODUCTS: 'Loan Products',
@@ -90,6 +94,12 @@ export const N8N_POST_WEBHOOK_PATHS = {
   
   // Form Fields
   FORM_FIELDS: 'FormFields',
+  
+  // Form Link (new simple config) — n8n path: Formlink
+  FORM_LINK: 'Formlink',
+  
+  // Record Titles (new simple config) — n8n path: Recordtitle (same as GET)
+  RECORD_TITLES: 'Recordtitle',
   
   // KAM Users
   KAM_USERS: 'KAMusers',
@@ -148,6 +158,12 @@ export const N8N_GET_WEBHOOK_PATHS = {
   // Form Fields
   FORM_FIELDS: 'formfields',
   
+  // Form Link (new simple config) — n8n path: formlink
+  FORM_LINK: 'formlink',
+  
+  // Record Titles (new simple config) — n8n path: Recordtitle
+  RECORD_TITLES: 'Recordtitle',
+  
   // KAM Users
   KAM_USERS: 'kamusers',
   
@@ -197,6 +213,8 @@ export function getTableToGetWebhookPath(): Record<string, keyof typeof N8N_GET_
     [AIRTABLE_TABLE_NAMES.FILE_AUDITING_LOG]: 'FILE_AUDITING_LOG',
     [AIRTABLE_TABLE_NAMES.FORM_CATEGORIES]: 'FORM_CATEGORIES',
     [AIRTABLE_TABLE_NAMES.FORM_FIELDS]: 'FORM_FIELDS',
+    [AIRTABLE_TABLE_NAMES.FORM_LINK]: 'FORM_LINK',
+    [AIRTABLE_TABLE_NAMES.RECORD_TITLES]: 'RECORD_TITLES',
     [AIRTABLE_TABLE_NAMES.KAM_USERS]: 'KAM_USERS',
     [AIRTABLE_TABLE_NAMES.LOAN_APPLICATIONS]: 'LOAN_APPLICATION',
     [AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS]: 'LOAN_PRODUCTS',
@@ -220,6 +238,8 @@ export function getTableToPostWebhookPath(): Record<string, keyof typeof N8N_POS
     [AIRTABLE_TABLE_NAMES.FILE_AUDITING_LOG]: 'FILE_AUDIT_LOG',
     [AIRTABLE_TABLE_NAMES.FORM_CATEGORIES]: 'FORM_CATEGORY',
     [AIRTABLE_TABLE_NAMES.FORM_FIELDS]: 'FORM_FIELDS',
+    [AIRTABLE_TABLE_NAMES.FORM_LINK]: 'FORM_LINK',
+    [AIRTABLE_TABLE_NAMES.RECORD_TITLES]: 'RECORD_TITLES',
     [AIRTABLE_TABLE_NAMES.KAM_USERS]: 'KAM_USERS',
     [AIRTABLE_TABLE_NAMES.LOAN_APPLICATIONS]: 'LOAN_APPLICATIONS',
     [AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS]: 'LOAN_PRODUCTS',
@@ -243,6 +263,8 @@ export const n8nEndpoints = {
     fileAuditLog: process.env.N8N_POST_FILE_AUDIT_LOG_URL || getPostWebhookUrl('FILE_AUDIT_LOG'),
     formCategory: process.env.N8N_POST_FORM_CATEGORY_URL || getPostWebhookUrl('FORM_CATEGORY'),
     formFields: process.env.N8N_POST_FORM_FIELDS_URL || getPostWebhookUrl('FORM_FIELDS'),
+    formLink: process.env.N8N_POST_FORM_LINK_URL || getPostWebhookUrl('FORM_LINK'),
+    recordTitles: process.env.N8N_POST_RECORD_TITLES_URL || getPostWebhookUrl('RECORD_TITLES'),
     kamUsers: process.env.N8N_POST_KAM_USERS_URL || getPostWebhookUrl('KAM_USERS'),
     loanApplications: process.env.N8N_POST_APPLICATIONS_URL || getPostWebhookUrl('LOAN_APPLICATIONS'),
     loanProducts: process.env.N8N_POST_LOAN_PRODUCTS_URL || getPostWebhookUrl('LOAN_PRODUCTS'),
@@ -253,6 +275,8 @@ export const n8nEndpoints = {
     email: process.env.N8N_POST_EMAIL_URL || getPostWebhookUrl('EMAIL'),
     /** POST credentials to validate; same path as GET useraccount, different method */
     userAccountValidate: process.env.N8N_POST_USER_ACCOUNT_VALIDATE_URL || getGetWebhookUrl('USER_ACCOUNT'),
+    /** POST a link (e.g. document/share link) to custom webhook */
+    link: process.env.N8N_LINK_WEBHOOK_URL || `${N8N_BASE_URL}/webhook/3212b705-b54a-4d4e-9648-e7a6bfb06d2b`,
   },
 
   // GET Webhook URLs (with env var overrides)
@@ -266,6 +290,8 @@ export const n8nEndpoints = {
     fileAuditingLog: process.env.N8N_GET_FILE_AUDITING_LOG_URL || getGetWebhookUrl('FILE_AUDITING_LOG'),
     formCategories: process.env.N8N_GET_FORM_CATEGORIES_URL || getGetWebhookUrl('FORM_CATEGORIES'),
     formFields: process.env.N8N_GET_FORM_FIELDS_URL || getGetWebhookUrl('FORM_FIELDS'),
+    formLink: process.env.N8N_GET_FORM_LINK_URL || getGetWebhookUrl('FORM_LINK'),
+    recordTitles: process.env.N8N_GET_RECORD_TITLES_URL || getGetWebhookUrl('RECORD_TITLES'),
     kamUsers: process.env.N8N_GET_KAM_USERS_URL || getGetWebhookUrl('KAM_USERS'),
     loanApplication: process.env.N8N_GET_LOAN_APPLICATION_URL || getGetWebhookUrl('LOAN_APPLICATION'),
     loanProducts: process.env.N8N_GET_LOAN_PRODUCTS_URL || getGetWebhookUrl('LOAN_PRODUCTS'),
