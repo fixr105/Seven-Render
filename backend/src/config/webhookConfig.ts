@@ -24,6 +24,7 @@ export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
     url: n8nEndpoints.get.adminActivity,
     tableName: AIRTABLE_TABLE_NAMES.ADMIN_ACTIVITY_LOG,
   },
+  // DEPRECATED: Form config now uses Form Link + Record Titles
   [AIRTABLE_TABLE_NAMES.CLIENT_FORM_MAPPING]: {
     url: n8nEndpoints.get.clientFormMapping,
     tableName: AIRTABLE_TABLE_NAMES.CLIENT_FORM_MAPPING,
@@ -48,6 +49,7 @@ export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
     url: n8nEndpoints.get.fileAuditingLog,
     tableName: AIRTABLE_TABLE_NAMES.FILE_AUDITING_LOG,
   },
+  // DEPRECATED: Form config now uses Form Link + Record Titles
   [AIRTABLE_TABLE_NAMES.FORM_CATEGORIES]: {
     url: n8nEndpoints.get.formCategories,
     tableName: AIRTABLE_TABLE_NAMES.FORM_CATEGORIES,
@@ -75,6 +77,10 @@ export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
   [AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS]: {
     url: n8nEndpoints.get.loanProducts,
     tableName: AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS,
+  },
+  [AIRTABLE_TABLE_NAMES.PRODUCT_DOCUMENTS]: {
+    url: n8nEndpoints.get.productDocuments,
+    tableName: AIRTABLE_TABLE_NAMES.PRODUCT_DOCUMENTS,
   },
   [AIRTABLE_TABLE_NAMES.NBFC_PARTNERS]: {
     url: n8nEndpoints.get.nbfcPartners,

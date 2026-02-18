@@ -172,6 +172,9 @@ router.post(
   loanController.createClientQuery.bind(loanController)
 );
 
+// Public routes FIRST (no auth) - must be before catch-all '/' routes
+router.use('/public', publicRoutes);
+
 // Mount route modules with rate limiting
 router.use('/client', apiRateLimiter, clientRoutes);
 router.use('/loan-applications', apiRateLimiter, loanRoutes);
@@ -188,7 +191,6 @@ router.use('/', apiRateLimiter, productsRoutes); // Products routes (loan-produc
 router.use('/', apiRateLimiter, usersRoutes); // Users routes (kam-users, user-accounts)
 router.use('/', apiRateLimiter, auditRoutes); // Audit routes (mounted at root for /loan-applications/:id/audit-log)
 router.use('/', apiRateLimiter, aiRoutes); // AI routes (mounted at root for /loan-applications/:id/summary)
-router.use('/public', publicRoutes); // Public routes (form links, etc.) - no rate limit for public access
 
 // Catch-all route for debugging - MUST be last
 router.use('*', (req, res, next) => {

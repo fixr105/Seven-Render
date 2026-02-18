@@ -34,8 +34,22 @@ router.post('/ledger/entries', creditController.createLedgerEntry.bind(creditCon
 router.post('/ledger/:ledgerEntryId/flag-dispute', creditController.flagLedgerDispute.bind(creditController));
 router.post('/ledger/:ledgerEntryId/resolve-dispute', creditController.resolveLedgerDispute.bind(creditController));
 router.get('/clients', creditController.listClients.bind(creditController));
+router.get('/clients/:id/form-mappings', creditController.getFormMappings.bind(creditController));
+router.post('/clients/:id/form-links', creditController.createFormLink.bind(creditController));
+router.patch('/form-links/:id', creditController.patchFormLink.bind(creditController));
+router.delete('/form-links/:id', creditController.deleteFormLink.bind(creditController));
 router.get('/clients/:id', creditController.getClient.bind(creditController));
 router.post('/clients/:id/assign-kam', creditController.assignKAMToClient.bind(creditController));
+router.get('/record-titles', creditController.getRecordTitles.bind(creditController));
+router.post('/record-titles', creditController.createRecordTitle.bind(creditController));
+router.patch('/record-titles/:id', creditController.patchRecordTitle.bind(creditController));
+router.delete('/record-titles/:id', creditController.deleteRecordTitle.bind(creditController));
+router.get('/products/:productId/product-documents', creditController.getProductDocuments.bind(creditController));
+router.get('/products/:productId/form-config-edit', creditController.getProductFormConfigEdit.bind(creditController));
+router.patch('/products/:productId/form-config', creditController.patchProductFormConfig.bind(creditController));
+router.post('/product-documents', creditController.createProductDocument.bind(creditController));
+router.patch('/product-documents/:id', creditController.patchProductDocument.bind(creditController));
+router.delete('/product-documents/:id', creditController.deleteProductDocument.bind(creditController));
 router.get('/kam-users', creditController.listKAMUsers.bind(creditController));
 
 export default router;

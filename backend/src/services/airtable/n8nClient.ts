@@ -621,6 +621,40 @@ export class N8nClient {
   }
 
   /**
+   * Send PATCH or DELETE request to n8n webhook.
+   */
+  private async requestWebhook(
+    method: 'PATCH' | 'DELETE',
+    webhookUrl: string,
+    data?: Record<string, any>
+  ): Promise<any> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    try {
+      const response = await fetch(webhookUrl, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: data ? JSON.stringify(data) : undefined,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`n8n ${method} webhook failed: ${response.status} ${response.statusText}. Response: ${responseText}`);
+      }
+      if (responseText.trim() === '') return { success: true };
+      try {
+        return JSON.parse(responseText);
+      } catch {
+        return { success: true, raw: responseText };
+      }
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      throw e;
+    }
+  }
+
+  /**
    * POST a link to the link webhook (e.g. document/share URL).
    * Payload: { file: string }
    */
@@ -633,6 +667,9 @@ export class N8nClient {
     return this.postData(n8nConfig.postLogUrl, data);
   }
 
+  /**
+   * @deprecated Client Form Mapping is deprecated. Form config now uses Form Link + Record Titles.
+   */
   async postClientFormMapping(data: Record<string, any>) {
     console.log('[postClientFormMapping] Starting POST to Client Form Mapping webhook');
     console.log('[postClientFormMapping] Webhook URL:', n8nConfig.postClientFormMappingUrl);
@@ -761,6 +798,9 @@ export class N8nClient {
     return result;
   }
 
+  /**
+   * @deprecated Form Categories is deprecated. Form config now uses Form Link + Record Titles.
+   */
   async postFormCategory(data: Record<string, any>) {
     // Ensure only exact fields are sent to FormCategory webhook
     // Only send: id, Category ID, Category Name, Description, Display Order, Active
@@ -779,6 +819,9 @@ export class N8nClient {
     return result;
   }
 
+  /**
+   * @deprecated Form Fields is deprecated. Form config now uses Form Link + Record Titles.
+   */
   async postFormField(data: Record<string, any>) {
     // Ensure only exact fields are sent to FormFields webhook
     // Only send: id, Field ID, Category, Field Label, Field Type, Field Placeholder, Field Options, Is Mandatory, Display Order, Active
@@ -833,6 +876,107 @@ export class N8nClient {
     };
     const result = await this.postData(n8nConfig.postRecordTitlesUrl, recordTitleData);
     this.invalidateCache('Record Titles');
+    return result;
+  }
+
+  /**
+   * PATCH Form Link row (update existing record; requires id).
+   */
+  async patchFormLink(data: Record<string, any>) {
+    const id = data.id ?? data['id'];
+    if (!id) throw new Error('Form Link id is required for PATCH');
+    const payload = {
+      id,
+      'Client ID': data['Client ID'] ?? data.clientId ?? '',
+      'Form link': data['Form link'] ?? data.formLink ?? '',
+      'Product ID': data['Product ID'] ?? data.productId ?? '',
+      'Mapping ID': data['Mapping ID'] ?? data.mappingId ?? '',
+    };
+    const result = await this.requestWebhook('PATCH', n8nConfig.patchFormLinkUrl, payload);
+    this.invalidateCache('Form Link');
+    return result;
+  }
+
+  /**
+   * DELETE Form Link row (requires id).
+   */
+  async deleteFormLink(id: string) {
+    const result = await this.requestWebhook('DELETE', n8nConfig.deleteFormLinkUrl, { id });
+    this.invalidateCache('Form Link');
+    return result;
+  }
+
+  /**
+   * PATCH Record Title row (update existing record; requires id).
+   */
+  async patchRecordTitle(data: Record<string, any>) {
+    const id = data.id ?? data['id'];
+    if (!id) throw new Error('Record Title id is required for PATCH');
+    const isRequired = data['Is Required'] ?? data.isRequired ?? false;
+    const payload = {
+      id,
+      'Mapping ID': data['Mapping ID'] ?? data.mappingId ?? '',
+      'Record Title': data['Record Title'] ?? data.recordTitle ?? '',
+      'Display Order': data['Display Order'] ?? data.displayOrder ?? 0,
+      'Is Required': isRequired === true || isRequired === 'True' || String(isRequired).toLowerCase() === 'true',
+    };
+    const result = await this.requestWebhook('PATCH', n8nConfig.patchRecordTitlesUrl, payload);
+    this.invalidateCache('Record Titles');
+    return result;
+  }
+
+  /**
+   * DELETE Record Title row (requires id).
+   */
+  async deleteRecordTitle(id: string) {
+    const result = await this.requestWebhook('DELETE', n8nConfig.deleteRecordTitlesUrl, { id });
+    this.invalidateCache('Record Titles');
+    return result;
+  }
+
+  /**
+   * POST Product Document row (Product ID, Record Title, Display Order, Is Required).
+   * Used by Form Configuration page for product-centric form config.
+   */
+  async postProductDocument(data: Record<string, any>) {
+    const isRequired = data['Is Required'] ?? data.isRequired ?? false;
+    const productDocumentData = {
+      id: data.id,
+      'Product ID': data['Product ID'] || data.productId || '',
+      'Record Title': data['Record Title'] || data.recordTitle || '',
+      'Display Order': data['Display Order'] ?? data.displayOrder ?? 0,
+      'Is Required': isRequired === true || isRequired === 'True' || String(isRequired).toLowerCase() === 'true',
+    };
+    const result = await this.postData(n8nConfig.postProductDocumentsUrl, productDocumentData);
+    this.invalidateCache('Product Documents');
+    return result;
+  }
+
+  /**
+   * PATCH Product Document row (update existing record; requires id).
+   */
+  async patchProductDocument(data: Record<string, any>) {
+    const id = data.id ?? data['id'];
+    if (!id) throw new Error('Product Document id is required for PATCH');
+    const isRequired = data['Is Required'] ?? data.isRequired ?? false;
+    const payload = {
+      id,
+      'Product ID': data['Product ID'] ?? data.productId ?? '',
+      'Record Title': data['Record Title'] ?? data.recordTitle ?? '',
+      'Display Order': data['Display Order'] ?? data.displayOrder ?? 0,
+      'Is Required': isRequired === true || isRequired === 'True' || String(isRequired).toLowerCase() === 'true',
+    };
+    const result = await this.requestWebhook('PATCH', n8nConfig.patchProductDocumentsUrl, payload);
+    this.invalidateCache('Product Documents');
+    return result;
+  }
+
+  /**
+   * DELETE Product Document row (requires id).
+   */
+  async deleteProductDocument(id: string) {
+    const result = await this.requestWebhook('DELETE', n8nConfig.deleteProductDocumentsUrl, { id });
+    this.invalidateCache('Product Documents');
     return result;
   }
 
@@ -935,6 +1079,28 @@ export class N8nClient {
     };
     const result = await this.postData(n8nConfig.postLoanProductsUrl, loanProductData);
     // Invalidate cache for Loan Products
+    this.invalidateCache('Loan Products');
+    return result;
+  }
+
+  /**
+   * PATCH Loan Product - update form config (Section N, Field N, Field N.M).
+   * Payload must include id. All Section/Field keys are passed through to n8n.
+   */
+  async patchLoanProduct(payload: Record<string, any>) {
+    const id = payload.id ?? payload['id'];
+    if (!id) throw new Error('Loan Product id is required for PATCH');
+    const result = await this.requestWebhook('PATCH', n8nConfig.patchLoanProductsUrl, payload);
+    this.invalidateCache('Loan Products');
+    return result;
+  }
+
+  /**
+   * DELETE Loan Product - remove a loan product record.
+   * Requires id. Uses https://fixrrahul.app.n8n.cloud/webhook/loanproducts
+   */
+  async deleteLoanProduct(id: string) {
+    const result = await this.requestWebhook('DELETE', n8nConfig.deleteLoanProductsUrl, { id });
     this.invalidateCache('Loan Products');
     return result;
   }

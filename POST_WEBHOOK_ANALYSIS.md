@@ -296,7 +296,7 @@
 ### 12. loanproducts (Loan Products)
 - **n8n Path:** `/webhook/loanproducts`
 - **Backend Method:** `n8nClient.postLoanProduct()`
-- **Airtable Table:** `Loan Products` (tblNxvQVlzCfcj4e2)
+- **Airtable Table:** `Loan Products` (tblVukvj8kn5gWBta)
 - **Operation:** `upsert` (match on `id`)
 
 **Fields Mapped in n8n:**

@@ -44,8 +44,8 @@ export interface MandatoryFieldValidationResult {
 }
 
 /**
- * Load form fields configuration for a client/product from simple form config
- * (Form Link + Record Titles). Returns fields with mandatory status.
+ * Load form fields configuration for a client/product.
+ * Uses product-embedded config (Section N, Field N) when available; else Product Documents.
  */
 async function loadFormFieldsConfig(
   clientId: string,
@@ -57,7 +57,13 @@ async function loadFormFieldsConfig(
   isMandatory: boolean;
   category: string;
 }>> {
-  let config = await getSimpleFormConfig(clientId, productId);
+  let config: { categories: Array<{ categoryId: string; fields: Array<{ fieldId: string; label: string; type: string; isRequired: boolean }> }> };
+  if (productId) {
+    const { getFormConfigForProduct } = await import('../formConfig/productFormConfig.service.js');
+    config = await getFormConfigForProduct(productId);
+  } else {
+    config = await getSimpleFormConfig(clientId, undefined);
+  }
   if (config.categories.length === 0 && productId) {
     config = await getSimpleFormConfig(clientId, undefined);
   }

@@ -274,8 +274,8 @@
 
 | PRD Requirement | Backend Implementation | Frontend Implementation | n8n Webhook | Airtable Table |
 |----------------|----------------------|----------------------|-------------|----------------|
-| **List Loan Products** | `products.controller.ts` → `listLoanProducts()`<br>`/api/loan-products` (GET) | `src/pages/NewApplication.tsx`<br>`src/pages/FormConfiguration.tsx` | GET: `/webhook/loanproducts` | `Loan Products` (tblO9pR6uU1wY4zA7) |
-| **Get Loan Product** | `products.controller.ts` → `getLoanProduct()`<br>`/api/loan-products/:id` (GET) | `src/pages/NewApplication.tsx` | GET: `/webhook/loanproducts` | `Loan Products` (tblO9pR6uU1wY4zA7) |
+| **List Loan Products** | `products.controller.ts` → `listLoanProducts()`<br>`/api/loan-products` (GET) | `src/pages/NewApplication.tsx`<br>`src/pages/FormConfiguration.tsx` | GET: `/webhook/loanproducts` | `Loan Products` (tblVukvj8kn5gWBta) |
+| **Get Loan Product** | `products.controller.ts` → `getLoanProduct()`<br>`/api/loan-products/:id` (GET) | `src/pages/NewApplication.tsx` | GET: `/webhook/loanproducts` | `Loan Products` (tblVukvj8kn5gWBta) |
 | **List NBFC Partners** | `products.controller.ts` → `listNBFCPartners()`<br>`/api/nbfc-partners` (GET) | `src/pages/ApplicationDetail.tsx` | GET: `/webhook/nbfcpartners` | `NBFC Partners` (tblP0qS7vV2xZ5bB8) |
 | **Get NBFC Partner** | `products.controller.ts` → `getNBFCPartner()`<br>`/api/nbfc-partners/:id` (GET) | `src/pages/ApplicationDetail.tsx` | GET: `/webhook/nbfcpartners` | `NBFC Partners` (tblP0qS7vV2xZ5bB8) |
 | **Create NBFC Partner (CREDIT)** | `nbfc.controller.ts` → `createPartner()`<br>`/api/nbfc-partners` (POST) | (Admin UI) | POST: `/webhook/NBFCPartners`<br>POST: `/webhook/adduser` | `NBFC Partners` (tblP0qS7vV2xZ5bB8)<br>`User Accounts` (tblQ1rT8wW3yA6cC9) |
@@ -324,7 +324,7 @@
 | **Credit Team Users** | `tblX9yZ2wV4nM6pQ8` | Credit team member profiles |
 | **NBFC Partners** | `tblP0qS7vV2xZ5bB8` | NBFC/lender partner information |
 | **Loan Applications** | `tblN8oQ5sT0vX3yZ6` | Loan application files with all data |
-| **Loan Products** | `tblO9pR6uU1wY4zA7` | Available loan product configurations |
+| **Loan Products** | `tblVukvj8kn5gWBta` | Available loan product configurations |
 | **Form Categories** | `tblqCqXV0Hds0t0bH` | Form category groupings |
 | **Form Fields** | `tbl5oZ6zI0dc5eutw` | Individual form field definitions |
 | **Client Form Mapping** | `tbl70C8uPKmoLkOQJ` | Links clients to form categories/fields |

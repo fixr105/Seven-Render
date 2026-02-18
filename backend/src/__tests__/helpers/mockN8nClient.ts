@@ -172,7 +172,7 @@ export const mockClientFormMapping: ParsedRecord[] = [
   },
 ];
 
-/** Form Link (new simple config) - used by getSimpleFormConfig */
+/** Form Link - @deprecated Form config now uses Product Documents */
 export const mockFormLink: ParsedRecord[] = [
   {
     id: 'fl1',
@@ -184,7 +184,7 @@ export const mockFormLink: ParsedRecord[] = [
   },
 ];
 
-/** Record Titles (new simple config) - used by getSimpleFormConfig */
+/** Record Titles - @deprecated Form config now uses Product Documents */
 export const mockRecordTitles: ParsedRecord[] = [
   {
     id: 'rt1',
@@ -198,6 +198,26 @@ export const mockRecordTitles: ParsedRecord[] = [
     id: 'rt2',
     createdTime: '2025-01-01T00:00:00.000Z',
     'Mapping ID': 'MAP001',
+    'Record Title': 'PAN Card',
+    'Display Order': 2,
+    'Is Required': true,
+  },
+];
+
+/** Product Documents (product-centric form config) - used by getSimpleFormConfig */
+export const mockProductDocuments: ParsedRecord[] = [
+  {
+    id: 'rt1',
+    createdTime: '2025-01-01T00:00:00.000Z',
+    'Product ID': 'PROD001',
+    'Record Title': 'Applicant Name',
+    'Display Order': 1,
+    'Is Required': true,
+  },
+  {
+    id: 'rt2',
+    createdTime: '2025-01-01T00:00:00.000Z',
+    'Product ID': 'PROD001',
     'Record Title': 'PAN Card',
     'Display Order': 2,
     'Is Required': true,

@@ -90,10 +90,10 @@ test.describe('Role-persona smoke', () => {
     await expect(page).not.toHaveURL(/\/unauthorized/);
     await expect(page.getByText(/Client Management|All Clients/i).first()).toBeVisible();
 
+    // Form configuration moved to Credit Team - KAM no longer has access
     await page.goto('/form-configuration');
     await page.waitForLoadState('networkidle');
-    await expect(page).not.toHaveURL(/\/unauthorized/);
-    await expect(page.getByText(/Configure Client Forms|Select Client/i).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/unauthorized/);
 
     await page.goto('/applications');
     await page.waitForLoadState('networkidle');
@@ -131,6 +131,7 @@ test.describe('Role-persona smoke', () => {
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });
     await expect(nav.getByRole('button', { name: 'Applications' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Clients' })).toBeVisible();
+    await expect(nav.getByRole('button', { name: 'Form Configuration' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Ledger' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Reports' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Settings' })).toBeVisible();
@@ -158,12 +159,14 @@ test.describe('Role-persona smoke', () => {
     await page.waitForLoadState('networkidle');
     await expect(page).not.toHaveURL(/\/unauthorized/);
 
-    // Forbidden: /applications/new, /form-configuration -> /unauthorized
-    await page.goto('/applications/new');
-    await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/unauthorized/);
-
+    // Form configuration: Credit Team has access
     await page.goto('/form-configuration');
+    await page.waitForLoadState('networkidle');
+    await expect(page).not.toHaveURL(/\/unauthorized/);
+    await expect(page.getByText(/Form Configuration|Select Client|Configure/i).first()).toBeVisible();
+
+    // Forbidden: /applications/new -> /unauthorized
+    await page.goto('/applications/new');
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/unauthorized/);
 

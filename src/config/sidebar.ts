@@ -45,7 +45,6 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
       return [
         ...baseItems,
         { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },
-        { id: 'form-configuration', label: 'Form Configuration', icon: Link2, path: '/form-configuration' },
         { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
       ];
@@ -54,6 +53,7 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
       return [
         ...baseItems,
         { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },
+        { id: 'form-configuration', label: 'Form Configuration', icon: Link2, path: '/form-configuration' },
         { id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' },
         { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
         { id: 'activity-log', label: 'Activity Log', icon: ClipboardList, path: '/admin/activity-log' },

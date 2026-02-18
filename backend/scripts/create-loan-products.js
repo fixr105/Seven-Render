@@ -1,24 +1,25 @@
 /**
- * Script to create loan products with required documents mapped from Client Form Mapping
- * 
+ * Script to create loan products with required documents mapped from Product Documents
+ *
  * This script:
- * 1. Loads Client Form Mapping and Form Fields from Airtable
- * 2. Generates mapping of clients (CL001, CL002, etc.) to required field IDs
- * 3. Creates loan products with Required Documents populated from the mapping
- * 
+ * 1. Loads Product Documents table from Airtable (or uses loan-product-field-mapping.json)
+ * 2. Creates loan products with Required Documents populated from the mapping
+ * 3. Product ID is used as mapping key (e.g. LP009 -> document ids)
+ *
  * Usage: node backend/scripts/create-loan-products.js
  */
 
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
 
 const N8N_BASE_URL = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
 
-// Webhook URLs
-const N8N_GET_CLIENT_FORM_MAPPING_URL = `${N8N_BASE_URL}/webhook/clientformmapping`;
-const N8N_GET_FORM_FIELDS_URL = `${N8N_BASE_URL}/webhook/formfields`;
+// Webhook URLs - Product Documents
+const N8N_GET_PRODUCT_DOCUMENTS_URL = `${N8N_BASE_URL}/webhook/productdocument`;
 const N8N_POST_LOAN_PRODUCTS_URL = `${N8N_BASE_URL}/webhook/loanproducts`;
 
 // Loan products to create
@@ -108,26 +109,20 @@ function getField(record, fieldName) {
   return null;
 }
 
-/**
- * Fetch Client Form Mapping table
- */
-async function fetchClientFormMapping() {
-  console.log('📥 Fetching Client Form Mapping table...');
+async function fetchTable(url, tableName) {
+  console.log(`📥 Fetching ${tableName}...`);
   try {
-    const response = await fetch(N8N_GET_CLIENT_FORM_MAPPING_URL);
-    
+    const response = await fetch(url);
     if (!response.ok) {
       const text = await response.text();
       console.error(`   ❌ Failed to fetch: ${response.status} ${response.statusText}`);
       return [];
     }
-    
     const text = await response.text();
     if (!text || text.trim() === '') {
       console.log(`   ⚠️  Empty response from webhook`);
       return [];
     }
-    
     let result;
     try {
       result = JSON.parse(text);
@@ -135,150 +130,51 @@ async function fetchClientFormMapping() {
       console.error(`   ❌ Failed to parse JSON:`, parseError.message);
       return [];
     }
-    
     const records = Array.isArray(result) ? result : (result.records || [result] || []);
-    console.log(`   ✅ Fetched ${records.length} Client Form Mapping records`);
+    console.log(`   ✅ Fetched ${records.length} ${tableName} records`);
     return records;
   } catch (error) {
-    console.error(`   ❌ Error fetching Client Form Mapping:`, error.message);
+    console.error(`   ❌ Error fetching ${tableName}:`, error.message);
     return [];
   }
 }
 
-/**
- * Fetch Form Fields table
- */
-async function fetchFormFields() {
-  console.log('📥 Fetching Form Fields table...');
-  try {
-    const response = await fetch(N8N_GET_FORM_FIELDS_URL);
-    
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`   ❌ Failed to fetch: ${response.status} ${response.statusText}`);
-      return [];
-    }
-    
-    const text = await response.text();
-    if (!text || text.trim() === '') {
-      console.log(`   ⚠️  Empty response from webhook`);
-      return [];
-    }
-    
-    let result;
-    try {
-      result = JSON.parse(text);
-    } catch (parseError) {
-      console.error(`   ❌ Failed to parse JSON:`, parseError.message);
-      return [];
-    }
-    
-    const records = Array.isArray(result) ? result : (result.records || [result] || []);
-    console.log(`   ✅ Fetched ${records.length} Form Fields records`);
-    return records;
-  } catch (error) {
-    console.error(`   ❌ Error fetching Form Fields:`, error.message);
-    return [];
-  }
-}
-
-/**
- * Parse display order as number (handles string and number)
- */
 function parseDisplayOrder(order) {
   if (order === null || order === undefined || order === '') {
-    return 999999; // Put items without order at the end
+    return 999999;
   }
   const num = typeof order === 'string' ? parseInt(order, 10) : order;
   return isNaN(num) ? 999999 : num;
 }
 
 /**
- * Generate the client to field IDs mapping
+ * Generate mapping from Product Documents.
+ * Keys: Product ID. Values: Product Document ids sorted by Display Order.
  */
-function generateFieldMapping(clientFormMappings, formFields) {
-  console.log('\n🔄 Generating field mapping...\n');
-  
-  // Step 1: Group Client Form Mappings by Client
-  // Only include mappings where "Is Required" = "True" or "Yes"
-  const clientRequiredCategories = {};
-  
-  for (const mapping of clientFormMappings) {
-    const client = getField(mapping, 'Client');
-    const category = getField(mapping, 'Category');
-    const isRequired = getField(mapping, 'Is Required');
-    const displayOrder = getField(mapping, 'Display Order');
-    
-    // Check if required (handle both 'True'/'False' and 'Yes'/'No' formats)
-    const isRequiredValue = String(isRequired || '').toLowerCase();
-    if (isRequiredValue !== 'true' && isRequiredValue !== 'yes') {
-      continue; // Skip non-required mappings
-    }
-    
-    if (!client || !category) {
-      continue; // Skip invalid mappings
-    }
-    
-    if (!clientRequiredCategories[client]) {
-      clientRequiredCategories[client] = [];
-    }
-    
-    clientRequiredCategories[client].push({
-      category,
-      displayOrder: parseDisplayOrder(displayOrder),
+function generateFieldMapping(productDocRows) {
+  console.log('\n🔄 Generating field mapping from Product Documents...\n');
+
+  const byProduct = {};
+  for (const r of productDocRows) {
+    const productId = (getField(r, 'Product ID') || '').toString().trim();
+    if (!productId) continue;
+    if (!byProduct[productId]) byProduct[productId] = [];
+    byProduct[productId].push({
+      id: r.id || getField(r, 'id'),
+      displayOrder: parseDisplayOrder(getField(r, 'Display Order')),
     });
   }
-  
-  console.log(`   Found ${Object.keys(clientRequiredCategories).length} clients with required form categories`);
-  
-  // Step 2: For each client, find form fields in required categories
-  // Only include fields where "Is Mandatory" = "True" or "Yes"
+
   const mapping = {};
-  
-  for (const [client, categories] of Object.entries(clientRequiredCategories)) {
-    const requiredFieldIds = [];
-    
-    // Get all required categories for this client, sorted by display order
-    const sortedCategories = categories.sort((a, b) => a.displayOrder - b.displayOrder);
-    
-    // For each category, find mandatory form fields
-    for (const { category } of sortedCategories) {
-      for (const field of formFields) {
-        const fieldCategory = getField(field, 'Category');
-        const fieldId = getField(field, 'Field ID');
-        const isMandatory = getField(field, 'Is Mandatory');
-        const displayOrder = getField(field, 'Display Order');
-        const active = getField(field, 'Active');
-        
-        // Check if field belongs to this category and is mandatory
-        if (fieldCategory === category && fieldId) {
-          const isMandatoryValue = String(isMandatory || '').toLowerCase();
-          const isActiveValue = String(active || '').toLowerCase();
-          
-          // Include if mandatory and active
-          if ((isMandatoryValue === 'true' || isMandatoryValue === 'yes') &&
-              (isActiveValue === 'true' || isActiveValue === 'yes' || active === null || active === undefined)) {
-            requiredFieldIds.push({
-              fieldId,
-              displayOrder: parseDisplayOrder(displayOrder),
-            });
-          }
-        }
-      }
-    }
-    
-    // Sort by display order and extract just the field IDs
-    requiredFieldIds.sort((a, b) => a.displayOrder - b.displayOrder);
-    const fieldIds = requiredFieldIds.map(item => item.fieldId);
-    
+  for (const [productId, docs] of Object.entries(byProduct)) {
+    const sorted = docs.filter((d) => d.id).sort((a, b) => a.displayOrder - b.displayOrder);
+    const fieldIds = sorted.map((d) => d.id);
     if (fieldIds.length > 0) {
-      mapping[client] = fieldIds;
-      console.log(`   ✅ ${client}: ${fieldIds.length} required fields`);
-    } else {
-      console.log(`   ⚠️  ${client}: No required fields found`);
+      mapping[productId] = fieldIds;
+      console.log(`   ✅ ${productId}: ${fieldIds.length} document(s)`);
     }
   }
-  
+
   return mapping;
 }
 
@@ -288,9 +184,9 @@ function generateFieldMapping(clientFormMappings, formFields) {
 async function createLoanProduct(product, fieldMapping, index) {
   const recordId = `LP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
-  // Get required documents from mapping
-  const clientKey = product['Client Mapping'];
-  const requiredDocuments = fieldMapping[clientKey] || [];
+  // Get required documents from mapping (key by Product ID)
+  const productKey = product['Loan Product ID'] || product['Product ID'];
+  const requiredDocuments = fieldMapping[productKey] || [];
   
   // Format Required Documents/Fields as comma-separated string
   const requiredDocumentsString = requiredDocuments.join(', ');
@@ -312,12 +208,12 @@ async function createLoanProduct(product, fieldMapping, index) {
   console.log(`${'='.repeat(60)}`);
   console.log(`   Product ID: ${product['Loan Product ID']}`);
   console.log(`   Loan Name: ${product['Loan Name']}`);
-  console.log(`   Client Mapping: ${clientKey}`);
+  console.log(`   Product Mapping: ${productKey}`);
   console.log(`   Required Documents: ${requiredDocuments.length} fields`);
   if (requiredDocuments.length > 0) {
     console.log(`   Field IDs: ${requiredDocuments.slice(0, 3).join(', ')}${requiredDocuments.length > 3 ? '...' : ''}`);
   } else {
-    console.log(`   ⚠️  No required documents found for ${clientKey}`);
+    console.log(`   ⚠️  No required documents found for ${productKey}`);
   }
   console.log(`   Associated NBFC: ${product['Associated NBFC']}`);
   console.log(`\n   Request body:`, JSON.stringify(productData, null, 2));
@@ -374,19 +270,18 @@ async function main() {
   console.log(`📡 Using n8n base URL: ${N8N_BASE_URL}\n`);
   console.log(`📋 Loan Products to create: ${loanProducts.length}\n`);
   
-  // Step 1: Fetch form field mappings
-  const [clientFormMappings, formFields] = await Promise.all([
-    fetchClientFormMapping(),
-    fetchFormFields(),
-  ]);
-  
-  if (formFields.length === 0) {
-    console.error('\n❌ No Form Fields records found. Cannot generate mapping.');
-    process.exit(1);
+  // Step 1: Fetch Product Documents (or load from loan-product-field-mapping.json)
+  let fieldMapping = {};
+  const mappingPath = path.join(process.cwd(), 'loan-product-field-mapping.json');
+  if (fs.existsSync(mappingPath)) {
+    console.log(`📥 Loading mapping from ${mappingPath}...`);
+    const raw = fs.readFileSync(mappingPath, 'utf8');
+    fieldMapping = JSON.parse(raw);
+    console.log(`   ✅ Loaded mapping for ${Object.keys(fieldMapping).length} products\n`);
+  } else {
+    const productDocRows = await fetchTable(N8N_GET_PRODUCT_DOCUMENTS_URL, 'Product Documents');
+    fieldMapping = generateFieldMapping(productDocRows);
   }
-  
-  // Step 2: Generate field mapping
-  const fieldMapping = generateFieldMapping(clientFormMappings, formFields);
   
   if (Object.keys(fieldMapping).length === 0) {
     console.warn('\n⚠️  No field mappings found. Loan products will be created without required documents.');

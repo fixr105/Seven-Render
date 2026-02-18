@@ -62,7 +62,7 @@ Based on the `N8nGetResponse` interface in `backend/src/types/entities.ts`, the 
 
 11. **Loan Products** (`Loan Products`)
     - Fields: `id`, `Product ID`, `Product Name`, `Description`, `Active`, `Required Documents/Fields`
-    - Airtable Table ID: `tblNxvQVlzCfcj4e2`
+    - Airtable Table ID: `tblVukvj8kn5gWBta`
 
 12. **NBFC Partners** (`NBFC Partners`)
     - Fields: `id`, `Lender ID`, `Lender Name`, `Contact Person`, `Contact Email/Phone`, `Address/Region`, `Active`

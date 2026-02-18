@@ -1,6 +1,6 @@
 # Generate Loan Product Field Mapping Script
 
-This script generates a JSON mapping of loan products (clients) to their required form fields.
+This script generates a JSON mapping of clients/products to required form field IDs using **Form Link + Record Titles** tables.
 
 ## Purpose
 
@@ -8,14 +8,13 @@ The script creates a mapping structure that can be used to populate Loan Product
 
 ## How It Works
 
-1. **Fetches Client Form Mapping table** - Gets all form category mappings per client
-2. **Fetches Form Fields table** - Gets all form field definitions
+1. **Fetches Form Link table** - Gets Client ID, Product ID, Mapping ID rows
+2. **Fetches Record Titles table** - Gets Mapping ID, Record Title, Display Order, Is Required
 3. **Processes the data**:
-   - Groups mappings by Client (loan product)
-   - Filters to only include mappings where "Is Required" = "True" or "Yes"
-   - Finds all form fields in those categories where "Is Mandatory" = "True" or "Yes"
-   - Sorts fields by Display Order
-4. **Outputs JSON mapping** - Format: `{ "CL001": ["FLD-...", "FLD-..."] }`
+   - For each Form Link row: Client ID + Product ID → Mapping ID
+   - For each Mapping ID: Get Record Titles, sorted by Display Order
+   - Keys: Client ID or Product ID (when product-specific). Values: Record Title ids (Airtable record ids)
+4. **Outputs JSON mapping** - Format: `{ "CL001": ["recXXX", "recYYY"], "LP009": ["recXXX", ...] }`
 
 ## Usage
 
@@ -39,53 +38,39 @@ The script:
 
 ```json
 {
-  "CL001": [
-    "FLD-1765189508834-1-0-ldnelyzjy",
-    "FLD-1765188239809-0-0-6eacx39tu"
-  ],
-  "CL002": [
-    "FLD-1765189508834-2-0-abc123xyz",
-    "FLD-1765188239809-1-0-def456uvw"
-  ]
+  "CL001": ["recXXX123", "recYYY456"],
+  "LP009": ["recXXX123", "recYYY456"]
 }
 ```
 
 ## Requirements
 
-For the script to generate mappings, you need:
+1. **Form Link table** must have entries with:
+   - `Client ID` populated (e.g., "CL001")
+   - `Mapping ID` populated
+   - `Product ID` optional (empty = any product)
 
-1. **Client Form Mapping table** must have entries with:
-   - `Client` field populated (e.g., "CL001")
-   - `Category` field populated (links to Form Category)
-   - `Is Required` = "True" or "Yes"
+2. **Record Titles table** must have entries with:
+   - `Mapping ID` matching Form Link rows
+   - `Record Title` (document name, e.g. "PAN Card")
    - `Display Order` (optional, for sorting)
-
-2. **Form Fields table** must have entries with:
-   - `Field ID` populated (e.g., "FLD-...")
-   - `Category` field matching categories in Client Form Mapping
-   - `Is Mandatory` = "True" or "Yes"
-   - `Active` = "True" or "Yes" (or null/undefined)
-   - `Display Order` (optional, for sorting)
+   - `Is Required` (optional)
 
 ## Field Matching Logic
 
-1. For each Client in Client Form Mapping:
-   - Find all categories where "Is Required" = "True"/"Yes"
-   - Sort categories by Display Order
+1. For each Form Link row:
+   - Get Client ID, Product ID, Mapping ID
+   - Find Record Titles where Mapping ID matches
+   - Sort by Display Order
+   - Collect Record Title ids (Airtable record ids)
 
-2. For each required category:
-   - Find all Form Fields where:
-     - `Category` matches
-     - `Is Mandatory` = "True"/"Yes"
-     - `Active` = "True"/"Yes" (or null/undefined)
+2. Key by Product ID if present, else Client ID
 
-3. Sort fields by Display Order within each category
-
-4. Collect all Field IDs into an array for that Client
+3. Output mapping: `{ key: [id1, id2, ...] }`
 
 ## Using the Mapping
 
-The generated mapping can be used when creating/updating Loan Products:
+The generated mapping can be used when creating/updating Loan Products (see `create-loan-products.js`):
 
 ```javascript
 const mapping = require('./loan-product-field-mapping.json');
@@ -94,7 +79,7 @@ const mapping = require('./loan-product-field-mapping.json');
 const productData = {
   'Product ID': 'LP001',
   'Product Name': 'Personal Loan',
-  'Required Documents/Fields': mapping['CL001'].join(', '), // Comma-separated field IDs
+  'Required Documents/Fields': mapping['CL001']?.join(', ') || '',
   // ... other fields
 };
 ```
@@ -105,33 +90,24 @@ const productData = {
 
 If the script generates an empty mapping `{}`, check:
 
-1. **Client Form Mapping table**:
+1. **Form Link table**:
    - Does it have any records?
-   - Are there records with "Is Required" = "True" or "Yes"?
-   - Is the `Client` field populated?
+   - Are Client ID and Mapping ID populated?
 
-2. **Form Fields table**:
+2. **Record Titles table**:
    - Does it have any records?
-   - Are there records with "Is Mandatory" = "True" or "Yes"?
-   - Do the `Category` values match those in Client Form Mapping?
+   - Do Mapping ID values match Form Link rows?
 
 3. **Webhook connectivity**:
-   - Can you access `/webhook/clientformmapping`?
-   - Can you access `/webhook/formfields`?
+   - Can you access `/webhook/formlink`?
+   - Can you access `/webhook/Recordtitle`?
 
-### No Client Form Mapping Records Found
+### No Form Link Records Found
 
-This means the Client Form Mapping webhook returned empty. Possible causes:
-- Table is empty
-- Webhook not configured
-- Webhook URL incorrect
-
-The script will still generate an empty mapping structure that can be populated later.
+Configure Form Links in the Form Configuration page (Credit Team). Form config now uses Form Link + Record Titles instead of the deprecated Client Form Mapping, Form Categories, and Form Fields.
 
 ## Notes
 
-- The script dynamically loads data from Airtable, so it always reflects the latest state
-- Field IDs are sorted by Display Order for consistent ordering
-- Only active, mandatory fields in required categories are included
-- The mapping is saved to a JSON file for easy integration into other scripts
-
+- Form config is served by Form Link + Record Titles. Client Form Mapping, Form Categories, Form Fields are deprecated.
+- Record Title ids (Airtable record ids) are used as field identifiers.
+- The script dynamically loads data from Airtable via n8n webhooks.

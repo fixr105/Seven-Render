@@ -3,22 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { DataTable, Column } from '../../components/ui/DataTable';
 import { Plus, FileText, Clock, CheckCircle, DollarSign, Package, RefreshCw, Sparkles, Wallet, FileEdit, AlertCircle, XCircle } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { useNotifications } from '../../hooks/useNotifications';
 import { apiService } from '../../services/api';
-import { getStatusDisplayNameForViewer } from '../../lib/statusUtils';
-
-interface ApplicationRow {
-  id: string;
-  fileNumber: string;
-  loanType: string;
-  amount: string;
-  status: string;
-  lastUpdate: string;
-}
+import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
 
 export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -97,35 +87,6 @@ export const ClientDashboard: React.FC = () => {
   const actionRequired = applications.filter(a => a.status === 'kam_query_raised').length;
   const rejected = applications.filter(a => a.status === 'rejected').length;
   const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
-
-  // Format table data
-  const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({
-    id: app.id,
-    fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
-    loanType: app.loan_product?.name || '',
-    amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
-    status: getStatusDisplayNameForViewer(app.status, 'client'),
-    lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-  }));
-
-  const getStatusVariant = (status: string) => {
-    if (status.toLowerCase().includes('approved') || status.toLowerCase().includes('disbursed')) return 'success';
-    if (status === 'Action required' || status.toLowerCase().includes('query') || status.toLowerCase().includes('pending')) return 'warning';
-    if (status.toLowerCase().includes('rejected')) return 'error';
-    return 'neutral';
-  };
-
-  const columns: Column<ApplicationRow>[] = [
-    { key: 'fileNumber', label: 'File ID', sortable: true },
-    { key: 'loanType', label: 'Loan Type', sortable: true },
-    { key: 'amount', label: 'Amount', sortable: true, align: 'right' },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
-    },
-    { key: 'lastUpdate', label: 'Last Update', sortable: true },
-  ];
 
   return (
     <>
@@ -355,34 +316,14 @@ export const ClientDashboard: React.FC = () => {
       </Card>
 
       {/* Recent Applications */}
-      <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle>Recent Applications</CardTitle>
-          <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
-            View All
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-neutral-500">Loading applications...</div>
-          ) : tableData.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
-              <p className="text-neutral-500 mb-6 text-lg">No applications yet</p>
-              <Button variant="primary" icon={Plus} onClick={() => navigate('/applications/new')}>
-                Create Your First Application
-              </Button>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={tableData}
-              keyExtractor={(row) => row.id}
-              onRowClick={(row) => navigate(`/applications/${row.id}`)}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <RecentApplicationsSection
+        role="client"
+        applications={applications}
+        loading={loading}
+        onViewAll={() => navigate('/applications')}
+        onRowClick={(row) => navigate(`/applications/${row.id}`)}
+        onEmptyAction={() => navigate('/applications/new')}
+      />
     </>
   );
 };

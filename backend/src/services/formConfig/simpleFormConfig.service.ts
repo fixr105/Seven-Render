@@ -1,9 +1,10 @@
 /**
  * Simple Form Config Service
  *
- * Uses Form Link table (Client ID, Form link, Product ID, Mapping ID) and
- * Record Titles table (Mapping ID, Record Title, Display Order) to return
- * a single "Documents" category with file-type fields for the 3-checkbox UI.
+ * Uses Product Documents table (Product ID, Record Title, Display Order, Is Required)
+ * to return a single "Documents" category with file-type fields for the 3-checkbox UI.
+ *
+ * Product-centric: no client-specific config, no Mapping ID.
  */
 
 import { n8nClient } from '../airtable/n8nClient.js';
@@ -27,75 +28,37 @@ export interface SimpleFormConfigResult {
 }
 
 /**
- * Resolve Mapping ID for a client (and optional product) from Form Link table.
- * Prefers row with matching Product ID; falls back to row with empty Product ID.
- */
-function resolveMappingId(
-  formLinkRows: Record<string, unknown>[],
-  clientId: string,
-  productId?: string
-): string | null {
-  const normalizedClient = String(clientId).trim();
-  const normalizedProduct = productId ? String(productId).trim() : '';
-
-  const withProduct = formLinkRows.find((r) => {
-    const c = (r['Client ID'] ?? r.clientId ?? r.Client ?? '').toString().trim();
-    const p = (r['Product ID'] ?? r.productId ?? r['Product ID'] ?? '').toString().trim();
-    return c === normalizedClient && p === normalizedProduct && normalizedProduct !== '';
-  });
-  if (withProduct) {
-    const mid = withProduct['Mapping ID'] ?? withProduct.mappingId ?? withProduct['Mapping ID'];
-    return mid != null ? String(mid).trim() : null;
-  }
-
-  const anyProduct = formLinkRows.find((r) => {
-    const c = (r['Client ID'] ?? r.clientId ?? r.Client ?? '').toString().trim();
-    const p = (r['Product ID'] ?? r.productId ?? r['Product ID'] ?? '').toString().trim();
-    return c === normalizedClient && (p === '' || p == null);
-  });
-  if (anyProduct) {
-    const mid = anyProduct['Mapping ID'] ?? anyProduct.mappingId ?? anyProduct['Mapping ID'];
-    return mid != null ? String(mid).trim() : null;
-  }
-
-  return null;
-}
-
-/**
- * Get form config for a client (and optional product).
- * Returns one category "Documents" with fields from Record Titles (Mapping ID).
- * If no Form Link row or no Record Titles, returns empty categories array.
+ * Get form config for a product.
+ * Returns one category "Documents" with fields from Product Documents.
+ * productId is required; clientId is ignored (kept for backward-compatible signature).
+ * If no Product Documents for the product, returns empty categories array.
  */
 export async function getSimpleFormConfig(
-  clientId: string,
+  _clientId: string,
   productId?: string
 ): Promise<SimpleFormConfigResult> {
-  const [formLinkRecords, recordTitlesRecords] = await Promise.all([
-    n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.FORM_LINK, true),
-    n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.RECORD_TITLES, true),
-  ]);
-
-  const formLinkRows = formLinkRecords as Record<string, unknown>[];
-  const mappingId = resolveMappingId(formLinkRows, clientId, productId);
-
-  if (!mappingId) {
+  const pid = productId ? String(productId).trim() : '';
+  if (!pid) {
     return { categories: [] };
   }
 
-  const normalizedMappingId = mappingId;
-  const titleRows = (recordTitlesRecords as Record<string, unknown>[]).filter((r) => {
-    const mid = (r['Mapping ID'] ?? r.mappingId ?? r['Mapping ID'] ?? '').toString().trim();
-    return mid === normalizedMappingId;
+  const records = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.PRODUCT_DOCUMENTS, true);
+  const rows = records as Record<string, unknown>[];
+
+  const normalizedProductId = pid;
+  const docRows = rows.filter((r) => {
+    const p = (r['Product ID'] ?? r.productId ?? '').toString().trim();
+    return p === normalizedProductId;
   });
 
-  const sorted = titleRows.slice().sort((a, b) => {
-    const orderA = Number(a['Display Order'] ?? a.displayOrder ?? a['Display Order'] ?? 0) || 0;
-    const orderB = Number(b['Display Order'] ?? b.displayOrder ?? b['Display Order'] ?? 0) || 0;
+  const sorted = docRows.slice().sort((a, b) => {
+    const orderA = Number(a['Display Order'] ?? a.displayOrder ?? 0) || 0;
+    const orderB = Number(b['Display Order'] ?? b.displayOrder ?? 0) || 0;
     return orderA - orderB;
   });
 
   const fields: SimpleFormConfigField[] = sorted.map((r, i) => {
-    const label = (r['Record Title'] ?? r.recordTitle ?? r['Record Title'] ?? r.label ?? `Document ${i + 1}`).toString().trim();
+    const label = (r['Record Title'] ?? r.recordTitle ?? r.label ?? `Document ${i + 1}`).toString().trim();
     const id = (r.id ?? r['Field ID'] ?? r.fieldId ?? `doc-${i}`).toString();
     const isRequired = r['Is Required'] === 'True' || r.isRequired === true || r['Is Mandatory'] === 'True' || r.isMandatory === true;
     return {
@@ -122,27 +85,12 @@ export async function getSimpleFormConfig(
 }
 
 /**
- * Get Form Link rows for a client (match on any accepted client identifier).
+ * Get Product IDs that have at least one Product Document.
+ * Used for product dropdown (e.g. configured products for client).
  */
-export async function getFormLinkRowsForClient(
-  acceptedClientIds: Set<string>
-): Promise<Record<string, unknown>[]> {
-  const formLinkRecords = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.FORM_LINK, true);
-  const rows = formLinkRecords as Record<string, unknown>[];
-  return rows.filter((r) => {
-    const c = (r['Client ID'] ?? r.clientId ?? r.Client ?? '').toString().trim();
-    return c && acceptedClientIds.has(c);
-  });
-}
-
-/**
- * Get unique Product IDs from Form Link rows for a client.
- * Rows with empty Product ID are skipped (no product-specific form).
- */
-export async function getConfiguredProductIds(
-  acceptedClientIds: Set<string>
-): Promise<string[]> {
-  const rows = await getFormLinkRowsForClient(acceptedClientIds);
+export async function getProductIdsWithDocuments(): Promise<string[]> {
+  const records = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.PRODUCT_DOCUMENTS, true);
+  const rows = records as Record<string, unknown>[];
   const productIds = new Set<string>();
   rows.forEach((r) => {
     const p = (r['Product ID'] ?? r.productId ?? '').toString().trim();
@@ -152,22 +100,22 @@ export async function getConfiguredProductIds(
 }
 
 /**
- * Get Record Titles for a Mapping ID.
+ * Get Product Documents for a product.
  * Returns rows sorted by Display Order.
  */
-export async function getRecordTitlesByMappingId(
-  mappingId: string
+export async function getProductDocumentsByProductId(
+  productId: string
 ): Promise<Record<string, unknown>[]> {
-  const recordTitlesRecords = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.RECORD_TITLES, true);
-  const rows = recordTitlesRecords as Record<string, unknown>[];
-  const normalizedMappingId = String(mappingId).trim();
+  const records = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.PRODUCT_DOCUMENTS, true);
+  const rows = records as Record<string, unknown>[];
+  const normalizedProductId = String(productId).trim();
   const filtered = rows.filter((r) => {
-    const mid = (r['Mapping ID'] ?? r.mappingId ?? r['Mapping ID'] ?? '').toString().trim();
-    return mid === normalizedMappingId;
+    const p = (r['Product ID'] ?? r.productId ?? '').toString().trim();
+    return p === normalizedProductId;
   });
   return filtered.sort((a, b) => {
-    const orderA = Number(a['Display Order'] ?? a.displayOrder ?? a['Display Order'] ?? 0) || 0;
-    const orderB = Number(b['Display Order'] ?? b.displayOrder ?? b['Display Order'] ?? 0) || 0;
+    const orderA = Number(a['Display Order'] ?? a.displayOrder ?? 0) || 0;
+    const orderB = Number(b['Display Order'] ?? b.displayOrder ?? 0) || 0;
     return orderA - orderB;
   });
 }

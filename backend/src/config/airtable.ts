@@ -29,7 +29,7 @@ export const n8nConfig = {
   // n8n path: /POSTLOG → Airtable: Admin Activity log
   postLogUrl: n8nEndpoints.post.log,
   
-  // POST: Client Form Mapping
+  // POST: Client Form Mapping (DEPRECATED - form config now uses Form Link + Record Titles)
   // n8n path: /POSTCLIENTFORMMAPPING → Airtable: Client Form Mapping
   postClientFormMappingUrl: n8nEndpoints.post.clientFormMapping,
   
@@ -49,11 +49,11 @@ export const n8nConfig = {
   // n8n path: /Fileauditinglog → Airtable: File Auditing Log
   postFileAuditLogUrl: n8nEndpoints.post.fileAuditLog,
   
-  // POST: Form Categories
+  // POST: Form Categories (DEPRECATED - form config now uses Form Link + Record Titles)
   // n8n path: /FormCategory → Airtable: Form Categories
   postFormCategoryUrl: n8nEndpoints.post.formCategory,
   
-  // POST: Form Fields
+  // POST: Form Fields (DEPRECATED - form config now uses Form Link + Record Titles)
   // n8n path: /FormFields → Airtable: Form Fields
   postFormFieldsUrl: n8nEndpoints.post.formFields,
   
@@ -64,6 +64,21 @@ export const n8nConfig = {
   // POST: Record Titles (new simple config)
   // n8n path: /Recordtitle → Airtable: Record Titles
   postRecordTitlesUrl: n8nEndpoints.post.recordTitles,
+  
+  // PATCH: Form Link, Record Titles, Loan Products (same path, different method)
+  patchFormLinkUrl: n8nEndpoints.patch.formLink,
+  patchRecordTitlesUrl: n8nEndpoints.patch.recordTitles,
+  patchLoanProductsUrl: n8nEndpoints.patch.loanProducts,
+  
+  // DELETE: Form Link, Record Titles, Product Documents, Loan Products (same path, different method)
+  deleteFormLinkUrl: n8nEndpoints.delete.formLink,
+  deleteRecordTitlesUrl: n8nEndpoints.delete.recordTitles,
+  deleteProductDocumentsUrl: n8nEndpoints.delete.productDocuments,
+  deleteLoanProductsUrl: n8nEndpoints.delete.loanProducts,
+
+  // Product Documents (product-centric form config)
+  postProductDocumentsUrl: n8nEndpoints.post.productDocuments,
+  patchProductDocumentsUrl: n8nEndpoints.patch.productDocuments,
   
   // POST: KAM Users
   // n8n path: /KAMusers → Airtable: KAM Users

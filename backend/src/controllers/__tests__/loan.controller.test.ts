@@ -8,7 +8,7 @@ import { Request, Response } from 'express';
 import { LoanController } from '../loan.controller.js';
 import { UserRole, LoanStatus } from '../../config/constants.js';
 import { AuthUser } from '../../types/auth.js';
-import { createMockN8nClient, mockLoanApplications, mockFormFields, mockFormLink, mockRecordTitles, mockClientFormMapping, mockFormCategories } from '../../__tests__/helpers/mockN8nClient.js';
+import { createMockN8nClient, mockLoanApplications, mockFormFields, mockProductDocuments, mockClientFormMapping, mockFormCategories } from '../../__tests__/helpers/mockN8nClient.js';
 import * as n8nClientModule from '../../services/airtable/n8nClient.js';
 
 // Mock the n8nClient module
@@ -151,15 +151,18 @@ describe('LoanController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      // Mock Form Link + Record Titles (used by getSimpleFormConfig for validation)
+      // Mock Product Documents (used by getSimpleFormConfig for validation)
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
-        if (tableName === 'Form Link') return mockFormLink;
-        if (tableName === 'Record Titles') return mockRecordTitles;
+        if (tableName === 'Product Documents') return mockProductDocuments;
         if (tableName === 'Form Fields') return mockFormFields;
         if (tableName === 'Client Form Mapping') return mockClientFormMapping;
         if (tableName === 'Form Categories') return mockFormCategories;
         if (tableName === 'Loan Application') {
-          return mockLoanApplications.filter((app: any) => app.id === 'rec1');
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            'Loan Product': 'PROD001', // Must match mockProductDocuments Product ID
+          }];
         }
         return [];
       });
@@ -169,7 +172,7 @@ describe('LoanController - P0 Tests', () => {
         params: { id: 'rec1' },
         body: {
           formData: {
-            // Missing mandatory 'Applicant Name' and 'PAN Card'
+            // Missing mandatory 'Applicant Name' (rt1) and 'PAN Card' (rt2) - Product Documents use field ids rt1, rt2
             email: 'test@example.com',
           },
         },
@@ -193,10 +196,9 @@ describe('LoanController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      // Mock Form Link + Record Titles; file fields satisfied by added_to_link/to_be_shared
+      // Mock Product Documents; file fields satisfied by added_to_link/to_be_shared
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
-        if (tableName === 'Form Link') return mockFormLink;
-        if (tableName === 'Record Titles') return mockRecordTitles;
+        if (tableName === 'Product Documents') return mockProductDocuments;
         if (tableName === 'Form Fields') return mockFormFields;
         if (tableName === 'Client Form Mapping') return mockClientFormMapping;
         if (tableName === 'Form Categories') return mockFormCategories;
@@ -204,10 +206,11 @@ describe('LoanController - P0 Tests', () => {
           return [{
             ...mockLoanApplications[0],
             id: 'rec1',
+            'Loan Product': 'PROD001', // Must match mockProductDocuments Product ID
             Status: LoanStatus.DRAFT,
             'Form Data': JSON.stringify({
-              rt1: 'added_to_link', // Record Title 1 (file, required)
-              rt2: 'to_be_shared',  // Record Title 2 (file, required)
+              rt1: 'added_to_link', // Product Document 1 (file, required)
+              rt2: 'to_be_shared',  // Product Document 2 (file, required)
             }),
           }];
         }
@@ -236,10 +239,9 @@ describe('LoanController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      // Mock Form Link + Record Titles with required file fields
+      // Mock Product Documents with required file fields
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
-        if (tableName === 'Form Link') return mockFormLink;
-        if (tableName === 'Record Titles') return mockRecordTitles;
+        if (tableName === 'Product Documents') return mockProductDocuments;
         if (tableName === 'Form Fields') return mockFormFields;
         if (tableName === 'Client Form Mapping') return mockClientFormMapping;
         if (tableName === 'Form Categories') return mockFormCategories;
@@ -247,6 +249,7 @@ describe('LoanController - P0 Tests', () => {
           return [{
             ...mockLoanApplications[0],
             id: 'rec1',
+            'Loan Product': 'PROD001',
             Status: LoanStatus.DRAFT,
             'Form Data': JSON.stringify({}), // Missing mandatory file fields
           }];

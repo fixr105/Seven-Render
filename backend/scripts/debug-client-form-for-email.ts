@@ -1,21 +1,22 @@
 #!/usr/bin/env tsx
 /**
- * Debug: Check if a client (by email) has form config for a given product.
- * Usage: npx tsx scripts/debug-client-form-for-email.ts [email] [productId]
- * Example: npx tsx scripts/debug-client-form-for-email.ts anyaaa@gmail.com LP011
+ * Debug: Check if a product has form config (Product Documents).
+ * Form config is product-centric - no client-specific mapping.
+ *
+ * Usage: npx tsx scripts/debug-client-form-for-email.ts [productId]
+ * Example: npx tsx scripts/debug-client-form-for-email.ts LP011
  */
 
 import 'dotenv/config';
 import { n8nClient } from '../src/services/airtable/n8nClient.js';
+import { getSimpleFormConfig } from '../src/services/formConfig/simpleFormConfig.service.js';
 
-const email = (process.argv[2] || 'anyaaa@gmail.com').trim().toLowerCase();
-const productId = (process.argv[3] || 'LP011').trim();
+const productId = (process.argv[2] || 'LP011').trim();
 
 async function main() {
   try {
-    const [clients, mappings, products] = await Promise.all([
-      n8nClient.fetchTable('Clients', false, undefined, 15000),
-      n8nClient.fetchTable('Client Form Mapping', false, undefined, 15000),
+    const [productDocs, products] = await Promise.all([
+      n8nClient.fetchTable('Product Documents', false, undefined, 15000),
       n8nClient.fetchTable('Loan Products', false, undefined, 15000),
     ]);
 
@@ -25,53 +26,26 @@ async function main() {
     );
     const productName = product?.['Product Name'] || product?.productName || productId;
 
-    const matchingClients = clients.filter((c: any) => {
-      const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
-      return contact && contact.includes(email);
-    });
+    const docsForProduct = productDocs.filter(
+      (r: any) => (r['Product ID'] || r.productId || '').toString().trim() === productId
+    );
 
-    if (matchingClients.length === 0) {
-      console.log(`\nNo Clients record found with Contact Email/Phone containing: ${email}`);
-      console.log('The user must have their email in the Clients table "Contact Email / Phone" field.');
-      return;
-    }
+    console.log(`\nProduct: ${productName} (${productId})`);
+    console.log(`Product Documents: ${docsForProduct.length} row(s)`);
 
-    console.log(`\nClients matching "${email}":`);
-    for (const c of matchingClients) {
-      const cid = c['Client ID'] || c.clientId || c.id;
-      const name = c['Client Name'] || c.clientName || 'Unknown';
-      console.log(`  - ${name} | Client ID: ${cid} | Record ID: ${c.id}`);
-    }
-
-    const clientIds = new Set<string>();
-    matchingClients.forEach((c: any) => {
-      clientIds.add(String(c['Client ID'] || c.clientId || c.id).trim());
-      clientIds.add(String(c.id).trim());
-    });
-
-    const lp011Mappings = mappings.filter((m: any) => {
-      const mClient = (m.Client || m['Client ID'] || '').toString().trim();
-      const mProduct = (m['Product ID'] || m.productId || '').toString().trim();
-      return mProduct === productId && mClient && clientIds.has(mClient);
-    });
-
-    console.log(`\n${productName} (${productId}) mappings for these clients: ${lp011Mappings.length}`);
-    if (lp011Mappings.length > 0) {
+    if (docsForProduct.length > 0) {
       console.table(
-        lp011Mappings.slice(0, 10).map((m: any) => ({
-          Client: m.Client || m['Client ID'],
-          'Product ID': m['Product ID'] || m.productId,
-          Category: (m.Category || '').slice(0, 30) + '…',
+        docsForProduct.map((d: any) => ({
+          'Record Title': d['Record Title'] || d.recordTitle,
+          'Display Order': d['Display Order'] ?? d.displayOrder,
+          'Is Required': d['Is Required'] ?? d.isRequired,
         }))
       );
-      if (lp011Mappings.length > 10) {
-        console.log(`  ... and ${lp011Mappings.length - 10} more`);
-      }
-      console.log('\nForm config should load. If it does not, check:');
-      console.log('  1. Backend getFormConfig receives productId in query');
-      console.log('  2. User JWT has clientId matching one of the Client IDs above');
+      const config = await getSimpleFormConfig('_', productId);
+      console.log(`\ngetSimpleFormConfig returns ${config.categories.length} category(ies), ${config.categories.reduce((s, c) => s + c.fields.length, 0)} field(s)`);
+      console.log('Form config should load for any client when they select this product.');
     } else {
-      console.log('\nNo form mappings found. The KAM must configure the form for this client + product in Form Configuration.');
+      console.log('\nNo Product Documents for this product. Add documents in Form Configuration (Credit Team).');
     }
   } catch (error: any) {
     console.error('Error:', error?.message || error);

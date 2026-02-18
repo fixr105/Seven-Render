@@ -164,7 +164,7 @@ async function testGETEndpoints() {
     { path: '/nbfc/dashboard', method: 'GET', auth: true, role: 'nbfc', name: 'NBFC Dashboard' },
     { path: '/loan-applications', method: 'GET', auth: true, role: 'client', name: 'List Loan Applications' },
     { path: '/client/form-config', method: 'GET', auth: true, role: 'client', name: 'Get Form Config' },
-    { path: '/form-categories', method: 'GET', auth: true, role: 'client', name: 'List Form Categories' },
+    { path: '/form-categories', method: 'GET', auth: true, role: 'client', name: 'List Form Categories (deprecated, expects 410)', expect410: true },
     { path: '/clients/me/ledger', method: 'GET', auth: true, role: 'client', name: 'Get Client Ledger' },
     { path: '/clients/me/payout-requests', method: 'GET', auth: true, role: 'client', name: 'Get Payout Requests' },
     { path: '/credit/loan-applications', method: 'GET', auth: true, role: 'credit', name: 'Credit: List Applications' },
@@ -178,9 +178,14 @@ async function testGETEndpoints() {
     const token = endpoint.auth ? authTokens[endpoint.role] : null;
     const test = await apiRequest(endpoint.method, endpoint.path, token);
     
-    const shouldPass = endpoint.auth 
-      ? (token ? test.ok || test.status === 404 : test.status === 401)
-      : test.ok;
+    let shouldPass;
+    if (endpoint.expect410) {
+      shouldPass = test.status === 410;
+    } else if (endpoint.auth) {
+      shouldPass = token ? test.ok || test.status === 404 : test.status === 401;
+    } else {
+      shouldPass = test.ok;
+    }
     
     recordTest('GET Endpoints', endpoint.name, endpoint.method, shouldPass, test);
   }
@@ -221,7 +226,8 @@ async function testPOSTEndpoints() {
       method: 'POST',
       role: 'credit',
       body: testFormCategory,
-      name: 'Create Form Category',
+      name: 'Create Form Category (deprecated, expects 410)',
+      expect410: true,
     },
     {
       path: '/credit-team-users',
@@ -246,7 +252,8 @@ async function testPOSTEndpoints() {
     }
 
     const test = await apiRequest(endpoint.method, endpoint.path, token, endpoint.body);
-    recordTest('POST Endpoints', endpoint.name, endpoint.method, test.ok || test.status === 400, test);
+    const shouldPass = endpoint.expect410 ? test.status === 410 : (test.ok || test.status === 400);
+    recordTest('POST Endpoints', endpoint.name, endpoint.method, shouldPass, test);
   }
 }
 

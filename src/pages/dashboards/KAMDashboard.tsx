@@ -3,22 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { DataTable, Column } from '../../components/ui/DataTable';
-import { Users, FileText, Clock, ArrowRight, Plus, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { Users, Clock, ArrowRight, Plus, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../auth/AuthContext';
 import { useState, useEffect } from 'react';
-
-interface ApplicationRow {
-  id: string;
-  fileNumber: string;
-  clientName: string;
-  loanType: string;
-  amount: string;
-  status: string;
-  lastUpdate: string;
-}
+import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
 
 interface ClientStats {
   id: string;
@@ -133,36 +123,6 @@ export const KAMDashboard: React.FC = () => {
   const pendingReview = applications.filter(a => a.status === 'under_kam_review').length;
   const awaitingResponse = applications.filter(a => a.status === 'query_with_client').length;
   const forwarded = applications.filter(a => a.status === 'pending_credit_review').length;
-
-  // Format table data
-  const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({
-    id: app.id,
-    fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
-    clientName: app.client?.company_name || '',
-    loanType: app.loan_product?.name || '',
-    amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
-    status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-  }));
-
-  const getStatusVariant = (status: string) => {
-    if (status.toLowerCase().includes('approved') || status.toLowerCase().includes('forwarded')) return 'success';
-    if (status.toLowerCase().includes('query') || status.toLowerCase().includes('pending')) return 'warning';
-    return 'neutral';
-  };
-
-  const columns: Column<ApplicationRow>[] = [
-    { key: 'fileNumber', label: 'File ID', sortable: true },
-    { key: 'clientName', label: 'Client', sortable: true },
-    { key: 'loanType', label: 'Loan Type', sortable: true },
-    { key: 'amount', label: 'Amount', sortable: true, align: 'right' },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
-    },
-    { key: 'lastUpdate', label: 'Last Update', sortable: true },
-  ];
 
   return (
     <>
@@ -307,9 +267,6 @@ export const KAMDashboard: React.FC = () => {
                 Files Awaiting Response ({awaitingResponse})
               </Button>
             )}
-            <Button variant="secondary" onClick={() => navigate('/form-configuration')} title="Configure forms per client">
-              Configure Client Forms
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -385,34 +342,14 @@ export const KAMDashboard: React.FC = () => {
       </Card>
 
       {/* Recent Applications */}
-      <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle>Recent Applications</CardTitle>
-          <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
-            View All
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-neutral-500">Loading applications...</div>
-          ) : tableData.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-              <p className="text-neutral-500 mb-4">No applications from your clients yet</p>
-              <Button variant="primary" icon={Plus} onClick={() => navigate('/clients')}>
-                Onboard Your First Client
-              </Button>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={tableData}
-              keyExtractor={(row) => row.id}
-              onRowClick={(row) => navigate(`/applications/${row.id}`)}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <RecentApplicationsSection
+        role="kam"
+        applications={applications}
+        loading={loading}
+        onViewAll={() => navigate('/applications')}
+        onRowClick={(row) => navigate(`/applications/${row.id}`)}
+        onEmptyAction={() => navigate('/clients')}
+      />
     </>
   );
 };

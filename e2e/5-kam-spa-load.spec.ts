@@ -51,20 +51,14 @@ test.describe('KAM SPA load (isPageReload-removal)', () => {
         .first()
     ).toBeVisible({ timeout: 15000 });
 
-    // --- 3.4 Clients → Form Configuration (SPA): no sidebar item, use goto ---
+    // --- 3.4 Clients → Form Configuration: KAM no longer has access (moved to Credit Team) ---
     await page.goto('/form-configuration');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
+    await expect(page).toHaveURL(/\/unauthorized/);
 
-    await expect(
-      page
-        .getByText(
-          /Loading clients|Loading loan products|Select Client|Configure Client Forms|No clients found|Clients page/i
-        )
-        .first()
-    ).toBeVisible({ timeout: 15000 });
-
-    // --- 3.5 Form Configuration → Reports (SPA, sidebar) ---
+    // --- 3.5 Clients → Reports (SPA, sidebar) ---
+    await page.goto('/clients');
+    await page.waitForLoadState('networkidle');
     await nav.getByRole('button', { name: 'Reports' }).click();
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
@@ -108,7 +102,7 @@ test.describe('KAM SPA load (isPageReload-removal)', () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
-  test('API requests: /api/kam/clients and /api/loan-applications are requested on SPA nav to Dashboard, Clients, Form Config', async ({
+  test('API requests: /api/kam/clients and /api/loan-applications are requested on SPA nav to Dashboard and Clients', async ({
     page,
   }) => {
     await loginAs(page, 'kam');
@@ -124,9 +118,6 @@ test.describe('KAM SPA load (isPageReload-removal)', () => {
       res.url().includes('/api/loan-applications') &&
       res.request().method() === 'GET' &&
       !res.url().includes('/api/loan-applications/');
-    const isLoanProductsGet = (res: { url: () => string; request: () => { method: () => string } }) =>
-      res.url().includes('/api/loan-products') && res.request().method() === 'GET';
-
     const [kamClientsRes, loanAppsRes] = await Promise.all([
       page.waitForResponse(isKamClientsGet, { timeout: 15000 }),
       page.waitForResponse(isLoanApplicationsGet, { timeout: 15000 }),
@@ -147,17 +138,5 @@ test.describe('KAM SPA load (isPageReload-removal)', () => {
     await page.waitForLoadState('networkidle');
     expect(clientsPageRes.status()).toBeGreaterThanOrEqual(200);
     expect(clientsPageRes.status()).toBeLessThan(300);
-
-    // --- Form Configuration: /api/kam/clients and /api/loan-products GET ---
-    const [formKamClientsRes, loanProductsRes] = await Promise.all([
-      page.waitForResponse(isKamClientsGet, { timeout: 15000 }),
-      page.waitForResponse(isLoanProductsGet, { timeout: 15000 }),
-      page.goto('/form-configuration'),
-    ]);
-    await page.waitForLoadState('networkidle');
-    expect(formKamClientsRes.status()).toBeGreaterThanOrEqual(200);
-    expect(formKamClientsRes.status()).toBeLessThan(300);
-    expect(loanProductsRes.status()).toBeGreaterThanOrEqual(200);
-    expect(loanProductsRes.status()).toBeLessThan(300);
   });
 });

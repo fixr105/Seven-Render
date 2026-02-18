@@ -48,6 +48,7 @@ export class ProductsController {
       res.json({
         success: true,
         data: filteredProducts.map((product: any) => ({
+          ...product,
           id: product.id,
           productId: product['Product ID'],
           productName: product['Product Name'],
@@ -92,6 +93,7 @@ export class ProductsController {
       res.json({
         success: true,
         data: {
+          ...product,
           id: product.id,
           productId: product['Product ID'],
           productName: product['Product Name'],

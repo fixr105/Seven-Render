@@ -1439,6 +1439,408 @@ export class CreditController {
   }
 
   /**
+   * GET /credit/clients/:id/form-mappings
+   * @deprecated Form config now uses Product Documents (product-centric). Returns empty array.
+   */
+  async getFormMappings(req: Request, res: Response): Promise<void> {
+    res.json({ success: true, data: [] });
+  }
+
+  /**
+   * POST /credit/clients/:id/form-links
+   * Create a Form Link row for a client (Credit Team - any client).
+   */
+  async createFormLink(req: Request, res: Response): Promise<void> {
+    try {
+      const { id: clientId } = req.params;
+      const { formLink, productId, mappingId } = req.body;
+
+      if (!clientId || !mappingId) {
+        res.status(400).json({
+          success: false,
+          error: 'Client ID and Mapping ID are required',
+        });
+        return;
+      }
+
+      // Optional: validate Product ID exists in Loan Products when VALIDATE_FORM_LINK_PRODUCT_ID=true
+      const productIdStr = (productId || '').toString().trim();
+      if (productIdStr && process.env.VALIDATE_FORM_LINK_PRODUCT_ID === 'true') {
+        const products = await n8nClient.fetchTable('Loan Products');
+        const exists = products.some(
+          (p: any) =>
+            (p['Product ID'] || p.productId || p.id || '').toString().trim() === productIdStr
+        );
+        if (!exists) {
+          res.status(400).json({
+            success: false,
+            error: `Product ID "${productIdStr}" not found in Loan Products`,
+          });
+          return;
+        }
+      }
+
+      const result = await n8nClient.postFormLink({
+        clientId,
+        formLink: formLink || '',
+        productId: productId || '',
+        mappingId: String(mappingId).trim(),
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create form link',
+      });
+    }
+  }
+
+  /**
+   * POST /credit/record-titles
+   * Create a Record Title row for a Mapping ID.
+   */
+  async createRecordTitle(req: Request, res: Response): Promise<void> {
+    try {
+      const { mappingId, recordTitle, displayOrder, isRequired } = req.body;
+
+      if (!mappingId || !recordTitle) {
+        res.status(400).json({
+          success: false,
+          error: 'Mapping ID and Record Title are required',
+        });
+        return;
+      }
+
+      const result = await n8nClient.postRecordTitle({
+        mappingId: String(mappingId).trim(),
+        recordTitle: String(recordTitle).trim(),
+        displayOrder: displayOrder ?? 0,
+        isRequired: isRequired ?? false,
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create record title',
+      });
+    }
+  }
+
+  /**
+   * PATCH /credit/form-links/:id
+   * Update a Form Link row.
+   */
+  async patchFormLink(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { clientId, formLink, productId, mappingId } = req.body;
+
+      if (!id) {
+        res.status(400).json({ success: false, error: 'Form Link id is required' });
+        return;
+      }
+
+      // Optional: validate Product ID exists in Loan Products when VALIDATE_FORM_LINK_PRODUCT_ID=true
+      const productIdStr = (productId ?? '').toString().trim();
+      if (productIdStr && process.env.VALIDATE_FORM_LINK_PRODUCT_ID === 'true') {
+        const products = await n8nClient.fetchTable('Loan Products');
+        const exists = products.some(
+          (p: any) =>
+            (p['Product ID'] || p.productId || p.id || '').toString().trim() === productIdStr
+        );
+        if (!exists) {
+          res.status(400).json({
+            success: false,
+            error: `Product ID "${productIdStr}" not found in Loan Products`,
+          });
+          return;
+        }
+      }
+
+      const result = await n8nClient.patchFormLink({
+        id,
+        clientId: clientId ?? '',
+        formLink: formLink ?? '',
+        productId: productId ?? '',
+        mappingId: mappingId ?? '',
+      });
+
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to update form link',
+      });
+    }
+  }
+
+  /**
+   * DELETE /credit/form-links/:id
+   * Delete a Form Link row.
+   */
+  async deleteFormLink(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ success: false, error: 'Form Link id is required' });
+        return;
+      }
+      await n8nClient.deleteFormLink(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to delete form link',
+      });
+    }
+  }
+
+  /**
+   * PATCH /credit/record-titles/:id
+   * Update a Record Title row.
+   */
+  async patchRecordTitle(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { mappingId, recordTitle, displayOrder, isRequired } = req.body;
+
+      if (!id) {
+        res.status(400).json({ success: false, error: 'Record Title id is required' });
+        return;
+      }
+
+      const result = await n8nClient.patchRecordTitle({
+        id,
+        mappingId: mappingId ?? '',
+        recordTitle: recordTitle ?? '',
+        displayOrder: displayOrder ?? 0,
+        isRequired: isRequired ?? false,
+      });
+
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to update record title',
+      });
+    }
+  }
+
+  /**
+   * DELETE /credit/record-titles/:id
+   * Delete a Record Title row.
+   */
+  async deleteRecordTitle(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ success: false, error: 'Record Title id is required' });
+        return;
+      }
+      await n8nClient.deleteRecordTitle(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to delete record title',
+      });
+    }
+  }
+
+  /**
+   * GET /credit/record-titles?mappingId=X
+   * @deprecated Use GET /credit/products/:productId/product-documents instead.
+   */
+  async getRecordTitles(req: Request, res: Response): Promise<void> {
+    res.json({ success: true, data: [] });
+  }
+
+  /**
+   * GET /credit/products/:productId/product-documents
+   * Get Product Documents for a product (product-centric form config).
+   */
+  async getProductDocuments(req: Request, res: Response): Promise<void> {
+    try {
+      const { productId } = req.params;
+      if (!productId) {
+        res.status(400).json({ success: false, error: 'productId is required' });
+        return;
+      }
+      const { getProductDocumentsByProductId } = await import('../services/formConfig/simpleFormConfig.service.js');
+      const rows = await getProductDocumentsByProductId(productId);
+      res.json({ success: true, data: rows });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch product documents',
+      });
+    }
+  }
+
+  /**
+   * GET /credit/products/:productId/form-config-edit
+   * Get product form config for editing (sections and fields from Loan Products).
+   */
+  async getProductFormConfigEdit(req: Request, res: Response): Promise<void> {
+    try {
+      const { productId } = req.params;
+      if (!productId) {
+        res.status(400).json({ success: false, error: 'productId is required' });
+        return;
+      }
+      const products = await n8nClient.fetchTable('Loan Products', true);
+      const product = (products as any[]).find(
+        (p) =>
+          (p['Product ID'] || p.productId || p.id || '').toString().trim() === productId.trim()
+      );
+      if (!product) {
+        res.status(404).json({ success: false, error: 'Product not found' });
+        return;
+      }
+      const { extractProductFormConfigForEdit } = await import('../services/formConfig/productFormConfig.service.js');
+      const editState = extractProductFormConfigForEdit(product as Record<string, unknown>);
+      res.json({
+        success: true,
+        data: {
+          productId,
+          productName: product['Product Name'] || product.productName || '',
+          id: product.id,
+          ...editState,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch product form config for edit',
+      });
+    }
+  }
+
+  /**
+   * PATCH /credit/products/:productId/form-config
+   * Update product form config (Section N, Field N) in Loan Products.
+   */
+  async patchProductFormConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const { productId } = req.params;
+      const { sections } = req.body;
+      if (!productId) {
+        res.status(400).json({ success: false, error: 'productId is required' });
+        return;
+      }
+      const products = await n8nClient.fetchTable('Loan Products', false);
+      const product = (products as any[]).find(
+        (p) =>
+          (p['Product ID'] || p.productId || p.id || '').toString().trim() === productId.trim()
+      );
+      if (!product || !product.id) {
+        res.status(404).json({ success: false, error: 'Product not found' });
+        return;
+      }
+      const { buildProductFormConfigPayload } = await import('../services/formConfig/productFormConfig.service.js');
+      const sectionsList = Array.isArray(sections) ? sections : [];
+      const formPayload = buildProductFormConfigPayload(sectionsList);
+      const payload = {
+        id: product.id,
+        ...formPayload,
+      };
+      await n8nClient.patchLoanProduct(payload);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to update product form config',
+      });
+    }
+  }
+
+  /**
+   * POST /credit/product-documents
+   * Create a Product Document row.
+   */
+  async createProductDocument(req: Request, res: Response): Promise<void> {
+    try {
+      const { productId, recordTitle, displayOrder, isRequired } = req.body;
+      if (!productId || !recordTitle) {
+        res.status(400).json({
+          success: false,
+          error: 'productId and recordTitle are required',
+        });
+        return;
+      }
+      const result = await n8nClient.postProductDocument({
+        productId: String(productId).trim(),
+        recordTitle: String(recordTitle).trim(),
+        displayOrder: displayOrder ?? 0,
+        isRequired: isRequired ?? false,
+      });
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create product document',
+      });
+    }
+  }
+
+  /**
+   * PATCH /credit/product-documents/:id
+   * Update a Product Document row.
+   */
+  async patchProductDocument(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { productId, recordTitle, displayOrder, isRequired } = req.body;
+      if (!id) {
+        res.status(400).json({ success: false, error: 'Product Document id is required' });
+        return;
+      }
+      const result = await n8nClient.patchProductDocument({
+        id,
+        productId: productId ?? '',
+        recordTitle: recordTitle ?? '',
+        displayOrder: displayOrder ?? 0,
+        isRequired: isRequired ?? false,
+      });
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to update product document',
+      });
+    }
+  }
+
+  /**
+   * DELETE /credit/product-documents/:id
+   * Delete a Product Document row.
+   */
+  async deleteProductDocument(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ success: false, error: 'Product Document id is required' });
+        return;
+      }
+      await n8nClient.deleteProductDocument(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to delete product document',
+      });
+    }
+  }
+
+  /**
    * GET /credit/kam-users
    * List all KAM users (Credit Team only)
    */

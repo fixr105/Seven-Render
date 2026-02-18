@@ -3,21 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { DataTable, Column } from '../../components/ui/DataTable';
 import { FileText, Clock, DollarSign, AlertCircle, Send, Sparkles, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { apiService } from '../../services/api';
-
-interface ApplicationRow {
-  id: string;
-  fileNumber: string;
-  clientName: string;
-  loanType: string;
-  amount: string;
-  status: string;
-  lastUpdate: string;
-}
+import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
 
 interface SlaPastDueItem {
   fileId: string;
@@ -81,38 +71,6 @@ export const CreditDashboard: React.FC = () => {
   const sentToNBFC = applications.filter(a => a.status === 'sent_to_nbfc').length;
   const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
   const pendingPayouts = payoutRequests.filter((p: any) => p.status === 'pending').length;
-
-  // Format table data
-  const tableData: ApplicationRow[] = applications.slice(0, 5).map(app => ({
-    id: app.id,
-    fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
-    clientName: app.client?.company_name || '',
-    loanType: app.loan_product?.name || '',
-    amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
-    status: app.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-  }));
-
-  const getStatusVariant = (status: string) => {
-    if (status.toLowerCase().includes('approved') || status.toLowerCase().includes('disbursed')) return 'success';
-    if (status.toLowerCase().includes('query') || status.toLowerCase().includes('pending')) return 'warning';
-    if (status.toLowerCase().includes('rejected')) return 'error';
-    if (status.toLowerCase().includes('negotiation') || status.toLowerCase().includes('sent')) return 'info';
-    return 'neutral';
-  };
-
-  const columns: Column<ApplicationRow>[] = [
-    { key: 'fileNumber', label: 'File ID', sortable: true },
-    { key: 'clientName', label: 'Client', sortable: true },
-    { key: 'loanType', label: 'Loan Type', sortable: true },
-    { key: 'amount', label: 'Amount', sortable: true, align: 'right' },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
-    },
-    { key: 'lastUpdate', label: 'Last Update', sortable: true },
-  ];
 
   return (
     <>
@@ -296,6 +254,9 @@ export const CreditDashboard: React.FC = () => {
             <Button variant="secondary" onClick={() => navigate('/clients')} title="Manage clients">
               Manage Clients
             </Button>
+            <Button variant="secondary" onClick={() => navigate('/form-configuration')} title="Configure document checklists per client">
+              Configure Client Forms
+            </Button>
             <Button variant="secondary" icon={BarChart3} onClick={() => navigate('/reports')} title="Generate daily summary report">
               Generate Report
             </Button>
@@ -344,31 +305,13 @@ export const CreditDashboard: React.FC = () => {
       </Card>
 
       {/* Recent Applications */}
-      <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle>Recent Applications</CardTitle>
-          <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
-            View All
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-neutral-500">Loading applications...</div>
-          ) : tableData.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-              <p className="text-neutral-500">No applications yet</p>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={tableData}
-              keyExtractor={(row) => row.id}
-              onRowClick={(row) => navigate(`/applications/${row.id}`)}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <RecentApplicationsSection
+        role="credit"
+        applications={applications}
+        loading={loading}
+        onViewAll={() => navigate('/applications')}
+        onRowClick={(row) => navigate(`/applications/${row.id}`)}
+      />
     </>
   );
 };

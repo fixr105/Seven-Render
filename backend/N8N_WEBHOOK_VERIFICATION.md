@@ -119,7 +119,7 @@ All webhooks correctly map to their Airtable tables:
 - KAM Users → `tblpZFUQEJAvPsdOJ` ✅
 - Credit Team Users → `tbl1a1TmMUj918Byj` ✅
 - Loan Applications → `tbl85RSGR1op38O3G` ✅
-- Loan Products → `tblNxvQVlzCfcj4e2` ✅
+- Loan Products → `tblVukvj8kn5gWBta` ✅
 - NBFC Partners → `tblGvEp8Z1QvahwI0` ✅
 - Form Categories → `tblqCqXV0Hds0t0bH` ✅
 - Form Fields → `tbl5oZ6zI0dc5eutw` ✅

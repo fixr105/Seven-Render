@@ -2,7 +2,7 @@
  * PRD M2: Master Form Builder - E2E Tests
  *
  * Covers: dynamic form loading, mandatory validation, draft save (impl check)
- * Requires: KAM for form config, CLIENT for new application
+ * Requires: Credit Team for form config, CLIENT for new application
  */
 
 import { test, expect } from '@playwright/test';
@@ -12,14 +12,14 @@ import { navigateToPage, waitForPageLoad } from './helpers/navigation';
 test.describe('PRD M2: Master Form Builder', () => {
   test.setTimeout(60000);
 
-  test('KAM can access form configuration page', async ({ page }) => {
-    await loginAs(page, 'kam');
+  test('Credit team can access form configuration page', async ({ page }) => {
+    await loginAs(page, 'credit');
     await waitForPageLoad(page);
 
     await page.goto('/form-configuration');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText(/Form Configuration|Form|Configure/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Form Configuration|Form|Configure|Select Client/i).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('Client can access new application page', async ({ page }) => {

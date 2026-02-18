@@ -332,7 +332,7 @@ The system uses **Airtable** as the primary data store, accessed via **n8n webho
 | **Credit Team Users** | `tblX9yZ2wV4nM6pQ8` | Credit team member profiles |
 | **NBFC Partners** | `tblP0qS7vV2xZ5bB8` | NBFC/lender partner information |
 | **Loan Applications** | `tblN8oQ5sT0vX3yZ6` | Loan application files with status, form data, documents |
-| **Loan Products** | `tblO9pR6uU1wY4zA7` | Available loan product configurations |
+| **Loan Products** | `tblVukvj8kn5gWBta` | Available loan product configurations |
 | **Form Categories** | `tblqCqXV0Hds0t0bH` | Form category groupings |
 | **Form Fields** | `tbl5oZ6zI0dc5eutw` | Individual form field definitions |
 | **Client Form Mapping** | `tbl70C8uPKmoLkOQJ` | Links clients to form categories/fields |

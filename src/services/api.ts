@@ -749,10 +749,10 @@ class ApiService {
   }
 
   /**
-   * Get form mappings for client (KAM only)
+   * Get form mappings for client (Credit Team only)
    */
   async getFormMappings(clientId: string): Promise<ApiResponse> {
-    return this.request(`/kam/clients/${clientId}/form-mappings`);
+    return this.request(`/credit/clients/${clientId}/form-mappings`);
   }
 
   /**
@@ -794,20 +794,20 @@ class ApiService {
   }
 
   /**
-   * Create Form Link row for a client (KAM only)
+   * Create Form Link row for a client (Credit Team only)
    */
   async createFormLink(
     clientId: string,
     data: { formLink?: string; productId?: string; mappingId: string }
   ): Promise<ApiResponse> {
-    return this.request(`/kam/clients/${clientId}/form-links`, {
+    return this.request(`/credit/clients/${clientId}/form-links`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   /**
-   * Create Record Title row (KAM only)
+   * Create Record Title row (Credit Team only)
    */
   async createRecordTitle(data: {
     mappingId: string;
@@ -815,17 +815,138 @@ class ApiService {
     displayOrder?: number;
     isRequired?: boolean;
   }): Promise<ApiResponse> {
-    return this.request('/kam/record-titles', {
+    return this.request('/credit/record-titles', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   /**
-   * Get Record Titles for a Mapping ID (KAM only)
+   * Get Record Titles for a Mapping ID (Credit Team only)
    */
   async getRecordTitles(mappingId: string): Promise<ApiResponse<any[]>> {
-    return this.request(`/kam/record-titles?mappingId=${encodeURIComponent(mappingId)}`);
+    return this.request(`/credit/record-titles?mappingId=${encodeURIComponent(mappingId)}`);
+  }
+
+  /**
+   * Patch Form Link (Credit Team only)
+   */
+  async patchFormLink(
+    id: string,
+    data: { clientId?: string; formLink?: string; productId?: string; mappingId?: string }
+  ): Promise<ApiResponse> {
+    return this.request(`/credit/form-links/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Delete Form Link (Credit Team only)
+   */
+  async deleteFormLink(id: string): Promise<ApiResponse> {
+    return this.request(`/credit/form-links/${id}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Patch Record Title (Credit Team only)
+   */
+  async patchRecordTitle(
+    id: string,
+    data: { mappingId?: string; recordTitle?: string; displayOrder?: number; isRequired?: boolean }
+  ): Promise<ApiResponse> {
+    return this.request(`/credit/record-titles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Delete Record Title (Credit Team only)
+   */
+  async deleteRecordTitle(id: string): Promise<ApiResponse> {
+    return this.request(`/credit/record-titles/${id}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Get Product Documents for a product (Credit Team - product-centric form config)
+   */
+  async getProductDocuments(productId: string): Promise<ApiResponse<any[]>> {
+    return this.request(`/credit/products/${encodeURIComponent(productId)}/product-documents`);
+  }
+
+  /**
+   * Get product form config for editing (sections with nested fields from Loan Products)
+   */
+  async getProductFormConfigEdit(productId: string): Promise<
+    ApiResponse<{
+      productId: string;
+      productName: string;
+      id: string;
+      sections: Array<{
+        sectionNum: number | string;
+        enabled: boolean;
+        name: string;
+        fields: Array<{ key: string; label: string; enabled: boolean }>;
+      }>;
+    }>
+  > {
+    return this.request(`/credit/products/${encodeURIComponent(productId)}/form-config-edit`);
+  }
+
+  /**
+   * Patch product form config (Section N, Field N) in Loan Products
+   */
+  async patchProductFormConfig(
+    productId: string,
+    data: {
+      sections: Array<{
+        sectionNum: number | string;
+        enabled: boolean;
+        name: string;
+        fields: Array<{ key: string; label: string; enabled: boolean }>;
+      }>;
+    }
+  ): Promise<ApiResponse> {
+    return this.request(`/credit/products/${encodeURIComponent(productId)}/form-config`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Create Product Document (Credit Team only)
+   */
+  async createProductDocument(data: {
+    productId: string;
+    recordTitle: string;
+    displayOrder?: number;
+    isRequired?: boolean;
+  }): Promise<ApiResponse> {
+    return this.request('/credit/product-documents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Patch Product Document (Credit Team only)
+   */
+  async patchProductDocument(
+    id: string,
+    data: { productId?: string; recordTitle?: string; displayOrder?: number; isRequired?: boolean }
+  ): Promise<ApiResponse> {
+    return this.request(`/credit/product-documents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Delete Product Document (Credit Team only)
+   */
+  async deleteProductDocument(id: string): Promise<ApiResponse> {
+    return this.request(`/credit/product-documents/${id}`, { method: 'DELETE' });
   }
 
   /**
@@ -1254,10 +1375,12 @@ class ApiService {
     return this.request<{ summary: string }>(`/loan-applications/${applicationId}/summary`);
   }
 
-  // ==================== FORM CATEGORIES ====================
+  // ==================== FORM CATEGORIES (DEPRECATED) ====================
+  // Form config now uses Form Link + Record Titles. Use Form Configuration page (Credit Team).
 
   /**
    * List form categories
+   * @deprecated Form Categories is deprecated. Use Form Link + Record Titles via Form Configuration page.
    */
   async listFormCategories(): Promise<ApiResponse<FormCategory[]>> {
     return this.request<FormCategory[]>('/form-categories');
@@ -1265,6 +1388,7 @@ class ApiService {
 
   /**
    * Get single form category
+   * @deprecated Form Categories is deprecated. Use Form Link + Record Titles.
    */
   async getFormCategory(categoryId: string): Promise<ApiResponse<FormCategory>> {
     return this.request<FormCategory>(`/form-categories/${categoryId}`);
@@ -1272,6 +1396,7 @@ class ApiService {
 
   /**
    * Create form category
+   * @deprecated Form Categories is deprecated. Use Form Link + Record Titles.
    */
   async createFormCategory(data: {
     categoryName: string;
@@ -1287,6 +1412,7 @@ class ApiService {
 
   /**
    * Update form category
+   * @deprecated Form Categories is deprecated. Use Form Link + Record Titles.
    */
   async updateFormCategory(
     categoryId: string,
@@ -1300,6 +1426,7 @@ class ApiService {
 
   /**
    * Delete form category
+   * @deprecated Form Categories is deprecated. Use Form Link + Record Titles.
    */
   async deleteFormCategory(categoryId: string): Promise<ApiResponse> {
     return this.request(`/form-categories/${categoryId}`, {

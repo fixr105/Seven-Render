@@ -1,0 +1,41 @@
+Product ID,Record Title,Display Order,Is Required
+LP008,Applicant Name,1,true
+LP008,PAN Card,2,true
+LP008,Aadhaar,3,true
+LP008,Bank Statement,4,true
+LP008,Income Proof,5,false
+LP009,Applicant Name,1,true
+LP009,PAN Card,2,true
+LP009,Aadhaar,3,true
+LP009,Bank Statement,4,true
+LP009,Income Proof,5,false
+LP010,Applicant Name,1,true
+LP010,PAN Card,2,true
+LP010,Aadhaar,3,true
+LP010,Bank Statement,4,true
+LP010,Income Proof,5,false
+LP011,Applicant Name,1,true
+LP011,PAN Card,2,true
+LP011,Aadhaar,3,true
+LP011,Bank Statement,4,true
+LP011,Income Proof,5,false
+LP012,Applicant Name,1,true
+LP012,PAN Card,2,true
+LP012,Aadhaar,3,true
+LP012,Address Proof,4,true
+LP012,Property Documents,5,true
+LP012,Bank Statement,6,true
+LP013,Applicant Name,1,true
+LP013,PAN Card,2,true
+LP013,Aadhaar,3,true
+LP013,Property Documents,4,true
+LP013,Bank Statement,5,true
+LP014,Applicant Name,1,true
+LP014,PAN Card,2,true
+LP014,Aadhaar,3,true
+LP014,Bank Statement,4,true
+LP014,Income Proof,5,false
+LP015,Applicant Name,1,true
+LP015,PAN Card,2,true
+LP015,Bank Statement,3,true
+LP015,Financial Statements,4,true

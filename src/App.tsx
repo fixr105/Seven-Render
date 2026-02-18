@@ -150,7 +150,7 @@ function AppRoutes() {
         path="/form-configuration"
         element={
           <ErrorBoundary>
-            <ProtectedRoute allowedRoles={['kam']}>
+            <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
               <FormConfiguration />
             </ProtectedRoute>
           </ErrorBoundary>

@@ -5,33 +5,17 @@
  * - Applies to drafts + new apps only (submitted files frozen)
  * - Field removal = hidden for new/drafts, retained for old submitted files
  *
- * Form Link table has no Version field; returns null (callers use || '').
+ * Product Documents table has no Version field; returns null (callers use || '').
  */
-
-import { getFormLinkRowsForClient } from './formConfig/simpleFormConfig.service.js';
 
 /**
  * Get the latest form config version for a client.
- * Form Link table has no Version field; returns null.
+ * Product Documents has no Version field; returns null.
  * Callers (loan workflow, etc.) handle null with || ''.
  */
-export async function getLatestFormConfigVersion(clientId: string): Promise<string | null> {
-  try {
-    const acceptedIds = new Set<string>([clientId, clientId?.toString()].filter(Boolean));
-    const rows = await getFormLinkRowsForClient(acceptedIds);
-    if (rows.length === 0) return null;
-
-    // Form Link has no Version field; optionally use createdTime if present
-    const versions = rows
-      .map((r: any) => r.Version ?? r.version ?? r.createdTime ?? r['Created Time'])
-      .filter(Boolean)
-      .sort()
-      .reverse();
-    return versions[0] || null;
-  } catch (error) {
-    console.error('[FormConfigVersioning] Error getting latest version:', error);
-    return null;
-  }
+export async function getLatestFormConfigVersion(_clientId: string): Promise<string | null> {
+  // Product Documents: no version field
+  return null;
 }
 
 /**
@@ -66,7 +50,7 @@ export async function getFormConfigVersionForApplication(
     return storedVersion;
   }
   
-  // For drafts/new apps, use latest version
+  // For drafts/new apps, use latest version (Product Documents: null)
   if (shouldApplyFormConfig(application)) {
     return await getLatestFormConfigVersion(clientId);
   }
@@ -74,13 +58,3 @@ export async function getFormConfigVersionForApplication(
   // Fallback: use latest version
   return await getLatestFormConfigVersion(clientId);
 }
-
-
-
-
-
-
-
-
-
-

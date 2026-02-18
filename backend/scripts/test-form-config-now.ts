@@ -1,6 +1,7 @@
 /**
- * Test getSimpleFormConfig (Form Link + Record Titles) directly
+ * Test getSimpleFormConfig (Product Documents) directly
  * Run: cd backend && npx tsx scripts/test-form-config-now.ts
+ * Requires productId - form config is product-centric.
  */
 import { getSimpleFormConfig } from '../src/services/formConfig/simpleFormConfig.service.js';
 

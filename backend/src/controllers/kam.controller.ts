@@ -694,151 +694,51 @@ export class KAMController {
   }
 
   /**
-   * POST /kam/clients/:id/configure-modules
-   * Configure client modules and form fields (KAM only)
-   * 
-   * Allows a KAM to configure which modules and form fields are enabled for a client.
-   * Creates ClientFormMapping entries for the specified configuration.
-   */
-  async configureClientModules(req: Request, res: Response): Promise<void> {
-    try {
-      if (!req.user || req.user.role !== 'kam') {
-        res.status(403).json({ success: false, error: 'Forbidden' });
-        return;
-      }
-
-      const { id: clientId } = req.params;
-      const { enabledModules, categories, productId } = req.body;
-
-      if (!enabledModules || !Array.isArray(enabledModules)) {
-        res.status(400).json({
-          success: false,
-          error: 'enabledModules is required and must be an array',
-        });
-        return;
-      }
-
-      // Use centralized form config service
-      const { formConfigService } = await import('../services/formConfig/formConfig.service.js');
-
-      const kamUserId = req.user!.kamId || req.user!.id;
-      const mappings = await formConfigService.configureClientModules(kamUserId, {
-        clientId,
-        enabledModules,
-        categories,
-        productId,
-      });
-
-      // Log admin activity
-      await logClientAction(
-        req.user!,
-        AdminActionType.CONFIGURE_FORM,
-        clientId,
-        `Configured modules for client: ${enabledModules.join(', ')}`,
-        { enabledModules, categories, productId }
-      );
-
-      res.json({
-        success: true,
-        data: {
-          clientId,
-          enabledModules,
-          mappings,
-        },
-      });
-    } catch (error: any) {
-      console.error('[configureClientModules] Error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to configure client modules',
-      });
-    }
-  }
-
-  /**
    * GET /kam/clients/:id/form-mappings
-   * Get form mappings for a client (KAM only). Uses Form Link table.
+   * @deprecated Form config now uses Product Documents (product-centric). Returns empty array.
    */
   async getFormMappings(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const { getFormLinkRowsForClient } = await import('../services/formConfig/simpleFormConfig.service.js');
-      const acceptedIds = new Set<string>([id, id?.toString()].filter(Boolean));
-      const clientMappings = await getFormLinkRowsForClient(acceptedIds);
-
-      res.json({
-        success: true,
-        data: clientMappings,
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to fetch form mappings',
-      });
-    }
+    res.json({ success: true, data: [] });
   }
 
   /**
    * GET /public/clients/:id/form-mappings
-   * Get form mappings for a client (Public - for form link access).
-   * Uses Form Link table. Resolves via Clients table for accepted IDs.
+   * @deprecated Form config now uses Product Documents (product-centric). Returns empty array.
    */
   async getPublicFormMappings(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const clients = await n8nClient.fetchTable('Clients');
-      const client = clients.find((c: any) =>
-        c.id === id ||
-        c['Client ID'] === id ||
-        c.clientId === id ||
-        String(c.id) === String(id) ||
-        String(c['Client ID']) === String(id)
-      );
-
-      const acceptedClientIds = new Set<string>([id, id?.toString()].filter(Boolean));
-      if (client) {
-        acceptedClientIds.add((client.id || '').toString().trim());
-        acceptedClientIds.add((client['Client ID'] || '').toString().trim());
-        acceptedClientIds.add((client.clientId || '').toString().trim());
-      }
-      acceptedClientIds.delete('');
-
-      const { getFormLinkRowsForClient } = await import('../services/formConfig/simpleFormConfig.service.js');
-      const clientMappings = await getFormLinkRowsForClient(acceptedClientIds);
-
-      res.json({
-        success: true,
-        data: clientMappings,
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to fetch form mappings',
-      });
-    }
+    res.json({ success: true, data: [] });
   }
 
   /**
    * GET /public/clients/:id/form-config
-   * Get full form configuration for a client (Public - for form link access)
-   * Uses simple form config: Form Link + Record Titles (Mapping ID).
+   * Get full form configuration for a client (Public - for form link access).
+   * Uses product-embedded config (Section N, Field N) when available; else Product Documents.
    * No auth required.
    */
   async getPublicFormConfig(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const { productId } = req.query;
+      let categoriesArray: any[] = [];
 
-      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+      if (productId && typeof productId === 'string') {
+        const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
+        const config = await getFormConfigForProduct(productId);
+        categoriesArray = config.categories;
+      }
 
-      let config = await getSimpleFormConfig(id, productId as string | undefined);
-      if (config.categories.length === 0 && productId) {
-        config = await getSimpleFormConfig(id, undefined);
+      if (categoriesArray.length === 0) {
+        const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+        let config = await getSimpleFormConfig(id, productId as string | undefined);
+        if (config.categories.length === 0 && productId) {
+          config = await getSimpleFormConfig(id, undefined);
+        }
+        categoriesArray = config.categories;
       }
 
       res.json({
         success: true,
-        data: config.categories,
+        data: categoriesArray,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -944,33 +844,10 @@ export class KAMController {
 
   /**
    * GET /kam/record-titles?mappingId=X
-   * Get Record Titles for a Mapping ID.
+   * @deprecated Use GET /credit/products/:productId/product-documents instead.
    */
   async getRecordTitles(req: Request, res: Response): Promise<void> {
-    try {
-      const { mappingId } = req.query;
-
-      if (!mappingId || typeof mappingId !== 'string') {
-        res.status(400).json({
-          success: false,
-          error: 'mappingId query parameter is required',
-        });
-        return;
-      }
-
-      const { getRecordTitlesByMappingId } = await import('../services/formConfig/simpleFormConfig.service.js');
-      const rows = await getRecordTitlesByMappingId(mappingId);
-
-      res.json({
-        success: true,
-        data: rows,
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to fetch record titles',
-      });
-    }
+    res.json({ success: true, data: [] });
   }
 
   /**

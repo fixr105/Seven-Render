@@ -112,7 +112,7 @@ ${flagged.length ? flagged.map((f) => `- ${f}`).join('\n') : '- None (from this 
       { path: '/profile' },
       { path: '/settings' },
       { path: '/reports' },
-      { path: '/form-configuration', expectUnauthorized: userRole !== 'kam' },
+      { path: '/form-configuration', expectUnauthorized: !['credit_team', 'admin'].includes(userRole) },
       { path: '/unauthorized' },
       { path: '/forgot-password' },
       { path: '/foo' },
@@ -184,7 +184,7 @@ ${flagged.length ? flagged.map((f) => `- ${f}`).join('\n') : '- None (from this 
     }
 
     await page.goto(`${baseURL}/dashboard`, { waitUntil: 'domcontentloaded' });
-    const quickButtons = page.locator('main button').filter({ hasText: /View all|New Application|Applications|Clients|Ledger|Form Configuration/ });
+    const quickButtons = page.locator('main button').filter({ hasText: /View all|New Application|Applications|Clients|Ledger|Form Configuration|Configure Client Forms/ });
     const qCount = await quickButtons.count();
     for (let i = 0; i < Math.min(qCount, 3); i++) {
       const text = (await quickButtons.nth(i).textContent())?.trim() || '';

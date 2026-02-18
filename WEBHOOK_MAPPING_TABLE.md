@@ -21,7 +21,8 @@ Based on the n8n workflow JSON, the following webhook paths are defined:
 - `/kamusers` - Get KAM Users
 - `/creditteamuser` - Get Credit Team Users
 - `/nbfcpartners` - Get NBFC Partners
-- `/loanproducts` - Get Loan Products
+- `/loanproducts` - Get Loan Products (`https://fixrrahul.app.n8n.cloud/webhook/loanproducts`)
+- `/productdocument` - Get Product Documents
 - `/useraccount` - Get User Accounts
 
 ### POST Webhooks (Write Operations)
@@ -37,10 +38,15 @@ Based on the n8n workflow JSON, the following webhook paths are defined:
 - `/KAMusers` - Create/Update KAM Users
 - `/CREDITTEAMUSERS` - Create/Update Credit Team Users
 - `/NBFCPartners` - Create/Update NBFC Partners
-- `/loanproducts` - Create/Update Loan Products
+- `/loanproducts` - Create/Update Loan Products (`https://fixrrahul.app.n8n.cloud/webhook/loanproducts`)
 - `/adduser` - Create/Update User Accounts
 - `/POSTLOG` - Create Admin Activity Log entries
 - `/email` - Send Email (via Microsoft Outlook)
+
+### Loan Products (same URL for GET, PATCH, DELETE)
+- **Get Loan Products:** `https://fixrrahul.app.n8n.cloud/webhook/loanproducts`
+- **Patch Loan Product:** `https://fixrrahul.app.n8n.cloud/webhook/loanproducts`
+- **Delete Loan Product:** `https://fixrrahul.app.n8n.cloud/webhook/loanproducts`
 
 ---
 
@@ -65,6 +71,10 @@ Based on the n8n workflow JSON, the following webhook paths are defined:
 | `src/pages/FormConfiguration.tsx` | `fetchClients()` | `GET /kam/clients` | `KAMController.listClients()` | `fetchTable('Clients')` | `/webhook/client` | - | `Clients` | Line 165: Lists clients for form config |
 | `src/pages/FormConfiguration.tsx` | `handleSaveForm()` | `POST /kam/clients/:id/form-mappings` | `KAMController.createFormMapping()` | `postFormCategory()`<br>`postFormField()`<br>`postClientFormMapping()` | - | `/webhook/FormCategory`<br>`/webhook/FormFields`<br>`/webhook/POSTCLIENTFORMMAPPING` | `Form Categories`<br>`Form Fields`<br>`Client Form Mapping` | Line 269: Creates form configuration |
 | `src/pages/FormConfiguration.tsx` | `fetchLoanProducts()` | `GET /products/loan-products` | `ProductsController.listLoanProducts()` | `fetchTable('Loan Products')` | `/webhook/loanproducts` | - | `Loan Products` | Line 190: Lists loan products |
+| `src/pages/FormConfiguration.tsx` | `fetchProductDocuments()` | `GET /credit/products/:productId/product-documents` | `CreditController.getProductDocuments()` | `fetchTable('Product Documents')` | `/webhook/productdocument` | - | `Product Documents` | Form config: Document Checklist |
+| `src/pages/FormConfiguration.tsx` | `createProductDocument()` | `POST /credit/product-documents` | `CreditController.createProductDocument()` | `postProductDocument()` | - | `/webhook/productdocument` | `Product Documents` | Form config: Add document |
+| `src/pages/FormConfiguration.tsx` | `patchProductDocument()` | `PATCH /credit/product-documents/:id` | `CreditController.patchProductDocument()` | `patchProductDocument()` | - | `/webhook/productdocument` | `Product Documents` | Form config: Edit document |
+| `src/pages/FormConfiguration.tsx` | `deleteProductDocument()` | `DELETE /credit/product-documents/:id` | `CreditController.deleteProductDocument()` | `deleteProductDocument()` | - | `/webhook/productdocument` | `Product Documents` | Form config: Delete document |
 | **FORM CONFIGURATION** |
 | `src/pages/ClientForm.tsx` | `fetchFormMappings()` | `GET /public/form-mappings/:clientId` | `ClientController.getPublicFormMappings()` | `fetchTable('Client Form Mapping')` | `/webhook/clientformmapping` | - | `Client Form Mapping` | Line 173: Gets public form mappings |
 | `src/pages/ClientForm.tsx` | `fetchFormCategories()` | `GET /form-categories` | `FormCategoryController.listCategories()` | `fetchTable('Form Categories')` | `/webhook/formcategories` | - | `Form Categories` | Line 177: Lists form categories |
@@ -115,6 +125,7 @@ Based on the n8n workflow JSON, the following webhook paths are defined:
 | `backend/src/controllers/products.controller.ts` | `listLoanProducts()` | `GET /products/loan-products` | `ProductsController.listLoanProducts()` | `fetchTable('Loan Products')` | `/webhook/loanproducts` | - | `Loan Products` | Lists loan products |
 | `backend/src/controllers/products.controller.ts` | `createLoanProduct()` | `POST /products/loan-products` | `ProductsController.createLoanProduct()` | `postLoanProduct()` | - | `/webhook/loanproducts` | `Loan Products` | Creates loan product |
 | `backend/src/controllers/products.controller.ts` | `updateLoanProduct()` | `PUT /products/loan-products/:id` | `ProductsController.updateLoanProduct()` | `postLoanProduct()` | - | `/webhook/loanproducts` | `Loan Products` | Updates loan product |
+| `src/pages/FormConfiguration.tsx` | `handleSaveFormConfig()` | `PATCH /credit/products/:productId/form-config` | `CreditController.patchProductFormConfig()` | `patchLoanProduct()` | - | `/webhook/loanproducts` (PATCH) | `Loan Products` | Form config: Sections & Fields |
 | **EMAIL** |
 | `backend/src/controllers/reports.controller.ts` | `generateDailySummary()` | `POST /reports/daily-summary` | `ReportsController.generateDailySummary()` | (via n8n workflow) | - | `/webhook/email` | (Microsoft Outlook) | Email sent via n8n workflow after daily summary creation |
 

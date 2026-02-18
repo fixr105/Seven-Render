@@ -156,18 +156,23 @@ export class ClientController {
         return;
       }
 
-      // Simple form config: Form Link + Record Titles (Mapping ID)
-      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
       const { productId } = req.query;
+      let categoriesArray: any[] = [];
 
-      let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
-
-      // Fallback: when productId filter yields empty config, retry without productId
-      if (config.categories.length === 0 && productId) {
-        config = await getSimpleFormConfig(effectiveClientId, undefined);
+      if (productId && typeof productId === 'string') {
+        const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
+        const config = await getFormConfigForProduct(productId);
+        categoriesArray = config.categories;
       }
 
-      const categoriesArray = config.categories;
+      if (categoriesArray.length === 0) {
+        const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+        let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
+        if (config.categories.length === 0 && productId) {
+          config = await getSimpleFormConfig(effectiveClientId, undefined);
+        }
+        categoriesArray = config.categories;
+      }
       console.log(`[getFormConfig] Returning ${categoriesArray.length} categories for client ${effectiveClientId}`);
 
       res.json({
@@ -211,13 +216,23 @@ export class ClientController {
         res.status(401).json({ success: false, error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.' });
         return;
       }
-      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
       const { productId } = req.query;
-      let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
-      if (config.categories.length === 0 && productId) {
-        config = await getSimpleFormConfig(effectiveClientId, undefined);
+      let categoriesArray: any[] = [];
+
+      if (productId && typeof productId === 'string') {
+        const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
+        const config = await getFormConfigForProduct(productId);
+        categoriesArray = config.categories;
       }
-      const categoriesArray = config.categories;
+
+      if (categoriesArray.length === 0) {
+        const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+        let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
+        if (config.categories.length === 0 && productId) {
+          config = await getSimpleFormConfig(effectiveClientId, undefined);
+        }
+        categoriesArray = config.categories;
+      }
       const totalFields = categoriesArray.reduce((sum, c) => sum + (c.fields?.length || 0), 0);
       res.json({
         success: true,
@@ -294,9 +309,16 @@ export class ClientController {
         if (matchingClient.clientId) acceptedClientIds.add(matchingClient.clientId.toString().trim());
       }
 
-      // Fetch Form Link table and extract unique Product IDs
-      const { getConfiguredProductIds } = await import('../services/formConfig/simpleFormConfig.service.js');
-      const productIds = await getConfiguredProductIds(acceptedClientIds);
+      const { getProductIdsWithDocuments } = await import('../services/formConfig/simpleFormConfig.service.js');
+      const [productDocIds, products] = await Promise.all([
+        getProductIdsWithDocuments(),
+        n8nClient.fetchTable('Loan Products', true),
+      ]);
+      const productEmbeddedIds = (products as any[])
+        .filter((p) => Object.keys(p).some((k) => /^Section\s+\d+$/i.test(k)))
+        .map((p) => (p['Product ID'] || p.productId || p.id || '').toString().trim())
+        .filter(Boolean);
+      const productIds = [...new Set([...productDocIds, ...productEmbeddedIds])];
 
       console.log(
         `[getConfiguredProducts] Client ${authClientId} (acceptedIds: ${Array.from(acceptedClientIds).join(', ')}) has ${productIds.length} configured products:`,
