@@ -50,24 +50,32 @@ export function validateFormData(
   const errors: string[] = [];
   const missingRequiredFields: string[] = [];
 
-  // Extract all fields from form config
-  const allFields: FieldValidationRule[] = [];
+  // Extract all fields from form config (with displayKey for new format)
+  const allFields: Array<FieldValidationRule & { displayKey?: string }> = [];
   formConfig.forEach((category: any) => {
+    const categoryName = category.categoryName || category['Category Name'] || category.categoryId || 'Documents';
     (category.fields || []).forEach((field: any) => {
+      const label = field.label || field['Field Label'];
       allFields.push({
         fieldId: field.fieldId || field['Field ID'],
-        label: field.label || field['Field Label'],
+        label,
         required: field.isRequired || field['Is Required'] === 'True',
         type: field.type || field['Field Type'] || 'text',
+        displayKey: `${label} - ${categoryName}`,
       });
     });
   });
 
   // Validate each field
   allFields.forEach((field) => {
-    const value = formData[field.fieldId];
+    const displayKey = (field as any).displayKey;
+    const value = (displayKey ? formData[displayKey] : undefined) ?? formData[field.fieldId];
     const hasFile = uploadedFiles?.[field.fieldId] && uploadedFiles[field.fieldId].length > 0;
-    const fileChecklistSatisfied = field.type === 'file' && (value === 'added_to_link' || value === 'to_be_shared');
+    const fileChecklistSatisfied = field.type === 'file' && (
+      value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
+      value === 'added_to_link' || value === 'to_be_shared' ||
+      value === 'yes_added_to_folder' || value === 'awaiting_will_update'
+    );
 
     // Check required fields
     if (field.required) {

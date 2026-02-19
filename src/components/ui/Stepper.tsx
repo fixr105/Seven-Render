@@ -20,8 +20,8 @@ export const Stepper: React.FC<StepperProps> = ({
   completedSteps = [],
 }) => {
   return (
-    <div className="w-full rounded-xl bg-neutral-50 border border-neutral-200 p-6">
-      <div className="flex gap-2 overflow-x-auto pb-2">
+    <div className="w-full rounded-xl bg-neutral-50 border border-neutral-200 p-4 sm:p-6">
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scroll-smooth snap-x snap-mandatory touch-manipulation [scrollbar-width:thin]">
         {steps.map((step, index) => {
           const isActive = index === currentStep;
           const isCompleted = completedSteps.includes(index) || index < currentStep;
@@ -34,8 +34,8 @@ export const Stepper: React.FC<StepperProps> = ({
               onClick={() => isClickable && onStepClick(index)}
               disabled={!isClickable}
               className={`
-                flex-shrink-0 flex items-start gap-3 rounded-lg px-4 py-3 min-w-[180px] max-w-[220px] text-left
-                transition-all duration-200
+                flex-shrink-0 flex items-start gap-3 rounded-lg px-4 py-3 min-w-[140px] sm:min-w-[180px] max-w-[220px] text-left snap-start
+                transition-all duration-200 touch-manipulation
                 ${isActive ? 'bg-brand-primary text-white shadow-md' : 'bg-white border border-neutral-200 text-neutral-700 hover:border-neutral-300'}
                 ${isClickable ? 'cursor-pointer' : 'cursor-default'}
               `}
@@ -63,8 +63,8 @@ export const Stepper: React.FC<StepperProps> = ({
             </button>
           );
         })}
-        {/* Vertical progress indicator on the right */}
-        <div className="flex-shrink-0 flex flex-col justify-center items-center w-1 ml-2 bg-neutral-200 rounded-full overflow-hidden self-stretch min-h-[60px]">
+        {/* Vertical progress indicator on the right - hidden on mobile to save space */}
+        <div className="hidden sm:flex flex-shrink-0 flex-col justify-center items-center w-1 ml-2 bg-neutral-200 rounded-full overflow-hidden self-stretch min-h-[60px]">
           {steps.slice(0, Math.min(4, steps.length)).map((_, i) => (
             <div
               key={i}

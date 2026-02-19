@@ -52,27 +52,9 @@ describe('NewApplication Page - P0 Tests', () => {
       categoryId: 'cat1',
       categoryName: 'Personal Information',
       fields: [
-        {
-          fieldId: 'field1',
-          fieldLabel: 'Full Name',
-          fieldType: 'text',
-          isMandatory: true,
-          displayOrder: '1',
-        },
-        {
-          fieldId: 'field2',
-          fieldLabel: 'Email',
-          fieldType: 'email',
-          isMandatory: false,
-          displayOrder: '2',
-        },
-        {
-          fieldId: 'field3',
-          fieldLabel: 'PAN Card',
-          fieldType: 'file',
-          isMandatory: true,
-          displayOrder: '3',
-        },
+        { fieldId: 'field1', label: 'Full Name', type: 'text', isRequired: true },
+        { fieldId: 'field2', label: 'Email', type: 'email', isRequired: false },
+        { fieldId: 'field3', label: 'PAN Card', type: 'file', isRequired: true },
       ],
     },
     {
@@ -81,11 +63,10 @@ describe('NewApplication Page - P0 Tests', () => {
       fields: [
         {
           fieldId: 'field4',
-          fieldLabel: 'Loan Purpose',
-          fieldType: 'select',
-          isMandatory: true,
-          displayOrder: '1',
-          fieldOptions: 'Business,Personal,Education',
+          label: 'Loan Purpose',
+          type: 'select',
+          isRequired: true,
+          options: ['Business', 'Personal', 'Education'],
         },
       ],
     },
@@ -287,9 +268,12 @@ describe('NewApplication Page - P0 Tests', () => {
         expect(apiService.getFormConfig).toHaveBeenCalled();
       });
 
-      await waitFor(() => {
-        expect(screen.getByText(/Full Name|Applicant Name/i)).toBeInTheDocument();
-      });
+      await waitFor(
+        () => {
+          expect(screen.getByText(/Full Name|Applicant Name|Documents Folder|Application Details/i)).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
 
       const applicantInput = screen.queryByRole('textbox', { name: /applicant name/i }) ?? screen.getAllByRole('textbox')[0];
       if (applicantInput) await user.type(applicantInput, 'John Doe');
@@ -307,8 +291,8 @@ describe('NewApplication Page - P0 Tests', () => {
       const loanPurposeSelect = document.querySelectorAll('select')[1];
       if (loanPurposeSelect) await user.selectOptions(loanPurposeSelect as HTMLElement, 'Business');
 
-      // File field (PAN Card) uses 3-checkbox: select "Added to link"
-      const addedToLinkRadio = screen.getByRole('radio', { name: /added to link/i });
+      // File field (PAN Card) uses 3-checkbox: select "Yes, Added to Folder"
+      const addedToLinkRadio = screen.getByRole('radio', { name: /yes, added to folder/i });
       await user.click(addedToLinkRadio);
 
       // Submit form

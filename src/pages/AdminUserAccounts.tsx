@@ -213,7 +213,7 @@ export const AdminUserAccounts: React.FC = () => {
               <Button variant="primary" size="sm" icon={Plus} onClick={openCreateModal}>
                 Create user
               </Button>
-              <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={fetchAccounts} disabled={loading}>
+              <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => fetchAccounts()} disabled={loading}>
                 Refresh
               </Button>
             </div>

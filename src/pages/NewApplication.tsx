@@ -196,12 +196,16 @@ export const NewApplication: React.FC = () => {
     }
   };
 
-  const handleFieldChange = (fieldId: string, value: any) => {
+  /** Build display key for form_data: "Label - Category Name" (human-readable, unique) */
+  const getDisplayKey = (fieldLabel: string, categoryName: string) =>
+    `${fieldLabel} - ${categoryName}`;
+
+  const handleFieldChange = (key: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       form_data: {
         ...prev.form_data,
-        [fieldId]: value,
+        [key]: value,
       },
     }));
   };
@@ -228,15 +232,21 @@ export const NewApplication: React.FC = () => {
 
     // Validate mandatory form fields from configuration (required + PAN format)
     formConfig.forEach((category: any) => {
+      const categoryName = category.categoryName || category['Category Name'] || '';
       (category.fields || []).forEach((field: any) => {
         const fieldId = field.fieldId || field['Field ID'] || field.id;
         const fieldLabel = field.label || field['Field Label'] || field.fieldLabel;
+        const displayKey = getDisplayKey(fieldLabel, categoryName);
         const fieldType = field.type || field['Field Type'] || field.fieldType;
         const isRequired = field.isRequired || field['Is Required'] === 'True' || field['Is Mandatory'] === 'True' || field.isMandatory === true;
 
-        const value = formData.form_data[fieldId];
-        // For file fields (3-checkbox approach): added_to_link or to_be_shared counts as satisfied
-        const fileFieldSatisfied = fieldType === 'file' && (value === 'added_to_link' || value === 'to_be_shared');
+        const value = formData.form_data[displayKey] ?? formData.form_data[fieldId];
+        // File fields: satisfied if Yes/Added or Awaiting (new or old values)
+        const fileFieldSatisfied = fieldType === 'file' && (
+          value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
+          value === 'added_to_link' || value === 'to_be_shared' ||
+          value === 'yes_added_to_folder' || value === 'awaiting_will_update'
+        );
 
         if (isRequired) {
           let isEmpty = false;
@@ -300,12 +310,21 @@ export const NewApplication: React.FC = () => {
 
     setLoading(true);
 
+    // Transform form_data: ensure file field values are human-readable for storage
+    const formDataToSend = { ...formData.form_data };
+    Object.keys(formDataToSend).forEach((k) => {
+      const v = formDataToSend[k];
+      if (v === 'yes_added_to_folder') formDataToSend[k] = 'Yes, Added to Folder';
+      else if (v === 'awaiting_will_update') formDataToSend[k] = 'Awaiting, Will Update Folder';
+      else if (v === 'not_available') formDataToSend[k] = 'Not Available';
+    });
+
     try {
       const response = await apiService.createApplication({
         productId: formData.loan_product_id,
         applicantName: formData.applicant_name,
         requestedLoanAmount: parseFloat(formData.requested_loan_amount.replace(/[^0-9.]/g, '')) || 0,
-        formData: formData.form_data,
+        formData: formDataToSend,
         saveAsDraft: saveAsDraft,
       });
 
@@ -395,6 +414,18 @@ export const NewApplication: React.FC = () => {
     return '';
   };
 
+  /** Get form_data value for a field - supports displayKey and fieldId (backward compat) */
+  const getFormValue = (displayKey: string, fieldId: string) =>
+    formData.form_data[displayKey] ?? formData.form_data[fieldId];
+
+  /** Map internal radio value to human-readable for Airtable storage */
+  const toStoredValue = (v: string) => {
+    if (v === 'yes_added_to_folder') return 'Yes, Added to Folder';
+    if (v === 'awaiting_will_update') return 'Awaiting, Will Update Folder';
+    if (v === 'not_available') return 'Not Available';
+    return v;
+  };
+
   return (
     <MainLayout
       sidebarItems={sidebarItems}
@@ -409,6 +440,60 @@ export const NewApplication: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <form onSubmit={(e) => handleSubmit(e, false)}>
+        {/* Video containers - 2 column layout, portrait on mobile */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-w-full">
+          <div
+            data-video-slot="google-drive"
+            className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
+          >
+            <video
+              controls
+              playsInline
+              muted
+              loop
+              className="w-full h-full object-contain rounded-lg"
+              title="How to create a shared folder in Google Drive"
+            >
+              <source src="/videos/drive.mp4" type="video/mp4" />
+              <p className="text-sm text-neutral-500 p-4">Video not available</p>
+            </video>
+          </div>
+          <div
+            data-video-slot="onedrive"
+            className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
+          >
+            <video
+              controls
+              playsInline
+              muted
+              loop
+              className="w-full h-full object-contain rounded-lg"
+              title="How to create a shared folder in OneDrive"
+            >
+              <source src="/videos/onedrive.mp4" type="video/mp4" />
+              <p className="text-sm text-neutral-500 p-4">Video not available</p>
+            </video>
+          </div>
+        </div>
+
+        {/* Documents folder link - paste Google Drive or OneDrive link */}
+        <Card id="documents-folder-link" className="mb-6">
+          <CardHeader>
+            <CardTitle>Documents Folder</CardTitle>
+            <p className="text-sm text-neutral-500 mt-0.5">Paste the link to your shared folder (Google Drive or OneDrive)</p>
+          </CardHeader>
+          <CardContent>
+            <Input
+              id="_documentsFolderLink"
+              label="Folder Link"
+              type="url"
+              placeholder="https://drive.google.com/... or https://onedrive.live.com/..."
+              value={formData.form_data._documentsFolderLink || ''}
+              onChange={(e) => handleFieldChange('_documentsFolderLink', e.target.value)}
+            />
+          </CardContent>
+        </Card>
+
         {/* Module 2: Stepper */}
         {formConfig.length > 0 && (
           <Card className="mb-6">
@@ -424,7 +509,6 @@ export const NewApplication: React.FC = () => {
                 ]}
                 currentStep={currentStep}
                 onStepClick={(stepIndex) => {
-                  // Scroll to section
                   const sectionId = stepIndex === 0 ? 'application-details' : `category-${stepIndex - 1}`;
                   const element = document.getElementById(sectionId);
                   if (element) {
@@ -494,7 +578,7 @@ export const NewApplication: React.FC = () => {
               />
               <div className="space-y-2">
                 <div className="flex flex-wrap items-end gap-2">
-                  <div className="flex-1 min-w-[200px]">
+                  <div className="flex-1 min-w-0 sm:min-w-[200px]">
                     <Select
                       data-testid="loan-product-select"
                       label="Loan Product *"
@@ -582,6 +666,8 @@ export const NewApplication: React.FC = () => {
                   {(category.fields || []).map((field: any) => {
                     const fieldId = field.fieldId || field['Field ID'] || field.id;
                     const fieldLabel = field.label || field['Field Label'] || field.fieldLabel;
+                    const categoryName = category.categoryName || category['Category Name'] || '';
+                    const displayKey = getDisplayKey(fieldLabel, categoryName);
                     const fieldType = field.type || field['Field Type'] || field.fieldType;
                     const isRequired = field.isRequired || field['Is Required'] === 'True' || field.isMandatory === 'True';
                     const placeholder = field.placeholder || field['Field Placeholder'] || field.fieldPlaceholder;
@@ -593,6 +679,20 @@ export const NewApplication: React.FC = () => {
                     }
                     const hasError = !!fieldErrors[fieldId];
                     const fieldError = fieldErrors[fieldId];
+                    const formValue = getFormValue(displayKey, fieldId);
+
+                    const fileRadioOptions = [
+                      { value: 'yes_added_to_folder', label: 'Yes, Added to Folder' },
+                      { value: 'awaiting_will_update', label: 'Awaiting, Will Update Folder' },
+                      { value: 'not_available', label: 'Not Available' },
+                    ];
+                    const isFileOptionChecked = (opt: { value: string }) => {
+                      const v = formValue;
+                      if (opt.value === 'yes_added_to_folder') return v === 'Yes, Added to Folder' || v === 'added_to_link';
+                      if (opt.value === 'awaiting_will_update') return v === 'Awaiting, Will Update Folder' || v === 'to_be_shared';
+                      if (opt.value === 'not_available') return v === 'Not Available' || v === 'not_available';
+                      return false;
+                    };
 
                     return (
                       <div key={fieldId}>
@@ -603,19 +703,15 @@ export const NewApplication: React.FC = () => {
                               {isRequired && <span className="text-error ml-1">*</span>}
                             </label>
                             <div className="flex flex-wrap gap-4" role="radiogroup" aria-label={fieldLabel}>
-                              {[
-                                { value: 'added_to_link', label: 'Added to link' },
-                                { value: 'to_be_shared', label: 'To be shared' },
-                                { value: 'not_available', label: 'Not available' },
-                              ].map((opt) => (
+                              {fileRadioOptions.map((opt) => (
                                 <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                                   <input
                                     type="radio"
                                     name={fieldId}
                                     value={opt.value}
-                                    checked={(formData.form_data[fieldId] || '') === opt.value}
+                                    checked={isFileOptionChecked(opt)}
                                     onChange={() => {
-                                      handleFieldChange(fieldId, opt.value);
+                                      handleFieldChange(displayKey, toStoredValue(opt.value));
                                       if (fieldErrors[fieldId]) {
                                         setFieldErrors(prev => {
                                           const next = { ...prev };
@@ -640,9 +736,9 @@ export const NewApplication: React.FC = () => {
                               <input
                                 type="checkbox"
                                 id={fieldId}
-                                checked={formData.form_data[fieldId] || false}
+                                checked={formValue === true || formValue === 'true'}
                                 onChange={(e) => {
-                                  handleFieldChange(fieldId, e.target.checked);
+                                  handleFieldChange(displayKey, e.target.checked);
                                   // Clear error when field is changed
                                   if (fieldErrors[fieldId]) {
                                     setFieldErrors(prev => {
@@ -668,9 +764,9 @@ export const NewApplication: React.FC = () => {
                             <Select
                               label={fieldLabel}
                               required={isRequired}
-                              value={formData.form_data[fieldId] || ''}
+                              value={(formValue ?? '') as string}
                               onChange={(value) => {
-                                handleFieldChange(fieldId, value);
+                                handleFieldChange(displayKey, value);
                                 // Clear error when field is changed
                                 if (fieldErrors[fieldId]) {
                                   setFieldErrors(prev => {
@@ -692,9 +788,9 @@ export const NewApplication: React.FC = () => {
                             </label>
                             <textarea
                               id={fieldId}
-                              value={formData.form_data[fieldId] || ''}
+                              value={(formValue ?? '') as string}
                               onChange={(e) => {
-                                handleFieldChange(fieldId, e.target.value);
+                                handleFieldChange(displayKey, e.target.value);
                                 // Clear error when field is changed
                                 if (fieldErrors[fieldId]) {
                                   setFieldErrors(prev => {
@@ -721,9 +817,9 @@ export const NewApplication: React.FC = () => {
                             label={fieldLabel}
                             required={isRequired}
                             placeholder={placeholder}
-                            value={formData.form_data[fieldId] || ''}
+                            value={(formValue ?? '') as string}
                             onChange={(e) => {
-                              handleFieldChange(fieldId, e.target.value);
+                              handleFieldChange(displayKey, e.target.value);
                               if (fieldErrors[fieldId]) {
                                 setFieldErrors(prev => {
                                   const next = { ...prev };
@@ -735,7 +831,7 @@ export const NewApplication: React.FC = () => {
                             onBlur={
                               isPanField({ fieldId, label: fieldLabel, type: fieldType })
                                 ? () => {
-                                    const value = formData.form_data[fieldId];
+                                    const value = formValue;
                                     const panError = getPanValidationError(value);
                                     if (panError) {
                                       setFieldErrors(prev => ({ ...prev, [fieldId]: panError }));
@@ -759,25 +855,7 @@ export const NewApplication: React.FC = () => {
               </CardContent>
             </Card>
           ))
-        ) : (
-          <Card className="mb-6">
-            <CardHeader className="flex items-center justify-between">
-              <CardTitle>Form Configuration</CardTitle>
-              {userRole === 'client' && (
-                <Button data-testid="load-form-button" variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading}>
-                  Load form
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-neutral-600 mb-4">
-                {formConfigLoading
-                  ? 'Loading form configuration...'
-                  : 'No form configuration loaded. Select a loan product above (e.g. Money Multiplier), then click "Load form" to fetch your configuration, or contact your KAM to configure your form.'}
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        ) : null}
 
 
         {/* Action Buttons */}

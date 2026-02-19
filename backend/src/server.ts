@@ -49,7 +49,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", process.env.N8N_BASE_URL || ''],
+      // N8N_BASE_URL in connectSrc for future direct n8n calls; currently all n8n traffic is server-side
+      connectSrc: ["'self'", process.env.N8N_BASE_URL || ''].filter(Boolean),
     },
   },
   hsts: {
@@ -60,10 +61,12 @@ app.use(helmet({
 }));
 
 // CORS configuration
-// In production, default to lms.sevenfincorp.com when CORS_ORIGIN is unset (e.g. Fly.io without secret)
+// In production, default to lms.sevenfincorp.com + Vercel when CORS_ORIGIN is unset (e.g. Fly.io without secret)
 const corsOriginRaw =
   process.env.CORS_ORIGIN ||
-  (process.env.NODE_ENV === 'production' ? 'https://lms.sevenfincorp.com' : undefined);
+  (process.env.NODE_ENV === 'production'
+    ? 'https://lms.sevenfincorp.com,https://seven-dashboard-seven.vercel.app'
+    : undefined);
 
 function normalizeOrigin(o: string): string {
   const t = o.trim();

@@ -45,6 +45,7 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
       return [
         ...baseItems,
         { id: 'clients', label: 'Clients', icon: Users, path: '/clients' },
+        { id: 'ledger', label: 'Ledger', icon: DollarSign, path: '/ledger' },
         { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
       ];

@@ -1,0 +1,6 @@
+# Add your video files here:
+# - drive.mp4 (Google Drive tutorial)
+# - onedrive.mp4 (OneDrive tutorial)
+#
+# Path: public/videos/drive.mp4 and public/videos/onedrive.mp4
+# Must be H.264/AVC encoded for browser compatibility.

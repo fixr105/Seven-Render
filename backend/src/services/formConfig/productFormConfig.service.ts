@@ -178,7 +178,7 @@ export function parseProductFormConfig(product: Record<string, unknown>): Parsed
     const fields: ParsedFormField[] = fieldsForSection.map((e) => ({
       fieldId: e.key.replace(/\s+/g, '-').toLowerCase(),
       label: e.value,
-      type: 'text',
+      type: 'file',
       isRequired: false,
     }));
 

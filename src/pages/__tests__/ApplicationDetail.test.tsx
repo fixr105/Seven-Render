@@ -32,6 +32,8 @@ vi.mock('../../services/api', () => {
     raiseQueryToClient: vi.fn(),
     replyToQuery: vi.fn(),
     resolveQuery: vi.fn(),
+    getFormConfig: vi.fn().mockResolvedValue({ success: false }),
+    getPublicFormConfig: vi.fn().mockResolvedValue({ success: false }),
   };
   return {
     apiService: mockApiService,

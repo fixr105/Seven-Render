@@ -1161,6 +1161,7 @@ export class N8nClient {
       'Primary Contact Name': data['Primary Contact Name'] || data.primaryContactName || '',
       'Contact Email / Phone': data['Contact Email / Phone'] || data.contactEmailPhone || '',
       'Assigned KAM': data['Assigned KAM'] || data.assignedKAM || '',
+      'Assigned Products': data['Assigned Products'] ?? data.assignedProducts ?? '',
       'Enabled Modules': data['Enabled Modules'] || data.enabledModules || '',
       'Commission Rate': data['Commission Rate'] || data.commissionRate || '',
       'Status': data['Status'] || data.status || 'Active',

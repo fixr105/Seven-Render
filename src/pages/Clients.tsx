@@ -9,7 +9,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Eye, UserPlus, RefreshCw } from 'lucide-react';
+import { Eye, UserPlus, RefreshCw, Package } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -58,6 +58,11 @@ export const Clients: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [kamUsers, setKamUsers] = useState<any[]>([]);
   const [selectedKAMId, setSelectedKAMId] = useState<string>('');
+  const [showAssignProductsModal, setShowAssignProductsModal] = useState(false);
+  const [clientForProducts, setClientForProducts] = useState<Client | null>(null);
+  const [allProducts, setAllProducts] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [productsModalLoading, setProductsModalLoading] = useState(false);
   const [newClient, setNewClient] = useState({
     company_name: '',
     contact_person: '',
@@ -214,6 +219,33 @@ export const Clients: React.FC = () => {
     }
   }, [showAssignModal, userRole]);
 
+  useEffect(() => {
+    if (showAssignProductsModal && clientForProducts && userRole === 'kam') {
+      setProductsModalLoading(true);
+      Promise.all([
+        apiService.listLoanProducts(true),
+        apiService.getAssignedProducts(clientForProducts.id),
+      ])
+        .then(([productsRes, assignedRes]) => {
+          if (productsRes.success && productsRes.data) {
+            const prods = (productsRes.data as any[]).map((p: any) => ({
+              id: p.productId || p.id,
+              name: p.productName || p['Product Name'] || p.name || p.id,
+            }));
+            setAllProducts(prods);
+          }
+          if (assignedRes.success && Array.isArray(assignedRes.data)) {
+            setSelectedProductIds(new Set(assignedRes.data as string[]));
+          }
+        })
+        .catch((err) => {
+          console.error('[AssignProducts] Error:', err);
+          alert(err.message || 'Failed to load products');
+        })
+        .finally(() => setProductsModalLoading(false));
+    }
+  }, [showAssignProductsModal, clientForProducts?.id, userRole]);
+
   const filteredClients = clients.filter(client => {
     // Search filter
     const matchesSearch = searchQuery === '' ||
@@ -301,6 +333,19 @@ export const Clients: React.FC = () => {
           >
             View Files
           </Button>
+          {userRole === 'kam' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={Package}
+              onClick={() => {
+                setClientForProducts(row);
+                setShowAssignProductsModal(true);
+              }}
+            >
+              Assign Products
+            </Button>
+          )}
           {userRole === 'credit_team' && (
             <Button
               size="sm"
@@ -657,6 +702,101 @@ export const Clients: React.FC = () => {
             loading={submitting}
           >
             {selectedKAMId ? 'Assign' : 'Unassign'}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Assign Products Modal (KAM only) */}
+      <Modal
+        isOpen={showAssignProductsModal}
+        onClose={() => {
+          setShowAssignProductsModal(false);
+          setClientForProducts(null);
+          setSelectedProductIds(new Set());
+        }}
+        size="md"
+      >
+        <ModalHeader onClose={() => setShowAssignProductsModal(false)}>
+          Assign Products to Client
+        </ModalHeader>
+        <ModalBody>
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-600">
+              Client: <strong>{clientForProducts?.company_name}</strong>
+            </p>
+            <p className="text-xs text-neutral-500">
+              Select which loan products this client can see and apply for. Clients only see products you assign here.
+            </p>
+            {productsModalLoading ? (
+              <div className="text-sm text-neutral-500 py-4">Loading products...</div>
+            ) : allProducts.length === 0 ? (
+              <div className="text-sm text-neutral-500 py-4">No loan products available.</div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto border border-neutral-200 rounded p-3 space-y-2">
+                {allProducts.map((product) => (
+                  <label
+                    key={product.id}
+                    className="flex items-center gap-2 p-2 border border-neutral-100 rounded hover:bg-neutral-50 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedProductIds.has(product.id)}
+                      onChange={(e) => {
+                        const next = new Set(selectedProductIds);
+                        if (e.target.checked) next.add(product.id);
+                        else next.delete(product.id);
+                        setSelectedProductIds(next);
+                      }}
+                      className="w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary"
+                    />
+                    <span className="text-sm text-neutral-700">{product.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowAssignProductsModal(false);
+              setClientForProducts(null);
+              setSelectedProductIds(new Set());
+            }}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={async () => {
+              if (!clientForProducts) return;
+              setSubmitting(true);
+              try {
+                const response = await apiService.assignProductsToClient(
+                  clientForProducts.id,
+                  Array.from(selectedProductIds)
+                );
+                if (response.success) {
+                  await fetchClients(true);
+                  setShowAssignProductsModal(false);
+                  setClientForProducts(null);
+                  setSelectedProductIds(new Set());
+                  alert('Products assigned successfully');
+                } else {
+                  alert(`Failed: ${response.error || 'Unknown error'}`);
+                }
+              } catch (error: any) {
+                alert(`Failed: ${error.message || 'Unknown error'}`);
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            disabled={submitting || productsModalLoading || allProducts.length === 0}
+            loading={submitting}
+          >
+            Save
           </Button>
         </ModalFooter>
       </Modal>

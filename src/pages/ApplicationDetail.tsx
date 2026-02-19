@@ -8,12 +8,12 @@ import { Badge } from '../components/ui/Badge';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
-import { MessageSquare, Download, Edit, Sparkles, RefreshCw, File, FileText, Image, Eye, ExternalLink, Grid3x3, List } from 'lucide-react';
+import { MessageSquare, Download, Edit, Sparkles, RefreshCw, File, FileText, Image, Eye, ExternalLink, Grid3x3, List, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
-import { apiService } from '../services/api';
+import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
 import { getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
 
@@ -95,8 +95,19 @@ export const ApplicationDetail: React.FC = () => {
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [submittingReplyForId, setSubmittingReplyForId] = useState<string | null>(null);
+  const [fieldIdToLabel, setFieldIdToLabel] = useState<Record<string, string>>({});
 
   const QUERY_EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+  /** Map old file values to human-readable for display */
+  const toDisplayValue = (v: unknown): string => {
+    if (v == null) return '';
+    const s = String(v);
+    if (s === 'added_to_link' || s === 'yes_added_to_folder') return 'Yes, Added to Folder';
+    if (s === 'to_be_shared' || s === 'awaiting_will_update') return 'Awaiting, Will Update Folder';
+    if (s === 'not_available') return 'Not Available';
+    return s;
+  };
   const sidebarItems = useSidebarItems();
 
   // Load application data ONLY on initial mount or when navigating to a different application
@@ -120,17 +131,66 @@ export const ApplicationDetail: React.FC = () => {
     }
   }, [userRole]);
 
+  // Fetch form config for old key mapping (field-* → human-readable label)
+  useEffect(() => {
+    if (!application) return;
+    const productId = (application as any).loan_product_id ?? (application as any).productId ?? (application as any)['Product ID'] ?? (application.loan_product as any)?.code ?? (application as any)['Loan Product'];
+    const clientId = (application as any).Client ?? (application as any).clientId ?? (typeof (application as any).client === 'string' ? (application as any).client : null);
+    if (!productId || typeof productId !== 'string') return;
+
+    const buildMap = (config: any[]) => {
+      const map: Record<string, string> = {};
+      (config || []).forEach((cat: any) => {
+        const categoryName = cat.categoryName || cat['Category Name'] || '';
+        (cat.fields || []).forEach((f: any) => {
+          const fid = f.fieldId || f['Field ID'] || f.id;
+          const label = f.label || f['Field Label'] || '';
+          if (fid && label) map[fid] = `${label} - ${categoryName}`;
+        });
+      });
+      setFieldIdToLabel(map);
+    };
+
+    const fetchConfig = () => {
+      if (typeof apiService.getFormConfig === 'function') {
+        return apiService.getFormConfig(productId);
+      }
+      if (clientId && typeof clientId === 'string' && typeof apiService.getPublicFormConfig === 'function') {
+        return apiService.getPublicFormConfig(clientId, productId);
+      }
+      return Promise.resolve({ success: false });
+    };
+    fetchConfig().then((res: ApiResponse<unknown>) => {
+      if (res.success && res.data) {
+        const raw = res.data;
+        const config = Array.isArray(raw) ? raw : Array.isArray((raw as Record<string, unknown>)?.categories) ? (raw as Record<string, unknown>).categories : [];
+        buildMap(Array.isArray(config) ? config : []);
+      }
+    }).catch(() => {
+      if (clientId && typeof clientId === 'string' && typeof apiService.getPublicFormConfig === 'function') {
+        apiService.getPublicFormConfig(clientId, productId).then((r: ApiResponse<unknown>) => {
+          if (r.success && r.data) {
+            const raw = r.data;
+            const config = Array.isArray(raw) ? raw : Array.isArray((raw as Record<string, unknown>)?.categories) ? (raw as Record<string, unknown>).categories : [];
+            buildMap(Array.isArray(config) ? config : []);
+          }
+        }).catch(() => {});
+      }
+    });
+  }, [application?.id, application?.loan_product, (application as any)?.loan_product_id, (application as any)?.productId, (application as any)?.Client]);
+
   const fetchApplicationDetails = async () => {
     try {
       setLoading(true);
       console.log(`[ApplicationDetail] Fetching application with ID: ${id}`);
       
-      const response = await apiService.getApplication(id!);
-      console.log(`[ApplicationDetail] Response:`, { success: response.success, hasData: !!response.data, error: response.error });
+      const response = await apiService.getApplication(id!) as ApiResponse<LoanApplication>;
+      const appData = response.data;
+      console.log(`[ApplicationDetail] Response:`, { success: response.success, hasData: !!appData, error: response.error });
       
-      if (response.success && response.data) {
-        console.log(`[ApplicationDetail] Application found:`, { id: response.data.id, fileId: response.data.fileId });
-        const d = response.data as Record<string, unknown>;
+      if (response.success && appData) {
+        console.log(`[ApplicationDetail] Application found:`, { id: appData.id, fileId: appData.fileId });
+        const d = appData as unknown as Record<string, unknown>;
         const rawForm = d.form_data ?? d.formData ?? d['Form Data'];
         let form_data: Record<string, unknown> = {};
         if (rawForm != null) {
@@ -168,9 +228,9 @@ export const ApplicationDetail: React.FC = () => {
               ? d.loan_product
               : { name: d.product ?? d['Loan Product'] ?? d.loanProduct ?? '', code: d.productId ?? d['Loan Product'] ?? '' },
         };
-        setApplication(normalized as import('../services/api').LoanApplication);
+        setApplication(normalized as unknown as import('../services/api').LoanApplication);
         // Set AI summary if available
-        setAiSummary((response.data.aiFileSummary || (response.data as Record<string, unknown>)['AI File Summary']) ?? null);
+        setAiSummary(String(appData.aiFileSummary ?? (appData as unknown as Record<string, unknown>)['AI File Summary'] ?? '').trim() || null);
       } else {
         console.error(`[ApplicationDetail] Error fetching application ${id}:`, response.error);
         // Check if it's an authentication error
@@ -647,14 +707,20 @@ export const ApplicationDetail: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-neutral-500">File Number</p>
                   <p className="font-semibold text-neutral-900">{application.file_number}</p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Client</p>
-                  <p className="font-semibold text-neutral-900">{application.client?.company_name}</p>
+                  <p className="font-semibold text-neutral-900">
+                    {typeof application.client === 'object' && application.client
+                      ? (application.client as import('../services/api').LoanApplicationClient).company_name
+                      : typeof application.client === 'string'
+                        ? application.client
+                        : ''}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Applicant Name</p>
@@ -662,7 +728,13 @@ export const ApplicationDetail: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Loan Product</p>
-                  <p className="font-semibold text-neutral-900">{application.loan_product?.name || ''}</p>
+                  <p className="font-semibold text-neutral-900">
+                    {typeof application.loan_product === 'object' && application.loan_product
+                      ? application.loan_product.name ?? ''
+                      : typeof application.loan_product === 'string'
+                        ? application.loan_product
+                        : ''}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">Requested Amount</p>
@@ -737,7 +809,7 @@ export const ApplicationDetail: React.FC = () => {
           </Card>
 
           {/* Documents Section - Enhanced for Credit Team */}
-          {application.documents && application.documents.length > 0 && (
+          {Array.isArray(application.documents) && application.documents.length > 0 && (
             <Card>
               <CardHeader className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -853,7 +925,7 @@ export const ApplicationDetail: React.FC = () => {
                       return (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-4 border-2 border-neutral-200 rounded-lg hover:border-brand-primary hover:shadow-sm transition-all"
+                          className="flex flex-wrap items-center justify-between gap-3 p-4 border-2 border-neutral-200 rounded-lg hover:border-brand-primary hover:shadow-sm transition-all"
                         >
                           <div className="flex items-center gap-4 flex-1">
                             {/* File Icon */}
@@ -954,7 +1026,7 @@ export const ApplicationDetail: React.FC = () => {
             </CardHeader>
             <CardContent>
               {(() => {
-                const rawForm = (application as Record<string, unknown>).form_data ?? (application as Record<string, unknown>).formData ?? (application as Record<string, unknown>)['Form Data'];
+                const rawForm = (application as unknown as Record<string, unknown>).form_data ?? (application as unknown as Record<string, unknown>).formData ?? (application as unknown as Record<string, unknown>)['Form Data'];
                 let formDataToShow: Record<string, unknown> = {};
                 if (rawForm != null) {
                   if (typeof rawForm === 'string') {
@@ -968,14 +1040,36 @@ export const ApplicationDetail: React.FC = () => {
                     formDataToShow = rawForm as Record<string, unknown>;
                   }
                 }
+                const getDisplayKey = (k: string) => {
+                  if (k === '_documentsFolderLink') return 'Documents Folder Link';
+                  if (/^field-/.test(k) && fieldIdToLabel[k]) return fieldIdToLabel[k];
+                  return k.replace(/_/g, ' ');
+                };
+                const entries = Object.entries(formDataToShow).filter(([k]) => k !== '_documentsFolderLink');
+                const folderLink = formDataToShow._documentsFolderLink;
                 return !formDataToShow || Object.keys(formDataToShow).length === 0 ? (
                   <p className="text-center text-neutral-500 py-6">No form data recorded</p>
                 ) : (
                   <div className="space-y-3">
-                    {Object.entries(formDataToShow).map(([key, value]) => (
-                      <div key={key} className="grid grid-cols-3 gap-2">
-                        <p className="text-sm text-neutral-500 capitalize">{key.replace(/_/g, ' ')}</p>
-                        <p className="col-span-2 text-sm text-neutral-900">{String(value)}</p>
+                    {folderLink != null && String(folderLink).trim() !== '' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-3 border-b border-neutral-200">
+                        <p className="text-sm text-neutral-500">Documents Folder Link</p>
+                        <p className="sm:col-span-2 text-sm text-neutral-900 break-all">
+                          <a
+                            href={String(folderLink).startsWith('http') ? String(folderLink) : `https://${String(folderLink)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-brand-primary hover:underline"
+                          >
+                            {String(folderLink)}
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                    {entries.map(([key, value]) => (
+                      <div key={key} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <p className="text-sm text-neutral-500">{getDisplayKey(key)}</p>
+                        <p className="sm:col-span-2 text-sm text-neutral-900">{toDisplayValue(value)}</p>
                       </div>
                     ))}
                   </div>
@@ -1250,6 +1344,105 @@ export const ApplicationDetail: React.FC = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Upload Status - document checklist from form_data */}
+          {(() => {
+            const rawForm = (application as unknown as Record<string, unknown>).form_data ?? (application as unknown as Record<string, unknown>).formData ?? (application as unknown as Record<string, unknown>)['Form Data'];
+            let formData: Record<string, unknown> = {};
+            if (rawForm != null) {
+              if (typeof rawForm === 'string') {
+                try {
+                  const parsed = JSON.parse(rawForm);
+                  formData = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
+                } catch {
+                  formData = {};
+                }
+              } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+                formData = rawForm as Record<string, unknown>;
+              }
+            }
+            const YES_VALUES = ['Yes, Added to Folder', 'added_to_link', 'yes_added_to_folder'];
+            const AWAITING_VALUES = ['Awaiting, Will Update Folder', 'to_be_shared', 'awaiting_will_update'];
+            const NOT_AVAILABLE_VALUES = ['Not Available', 'not_available'];
+            const getDisplayName = (key: string) => {
+              if (key === '_documentsFolderLink') return null;
+              const label = fieldIdToLabel[key] || key;
+              const beforeDash = label.split(' - ')[0];
+              return beforeDash || label;
+            };
+            const toStatus = (v: unknown): 'yes' | 'awaiting' | 'not_available' | null => {
+              const s = String(v ?? '').trim();
+              if (YES_VALUES.includes(s)) return 'yes';
+              if (AWAITING_VALUES.includes(s)) return 'awaiting';
+              if (NOT_AVAILABLE_VALUES.includes(s)) return 'not_available';
+              return null;
+            };
+            const yesItems: string[] = [];
+            const awaitingItems: string[] = [];
+            const notAvailableItems: string[] = [];
+            Object.entries(formData).forEach(([key, value]) => {
+              const status = toStatus(value);
+              const name = getDisplayName(key);
+              if (!name || status === null) return;
+              if (status === 'yes') yesItems.push(name);
+              else if (status === 'awaiting') awaitingItems.push(name);
+              else notAvailableItems.push(name);
+            });
+            const hasAny = yesItems.length > 0 || awaitingItems.length > 0 || notAvailableItems.length > 0;
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Upload Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {yesItems.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Added to folder</p>
+                        <ul className="space-y-1.5">
+                          {yesItems.map((name) => (
+                            <li key={name} className="flex items-center gap-2 text-sm text-success">
+                              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                              <span>{name}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {awaitingItems.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Awaiting</p>
+                        <ul className="space-y-1.5">
+                          {awaitingItems.map((name) => (
+                            <li key={name} className="flex items-center gap-2 text-sm text-neutral-600">
+                              <span className="w-4 h-4 flex-shrink-0 rounded-full border-2 border-neutral-400" />
+                              <span>{name}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {notAvailableItems.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Not available</p>
+                        <ul className="space-y-1.5">
+                          {notAvailableItems.map((name) => (
+                            <li key={name} className="flex items-center gap-2 text-sm text-error">
+                              <XCircle className="w-4 h-4 flex-shrink-0" />
+                              <span>{name}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {!hasAny && (
+                      <p className="text-center text-neutral-500 py-4 text-sm">No document upload status recorded</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* AI File Summary */}
           <Card>

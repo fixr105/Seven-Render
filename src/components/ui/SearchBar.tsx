@@ -22,7 +22,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full h-10 pl-10 pr-10 text-base bg-white border border-neutral-300 rounded
+        className="w-full min-h-[44px] h-10 pl-10 pr-10 text-base bg-white border border-neutral-300 rounded touch-manipulation
           transition-colors duration-200
           focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
       />

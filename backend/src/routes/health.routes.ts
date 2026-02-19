@@ -55,12 +55,33 @@ router.get('/health', async (req: Request, res: Response) => {
       message: `Heap used: ${memoryUsageMB.heapUsed}MB / ${memoryUsageMB.heapTotal}MB`,
     };
 
-    // n8n health check removed to avoid automated GET calls and exhausting n8n executions
+    // Optional n8n reachability check (env-gated to avoid exhausting n8n executions)
+    if (process.env.N8N_HEALTH_CHECK_ENABLED === 'true' && process.env.N8N_BASE_URL) {
+      const start = Date.now();
+      try {
+        const res = await fetch(`${process.env.N8N_BASE_URL}/webhook/useraccount`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000),
+        });
+        checks.n8n = {
+          status: res.ok ? 'healthy' : 'degraded',
+          latency: Date.now() - start,
+          message: res.ok ? 'Reachable' : `HTTP ${res.status}`,
+        };
+      } catch (e) {
+        checks.n8n = {
+          status: 'unhealthy',
+          latency: Date.now() - start,
+          message: (e as Error).message,
+        };
+      }
+    }
 
-    // Determine overall status
+    // Determine overall status (n8n is optional; its failure does not make app unhealthy)
+    const criticalChecks = Object.entries(checks).filter(([k]) => k !== 'n8n');
     const overallStatus = Object.values(checks).every(c => c.status === 'healthy')
       ? 'healthy'
-      : Object.values(checks).some(c => c.status === 'unhealthy')
+      : criticalChecks.some(([, c]) => c.status === 'unhealthy')
       ? 'unhealthy'
       : 'degraded';
 

@@ -18,6 +18,8 @@ router.get('/clients', kamController.listClients.bind(kamController));
 router.post('/clients', kamController.createClient.bind(kamController));
 router.get('/clients/:id', kamController.getClient.bind(kamController));
 router.patch('/clients/:id/modules', kamController.updateClientModules.bind(kamController));
+router.get('/clients/:id/assigned-products', kamController.getAssignedProducts.bind(kamController));
+router.put('/clients/:id/assigned-products', kamController.assignProductsToClient.bind(kamController));
 router.get('/clients/:id/form-mappings', kamController.getFormMappings.bind(kamController));
 router.post('/clients/:id/form-mappings', kamController.createFormMapping.bind(kamController));
 router.get('/loan-applications', kamController.listApplications.bind(kamController));

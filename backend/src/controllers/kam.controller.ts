@@ -602,6 +602,87 @@ export class KAMController {
   }
 
   /**
+   * GET /kam/clients/:id/assigned-products
+   * Get product IDs assigned to a client (KAM only, for their managed clients)
+   */
+  async getAssignedProducts(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const clients = await n8nClient.fetchTable('Clients');
+      const client = clients.find((c: any) => c.id === id || c['Client ID'] === id);
+      if (!client) {
+        res.status(404).json({ success: false, error: 'Client not found' });
+        return;
+      }
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const managedIds = await rbacFilterService.getKAMManagedClientIds(req.user!.kamId!);
+      const isManaged = managedIds.some((mid) => matchIds(mid, id));
+      if (!isManaged) {
+        res.status(403).json({ success: false, error: 'Client not managed by you' });
+        return;
+      }
+      const raw = (client['Assigned Products'] || client.assignedProducts || '').toString().trim();
+      const productIds = raw ? raw.split(/[,\s]+/).map((p: string) => p.trim()).filter(Boolean) : [];
+      res.json({ success: true, data: productIds });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch assigned products',
+      });
+    }
+  }
+
+  /**
+   * PUT /kam/clients/:id/assigned-products
+   * Assign products to a client. KAM only, for their managed clients.
+   * Body: { productIds: string[] }
+   */
+  async assignProductsToClient(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { productIds } = req.body;
+      const clients = await n8nClient.fetchTable('Clients');
+      const client = clients.find((c: any) => c.id === id || c['Client ID'] === id);
+      if (!client) {
+        res.status(404).json({ success: false, error: 'Client not found' });
+        return;
+      }
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const managedIds = await rbacFilterService.getKAMManagedClientIds(req.user!.kamId!);
+      const isManaged = managedIds.some((mid) => matchIds(mid, id));
+      if (!isManaged) {
+        res.status(403).json({ success: false, error: 'Client not managed by you' });
+        return;
+      }
+      const ids = Array.isArray(productIds)
+        ? productIds.map((p: any) => String(p).trim()).filter(Boolean)
+        : [];
+      const assignedProducts = ids.join(', ');
+      const updateData = { ...client, 'Assigned Products': assignedProducts };
+      await n8nClient.postClient(updateData);
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'assign_products_to_client',
+        'Description/Details': `Assigned ${ids.length} product(s) to client ${client['Client ID'] || id}: ${assignedProducts || '(none)'}`,
+        'Target Entity': 'client',
+      });
+      res.json({
+        success: true,
+        message: 'Products assigned successfully',
+        data: ids,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to assign products',
+      });
+    }
+  }
+
+  /**
    * GET /kam/clients/:id
    * Get client details including modules and settings (KAM only)
    */

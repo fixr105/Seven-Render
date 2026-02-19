@@ -42,9 +42,9 @@ echo "  - VITE_API_BASE_URL (production)"
 echo ""
 read -p "Press Enter to continue with deployment..."
 
-# Step 5: Deploy
-echo "🚀 Deploying to Vercel..."
-vercel --prod
+# Step 5: Deploy (--force skips build cache for clean deploy)
+echo "🚀 Deploying to Vercel (clean deploy, no cache)..."
+VERCEL_FORCE_NO_BUILD_CACHE=1 vercel --prod --force
 
 if [ $? -eq 0 ]; then
     echo "✅ Deployment successful!"

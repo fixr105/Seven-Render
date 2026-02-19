@@ -10,7 +10,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, helperText, options, className = '', required, ...props }, ref) => {
     const selectClasses = `
-      w-full h-10 px-3 text-base bg-white border rounded
+      w-full min-h-[44px] h-10 px-3 text-base bg-white border rounded touch-manipulation
       transition-colors duration-200
       focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary
       disabled:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-500

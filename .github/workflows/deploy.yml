@@ -35,8 +35,10 @@ jobs:
       
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
+        env:
+          VERCEL_FORCE_NO_BUILD_CACHE: '1'
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
+          vercel-args: '--prod --force'

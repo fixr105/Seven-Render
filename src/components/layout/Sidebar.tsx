@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
           <div className="flex items-center justify-end p-4">
             <button
               onClick={onToggle}
-              className="p-1 rounded hover:bg-brand-primary/20 transition-colors cursor-none-hover"
+              className="p-2 min-h-[44px] min-w-[44px] rounded hover:bg-brand-primary/20 transition-colors cursor-none-hover touch-manipulation"
               aria-label="Close menu"
             >
               <X className="w-5 h-5" />

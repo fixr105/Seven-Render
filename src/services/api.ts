@@ -87,11 +87,11 @@ export interface DashboardSummary {
 export interface LoanApplication {
   id: string;
   fileId: string;
-  client: string;
+  client: string | LoanApplicationClient;
   applicantName: string;
   loanProduct: string;
   requestedLoanAmount: string;
-  documents: string;
+  documents: string | Array<{ fileName?: string; url?: string; fieldId?: string }>;
   status: string;
   assignedCreditAnalyst?: string;
   assignedNBFC?: string;
@@ -100,10 +100,32 @@ export interface LoanApplication {
   lenderDecisionRemarks?: string;
   approvedLoanAmount?: string;
   aiFileSummary?: string;
-  formData?: any;
+  formData?: Record<string, unknown>;
   creationDate: string;
   submittedDate?: string;
   lastUpdated: string;
+  /** API snake_case aliases (backend returns snake_case) */
+  file_number?: string;
+  applicant_name?: string;
+  loan_product?: string | { name?: string; code?: string };
+  requested_loan_amount?: number;
+  approved_loan_amount?: number;
+  created_at?: string;
+  updated_at?: string;
+  assignedKAMName?: string;
+  assigned_nbfc_id?: string;
+  assigned_nbfc?: { name?: string };
+  assigned_credit_analyst?: string;
+  lender_decision_status?: string;
+  lender_decision_date?: string;
+  lender_decision_remarks?: string;
+  disbursedAmount?: string;
+  Status?: string;
+}
+
+/** Extended client type for application detail (object shape) */
+export interface LoanApplicationClient {
+  company_name?: string;
 }
 
 export interface FormConfig {
@@ -357,8 +379,9 @@ class ApiService {
         if (isRelativeUrl) {
           errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-dash.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
         } else {
+          const origin = typeof window !== 'undefined' ? window.location.origin : '';
           const corsHint = endpoint.includes('/auth/login')
-            ? '\n\nFor login: ensure the backend CORS_ORIGIN (Fly.io secrets) includes your exact frontend URL (e.g. https://seven-dashboard-seven.vercel.app with no trailing slash), then redeploy the backend.'
+            ? `\n\nFor login at ${origin || 'this site'}: the backend CORS_ORIGIN (Fly.io) must include your frontend URL. Run:\n  fly secrets set CORS_ORIGIN="${origin || 'https://lms.sevenfincorp.com'}" --app seven-dash\nThen Fly will redeploy automatically.`
             : '';
           errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration (backend must allow your frontend origin)\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.${corsHint}`;
         }
@@ -591,6 +614,7 @@ class ApiService {
     warnings?: string[]; // Module 2: Validation warnings
     duplicateFound?: { fileId: string; status: string } | null; // Module 2: Duplicate detection
     missingFields?: Array<{ fieldId: string; label: string }>; // Validation errors for missing required fields
+    formatErrors?: Array<{ fieldId: string; message: string }>; // Format validation errors (e.g. PAN)
   }>> {
     return this.request('/loan-applications', {
       method: 'POST',
@@ -745,6 +769,26 @@ class ApiService {
     return this.request(`/kam/clients/${clientId}/modules`, {
       method: 'PATCH',
       body: JSON.stringify({ modules }),
+    });
+  }
+
+  /**
+   * Get product IDs assigned to a client (KAM only)
+   */
+  async getAssignedProducts(clientId: string): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>(`/kam/clients/${clientId}/assigned-products`);
+  }
+
+  /**
+   * Assign products to a client (KAM only)
+   */
+  async assignProductsToClient(
+    clientId: string,
+    productIds: string[]
+  ): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>(`/kam/clients/${clientId}/assigned-products`, {
+      method: 'PUT',
+      body: JSON.stringify({ productIds }),
     });
   }
 
@@ -1228,6 +1272,13 @@ class ApiService {
   }
 
   /**
+   * Get KAM ledger for a managed client (read-only view)
+   */
+  async getKAMLedger(clientId: string): Promise<ApiResponse<{ entries: CommissionLedgerEntry[]; currentBalance: number; clientId: string }>> {
+    return this.request(`/kam/ledger?clientId=${encodeURIComponent(clientId)}`);
+  }
+
+  /**
    * Create ledger query/dispute
    */
   async createLedgerQuery(
@@ -1492,6 +1543,8 @@ class ApiService {
     description?: string;
     active: boolean;
     requiredDocumentsFields?: string;
+    assignedKamIds?: string[];
+    assignedKamNames?: string[];
   }>>> {
     const query = activeOnly ? '?activeOnly=true' : '';
     return this.request(`/loan-products${query}`);
@@ -1507,6 +1560,8 @@ class ApiService {
     description?: string;
     active: boolean;
     requiredDocumentsFields?: string;
+    assignedKamIds?: string[];
+    assignedKamNames?: string[];
   }>> {
     return this.request(`/loan-products/${productId}`);
   }

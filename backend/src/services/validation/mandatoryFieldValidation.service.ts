@@ -74,16 +74,22 @@ async function loadFormFieldsConfig(
     type: string;
     isMandatory: boolean;
     category: string;
+    categoryName: string;
+    displayKey: string;
   }> = [];
 
   for (const cat of config.categories) {
+    const categoryName = (cat as any).categoryName || cat.categoryId || 'Documents';
     for (const f of cat.fields) {
+      const displayKey = `${f.label} - ${categoryName}`;
       fieldConfigs.push({
         fieldId: f.fieldId,
         label: f.label,
         type: f.type,
         isMandatory: f.isRequired,
         category: cat.categoryId,
+        categoryName,
+        displayKey,
       });
     }
   }
@@ -122,9 +128,14 @@ export async function validateMandatoryFields(
   const formatErrors: Array<{ fieldId: string; label: string; message: string }> = [];
 
   mandatoryFields.forEach((field) => {
-    const value = formData[field.fieldId];
-    // For file fields (3-checkbox): added_to_link or to_be_shared counts as satisfied
-    const fileFieldSatisfied = field.type === 'file' && (value === 'added_to_link' || value === 'to_be_shared');
+    const value = formData[(field as any).displayKey] ?? formData[field.fieldId];
+    // File fields: satisfied by new values (Yes, Added to Folder, Awaiting, Will Update Folder)
+    // or legacy values (added_to_link, to_be_shared)
+    const fileFieldSatisfied = field.type === 'file' && (
+      value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
+      value === 'added_to_link' || value === 'to_be_shared' ||
+      value === 'yes_added_to_folder' || value === 'awaiting_will_update'
+    );
 
     // Format validation for PAN fields (when value is present)
     if (isPanField(field) && value && typeof value === 'string' && value.trim().length > 0) {
@@ -163,7 +174,7 @@ export async function validateMandatoryFields(
   const allFieldConfigs = await loadFormFieldsConfig(clientId, productId);
   allFieldConfigs.forEach((field) => {
     if (!isPanField(field)) return;
-    const value = formData[field.fieldId];
+    const value = formData[(field as any).displayKey] ?? formData[field.fieldId];
     if (!value || typeof value !== 'string' || value.trim().length === 0) return;
     if (formatErrors.some((e) => e.fieldId === field.fieldId)) return;
     if (!isValidPan(value)) {

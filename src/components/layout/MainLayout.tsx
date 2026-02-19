@@ -37,8 +37,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-100 relative">
-      {/* Logo in corner intersection - fills the area where sidebar and topbar meet */}
-      <div className="absolute top-0 left-0 z-50 w-64 h-16 bg-brand-primary flex items-center justify-center">
+      {/* Logo in corner intersection - fills the area where sidebar and topbar meet; hidden on mobile so TopBar hamburger is accessible */}
+      <div className="hidden lg:flex absolute top-0 left-0 z-50 w-64 h-16 bg-brand-primary items-center justify-center">
         <img src={logo} alt="SEVEN FINCORP Logo" className="h-full w-full object-contain p-3" />
       </div>
 

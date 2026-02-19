@@ -2,11 +2,13 @@
 
 This document shows the exact fields that each POST handler sends to n8n, matching the n8n schema definitions.
 
+**All webhook calls go through the backend** at `backend/src/services/airtable/n8nClient.ts` and `backend/src/services/airtable/n8nEndpoints.ts`. The frontend never calls n8n directly.
+
 ## ✅ All Webhooks - Field Mappings
 
 ### 1. POSTLOG (Admin Activity Log)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/POSTLOG`  
-**Handler:** `src/lib/adminActivityLogPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/POSTLOG`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Activity ID`
@@ -17,8 +19,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Target Entity`
 
 ### 2. POSTCLIENTFORMMAPPING (Client Form Mapping)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/POSTCLIENTFORMMAPPING`  
-**Handler:** `src/lib/clientFormMappingPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/POSTCLIENTFORMMAPPING`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Mapping ID`
@@ -28,8 +30,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Display Order`
 
 ### 3. COMISSIONLEDGER (Commission Ledger)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/COMISSIONLEDGER`  
-**Handler:** `src/lib/commissionLedgerPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/COMISSIONLEDGER`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Ledger Entry ID`
@@ -44,8 +46,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Payout Request`
 
 ### 4. CREDITTEAMUSERS (Credit Team Users)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS`  
-**Handler:** `src/lib/creditTeamUsersPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/CREDITTEAMUSERS`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Credit User ID`
@@ -56,8 +58,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Status`
 
 ### 5. DAILYSUMMARY (Daily Summary Reports)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/DAILYSUMMARY`  
-**Handler:** `src/lib/dailySummaryPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/DAILYSUMMARY`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Report Date`
@@ -66,8 +68,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Delivered To` (array or string)
 
 ### 6. FILEAUDITLOGGING (File Audit Log)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/FILEAUDITLOGGING`  
-**Handler:** `src/lib/fileAuditLogPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/Fileauditinglog`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Log Entry ID`
@@ -79,9 +81,9 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Target User/Role`
 - `Resolved`
 
-### 7. FormCategory (Form Fields)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/FormCategory`  
-**Handler:** `src/lib/formFieldsPost.ts`  
+### 7. FormFields (Form Fields)
+**Webhook:** `{N8N_BASE_URL}/webhook/FormFields`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Field ID`
@@ -95,8 +97,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Active`
 
 ### 8. FormCategory (Form Categories)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/FormCategory`  
-**Handler:** `src/lib/formCategoriesPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/FormCategory`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Category ID`
@@ -106,8 +108,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Active`
 
 ### 9. KAMusers (KAM Users)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/KAMusers`  
-**Handler:** `src/lib/kamUsersPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/KAMusers`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `KAM ID`
@@ -118,9 +120,9 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Role`
 - `Status`
 
-### 10. applications (Loan Applications)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/applications`  
-**Handler:** `src/lib/loanApplicationsPost.ts`  
+### 10. loanapplications (Loan Applications)
+**Webhook:** `{N8N_BASE_URL}/webhook/loanapplications`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `File ID`
@@ -143,8 +145,8 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Last Updated`
 
 ### 11. adduser (User Accounts)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/adduser`  
-**Handler:** `src/lib/userAccountsPost.ts`  
+**Webhook:** `{N8N_BASE_URL}/webhook/adduser`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Username`
@@ -154,9 +156,9 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 - `Last Login`
 - `Account Status`
 
-### 12. applications (NBFC Partners)
-**Webhook:** `https://fixrrahul.app.n8n.cloud/webhook/applications`  
-**Handler:** `src/lib/nbfcPartnersPost.ts`  
+### 12. NBFCPartners (NBFC Partners)
+**Webhook:** `{N8N_BASE_URL}/webhook/NBFCPartners`  
+**Handler:** `backend/src/services/airtable/n8nClient.ts`  
 **Fields Sent:**
 - `id` (for matching)
 - `Lender ID`
@@ -168,26 +170,9 @@ This document shows the exact fields that each POST handler sends to n8n, matchi
 
 ---
 
-## ✅ Test Results
-
-All 12 webhooks tested successfully:
-- ✅ POSTLOG
-- ✅ POSTCLIENTFORMMAPPING
-- ✅ COMISSIONLEDGER
-- ✅ CREDITTEAMUSERS
-- ✅ DAILYSUMMARY
-- ✅ FILEAUDITLOGGING
-- ✅ FormCategory (Form Fields)
-- ✅ FormCategory (Form Categories)
-- ✅ KAMusers
-- ✅ applications (Loan Applications)
-- ✅ adduser
-- ✅ applications (NBFC Partners)
-
 ## 📝 Notes
 
 - All handlers send **ONLY** the exact fields defined in the n8n schema
 - The `id` field is always included for matching/upsert operations
-- All handlers are configured to send data in the exact format expected by n8n
-- Test script: `test-all-webhooks.js` - can be used to test all webhooks sequentially
-
+- All webhook calls go through the backend API; the frontend never calls n8n directly
+- See `backend/API_ENDPOINTS_WEBHOOK_MAPPING.md` for full API-to-webhook flow documentation

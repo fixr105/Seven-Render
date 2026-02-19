@@ -2,67 +2,104 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 
-export const useLedger = () => {
+export interface UseLedgerOptions {
+  /** For KAM: client ID to fetch ledger for. When null/undefined, no fetch. */
+  clientId?: string | null;
+}
+
+export const useLedger = (options?: UseLedgerOptions) => {
   const { user } = useAuth();
   const userRole = user?.role || null;
+  const kamClientId = options?.clientId ?? null;
   const [entries, setEntries] = useState<Record<string, unknown>[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<unknown[]>([]);
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchLedger = useCallback(async () => {
-    if (userRole !== 'client') return;
-    
-    try {
-      setLoading(true);
-      const response = await apiService.getClientLedger();
-      
-      if (response.success && response.data) {
-        const ledgerData = response.data as Record<string, unknown> | unknown[];
-        // Handle both direct array response and nested data structure
-        const entriesList = Array.isArray(ledgerData)
-          ? ledgerData
-          : ((ledgerData as Record<string, unknown>).entries as Record<string, unknown>[] | undefined) || [];
-
-        // Sort by date (oldest first for running balance calculation)
-        const sortedEntries = [...entriesList].sort((a, b) => {
-          const entryA = a as Record<string, unknown>;
-          const entryB = b as Record<string, unknown>;
-          const dateA = String(entryA.Date ?? entryA.date ?? '');
-          const dateB = String(entryB.Date ?? entryB.date ?? '');
-          return dateA.localeCompare(dateB);
-        });
-
-        // Calculate running balance (oldest to newest)
-        let runningBalance = 0;
-        const entriesWithBalance = sortedEntries.map((entry) => {
-          const e = entry as Record<string, unknown>;
-          const payoutAmount = parseFloat(String(e['Payout Amount'] ?? e.payoutAmount ?? '0'));
-          runningBalance += payoutAmount;
-          return {
-            ...e,
-            runningBalance,
-            formattedAmount: formatCurrency(payoutAmount),
-            formattedBalance: formatCurrency(runningBalance),
-          };
-        });
-        
-        // Reverse to show newest first
-        setEntries(entriesWithBalance.reverse());
-        setBalance(runningBalance);
-      } else {
-        console.error('Error fetching ledger:', response.error);
+    if (userRole === 'client') {
+      try {
+        setLoading(true);
+        const response = await apiService.getClientLedger();
+        if (response.success && response.data) {
+          const ledgerData = response.data as Record<string, unknown> | unknown[];
+          const entriesList = Array.isArray(ledgerData)
+            ? ledgerData
+            : ((ledgerData as Record<string, unknown>).entries as Record<string, unknown>[] | undefined) || [];
+          const sortedEntries = [...entriesList].sort((a, b) => {
+            const entryA = a as Record<string, unknown>;
+            const entryB = b as Record<string, unknown>;
+            const dateA = String(entryA.Date ?? entryA.date ?? '');
+            const dateB = String(entryB.Date ?? entryB.date ?? '');
+            return dateA.localeCompare(dateB);
+          });
+          let runningBalance = 0;
+          const entriesWithBalance = sortedEntries.map((entry) => {
+            const e = entry as Record<string, unknown>;
+            const payoutAmount = parseFloat(String(e['Payout Amount'] ?? e.payoutAmount ?? '0'));
+            runningBalance += payoutAmount;
+            return {
+              ...e,
+              runningBalance,
+              formattedAmount: formatCurrency(payoutAmount),
+              formattedBalance: formatCurrency(runningBalance),
+            };
+          });
+          setEntries(entriesWithBalance.reverse());
+          setBalance(runningBalance);
+        } else {
+          setEntries([]);
+          setBalance(0);
+        }
+      } catch (error) {
+        console.error('Exception in fetchLedger:', error);
         setEntries([]);
         setBalance(0);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Exception in fetchLedger:', error);
+      return;
+    }
+    if (userRole === 'kam' && kamClientId) {
+      try {
+        setLoading(true);
+        const response = await apiService.getKAMLedger(kamClientId);
+        if (response.success && response.data) {
+          const data = response.data as unknown as { entries?: Record<string, unknown>[]; currentBalance?: number };
+          const entriesList = data.entries || [];
+          const entriesWithBalance = entriesList.map((entry) => {
+            const e = entry as Record<string, unknown>;
+            const payoutAmount = parseFloat(String(e['Payout Amount'] ?? e.payoutAmount ?? '0'));
+            const runningBalance = e.balance ?? e.runningBalance ?? 0;
+            return {
+              ...e,
+              runningBalance,
+              formattedAmount: formatCurrency(payoutAmount),
+              formattedBalance: formatCurrency(Number(runningBalance)),
+            };
+          });
+          setEntries(entriesWithBalance);
+          setBalance(Number(data.currentBalance ?? 0));
+        } else {
+          setEntries([]);
+          setBalance(0);
+        }
+      } catch (error) {
+        console.error('Exception in fetchKAMLedger:', error);
+        setEntries([]);
+        setBalance(0);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    if (userRole === 'kam' && !kamClientId) {
       setEntries([]);
       setBalance(0);
-    } finally {
       setLoading(false);
+      return;
     }
-  }, [userRole]);
+  }, [userRole, kamClientId]);
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-IN', {
@@ -93,17 +130,19 @@ export const useLedger = () => {
     }
   }, [userRole]);
 
-  // Fetch on mount (including SPA navigation to Ledger) and when role changes. See docs/ID_AND_RBAC_CONTRACT.md.
+  // Fetch on mount (including SPA navigation to Ledger) and when role/clientId changes.
   useEffect(() => {
     if (userRole === 'client') {
       fetchLedger();
       fetchPayoutRequests();
     } else if (userRole === 'credit_team') {
       fetchPayoutRequests().finally(() => setLoading(false));
+    } else if (userRole === 'kam') {
+      fetchLedger();
     } else {
       setLoading(false);
     }
-  }, [userRole, fetchLedger, fetchPayoutRequests]);
+  }, [userRole, kamClientId, fetchLedger, fetchPayoutRequests]);
 
   const requestPayout = async (amount?: number, full?: boolean) => {
     try {

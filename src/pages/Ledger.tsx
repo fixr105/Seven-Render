@@ -1,25 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
 import { MessageSquare, Send } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useLedger } from '../hooks/useLedger';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
+import { apiService } from '../services/api';
 
 export const Ledger: React.FC = () => {
   const { user } = useAuth();
   const userRole = user?.role || null;
-  
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
+
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     return '';
   };
-  const { entries, balance, loading, requestPayout, raiseQuery, flagPayout } = useLedger();
+
+  const ledgerOptions = userRole === 'kam' ? { clientId: selectedClientId || null } : undefined;
+  const { entries, balance, loading, requestPayout, raiseQuery, flagPayout } = useLedger(ledgerOptions);
+
+  useEffect(() => {
+    if (userRole === 'kam') {
+      setClientsLoading(true);
+      apiService.listClients()
+        .then((res) => {
+          if (res.success && res.data) {
+            const list = (res.data as any[]).map((c: any) => ({
+              id: c.id || c['Client ID'] || '',
+              name: c.name || c.company_name || c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
+            })).filter((c) => c.id);
+            setClients(list);
+            if (list.length > 0) {
+              setSelectedClientId((prev) => (prev ? prev : list[0].id));
+            }
+          }
+        })
+        .finally(() => setClientsLoading(false));
+    }
+  }, [userRole]);
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showQueryModal, setShowQueryModal] = useState(false);
@@ -148,18 +175,50 @@ export const Ledger: React.FC = () => {
         onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
+        {/* KAM: Client selector */}
+        {userRole === 'kam' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Select Client</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {clientsLoading ? (
+                <p className="text-sm text-neutral-500">Loading clients...</p>
+              ) : clients.length === 0 ? (
+                <p className="text-sm text-neutral-500">No clients assigned to you.</p>
+              ) : (
+                <Select
+                  label="Client"
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  options={[
+                    { value: '', label: 'Select a client...' },
+                    ...clients.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Balance Summary Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Commission Balance</CardTitle>
+            <CardTitle>
+              {userRole === 'kam' ? 'Client Commission Balance' : 'Commission Balance'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-neutral-600 mb-1">Current Balance</p>
-                <p className={`text-3xl font-bold ${balance >= 0 ? 'text-success' : 'text-error'}`}>
-                  {formatCurrency(balance)}
-                </p>
+                {userRole === 'kam' && !selectedClientId ? (
+                  <p className="text-neutral-500">Select a client to view their commission ledger</p>
+                ) : (
+                  <p className={`text-3xl font-bold ${balance >= 0 ? 'text-success' : 'text-error'}`}>
+                    {formatCurrency(balance)}
+                  </p>
+                )}
               </div>
               {userRole === 'client' && balance > 0 && (
                 <Button
@@ -189,8 +248,12 @@ export const Ledger: React.FC = () => {
                 <p className="text-sm text-neutral-600">Loading ledger entries...</p>
               </div>
             ) : entries.length === 0 ? (
-          <div className="text-center py-8">
-                <p className="text-neutral-600">No ledger entries found</p>
+              <div className="text-center py-8">
+                <p className="text-neutral-600">
+                  {userRole === 'kam' && !selectedClientId
+                    ? 'Select a client to view their commission ledger'
+                    : 'No ledger entries found'}
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">

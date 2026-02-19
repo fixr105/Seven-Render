@@ -58,12 +58,12 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="flex items-center gap-4 pl-4 lg:pl-64 flex-1 min-w-0">
           <button
             onClick={onMenuToggle}
-            className="lg:hidden p-2 rounded hover:bg-neutral-100 transition-colors"
+            className="lg:hidden p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
             aria-label="Toggle menu"
           >
             <Menu className="w-5 h-5 text-neutral-700" />
           </button>
-          <h1 className="text-xl font-semibold text-neutral-900">{title}</h1>
+          <h1 className="text-xl font-semibold text-neutral-900 truncate">{title}</h1>
         </div>
 
         {/* Right section */}
@@ -72,7 +72,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded hover:bg-neutral-100 transition-colors"
+              className="relative p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5 text-neutral-700" />
@@ -90,7 +90,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => setShowNotifications(false)}
                 />
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-level-2 z-50 max-h-96 overflow-y-auto border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-level-2 z-50 max-h-96 overflow-y-auto border border-neutral-200">
                   <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-neutral-900">Notifications</h3>
                     {notificationCount > 0 && onMarkAllAsRead && (
@@ -153,7 +153,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="flex items-center gap-2 p-2 rounded hover:bg-neutral-100 transition-colors"
+              className="flex items-center gap-2 p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
               aria-label="User menu"
             >
               <div className="w-8 h-8 bg-brand-primary rounded-full flex items-center justify-center">
@@ -168,7 +168,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => setShowProfileMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-level-2 z-50 py-1 border border-neutral-200">
+                <div className="absolute right-0 mt-2 w-48 min-w-[12rem] max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-level-2 z-50 py-1 border border-neutral-200">
                   <div className="px-4 py-2 border-b border-neutral-200">
                     <p className="text-sm font-semibold text-neutral-900">{userName}</p>
                   </div>

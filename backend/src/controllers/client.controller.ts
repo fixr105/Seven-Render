@@ -309,21 +309,35 @@ export class ClientController {
         if (matchingClient.clientId) acceptedClientIds.add(matchingClient.clientId.toString().trim());
       }
 
-      const { getProductIdsWithDocuments } = await import('../services/formConfig/simpleFormConfig.service.js');
-      const [productDocIds, products] = await Promise.all([
-        getProductIdsWithDocuments(),
-        n8nClient.fetchTable('Loan Products', true),
-      ]);
-      const productEmbeddedIds = (products as any[])
-        .filter((p) => Object.keys(p).some((k) => /^Section\s+\d+$/i.test(k)))
-        .map((p) => (p['Product ID'] || p.productId || p.id || '').toString().trim())
-        .filter(Boolean);
-      const productIds = [...new Set([...productDocIds, ...productEmbeddedIds])];
+      // If client has Assigned Products, return only those (KAM-assigned products)
+      const assignedProductsRaw = (matchingClient?.['Assigned Products'] || matchingClient?.assignedProducts || '').toString().trim();
+      const assignedProductIds = assignedProductsRaw
+        ? assignedProductsRaw.split(/[,\s]+/).map((p: string) => p.trim()).filter(Boolean)
+        : [];
 
-      console.log(
-        `[getConfiguredProducts] Client ${authClientId} (acceptedIds: ${Array.from(acceptedClientIds).join(', ')}) has ${productIds.length} configured products:`,
-        productIds
-      );
+      let productIds: string[];
+      if (assignedProductIds.length > 0) {
+        productIds = assignedProductIds;
+        console.log(
+          `[getConfiguredProducts] Client ${authClientId} has ${productIds.length} KAM-assigned products:`,
+          productIds
+        );
+      } else {
+        const { getProductIdsWithDocuments } = await import('../services/formConfig/simpleFormConfig.service.js');
+        const [productDocIds, products] = await Promise.all([
+          getProductIdsWithDocuments(),
+          n8nClient.fetchTable('Loan Products', true),
+        ]);
+        const productEmbeddedIds = (products as any[])
+          .filter((p) => Object.keys(p).some((k) => /^Section\s+\d+$/i.test(k)))
+          .map((p) => (p['Product ID'] || p.productId || p.id || '').toString().trim())
+          .filter(Boolean);
+        productIds = [...new Set([...productDocIds, ...productEmbeddedIds])];
+        console.log(
+          `[getConfiguredProducts] Client ${authClientId} (no Assigned Products) has ${productIds.length} configured products:`,
+          productIds
+        );
+      }
 
       res.json({
         success: true,

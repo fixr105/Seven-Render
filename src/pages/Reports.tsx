@@ -39,9 +39,9 @@ export const Reports: React.FC = () => {
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Fetch on mount (including SPA navigation) and via Refresh when credit_team or admin.
+  // Fetch on mount (including SPA navigation) when credit_team, admin, or kam (backend allows KAM via requireCreditOrKAM).
   useEffect(() => {
-    if (userRole === 'credit_team' || userRole === 'admin') {
+    if (userRole === 'credit_team' || userRole === 'admin' || userRole === 'kam') {
       fetchReports();
       fetchLatestReport();
     } else {
@@ -156,8 +156,8 @@ export const Reports: React.FC = () => {
     }
   };
 
-  // Only show reports page to credit team and admin
-  if (userRole !== 'credit_team' && userRole !== 'admin') {
+  // Restrict to credit_team, admin, and kam (client, nbfc get Access Restricted)
+  if (userRole !== 'credit_team' && userRole !== 'admin' && userRole !== 'kam') {
     return (
       <MainLayout
         sidebarItems={sidebarItems}
@@ -180,7 +180,7 @@ export const Reports: React.FC = () => {
               <BarChart3 className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-neutral-900 mb-2">Access Restricted</h3>
               <p className="text-neutral-600">
-                Reports are only available to Credit Team and Administrators.
+                Reports are only available to Credit Team, KAM, and Administrators.
               </p>
             </div>
           </CardContent>
@@ -221,27 +221,31 @@ export const Reports: React.FC = () => {
               >
                 Refresh
               </Button>
-              <Button
-                variant="primary"
-                icon={Mail}
-                onClick={handleGenerateReport}
-                loading={generating}
-                disabled={generating}
-              >
-                Generate Today's Report
-              </Button>
+              {(userRole === 'credit_team' || userRole === 'admin') && (
+                <Button
+                  variant="primary"
+                  icon={Mail}
+                  onClick={handleGenerateReport}
+                  loading={generating}
+                  disabled={generating}
+                >
+                  Generate Today&apos;s Report
+                </Button>
+              )}
             </div>
           </div>
-          <div className="max-w-md">
-            <Input
-              id="email-recipients"
-              type="text"
-              label="Email to (optional)"
-              placeholder="e.g. manager@company.com, team@company.com"
-              value={emailRecipients}
-              onChange={(e) => setEmailRecipients(e.target.value)}
-            />
-          </div>
+          {(userRole === 'credit_team' || userRole === 'admin') && (
+            <div className="max-w-md">
+              <Input
+                id="email-recipients"
+                type="text"
+                label="Email to (optional)"
+                placeholder="e.g. manager@company.com, team@company.com"
+                value={emailRecipients}
+                onChange={(e) => setEmailRecipients(e.target.value)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Latest report */}
@@ -296,9 +300,11 @@ export const Reports: React.FC = () => {
               <div className="text-center py-6">
                 <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                 <p className="text-neutral-600 mb-3">No report generated yet.</p>
-                <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
-                  Generate Today&apos;s Report
-                </Button>
+                {(userRole === 'credit_team' || userRole === 'admin') && (
+                  <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
+                    Generate Today&apos;s Report
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
@@ -331,9 +337,11 @@ export const Reports: React.FC = () => {
                 <p className="text-neutral-600 mb-4">
                   No daily summary reports have been generated yet.
                 </p>
-                <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
-                  Generate First Report
-                </Button>
+                {(userRole === 'credit_team' || userRole === 'admin') && (
+                  <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
+                    Generate First Report
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-4">

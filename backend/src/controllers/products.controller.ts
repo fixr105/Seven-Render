@@ -5,11 +5,12 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
+import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 
 export class ProductsController {
   /**
    * GET /loan-products
-   * List all loan products
+   * List all loan products. Calls webhook and remaps KAMs to products using Clients (Assigned KAM + Assigned Products).
    */
   async listLoanProducts(req: Request, res: Response): Promise<void> {
     // CRITICAL: Log immediately to verify controller is being called
@@ -28,13 +29,33 @@ export class ProductsController {
       console.log(`[listLoanProducts] Fetching loan products with ${timeoutMs}ms timeout`);
       console.log(`[listLoanProducts] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
       
-      // Fetch only Loan Products table
-      // DISABLE CACHE to ensure webhook is called every time (user requested manual refresh triggers webhooks)
+      // Fetch Loan Products and Clients in parallel (Clients for KAM→product remapping)
       console.log(`[listLoanProducts] Calling n8nClient.fetchTable('Loan Products') with cache DISABLED...`);
-      const products = await n8nClient.fetchTable('Loan Products', false, undefined, timeoutMs);
-      console.log(`[listLoanProducts] fetchTable returned ${products.length} products`);
-      
-      console.log(`[listLoanProducts] Successfully fetched ${products.length} loan products`);
+      const [products, clients, kamUsers] = await Promise.all([
+        n8nClient.fetchTable('Loan Products', false, undefined, timeoutMs),
+        n8nClient.fetchTable('Clients', false).catch(() => [] as any[]),
+        n8nClient.fetchTable('KAM Users', false).catch(() => [] as any[]),
+      ]);
+      console.log(`[listLoanProducts] fetchTable returned ${products.length} products, ${clients.length} clients`);
+
+      // Build productId -> Set<KAM ID> from Clients (Assigned Products + Assigned KAM)
+      const productToKamIds = new Map<string, Set<string>>();
+      for (const client of clients as any[]) {
+        const assignedKam = (client['Assigned KAM'] || client.assignedKAM || '').toString().trim();
+        const assignedProductsRaw = (client['Assigned Products'] || client.assignedProducts || '').toString().trim();
+        const productIds = assignedProductsRaw
+          ? assignedProductsRaw.split(/[,\s]+/).map((p: string) => p.trim()).filter(Boolean)
+          : [];
+        if (assignedKam && productIds.length > 0) {
+          for (const pid of productIds) {
+            const key = pid.toLowerCase();
+            if (!productToKamIds.has(key)) productToKamIds.set(key, new Set());
+            productToKamIds.get(key)!.add(assignedKam);
+          }
+        }
+      }
+
+      const kamNameMap = buildKAMNameMap(kamUsers as any[]);
 
       // Filter active products if requested
       const { activeOnly } = req.query;
@@ -47,15 +68,26 @@ export class ProductsController {
 
       res.json({
         success: true,
-        data: filteredProducts.map((product: any) => ({
-          ...product,
-          id: product.id,
-          productId: product['Product ID'],
-          productName: product['Product Name'],
-          description: product['Description'],
-          active: product['Active'] === 'True' || product['Active'] === true,
-          requiredDocumentsFields: product['Required Documents/Fields'],
-        })),
+        data: filteredProducts.map((product: any) => {
+          const productId = product['Product ID'] || product.productId || product.id || '';
+          const lookupKey = productId.toLowerCase();
+          const kamIds = productToKamIds.get(lookupKey)
+            ? Array.from(productToKamIds.get(lookupKey)!)
+            : [];
+          const assignedKamIds = kamIds;
+          const assignedKamNames = kamIds.map((kid) => resolveKAMName(kid, kamNameMap)).filter(Boolean);
+          return {
+            ...product,
+            id: product.id,
+            productId: product['Product ID'],
+            productName: product['Product Name'],
+            description: product['Description'],
+            active: product['Active'] === 'True' || product['Active'] === true,
+            requiredDocumentsFields: product['Required Documents/Fields'],
+            assignedKamIds,
+            assignedKamNames,
+          };
+        }),
       });
     } catch (error: any) {
       console.error(`[listLoanProducts] ❌ FAILED to fetch loan products:`, error.message);
@@ -72,13 +104,16 @@ export class ProductsController {
 
   /**
    * GET /loan-products/:id
-   * Get single loan product
+   * Get single loan product with assigned KAMs remapped from Clients
    */
   async getLoanProduct(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Fetch only Loan Products table
-      const products = await n8nClient.fetchTable('Loan Products');
+      const [products, clients, kamUsers] = await Promise.all([
+        n8nClient.fetchTable('Loan Products'),
+        n8nClient.fetchTable('Clients', false).catch(() => [] as any[]),
+        n8nClient.fetchTable('KAM Users', false).catch(() => [] as any[]),
+      ]);
       
       const product = products.find((p: any) => p.id === id || p['Product ID'] === id);
 
@@ -90,6 +125,24 @@ export class ProductsController {
         return;
       }
 
+      const productId = product['Product ID'] || product.productId || product.id || '';
+      const productToKamIds = new Map<string, Set<string>>();
+      for (const client of clients as any[]) {
+        const assignedKam = (client['Assigned KAM'] || client.assignedKAM || '').toString().trim();
+        const assignedProductsRaw = (client['Assigned Products'] || client.assignedProducts || '').toString().trim();
+        const pids = assignedProductsRaw
+          ? assignedProductsRaw.split(/[,\s]+/).map((p: string) => p.trim().toLowerCase()).filter(Boolean)
+          : [];
+        if (assignedKam && pids.includes(productId.toLowerCase())) {
+          const key = productId.toLowerCase();
+          if (!productToKamIds.has(key)) productToKamIds.set(key, new Set());
+          productToKamIds.get(key)!.add(assignedKam);
+        }
+      }
+      const kamIds = productToKamIds.get(productId.toLowerCase()) ? Array.from(productToKamIds.get(productId.toLowerCase())!) : [];
+      const kamNameMap = buildKAMNameMap(kamUsers as any[]);
+      const assignedKamNames = kamIds.map((kid) => resolveKAMName(kid, kamNameMap)).filter(Boolean);
+
       res.json({
         success: true,
         data: {
@@ -100,6 +153,8 @@ export class ProductsController {
           description: product['Description'],
           active: product['Active'] === 'True',
           requiredDocumentsFields: product['Required Documents/Fields'],
+          assignedKamIds: kamIds,
+          assignedKamNames,
         },
       });
     } catch (error: any) {
