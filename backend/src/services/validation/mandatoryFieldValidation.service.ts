@@ -34,6 +34,7 @@ export interface MandatoryFieldValidationResult {
     fieldId: string;
     label: string;
     type: string;
+    displayKey?: string;
   }>;
   formatErrors?: Array<{
     fieldId: string;
@@ -166,6 +167,7 @@ export async function validateMandatoryFields(
         fieldId: field.fieldId,
         label: field.label,
         type: field.type,
+        displayKey: (field as any).displayKey,
       });
     }
   });
@@ -187,6 +189,16 @@ export async function validateMandatoryFields(
   });
 
   const isValid = missingFields.length === 0 && formatErrors.length === 0;
+
+  if (!isValid) {
+    const formDataKeys = Object.keys(formData).slice(0, 20).join(', ');
+    console.warn('[validateMandatoryFields] Validation failed', {
+      missingCount: missingFields.length,
+      formatErrorCount: formatErrors.length,
+      missingFieldIds: missingFields.map((f) => f.fieldId),
+      formDataKeysSample: formDataKeys + (Object.keys(formData).length > 20 ? '...' : ''),
+    });
+  }
 
   return {
     isValid,

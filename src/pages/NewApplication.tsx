@@ -332,8 +332,10 @@ export const NewApplication: React.FC = () => {
         // Handle backend validation errors (400 with missingFields and/or formatErrors)
         const missingFieldsErrors: Record<string, string> = {};
         if (response.data?.missingFields && Array.isArray(response.data.missingFields)) {
-          response.data.missingFields.forEach((field: { fieldId: string; label: string }) => {
-            missingFieldsErrors[field.fieldId] = `${field.label} is required`;
+          response.data.missingFields.forEach((field: { fieldId: string; label: string; displayKey?: string }) => {
+            const msg = `${field.label} is required`;
+            missingFieldsErrors[field.fieldId] = msg;
+            if (field.displayKey) missingFieldsErrors[field.displayKey] = msg;
           });
         }
         if (response.data?.formatErrors && Array.isArray(response.data.formatErrors)) {
@@ -644,6 +646,14 @@ export const NewApplication: React.FC = () => {
                 <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
                 <p className="text-sm text-neutral-600">Loading form configuration...</p>
               </div>
+            </CardContent>
+          </Card>
+        ) : formConfig.length === 0 && formData.loan_product_id ? (
+          <Card className="mb-6">
+            <CardContent className="p-6">
+              <p className="text-sm text-neutral-600">
+                No form configuration found for this product. Please try &quot;Load form&quot; or contact your KAM to configure the application form.
+              </p>
             </CardContent>
           </Card>
         ) : formConfig.length > 0 ? (

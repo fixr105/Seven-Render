@@ -79,6 +79,30 @@ export class LoanController {
       
       validationWarnings.push(...validationResult.warnings);
 
+      // Strict mandatory field validation for non-draft submissions (must run before workflow)
+      if (!saveAsDraft) {
+        const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
+        const mandatoryValidation = await validateMandatoryFields(
+          finalFormData,
+          req.user!.clientId!,
+          productId
+        );
+        if (!mandatoryValidation.isValid) {
+          res.status(400).json({
+            success: false,
+            error: mandatoryValidation.errorMessage || 'Missing required fields',
+            missingFields: mandatoryValidation.missingFields.map((f) => ({
+              fieldId: f.fieldId,
+              label: f.label,
+              type: f.type,
+              displayKey: f.displayKey,
+            })),
+            formatErrors: mandatoryValidation.formatErrors ?? [],
+          });
+          return;
+        }
+      }
+
       // Generate File ID
       const timestamp = Date.now().toString(36).toUpperCase();
       const fileId = `SF${timestamp.slice(-8)}`;
@@ -122,31 +146,6 @@ export class LoanController {
       // Fallback: Original implementation
       // Determine status - if saveAsDraft is false, set to UNDER_KAM_REVIEW, otherwise DRAFT
       const status = saveAsDraft ? LoanStatus.DRAFT : LoanStatus.UNDER_KAM_REVIEW;
-
-      // Strict mandatory field validation for non-draft submissions
-      if (!saveAsDraft) {
-        const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
-
-        const validationResult = await validateMandatoryFields(
-          finalFormData,
-          req.user!.clientId!,
-          productId
-        );
-
-        if (!validationResult.isValid) {
-          res.status(400).json({
-            success: false,
-            error: validationResult.errorMessage || 'Missing required fields',
-            missingFields: validationResult.missingFields.map((f) => ({
-              fieldId: f.fieldId,
-              label: f.label,
-              type: f.type,
-            })),
-            formatErrors: validationResult.formatErrors ?? [],
-          });
-          return;
-        }
-      }
 
       // Module 1: Get current form config version for this client (for versioning)
       const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
@@ -1156,6 +1155,7 @@ export class LoanController {
             fieldId: f.fieldId,
             label: f.label,
             type: f.type,
+            displayKey: f.displayKey,
           })) ?? [],
           formatErrors: validationResult.formatErrors ?? [],
         });

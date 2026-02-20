@@ -29,6 +29,7 @@ export const STATUS_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
   [LoanStatus.PENDING_CREDIT_REVIEW]: [
     LoanStatus.CREDIT_QUERY_WITH_KAM, // Credit raises query to KAM
     LoanStatus.IN_NEGOTIATION, // Credit starts negotiation
+    LoanStatus.SENT_TO_NBFC, // Credit can assign to NBFC directly
     LoanStatus.REJECTED, // Credit rejects
     LoanStatus.WITHDRAWN, // Client withdraws
   ],

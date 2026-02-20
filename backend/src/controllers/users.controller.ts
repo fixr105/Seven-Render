@@ -129,6 +129,26 @@ export class UsersController {
 
       await n8nClient.postUserAccount(userAccountData);
 
+      // When creating a KAM user, also create the KAM Users record so login works
+      if (normalizedRole === 'kam') {
+        try {
+          const kamData = {
+            id: newId,
+            'KAM ID': newId,
+            Name: (associatedProfile != null ? String(associatedProfile).trim() : '') || userAccountData.Username,
+            Email: userAccountData.Username,
+            Phone: '',
+            'Managed Clients': '',
+            Role: 'kam',
+            Status: status,
+          };
+          await n8nClient.postKamUser(kamData);
+        } catch (kamErr: any) {
+          console.warn('[createUserAccount] KAM Users record creation failed (user account was created):', kamErr?.message || kamErr);
+          // Do not fail - User Account is primary; KAM can be added manually if needed
+        }
+      }
+
       await n8nClient.postAdminActivityLog({
         id: `ACT-${Date.now()}`,
         'Activity ID': `ACT-${Date.now()}`,
