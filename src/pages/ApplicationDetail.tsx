@@ -369,6 +369,7 @@ export const ApplicationDetail: React.FC = () => {
         setShowQueryModal(false);
         setQueryMessage('');
         fetchQueries();
+        fetchApplicationDetails();
       } else {
         throw new Error(response.error || 'Failed to raise query');
       }
@@ -392,6 +393,7 @@ export const ApplicationDetail: React.FC = () => {
         setSelectedQuery(null);
         setResponseMessage('');
         fetchQueries();
+        fetchApplicationDetails();
       } else {
         throw new Error(response.error || 'Failed to respond to query');
       }
@@ -411,6 +413,7 @@ export const ApplicationDetail: React.FC = () => {
       const response = await apiService.resolveQuery(id, queryId);
       if (response.success) {
         fetchQueries();
+        fetchApplicationDetails();
         setReplyDrafts((prev) => {
           const next = { ...prev };
           delete next[queryId];
@@ -441,6 +444,7 @@ export const ApplicationDetail: React.FC = () => {
           return next;
         });
         fetchQueries();
+        fetchApplicationDetails();
       } else {
         throw new Error(response.error || 'Failed to send reply');
       }
@@ -459,6 +463,7 @@ export const ApplicationDetail: React.FC = () => {
       const response = await apiService.updateQuery(id, editingQueryId, editMessage.trim());
       if (response.success) {
         await fetchQueries();
+        fetchApplicationDetails();
         setEditingQueryId(null);
         setEditMessage('');
       } else {
@@ -675,7 +680,13 @@ export const ApplicationDetail: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <PageHeader
-        onBack={() => navigate(-1)}
+        onBack={() => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate('/applications');
+          }
+        }}
         actions={
           <>
             {((userRole === 'kam' || userRole === 'credit_team') ||

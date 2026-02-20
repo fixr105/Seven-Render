@@ -6,13 +6,14 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Save, User, Mail, Phone, Building, Sparkles } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
   const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -29,7 +30,7 @@ export const Profile: React.FC = () => {
 
   React.useEffect(() => {
     fetchProfileData();
-  }, [userRoleId]);
+  }, [user?.id, user?.name, user?.email, user?.phone, user?.company]);
 
   const fetchProfileData = async () => {
     if (!user) return;
@@ -79,8 +80,18 @@ export const Profile: React.FC = () => {
 
     setLoading(true);
     try {
-      // For now, just show a message
-      alert('Profile update functionality will be implemented via backend API');
+      const response = await apiService.updateProfile({
+        name: profileData.name || undefined,
+        phone: profileData.phone || undefined,
+        company: profileData.company || undefined,
+      });
+      if (response.success) {
+        await refreshUser();
+        // Show success feedback (could use toast/notification instead)
+        alert('Profile updated successfully');
+      } else {
+        alert(response.error || 'Failed to update profile');
+      }
     } catch (error: any) {
       console.error('Error updating profile:', error);
       alert(`Failed to update profile: ${error.message}`);

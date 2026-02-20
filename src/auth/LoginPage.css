@@ -139,18 +139,13 @@
   cursor: not-allowed;
 }
 
-/* Forgot password link */
-.login-forgot {
+/* Forgot password hint */
+.login-forgot-hint {
   display: block;
   text-align: center;
   margin-top: 1rem;
   font-size: 0.875rem;
   color: rgba(200, 230, 255, 0.95);
-  text-decoration: none;
-}
-
-.login-forgot:hover {
-  text-decoration: underline;
 }
 
 /* Error message: readable on dark card */

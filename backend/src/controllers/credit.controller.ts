@@ -417,6 +417,30 @@ export class CreditController {
         'Application marked as in negotiation'
       );
 
+      try {
+        const { notificationService } = await import('../services/notifications/notification.service.js');
+        const clients = await n8nClient.fetchTable('Clients');
+        const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
+        const kamId = client?.['Assigned KAM'] || '';
+        let kamEmail = '';
+        if (kamId) {
+          const kamUsers = await n8nClient.fetchTable('KAM Users');
+          const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
+          kamEmail = kamUser?.Email || '';
+        }
+        if (kamEmail) {
+          await notificationService.notifyStatusChange(
+            application['File ID'],
+            application.Client,
+            newStatus,
+            kamEmail,
+            'kam'
+          );
+        }
+      } catch (notifError) {
+        console.error('Failed to send mark-in-negotiation notification:', notifError);
+      }
+
       res.json({
         success: true,
         message: 'Application marked as in negotiation',
@@ -472,6 +496,60 @@ export class CreditController {
         newStatus,
         notes || `Status updated to ${newStatus}`
       );
+
+      const targetRoleByStatus: Record<string, string> = {
+        draft: 'client',
+        under_kam_review: 'kam',
+        query_with_client: 'client',
+        pending_credit_review: 'credit_team',
+        credit_query_with_kam: 'kam',
+        in_negotiation: 'credit_team',
+        sent_to_nbfc: 'nbfc',
+        approved: 'credit_team',
+        rejected: 'client',
+        disbursed: 'client',
+        withdrawn: 'kam',
+        closed: 'credit_team',
+      };
+      const recipientRole = targetRoleByStatus[newStatus] || 'credit_team';
+      try {
+        const { notificationService } = await import('../services/notifications/notification.service.js');
+        let recipientEmail = '';
+        if (recipientRole === 'client') {
+          const clients = await n8nClient.fetchTable('Clients');
+          const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
+          recipientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
+        } else if (recipientRole === 'kam') {
+          const clients = await n8nClient.fetchTable('Clients');
+          const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
+          const kamId = client?.['Assigned KAM'] || '';
+          if (kamId) {
+            const kamUsers = await n8nClient.fetchTable('KAM Users');
+            const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
+            recipientEmail = kamUser?.Email || '';
+          }
+        } else if (recipientRole === 'credit_team') {
+          const creditUsers = await n8nClient.fetchTable('Credit Team Users');
+          const active = creditUsers.find((u: any) => (u.Status || u.status || '').toLowerCase() === 'active' && (u.Email || u.email));
+          recipientEmail = active?.Email || active?.email || '';
+        } else if (recipientRole === 'nbfc') {
+          const nbfcs = await n8nClient.fetchTable('NBFC Partners');
+          const first = nbfcs.find((n: any) => n.Email || n.email);
+          recipientEmail = first?.Email || first?.email || '';
+        }
+        if (recipientEmail) {
+          await notificationService.notifyStatusChange(
+            application['File ID'],
+            application.Client,
+            newStatus,
+            recipientEmail,
+            recipientRole
+          );
+        }
+      } catch (notifError) {
+        console.error('Failed to send status-change notification:', notifError);
+      }
+
       res.json({ success: true, message: 'Status updated successfully' });
     } catch (error: any) {
       res.status(500).json({
@@ -881,6 +959,25 @@ export class CreditController {
         'Description/Details': `Credit team closed loan application ${application['File ID']}. Previous status: ${previousStatus}`,
         'Target Entity': 'loan_application',
       });
+
+      // Notify client
+      try {
+        const { notificationService } = await import('../services/notifications/notification.service.js');
+        const clients = await n8nClient.fetchTable('Clients');
+        const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
+        const clientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
+        if (clientEmail) {
+          await notificationService.notifyStatusChange(
+            application['File ID'],
+            application.Client,
+            'CLOSED',
+            clientEmail,
+            'client'
+          );
+        }
+      } catch (notifError) {
+        console.error('Failed to send close notification:', notifError);
+      }
 
       res.json({
         success: true,
@@ -1487,6 +1584,17 @@ export class CreditController {
         mappingId: String(mappingId).trim(),
       });
 
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'create_form_link',
+        'Description/Details': `Created form link for client ${clientId}, mapping ${mappingId}`,
+        'Target Entity': 'form_link',
+        'Related Client ID': clientId,
+      }).catch((err) => console.warn('[createFormLink] Failed to log admin activity:', err));
+
       res.json({
         success: true,
         data: result,
@@ -1521,6 +1629,16 @@ export class CreditController {
         displayOrder: displayOrder ?? 0,
         isRequired: isRequired ?? false,
       });
+
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'create_record_title',
+        'Description/Details': `Created record title "${recordTitle}" for mapping ${mappingId}`,
+        'Target Entity': 'record_title',
+      }).catch((err) => console.warn('[createRecordTitle] Failed to log admin activity:', err));
 
       res.json({
         success: true,
@@ -1573,6 +1691,16 @@ export class CreditController {
         mappingId: mappingId ?? '',
       });
 
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'update_form_link',
+        'Description/Details': `Updated form link ${id}${clientId ? `, client ${clientId}` : ''}${mappingId ? `, mapping ${mappingId}` : ''}`,
+        'Target Entity': 'form_link',
+      }).catch((err) => console.warn('[patchFormLink] Failed to log admin activity:', err));
+
       res.json({ success: true, data: result });
     } catch (error: any) {
       res.status(500).json({
@@ -1594,6 +1722,15 @@ export class CreditController {
         return;
       }
       await n8nClient.deleteFormLink(id);
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'delete_form_link',
+        'Description/Details': `Deleted form link ${id}`,
+        'Target Entity': 'form_link',
+      }).catch((err) => console.warn('[deleteFormLink] Failed to log admin activity:', err));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({
@@ -1625,6 +1762,16 @@ export class CreditController {
         isRequired: isRequired ?? false,
       });
 
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'update_record_title',
+        'Description/Details': `Updated record title ${id}${mappingId ? `, mapping ${mappingId}` : ''}`,
+        'Target Entity': 'record_title',
+      }).catch((err) => console.warn('[patchRecordTitle] Failed to log admin activity:', err));
+
       res.json({ success: true, data: result });
     } catch (error: any) {
       res.status(500).json({
@@ -1646,6 +1793,15 @@ export class CreditController {
         return;
       }
       await n8nClient.deleteRecordTitle(id);
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'delete_record_title',
+        'Description/Details': `Deleted record title ${id}`,
+        'Target Entity': 'record_title',
+      }).catch((err) => console.warn('[deleteRecordTitle] Failed to log admin activity:', err));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({
@@ -1810,6 +1966,15 @@ export class CreditController {
         displayOrder: displayOrder ?? 0,
         isRequired: isRequired ?? false,
       });
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'update_product_document',
+        'Description/Details': `Updated product document ${id}${productId ? `, product ${productId}` : ''}`,
+        'Target Entity': 'product_document',
+      }).catch((err) => console.warn('[patchProductDocument] Failed to log admin activity:', err));
       res.json({ success: true, data: result });
     } catch (error: any) {
       res.status(500).json({
@@ -1831,6 +1996,15 @@ export class CreditController {
         return;
       }
       await n8nClient.deleteProductDocument(id);
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'delete_product_document',
+        'Description/Details': `Deleted product document ${id}`,
+        'Target Entity': 'product_document',
+      }).catch((err) => console.warn('[deleteProductDocument] Failed to log admin activity:', err));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({

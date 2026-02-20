@@ -32,8 +32,10 @@ export const AdminActivityLog: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   const [performedBy, setPerformedBy] = useState('');
   const [actionType, setActionType] = useState('');
+  const [targetEntity, setTargetEntity] = useState('');
   const [performedByOptions, setPerformedByOptions] = useState<{ value: string; label: string }[]>([]);
   const [actionTypeOptions, setActionTypeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [targetEntityOptions, setTargetEntityOptions] = useState<{ value: string; label: string }[]>([]);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -47,15 +49,18 @@ export const AdminActivityLog: React.FC = () => {
         dateTo: dateTo || undefined,
         performedBy: performedBy.trim() || undefined,
         actionType: actionType || undefined,
+        targetEntity: targetEntity.trim() || undefined,
       });
       if (response.success && response.data) {
         const data = Array.isArray(response.data) ? response.data : [];
         setEntries(data);
         const bySet = new Set<string>();
         const typeSet = new Set<string>();
+        const entitySet = new Set<string>();
         data.forEach((e: ActivityLogEntry) => {
           if (e.performedBy?.trim()) bySet.add(e.performedBy.trim());
           if (e.actionType?.trim()) typeSet.add(e.actionType.trim());
+          if (e.targetEntity?.trim()) entitySet.add(e.targetEntity.trim());
         });
         setPerformedByOptions((prev) => {
           const prevValues = prev.filter((o) => o.value).map((o) => o.value);
@@ -65,6 +70,11 @@ export const AdminActivityLog: React.FC = () => {
         setActionTypeOptions((prev) => {
           const prevValues = prev.filter((o) => o.value).map((o) => o.value);
           const merged = new Set([...prevValues, ...typeSet]);
+          return [{ value: '', label: 'All' }, ...Array.from(merged).sort().map((v) => ({ value: v, label: v }))];
+        });
+        setTargetEntityOptions((prev) => {
+          const prevValues = prev.filter((o) => o.value).map((o) => o.value);
+          const merged = new Set([...prevValues, ...entitySet]);
           return [{ value: '', label: 'All' }, ...Array.from(merged).sort().map((v) => ({ value: v, label: v }))];
         });
       } else {
@@ -77,7 +87,7 @@ export const AdminActivityLog: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, performedBy, actionType]);
+  }, [dateFrom, dateTo, performedBy, actionType, targetEntity]);
 
   useEffect(() => {
     if (userRole === 'credit_team' || userRole === 'admin') {
@@ -164,7 +174,7 @@ export const AdminActivityLog: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">Date from</label>
                 <input
@@ -197,6 +207,14 @@ export const AdminActivityLog: React.FC = () => {
                   options={actionTypeOptions.length > 0 ? actionTypeOptions : [{ value: '', label: 'All' }]}
                   value={actionType}
                   onChange={(e) => setActionType(e.target.value)}
+                />
+              </div>
+              <div>
+                <Select
+                  label="Target entity"
+                  options={targetEntityOptions.length > 0 ? targetEntityOptions : [{ value: '', label: 'All' }]}
+                  value={targetEntity}
+                  onChange={(e) => setTargetEntity(e.target.value)}
                 />
               </div>
             </div>

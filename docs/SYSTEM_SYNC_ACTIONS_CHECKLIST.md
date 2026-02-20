@@ -3,6 +3,7 @@
 Use this as a prompt for planning and implementing concurrent sync actions across the system. Paste the Master Checklist or a specific template into a planning doc, ticket, or AI prompt when designing or reviewing sync behavior for a given action.
 
 **Canonical references:**
+- [OPERATIONS_SYNC_REFERENCE.md](OPERATIONS_SYNC_REFERENCE.md) – full list of operations and their sync behavior (tables, notifications, same-link PATCH/DELETE)
 - [backend/API_ENDPOINTS_WEBHOOK_MAPPING.md](../backend/API_ENDPOINTS_WEBHOOK_MAPPING.md) – webhook → endpoint mapping
 - [backend/src/services/statusTracking/statusStateMachine.ts](../backend/src/services/statusTracking/statusStateMachine.ts) – status transitions
 - [backend/src/services/airtable/n8nClient.ts](../backend/src/services/airtable/n8nClient.ts) – cache invalidation patterns

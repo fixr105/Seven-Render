@@ -40,14 +40,32 @@ export const TopBar: React.FC<TopBarProps> = ({
       onMarkAsRead(notification.id);
     }
 
-    // Navigate to application
-    if (notification.actionLink) {
-      navigate(notification.actionLink);
+    let target: string | null = null;
+
+    if (notification.actionLink && typeof notification.actionLink === 'string') {
+      const link = notification.actionLink.trim();
+      if (link && !link.startsWith('http://') && !link.startsWith('https://')) {
+        const trimmed = link.replace(/\/$/, '');
+        if (trimmed !== '/applications' && !trimmed.endsWith('/applications/')) {
+          target = link;
+        }
+      }
     } else if (notification.relatedFile) {
-      navigate(`/applications/${notification.relatedFile}`);
+      const fileId = String(notification.relatedFile).trim();
+      if (fileId && fileId !== 'undefined') {
+        target = `/applications/${fileId}`;
+      }
     }
 
-    // Close dropdown
+    if (!target) {
+      if (notification.actionLink || notification.relatedFile) {
+        alert('Invalid notification link');
+      }
+      setShowNotifications(false);
+      return;
+    }
+
+    navigate(target);
     setShowNotifications(false);
   };
 

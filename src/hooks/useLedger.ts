@@ -146,12 +146,13 @@ export const useLedger = (options?: UseLedgerOptions) => {
 
   const requestPayout = async (amount?: number, full?: boolean) => {
     try {
-      const response = await apiService.createPayoutRequest({ 
-        amount: amount || 0, 
-        full: full || false 
+      const response = await apiService.createPayoutRequest({
+        amount: amount || 0,
+        full: full || false,
       });
       if (response.success) {
-        // No automatic refresh - user must manually refresh to see updates
+        await fetchLedger();
+        await fetchPayoutRequests();
         return response;
       }
       throw new Error(response.error || 'Failed to create payout request');
@@ -165,7 +166,7 @@ export const useLedger = (options?: UseLedgerOptions) => {
     try {
       const response = await apiService.createLedgerQuery(ledgerEntryId, message);
       if (response.success) {
-        // No automatic refresh - user must manually refresh to see updates
+        await fetchLedger();
         return response;
       }
       throw new Error(response.error || 'Failed to raise query');
@@ -179,7 +180,7 @@ export const useLedger = (options?: UseLedgerOptions) => {
     try {
       const response = await apiService.flagLedgerPayout(ledgerEntryId);
       if (response.success) {
-        // No automatic refresh - user must manually refresh to see updates
+        await fetchLedger();
         return response;
       }
       throw new Error(response.error || 'Failed to flag payout');
@@ -227,6 +228,7 @@ export const useLedger = (options?: UseLedgerOptions) => {
     flagPayout,
     processPayoutRequest, 
     refetch: fetchLedger, 
+    refetchPayoutRequests: fetchPayoutRequests,
     addLedgerEntry 
   };
 };

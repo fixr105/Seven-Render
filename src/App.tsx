@@ -14,6 +14,7 @@ import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminActivityLog } from './pages/AdminActivityLog';
 import { AdminUserAccounts } from './pages/AdminUserAccounts';
 import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
@@ -172,10 +173,7 @@ function AppRoutes() {
       />
 
       {/* Catch-all route for 404 */}
-      <Route
-        path="*"
-        element={<Navigate to="/dashboard" replace />}
-      />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

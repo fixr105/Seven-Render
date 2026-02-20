@@ -93,6 +93,7 @@ All components are built with accessibility in mind, featuring:
 - Password visibility toggle
 - Remember me option
 - Responsive layout
+- **Password reset**: Admin-only. Users who forget their password must contact their administrator.
 
 ## Technology Stack
 

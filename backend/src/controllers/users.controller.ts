@@ -375,6 +375,17 @@ export class UsersController {
 
       await n8nClient.postUserAccount(updateData);
 
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'update_user_settings',
+        'Description/Details': `User ${id} updated their settings`,
+        'Target Entity': 'user_account',
+        'Related User ID': id,
+      }).catch((err) => console.warn('[updateUserSettings] Failed to log admin activity:', err));
+
       res.json({
         success: true,
         message: 'Settings saved successfully',

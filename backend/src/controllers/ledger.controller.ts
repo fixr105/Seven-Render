@@ -326,25 +326,29 @@ export class LedgerController {
       // Filter by client
       ledgerEntries = ledgerEntries.filter((entry) => entry.Client === clientId);
 
-      // Sort by date (newest first)
-      ledgerEntries.sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
+      // Sort by date (oldest first for correct running balance)
+      ledgerEntries.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));
 
-      // Calculate running balance
-      let balance = 0;
+      // Calculate running balance (oldest to newest)
+      let runningBalance = 0;
       const entriesWithBalance = ledgerEntries.map((entry) => {
         const amount = parseFloat(entry['Payout Amount'] || '0');
-        balance += amount;
+        runningBalance += amount;
         return {
           ...entry,
-          balance,
+          balance: runningBalance,
+          runningBalance,
         };
       });
+
+      // Reverse so newest first for display (same as getClientLedger)
+      entriesWithBalance.reverse();
 
       res.json({
         success: true,
         data: {
           entries: entriesWithBalance,
-          currentBalance: balance,
+          currentBalance: runningBalance,
           clientId: clientId as string,
         },
       });

@@ -51,9 +51,6 @@ export const authenticate = async (
       return;
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/563cd7b3-2e60-463f-bd89-f5fcf7921d98',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.middleware.ts:authenticate',message:'Token verified user',data:{email:user.email,role:user.role,path:req.path},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion
     req.user = user;
     next();
   } catch (err: any) {

@@ -52,13 +52,22 @@ export const Reports: React.FC = () => {
     }
   }, []);
 
+  const normalizeReport = (raw: Record<string, unknown>): DailySummaryReport => ({
+    id: (raw.id as string) || '',
+    reportDate: (raw['Report Date'] ?? raw.reportDate ?? '') as string,
+    summaryContent: (raw['Summary Content'] ?? raw.summaryContent ?? '') as string,
+    generatedTimestamp: (raw['Generated Timestamp'] ?? raw.generatedTimestamp ?? '') as string,
+    deliveredTo: (raw['Delivered To'] ?? raw.deliveredTo ?? '') as string,
+  });
+
   const fetchReports = async () => {
     try {
       setLoading(true);
       setReportsError(null);
       const response = await apiService.listDailySummaries(7);
       if (response.success && response.data) {
-        setReports(response.data);
+        const data = Array.isArray(response.data) ? response.data : [];
+        setReports(data.map((item: unknown) => normalizeReport((item as Record<string, unknown>) ?? {})));
       } else {
         console.error('Error fetching reports:', response.error);
         setReports([]);
@@ -78,14 +87,8 @@ export const Reports: React.FC = () => {
       setLatestLoading(true);
       const response = await apiService.getLatestDailySummary();
       if (response.success && response.data) {
-        const raw = response.data as Record<string, unknown>;
-        setLatestReport({
-          id: (raw.id as string) || '',
-          reportDate: (raw['Report Date'] ?? raw.reportDate) as string,
-          summaryContent: (raw['Summary Content'] ?? raw.summaryContent) as string,
-          generatedTimestamp: (raw['Generated Timestamp'] ?? raw.generatedTimestamp) as string,
-          deliveredTo: (raw['Delivered To'] ?? raw.deliveredTo) as string,
-        });
+        const raw = (response.data as Record<string, unknown>) ?? {};
+        setLatestReport(normalizeReport(raw));
       } else {
         setLatestReport(null);
       }

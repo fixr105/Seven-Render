@@ -1,6 +1,6 @@
 /**
- * Forgot Password - Placeholder
- * Full implementation with n8n email workflow to be added
+ * Forgot Password - Admin-only reset
+ * Self-service password reset is not implemented. Users must contact their administrator.
  */
 
 import React from 'react';
@@ -11,7 +11,7 @@ export const ForgotPassword: React.FC = () => (
     <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-level-2 text-center">
       <h1 className="text-2xl font-bold text-neutral-900 mb-2">Forgot password?</h1>
       <p className="text-neutral-600 mb-6">
-        Password reset is being set up. Please contact your administrator to reset your password.
+        Password reset is admin-only. Please contact your administrator to reset your password.
       </p>
       <Link to="/login" className="text-brand-primary hover:underline">
         Back to login

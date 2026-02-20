@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useRoleAccess } from '../hooks/useRoleAccess';
 import { apiService, LoanApplication } from '../services/api';
@@ -12,6 +13,7 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { Button } from '../components/ui/Button';
 
 export const ApplicationsApiExample: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isClient, isKAM, isCredit, isNBFC } = useRoleAccess();
   const { loading, error, data, execute } = useApiCall<LoanApplication[]>();
@@ -57,7 +59,7 @@ export const ApplicationsApiExample: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Loan Applications</h1>
         {isClient && (
-          <Button onClick={() => {/* Navigate to new application */}}>
+          <Button onClick={() => navigate('/applications/new')}>
             New Application
           </Button>
         )}
@@ -83,8 +85,8 @@ export const ApplicationsApiExample: React.FC = () => {
           columns={columns}
           keyExtractor={(row) => row.id}
           onRowClick={(row) => {
-            // Navigate to detail page
-            console.log('View application:', row.id);
+            const id = row.id ?? row.applicationId ?? row.fileId;
+            if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
           }}
         />
       )}

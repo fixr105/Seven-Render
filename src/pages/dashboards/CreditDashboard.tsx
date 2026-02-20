@@ -174,7 +174,10 @@ export const CreditDashboard: React.FC = () => {
                 <li key={item.fileId}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/applications/${item.applicationId || item.fileId}`)}
+                    onClick={() => {
+                      const id = item.applicationId ?? item.fileId;
+                      if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+                    }}
                     className="text-sm font-medium text-brand-primary hover:underline"
                   >
                     {item.fileId}
@@ -207,7 +210,10 @@ export const CreditDashboard: React.FC = () => {
                 <li key={q.id}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/applications/${q.applicationId || q.fileId}`)}
+                    onClick={() => {
+                      const id = q.applicationId ?? q.fileId;
+                      if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+                    }}
                     className="text-sm font-medium text-brand-primary hover:underline"
                   >
                     {q.fileId}
@@ -310,7 +316,10 @@ export const CreditDashboard: React.FC = () => {
         applications={applications}
         loading={loading}
         onViewAll={() => navigate('/applications')}
-        onRowClick={(row) => navigate(`/applications/${row.id}`)}
+        onRowClick={(row) => {
+          const id = row.id ?? row.applicationId ?? row.fileId;
+          if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+        }}
       />
     </>
   );

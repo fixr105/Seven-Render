@@ -14,7 +14,7 @@ import { apiService } from '../services/api';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
   
   const getUserDisplayName = () => {
@@ -50,9 +50,10 @@ export const Settings: React.FC = () => {
     }
     setLoading(true);
     try {
-      const response = await apiService.updateUserSettings(user.id, settings);
+      const response = await apiService.updateMySettings(settings);
       if (response.success) {
         localStorage.setItem('userSettings', JSON.stringify(settings));
+        await refreshUser();
         alert('Settings saved successfully!');
       } else {
         throw new Error(response.error || 'Failed to save settings');
@@ -67,17 +68,33 @@ export const Settings: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
+  const defaultSettings = {
+    notifications: { email: true, push: true, sms: false },
+    preferences: { language: 'en', timezone: 'Asia/Kolkata', dateFormat: 'DD-MM-YYYY' },
+    security: { twoFactor: false, sessionTimeout: '30' },
+  };
+
   React.useEffect(() => {
-    // Load saved settings
+    if (user?.settings && typeof user.settings === 'object') {
+      setSettings((prev) => ({
+        ...defaultSettings,
+        ...prev,
+        notifications: { ...defaultSettings.notifications, ...(user.settings as any).notifications },
+        preferences: { ...defaultSettings.preferences, ...(user.settings as any).preferences },
+        security: { ...defaultSettings.security, ...(user.settings as any).security },
+      }));
+      return;
+    }
     const saved = localStorage.getItem('userSettings');
     if (saved) {
       try {
-        setSettings(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setSettings((prev) => ({ ...defaultSettings, ...prev, ...parsed }));
       } catch (e) {
         console.error('Error loading settings:', e);
       }
     }
-  }, []);
+  }, [user?.settings]);
 
   return (
     <MainLayout

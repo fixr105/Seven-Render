@@ -17,4 +17,6 @@ export interface UserContext {
   creditTeamId?: string | null;
   /** For client role: enabled modules (e.g. M1, M2) from Clients record. Used to hide Ledger when M1 is disabled. */
   enabledModules?: string[];
+  /** User preferences from User Accounts.Settings (notifications, preferences, security) */
+  settings?: Record<string, unknown>;
 }

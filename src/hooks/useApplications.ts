@@ -31,12 +31,24 @@ export interface LoanApplication {
  * Transform API application shape to UI LoanApplication.
  * Handles client as string, { name }, { 'Client Name' }, or null/undefined. See docs/ID_AND_RBAC_CONTRACT.md.
  */
+function getClientIdFromApp(app: Record<string, unknown>): string {
+  if (app.clientId != null) return String(app.clientId);
+  if (app.Client != null) return String(app.Client);
+  const client = app.client;
+  if (client != null && typeof client === 'object' && !Array.isArray(client)) {
+    const obj = client as Record<string, unknown>;
+    if (obj.id != null) return String(obj.id);
+    if (obj['Client ID'] != null) return String(obj['Client ID']);
+  }
+  return '';
+}
+
 export function transformApplicationFromApi(app: Record<string, unknown>): LoanApplication {
   const id = app.id != null ? String(app.id) : '';
   return {
     id,
     file_number: String(app.fileId ?? app['File ID'] ?? (id ? `SF${id.slice(0, 8)}` : '')),
-    client_id: String(app.clientId ?? app.Client ?? ''),
+    client_id: getClientIdFromApp(app),
     applicant_name: String(app.applicantName ?? app['Applicant Name'] ?? ''),
     loan_product_id: (app.productId ?? app['Loan Product']) != null ? String(app.productId ?? app['Loan Product']) : null,
     requested_loan_amount: (() => {

@@ -123,9 +123,12 @@ export const LoginPage: React.FC = () => {
             Login
           </Button>
 
-          <Link to="/forgot-password" className="login-forgot">
-            Forgot password?
-          </Link>
+          <p className="login-forgot-hint text-sm text-neutral-500 mt-4">
+            <Link to="/forgot-password" className="text-brand-primary hover:underline">
+              Forgot your password?
+            </Link>{' '}
+            Contact your administrator to reset it.
+          </p>
         </form>
       </div>
     </div>

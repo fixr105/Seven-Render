@@ -63,10 +63,12 @@ router.get('/test-express-auth', authenticate, (req, res) => {
   });
 });
 
-// Debug endpoints - MUST be before other routes to avoid conflicts
-// Add explicit logging middleware to track route matching
+// Debug endpoints - development only (exposed in production would leak env vars and webhook URLs)
 router.use('/debug', (req, res, next) => {
-  console.log(`[DEBUG ROUTE] Matched /debug path: ${req.path}, method: ${req.method}`);
+  if (process.env.NODE_ENV !== 'development') {
+    res.status(404).json({ success: false, error: 'Not found' });
+    return;
+  }
   next();
 });
 

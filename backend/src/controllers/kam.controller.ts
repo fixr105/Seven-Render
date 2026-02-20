@@ -876,6 +876,17 @@ export class KAMController {
         mappingId: String(mappingId).trim(),
       });
 
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'create_form_link',
+        'Description/Details': `Created form link for client ${clientId}, mapping ${mappingId}`,
+        'Target Entity': 'form_link',
+        'Related Client ID': clientId,
+      }).catch((err) => console.warn('[createFormLink] Failed to log admin activity:', err));
+
       res.json({
         success: true,
         data: result,
@@ -910,6 +921,16 @@ export class KAMController {
         displayOrder: displayOrder ?? 0,
         isRequired: isRequired ?? false,
       });
+
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'create_record_title',
+        'Description/Details': `Created record title "${recordTitle}" for mapping ${mappingId}`,
+        'Target Entity': 'record_title',
+      }).catch((err) => console.warn('[createRecordTitle] Failed to log admin activity:', err));
 
       res.json({
         success: true,
@@ -1031,6 +1052,17 @@ export class KAMController {
         'Details/Message': notes || 'Application edited by KAM',
         'Target User/Role': 'client',
         Resolved: 'False',
+      });
+
+      // Log admin activity
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'edit_application',
+        'Description/Details': notes || `Application ${application['File ID']} edited by KAM`,
+        'Target Entity': 'loan_application',
       });
 
       res.json({

@@ -318,7 +318,8 @@ export const Applications: React.FC = () => {
             icon={Eye}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/applications/${row.id}`);
+              const id = row.id ?? row.applicationId ?? row.fileId;
+              if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
             }}
           >
             View
@@ -503,7 +504,10 @@ export const Applications: React.FC = () => {
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={handleSort}
-            onRowClick={(row) => navigate(`/applications/${row.id}`)}
+            onRowClick={(row) => {
+              const id = row.id ?? row.applicationId ?? row.fileId;
+              if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+            }}
             rowTestId="application-row"
             getRowClassName={(row) => {
               if (userRole === 'credit_team' && row.hasUnresolvedQueries) {

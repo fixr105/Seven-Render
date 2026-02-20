@@ -113,7 +113,10 @@ export const NBFCDashboard: React.FC = () => {
           <Button
             variant="tertiary"
             size="sm"
-            onClick={() => navigate(`/applications/${row.id}`)}
+            onClick={() => {
+              const id = row.id ?? row.applicationId ?? row.fileId;
+              if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+            }}
           >
             Review
           </Button>
@@ -197,7 +200,8 @@ export const NBFCDashboard: React.FC = () => {
                 variant="primary"
                 onClick={() => {
                   const nextFile = assignedApplications.find(a => a.status === 'sent_to_nbfc');
-                  if (nextFile) navigate(`/applications/${nextFile.id}`);
+                  const id = nextFile?.id ?? nextFile?.applicationId ?? nextFile?.fileId;
+                  if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
                 }}
                 title="Open next application pending your decision"
               >
@@ -278,7 +282,10 @@ export const NBFCDashboard: React.FC = () => {
                 columns={columns}
                 data={tableData}
                 keyExtractor={(row) => row.id}
-                onRowClick={(row) => navigate(`/applications/${row.id}`)}
+                onRowClick={(row) => {
+                  const id = row.id ?? row.applicationId ?? row.fileId;
+                  if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+                }}
               />
             </>
           )}

@@ -45,6 +45,8 @@ export interface UserContext {
   nbfcId?: string | null;
   creditTeamId?: string | null;
   name?: string;
+  /** User preferences (notifications, preferences, security) from User Accounts.Settings */
+  settings?: Record<string, unknown>;
 }
 
 export interface DashboardSummary {
@@ -430,7 +432,27 @@ class ApiService {
   }
 
   /**
-   * Update current user's settings
+   * Update current user's profile (name, phone, company)
+   */
+  async updateProfile(payload: { name?: string; phone?: string; company?: string }): Promise<ApiResponse> {
+    return this.request('/auth/me/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Update current user's settings (self-service, works for all roles including Client and KAM)
+   */
+  async updateMySettings(settings: object): Promise<ApiResponse> {
+    return this.request('/auth/me/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ settings }),
+    });
+  }
+
+  /**
+   * Update user settings by ID (Credit/Admin only - for managing other users)
    */
   async updateUserSettings(userId: string, settings: object): Promise<ApiResponse> {
     return this.request(`/user-accounts/${userId}/settings`, {
@@ -1195,10 +1217,17 @@ class ApiService {
 
   /**
    * Approve payout request
+   * @param approvedAmount - Required by backend for the negative ledger entry
+   * @param note - Optional note for the payout
    */
-  async approvePayout(payoutRequestId: string): Promise<ApiResponse> {
+  async approvePayout(
+    payoutRequestId: string,
+    approvedAmount: number,
+    note?: string
+  ): Promise<ApiResponse> {
     return this.request(`/credit/payout-requests/${payoutRequestId}/approve`, {
       method: 'POST',
+      body: JSON.stringify({ approvedAmount, note }),
     });
   }
 

@@ -539,7 +539,7 @@ export class LoanController {
       }
 
       const { queryService } = await import('../services/queries/query.service.js');
-      await queryService.createQuery(
+      const queryId = await queryService.createQuery(
         application['File ID'],
         clientId,
         req.user.email,
@@ -548,6 +548,14 @@ export class LoanController {
         'kam',
         'client_query'
       );
+
+      await logApplicationAction(
+        req.user!,
+        AdminActionType.RAISE_QUERY,
+        application['File ID'],
+        `Client raised query for application ${application['File ID']}`,
+        { queryId }
+      ).catch((err) => console.error('Failed to log admin activity for client query:', err));
 
       res.json({
         success: true,
@@ -660,6 +668,16 @@ export class LoanController {
         req.user!.role
       );
 
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'resolve_query',
+        'Description/Details': `Query ${queryId} resolved on application ${application['File ID']}`,
+        'Target Entity': 'loan_application',
+      }).catch((err) => console.error('Failed to log admin activity for query resolve:', err));
+
       res.json({
         success: true,
         message: 'Query resolved successfully',
@@ -758,6 +776,16 @@ export class LoanController {
           'Last Updated': new Date().toISOString(),
         });
       }
+
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user!.email,
+        'Action Type': 'reply_to_query',
+        'Description/Details': `Reply to query ${queryId} on application ${application['File ID']}`,
+        'Target Entity': 'loan_application',
+      }).catch((err) => console.error('Failed to log admin activity for query reply:', err));
 
       res.json({ success: true, message: 'Reply submitted successfully' });
     } catch (error: any) {
@@ -1301,6 +1329,31 @@ export class LoanController {
         'Description/Details': `Client withdrew loan application ${application['File ID']}. Previous status: ${previousStatus}`,
         'Target Entity': 'loan_application',
       });
+
+      // Notify KAM
+      try {
+        const { notificationService } = await import('../services/notifications/notification.service.js');
+        const clients = await n8nClient.fetchTable('Clients');
+        const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
+        const kamId = client?.['Assigned KAM'] || '';
+        let kamEmail = '';
+        if (kamId) {
+          const kamUsers = await n8nClient.fetchTable('KAM Users');
+          const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
+          kamEmail = kamUser?.Email || '';
+        }
+        if (kamEmail) {
+          await notificationService.notifyStatusChange(
+            application['File ID'],
+            application.Client,
+            'WITHDRAWN',
+            kamEmail,
+            'kam'
+          );
+        }
+      } catch (notifError) {
+        console.error('Failed to send withdraw notification:', notifError);
+      }
 
       res.json({
         success: true,

@@ -321,7 +321,10 @@ export const ClientDashboard: React.FC = () => {
         applications={applications}
         loading={loading}
         onViewAll={() => navigate('/applications')}
-        onRowClick={(row) => navigate(`/applications/${row.id}`)}
+        onRowClick={(row) => {
+          const id = row.id ?? row.applicationId ?? row.fileId;
+          if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+        }}
         onEmptyAction={() => navigate('/applications/new')}
       />
     </>

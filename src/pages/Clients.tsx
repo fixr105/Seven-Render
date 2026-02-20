@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Eye, UserPlus, RefreshCw, Package } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { useApplications } from '../hooks/useApplications';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
@@ -47,6 +48,7 @@ export const Clients: React.FC = () => {
     return '';
   };
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { applications } = useApplications();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,7 +104,7 @@ export const Clients: React.FC = () => {
           kam_name: client.assignedKAMName || client['Assigned KAM Name'] || null,
           is_active: client.status === 'Active' || client.Status === 'Active',
           created_at: client.createdAt || client['Created At'] || new Date().toISOString(),
-          _count: { applications: 0 },
+          _count: { applications: 0 }, // enriched below with applications count
         }));
         
         
@@ -145,6 +147,15 @@ export const Clients: React.FC = () => {
   useEffect(() => {
     fetchClients();
   }, []);
+
+  const clientsWithCounts = useMemo(() => {
+    return clients.map((c) => ({
+      ...c,
+      _count: {
+        applications: applications.filter((a) => String(a.client_id || (a as any).Client) === String(c.id)).length,
+      },
+    }));
+  }, [clients, applications]);
 
   const handleOnboardClient = async () => {
     
@@ -246,7 +257,7 @@ export const Clients: React.FC = () => {
     }
   }, [showAssignProductsModal, clientForProducts?.id, userRole]);
 
-  const filteredClients = clients.filter(client => {
+  const filteredClients = clientsWithCounts.filter(client => {
     // Search filter
     const matchesSearch = searchQuery === '' ||
       client.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -425,7 +436,7 @@ export const Clients: React.FC = () => {
         <Card>
           <CardContent>
             <p className="text-sm text-neutral-500">Total Clients</p>
-            <p className="text-2xl font-bold text-neutral-900 mt-1">{clients.length}</p>
+            <p className="text-2xl font-bold text-neutral-900 mt-1">{clientsWithCounts.length}</p>
           </CardContent>
         </Card>
         {userRole === 'credit_team' && (
@@ -433,7 +444,7 @@ export const Clients: React.FC = () => {
             <CardContent>
               <p className="text-sm text-neutral-500">Unassigned Clients</p>
               <p className="text-2xl font-bold text-warning mt-1">
-                {clients.filter(c => !c.kam_id || c.kam_id === '').length}
+                {clientsWithCounts.filter(c => !c.kam_id || c.kam_id === '').length}
               </p>
             </CardContent>
           </Card>
@@ -442,7 +453,7 @@ export const Clients: React.FC = () => {
           <CardContent>
             <p className="text-sm text-neutral-500">Active Clients</p>
             <p className="text-2xl font-bold text-success mt-1">
-              {clients.filter(c => c.is_active).length}
+              {clientsWithCounts.filter(c => c.is_active).length}
             </p>
           </CardContent>
         </Card>
@@ -450,7 +461,7 @@ export const Clients: React.FC = () => {
           <CardContent>
             <p className="text-sm text-neutral-500">Total Applications</p>
             <p className="text-2xl font-bold text-brand-primary mt-1">
-              {clients.reduce((sum, c) => sum + (c._count?.applications || 0), 0)}
+              {clientsWithCounts.reduce((sum, c) => sum + (c._count?.applications || 0), 0)}
             </p>
           </CardContent>
         </Card>
@@ -458,8 +469,8 @@ export const Clients: React.FC = () => {
           <CardContent>
             <p className="text-sm text-neutral-500">Avg per Client</p>
             <p className="text-2xl font-bold text-neutral-900 mt-1">
-              {clients.length > 0
-                ? Math.round(clients.reduce((sum, c) => sum + (c._count?.applications || 0), 0) / clients.length)
+              {clientsWithCounts.length > 0
+                ? Math.round(clientsWithCounts.reduce((sum, c) => sum + (c._count?.applications || 0), 0) / clientsWithCounts.length)
                 : 0}
             </p>
           </CardContent>
@@ -475,19 +486,19 @@ export const Clients: React.FC = () => {
                 variant={filterType === 'all' ? 'primary' : 'secondary'}
                 onClick={() => setFilterType('all')}
               >
-                All ({clients.length})
+                All ({clientsWithCounts.length})
               </Button>
               <Button
                 variant={filterType === 'unassigned' ? 'primary' : 'secondary'}
                 onClick={() => setFilterType('unassigned')}
               >
-                Unassigned ({clients.filter(c => !c.kam_id || c.kam_id === '').length})
+                Unassigned ({clientsWithCounts.filter(c => !c.kam_id || c.kam_id === '').length})
               </Button>
               <Button
                 variant={filterType === 'assigned' ? 'primary' : 'secondary'}
                 onClick={() => setFilterType('assigned')}
               >
-                Assigned ({clients.filter(c => c.kam_id && c.kam_id !== '').length})
+                Assigned ({clientsWithCounts.filter(c => c.kam_id && c.kam_id !== '').length})
               </Button>
             </div>
           </CardContent>

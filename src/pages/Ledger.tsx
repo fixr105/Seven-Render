@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { MessageSquare, Send } from 'lucide-react';
+import { MessageSquare, Send, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useLedger } from '../hooks/useLedger';
 import { useNotifications } from '../hooks/useNotifications';
@@ -26,7 +26,7 @@ export const Ledger: React.FC = () => {
   };
 
   const ledgerOptions = userRole === 'kam' ? { clientId: selectedClientId || null } : undefined;
-  const { entries, balance, loading, requestPayout, raiseQuery, flagPayout } = useLedger(ledgerOptions);
+  const { entries, balance, loading, requestPayout, raiseQuery, flagPayout, payoutRequests, refetchPayoutRequests } = useLedger(ledgerOptions);
 
   useEffect(() => {
     if (userRole === 'kam') {
@@ -55,6 +55,11 @@ export const Ledger: React.FC = () => {
   const [queryMessage, setQueryMessage] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [creditPayoutForAction, setCreditPayoutForAction] = useState<{ id: string; client?: string; amount: number; date?: string; description?: string } | null>(null);
+  const [approveNote, setApproveNote] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -161,6 +166,62 @@ export const Ledger: React.FC = () => {
     }
   };
 
+  const pendingPayoutRequests = (payoutRequests as Array<{ id: string; client?: string; amount: number; status?: string; date?: string; description?: string }>).filter(
+    (p) => (p.status === 'Requested' || String(p.status).toLowerCase() === 'requested')
+  );
+
+  const handleApprovePayout = async () => {
+    if (!creditPayoutForAction) return;
+    const amount = creditPayoutForAction.amount;
+    if (typeof amount !== 'number' || amount <= 0) {
+      setError('Invalid amount');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await apiService.approvePayout(creditPayoutForAction.id, amount, approveNote.trim() || undefined);
+      if (res.success) {
+        setShowApproveModal(false);
+        setCreditPayoutForAction(null);
+        setApproveNote('');
+        await refetchPayoutRequests();
+        alert('Payout approved successfully.');
+      } else {
+        setError(res.error || 'Failed to approve payout');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to approve payout');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRejectPayout = async () => {
+    if (!creditPayoutForAction || !rejectReason.trim()) {
+      setError('Please enter a rejection reason');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await apiService.rejectPayout(creditPayoutForAction.id, rejectReason.trim());
+      if (res.success) {
+        setShowRejectModal(false);
+        setCreditPayoutForAction(null);
+        setRejectReason('');
+        await refetchPayoutRequests();
+        alert('Payout rejected.');
+      } else {
+        setError(res.error || 'Failed to reject payout');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to reject payout');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <MainLayout
       sidebarItems={sidebarItems}
@@ -196,6 +257,76 @@ export const Ledger: React.FC = () => {
                     ...clients.map((c) => ({ value: c.id, label: c.name })),
                   ]}
                 />
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Credit Team: Payout Requests */}
+        {userRole === 'credit_team' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Payout Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-center py-6 text-neutral-500">Loading payout requests...</div>
+              ) : pendingPayoutRequests.length === 0 ? (
+                <div className="text-center py-6 text-neutral-600">No pending payout requests.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-neutral-200">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Client</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">Amount</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Description</th>
+                        <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingPayoutRequests.map((p) => (
+                        <tr key={p.id} className="border-b border-neutral-100 hover:bg-neutral-50">
+                          <td className="py-3 px-4 text-sm text-neutral-700">{p.client ?? p.id}</td>
+                          <td className="py-3 px-4 text-sm font-medium text-right text-success">{formatCurrency(p.amount)}</td>
+                          <td className="py-3 px-4 text-sm text-neutral-700">{formatDate(p.date ?? '')}</td>
+                          <td className="py-3 px-4 text-sm text-neutral-600 max-w-xs truncate">{p.description ?? '-'}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                icon={CheckCircle}
+                                onClick={() => {
+                                  setCreditPayoutForAction(p);
+                                  setApproveNote('');
+                                  setError(null);
+                                  setShowApproveModal(true);
+                                }}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                icon={XCircle}
+                                onClick={() => {
+                                  setCreditPayoutForAction(p);
+                                  setRejectReason('');
+                                  setError(null);
+                                  setShowRejectModal(true);
+                                }}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -489,9 +620,98 @@ export const Ledger: React.FC = () => {
                   >
                     Raise Query
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        {/* Credit: Approve Payout Modal */}
+        {showApproveModal && creditPayoutForAction && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-md mx-4">
+              <CardHeader>
+                <CardTitle>Approve Payout</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-neutral-600">
+                    Client: <strong>{creditPayoutForAction.client ?? creditPayoutForAction.id}</strong>
+                  </p>
+                  <p className="text-sm text-neutral-600">
+                    Amount: <strong>{formatCurrency(creditPayoutForAction.amount)}</strong>
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">Note (optional)</label>
+                    <textarea
+                      value={approveNote}
+                      onChange={(e) => setApproveNote(e.target.value)}
+                      placeholder="e.g. Commission payout"
+                      rows={2}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    />
+                  </div>
+                </div>
+                {error && (
+                  <div className="mt-4 p-3 bg-error/10 border border-error/30 rounded-lg">
+                    <p className="text-sm text-error">{error}</p>
+                  </div>
+                )}
+                <div className="flex gap-3 mt-6">
+                  <Button variant="secondary" onClick={() => { setShowApproveModal(false); setCreditPayoutForAction(null); setError(null); }} disabled={submitting}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" onClick={handleApprovePayout} loading={submitting} disabled={submitting}>
+                    Approve
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Credit: Reject Payout Modal */}
+        {showRejectModal && creditPayoutForAction && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-md mx-4">
+              <CardHeader>
+                <CardTitle>Reject Payout</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-neutral-600">
+                    Client: <strong>{creditPayoutForAction.client ?? creditPayoutForAction.id}</strong>
+                  </p>
+                  <p className="text-sm text-neutral-600">
+                    Amount: <strong>{formatCurrency(creditPayoutForAction.amount)}</strong>
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">Reason for rejection *</label>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Enter reason..."
+                      rows={3}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                      required
+                    />
+                  </div>
+                </div>
+                {error && (
+                  <div className="mt-4 p-3 bg-error/10 border border-error/30 rounded-lg">
+                    <p className="text-sm text-error">{error}</p>
+                  </div>
+                )}
+                <div className="flex gap-3 mt-6">
+                  <Button variant="secondary" onClick={() => { setShowRejectModal(false); setCreditPayoutForAction(null); setRejectReason(''); setError(null); }} disabled={submitting}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" onClick={handleRejectPayout} loading={submitting} disabled={!rejectReason.trim() || submitting}>
+                    Reject
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
