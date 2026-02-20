@@ -13,6 +13,7 @@ import { N8nGetResponse, UserAccount } from '../../types/entities.js';
 import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';
 import { cacheService } from './cache.service.js';
 import { n8nEndpoints, getTableToGetWebhookPath } from './n8nEndpoints.js';
+import { normalizeRecords } from './recordNormalizer.service.js';
 
 /**
  * Type definitions for n8n webhook responses
@@ -310,17 +311,19 @@ export class N8nClient {
         
         // Use type-safe parser to handle n8n response format
         // Parser handles: Airtable format, flattened format, arrays, single records
-        const records = responseParser.parse(rawData as N8nWebhookResponse);
-        
+        const parsed = responseParser.parse(rawData as N8nWebhookResponse);
+        // Normalize field variants and booleans for consistent consumption
+        const records = normalizeRecords(parsed, tableName);
+
         // Always log successful webhook fetches
         console.log(`✅ [WEBHOOK SUCCESS] Fetched and parsed ${records.length} records from ${tableName} webhook`);
-        
+
         // Cache the parsed result (persists until invalidated)
         if (useCache) {
           // Cache holds indefinitely until explicitly invalidated via POST operations
           cacheService.set(cacheKey, records);
         }
-        
+
         return records;
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
