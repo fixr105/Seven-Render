@@ -7,12 +7,22 @@ export interface UseLedgerOptions {
   clientId?: string | null;
 }
 
+/** Shape of a payout request as returned by credit/client payout-requests APIs. */
+export interface PayoutRequestItem {
+  id: string;
+  client?: string;
+  amount: number;
+  status: string;
+  date?: string;
+  description?: string;
+}
+
 export const useLedger = (options?: UseLedgerOptions) => {
   const { user } = useAuth();
   const userRole = user?.role || null;
   const kamClientId = options?.clientId ?? null;
   const [entries, setEntries] = useState<Record<string, unknown>[]>([]);
-  const [payoutRequests, setPayoutRequests] = useState<unknown[]>([]);
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequestItem[]>([]);
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -119,7 +129,7 @@ export const useLedger = (options?: UseLedgerOptions) => {
           : await apiService.getClientPayoutRequests();
 
       if (response.success && response.data) {
-        setPayoutRequests(response.data || []);
+        setPayoutRequests((response.data as PayoutRequestItem[]) || []);
       } else {
         console.error('Error fetching payout requests:', response.error);
         setPayoutRequests([]);

@@ -83,20 +83,28 @@ APPROVED → DISBURSED (CREDIT)
 
 ## State Machine Rules
 
-### Valid Transitions
+### Administrative close
 
-| From Status | To Status | Role |
-|------------|-----------|------|
-| DRAFT | UNDER_KAM_REVIEW | CLIENT |
-| DRAFT | WITHDRAWN | CLIENT |
-| UNDER_KAM_REVIEW | QUERY_WITH_CLIENT | KAM |
-| UNDER_KAM_REVIEW | PENDING_CREDIT_REVIEW | KAM |
-| QUERY_WITH_CLIENT | UNDER_KAM_REVIEW | CLIENT |
-| PENDING_CREDIT_REVIEW | IN_NEGOTIATION | CREDIT |
-| IN_NEGOTIATION | SENT_TO_NBFC | CREDIT |
-| SENT_TO_NBFC | APPROVED | CREDIT |
-| APPROVED | DISBURSED | CREDIT |
-| ... | ... | ... |
+**Credit and Admin** may transition to **CLOSED** from **any non-closed status** (administrative close). This is enforced in `isValidTransition()` and allows the UI to show "Closed/Archived" for Credit/Admin from any state. All other transitions use the `STATUS_TRANSITIONS` map and `ROLE_STATUS_PERMISSIONS`.
+
+### Valid Transitions (from→to matrix)
+
+| From status           | Allowed to                                                                   |
+| --------------------- | ---------------------------------------------------------------------------- |
+| draft                 | under_kam_review, withdrawn                                                 |
+| under_kam_review      | query_with_client, pending_credit_review, withdrawn                          |
+| query_with_client     | under_kam_review, pending_credit_review, withdrawn                           |
+| pending_credit_review | credit_query_with_kam, in_negotiation, sent_to_nbfc, rejected, withdrawn     |
+| credit_query_with_kam | pending_credit_review, rejected                                              |
+| in_negotiation        | sent_to_nbfc, rejected, withdrawn                                           |
+| sent_to_nbfc          | approved, rejected, in_negotiation                                           |
+| approved              | disbursed, rejected                                                          |
+| rejected              | closed                                                                       |
+| disbursed             | closed                                                                       |
+| withdrawn             | closed                                                                       |
+| closed                | (none)                                                                       |
+
+Plus: **Credit/Admin** → **closed** from any of the above (administrative close).
 
 ### Invalid Transitions (Blocked)
 

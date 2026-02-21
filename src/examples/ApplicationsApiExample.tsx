@@ -85,7 +85,7 @@ export const ApplicationsApiExample: React.FC = () => {
           columns={columns}
           keyExtractor={(row) => row.id}
           onRowClick={(row) => {
-            const id = row.id ?? row.applicationId ?? row.fileId;
+            const id = row.id ?? row.fileId;
             if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
           }}
         />

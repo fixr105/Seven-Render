@@ -11,6 +11,8 @@ export type RecentApplicationsRole = 'client' | 'kam' | 'credit';
 export interface ApplicationRow {
   id: string;
   fileNumber: string;
+  applicationId?: string;
+  fileId?: string;
   clientName?: string;
   loanType: string;
   amount: string;
@@ -46,6 +48,8 @@ function mapToTableData(applications: LoanApplication[], role: RecentApplication
   return applications.slice(0, 5).map((app) => ({
     id: app.id,
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
+    applicationId: app.id,
+    fileId: app.file_number,
     clientName: app.client?.company_name || '',
     loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,

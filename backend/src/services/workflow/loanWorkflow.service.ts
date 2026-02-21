@@ -11,7 +11,7 @@
 
 import { n8nClient } from '../airtable/n8nClient.js';
 import { LoanStatus, UserRole } from '../../config/constants.js';
-import { validateTransition } from '../statusTracking/statusStateMachine.js';
+import { validateTransition, toUserRole } from '../statusTracking/statusStateMachine.js';
 import { recordStatusChange } from '../statusTracking/statusHistory.service.js';
 import { centralizedLogger } from '../logging/centralizedLogger.service.js';
 import { AuthUser } from '../../types/auth.js';
@@ -185,7 +185,7 @@ export class LoanWorkflowService {
     const newStatus = LoanStatus.PENDING_CREDIT_REVIEW;
 
     // Validate status transition
-    validateTransition(previousStatus, newStatus, user.role);
+    validateTransition(previousStatus, newStatus, toUserRole(user.role));
 
     // Update application status
     const updateData: any = {

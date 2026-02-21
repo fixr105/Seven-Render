@@ -12,7 +12,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Select } from '../components/ui/Select';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
-import { Plus, Eye, MessageSquare, RefreshCw, FileText } from 'lucide-react';
+import { Plus, Eye, MessageSquare, RefreshCw, FileText, X } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
@@ -93,6 +93,41 @@ export const Applications: React.FC = () => {
   const [queryMessage, setQueryMessage] = useState('');
   const [queryCounts, setQueryCounts] = useState<Record<string, { unresolved: number; lastActivity: string | null }>>({});
   const [loadingQueryCounts, setLoadingQueryCounts] = useState(false);
+  const [clientFilterDisplayName, setClientFilterDisplayName] = useState<string | null>(null);
+
+  const clientIdFromUrl = searchParams.get('clientId');
+
+  useEffect(() => {
+    if (!clientIdFromUrl) {
+      setClientFilterDisplayName(null);
+      return;
+    }
+    if (userRole !== 'kam' && userRole !== 'credit_team') return;
+    let cancelled = false;
+    const resolve = async () => {
+      if (userRole === 'kam') {
+        const res = await apiService.listClients();
+        if (cancelled) return;
+        if (res.success && res.data && Array.isArray(res.data)) {
+          const c = (res.data as any[]).find(
+            (x: any) => (x.id || x['Client ID'] || '') === clientIdFromUrl
+          );
+          const name = c?.name ?? c?.['Client Name'] ?? c?.['Primary Contact Name'];
+          if (name) setClientFilterDisplayName(String(name));
+        }
+      } else if (userRole === 'credit_team') {
+        const res = await apiService.getCreditClient(clientIdFromUrl);
+        if (cancelled) return;
+        if (res.success && res.data) {
+          const d = res.data as any;
+          const name = d.name ?? d?.clientName ?? d?.['Client Name'] ?? d?.['Primary Contact Name'];
+          if (name) setClientFilterDisplayName(String(name));
+        }
+      }
+    };
+    resolve();
+    return () => { cancelled = true; };
+  }, [clientIdFromUrl, userRole]);
 
   useEffect(() => {
     const param = searchParams.get('status');
@@ -230,6 +265,12 @@ export const Applications: React.FC = () => {
   });
 
   const filteredData = displayApplications.filter(app => {
+    if (clientIdFromUrl) {
+      const appClientId = app.rawData?.client_id ?? (app.rawData as any)?.Client ?? (app.rawData as any)?.client;
+      const idStr = appClientId != null ? String(appClientId) : '';
+      if (idStr !== clientIdFromUrl) return false;
+    }
+
     const matchesSearch = searchQuery === '' ||
       app.fileNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -318,7 +359,7 @@ export const Applications: React.FC = () => {
             icon={Eye}
             onClick={(e) => {
               e.stopPropagation();
-              const id = row.id ?? row.applicationId ?? row.fileId;
+              const id = row.id ?? row.fileNumber;
               if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
             }}
           >
@@ -426,6 +467,28 @@ export const Applications: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Client filter tile: show when filtered by client and allow clear */}
+      {clientIdFromUrl && (
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
+          <span className="text-sm text-neutral-600">
+            Client: <strong className="text-neutral-900">
+              {filteredData.length > 0
+                ? filteredData[0].clientName
+                : (clientFilterDisplayName || clientIdFromUrl || 'Client filter active')}
+            </strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => navigate('/applications', { replace: true })}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm font-medium text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
+            aria-label="Clear client filter"
+          >
+            <X className="w-4 h-4" />
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card>
@@ -505,7 +568,7 @@ export const Applications: React.FC = () => {
             sortDirection={sortDirection}
             onSort={handleSort}
             onRowClick={(row) => {
-              const id = row.id ?? row.applicationId ?? row.fileId;
+              const id = row.id ?? row.fileNumber;
               if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
             }}
             rowTestId="application-row"

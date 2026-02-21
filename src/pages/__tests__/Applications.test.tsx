@@ -204,11 +204,11 @@ describe('Applications Listing Page - P0 Tests', () => {
         },
       });
 
-      const emptyMsg = await screen.findByText(/No applications found|no applications/i, {}, { timeout: 5000 });
-      expect(emptyMsg).toBeInTheDocument();
+      const emptyMsgs = await screen.findAllByText(/No applications found|no applications/i, {}, { timeout: 5000 });
+      expect(emptyMsgs.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('should show loading state while fetching applications', () => {
+    it('should show loading state while fetching applications', async () => {
       (useApplications as any).mockReturnValue({
         applications: [],
         loading: true,
@@ -227,8 +227,8 @@ describe('Applications Listing Page - P0 Tests', () => {
         },
       });
 
-      const loadingMsg = await screen.findByText(/Loading applications|Loading/i, {}, { timeout: 3000 });
-      expect(loadingMsg).toBeInTheDocument();
+      const loadingMsgs = await screen.findAllByText(/Loading applications|Loading/i, {}, { timeout: 3000 });
+      expect(loadingMsgs.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -253,8 +253,8 @@ describe('Applications Listing Page - P0 Tests', () => {
         },
       });
 
-      const msg = await screen.findByText(/No applications found|no applications|error|failed/i, {}, { timeout: 5000 });
-      expect(msg).toBeInTheDocument();
+      const msgs = await screen.findAllByText(/No applications found|no applications|error|failed/i, {}, { timeout: 5000 });
+      expect(msgs.length).toBeGreaterThanOrEqual(1);
     });
   });
 

@@ -166,8 +166,8 @@ export const Ledger: React.FC = () => {
     }
   };
 
-  const pendingPayoutRequests = (payoutRequests as Array<{ id: string; client?: string; amount: number; status?: string; date?: string; description?: string }>).filter(
-    (p) => (p.status === 'Requested' || String(p.status).toLowerCase() === 'requested')
+  const pendingPayoutRequests = (payoutRequests ?? []).filter(
+    (p: { status?: string }) => (p.status === 'Requested' || String(p.status || '').toLowerCase() === 'requested')
   );
 
   const handleApprovePayout = async () => {

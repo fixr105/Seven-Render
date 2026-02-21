@@ -4,10 +4,22 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { LoanStatus } from '../config/constants.js';
+import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
+
+/** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
+const FORWARDED_STATUSES: string[] = [
+  LoanStatus.PENDING_CREDIT_REVIEW,
+  LoanStatus.CREDIT_QUERY_WITH_KAM,
+  LoanStatus.IN_NEGOTIATION,
+  LoanStatus.SENT_TO_NBFC,
+  LoanStatus.APPROVED,
+  LoanStatus.REJECTED,
+  LoanStatus.DISBURSED,
+  LoanStatus.CLOSED,
+];
 
 export class KAMController {
   /**
@@ -145,17 +157,88 @@ export class KAMController {
           status: entry['Dispute Status'],
         }));
 
+      // Helpers for per-client performance metrics (no extra fetches)
+      const getAppDate = (app: any): Date | null => {
+        const raw =
+          app['Creation Date'] ?? app['Created At'] ?? app.creationDate ?? app.createdTime ?? '';
+        if (!raw) return null;
+        const d = new Date(raw);
+        return isNaN(d.getTime()) ? null : d;
+      };
+      const now = Date.now();
+      const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+      const isWithinLast30Days = (d: Date | null) => d !== null && d.getTime() >= thirtyDaysAgo;
+      const lenderStatus = (app: any) =>
+        String(app['Lender Decision Status'] ?? app.lenderDecisionStatus ?? '').trim();
+      const status = (app: any) => String(app.Status ?? app.status ?? '').trim();
+      const isApproved = (app: any) =>
+        lenderStatus(app) === LenderDecisionStatus.APPROVED ||
+        status(app) === LoanStatus.APPROVED ||
+        status(app) === LoanStatus.DISBURSED;
+      const isRejected = (app: any) =>
+        lenderStatus(app) === LenderDecisionStatus.REJECTED ||
+        status(app) === LoanStatus.REJECTED;
+
+      const clientsWithMetrics = managedClients.map((c: any) => {
+        const clientId = c.id || c['Client ID'] || c['ID'];
+        const appsForClient = clientApplications.filter((app: any) => matchIds(app.Client, clientId));
+        const totalFiles = appsForClient.length;
+        const filesLast30Days = appsForClient.filter((app: any) =>
+          isWithinLast30Days(getAppDate(app))
+        ).length;
+        const pendingReview = appsForClient.filter(
+          (app: any) => status(app) === LoanStatus.UNDER_KAM_REVIEW
+        ).length;
+        const awaitingResponse = appsForClient.filter(
+          (app: any) => status(app) === LoanStatus.QUERY_WITH_CLIENT
+        ).length;
+        const forwarded = appsForClient.filter((app: any) =>
+          FORWARDED_STATUSES.includes(status(app))
+        ).length;
+        const approved = appsForClient.filter((app: any) => isApproved(app)).length;
+        const rejected = appsForClient.filter((app: any) => isRejected(app)).length;
+        const decided = approved + rejected;
+        const approvalRate = decided > 0 ? Math.round((approved / decided) * 100) : null;
+
+        return {
+          id: c.id,
+          name: c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
+          email: c['Contact Email / Phone'] || '',
+          activeApplications: appsForClient.filter(
+            (app: any) => status(app) !== LoanStatus.CLOSED
+          ).length,
+          totalFiles,
+          filesLast30Days,
+          pendingReview,
+          awaitingResponse: awaitingResponse,
+          forwarded,
+          approved,
+          rejected,
+          approvalRate: approvalRate,
+        };
+      });
+
+      const approvedTotal = clientsWithMetrics.reduce((s, c) => s + c.approved, 0);
+      const rejectedTotal = clientsWithMetrics.reduce((s, c) => s + c.rejected, 0);
+      const decidedTotal = approvedTotal + rejectedTotal;
+      const summary = {
+        totalClients: clientsWithMetrics.length,
+        totalFiles: clientsWithMetrics.reduce((s, c) => s + c.totalFiles, 0),
+        filesLast30Days: clientsWithMetrics.reduce((s, c) => s + c.filesLast30Days, 0),
+        pendingReview: filesByStage.underReview,
+        awaitingResponse: filesByStage.queryPending,
+        forwarded: clientsWithMetrics.reduce((s, c) => s + c.forwarded, 0),
+        approved: approvedTotal,
+        rejected: rejectedTotal,
+        approvalRate:
+          decidedTotal > 0 ? Math.round((approvedTotal / decidedTotal) * 100) : null,
+      };
+
       res.json({
         success: true,
         data: {
-          clients: managedClients.map((c: any) => ({
-            id: c.id,
-            name: c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
-            email: c['Contact Email / Phone'] || '',
-            activeApplications: clientApplications.filter(
-              (app) => matchIds(app.Client, c.id) && app.Status !== LoanStatus.CLOSED
-            ).length,
-          })),
+          clients: clientsWithMetrics,
+          summary,
           filesByStage,
           pendingQuestionsFromCredit: pendingQuestions,
           ledgerDisputes,
@@ -1032,10 +1115,21 @@ export class KAMController {
         return;
       }
 
+      // Transform form data to checklist format when provided
+      let formDataToStore: string | undefined = application['Form Data'];
+      if (formData && Object.keys(formData).length > 0) {
+        const productId = application['Loan Product'] || application.loanProduct || '';
+        const { transformFormDataToChecklistFormat } = await import('../services/formConfig/formDataToChecklistTransformer.js');
+        const transformed = productId
+          ? await transformFormDataToChecklistFormat(productId, formData as Record<string, unknown>)
+          : formData;
+        formDataToStore = JSON.stringify(transformed);
+      }
+
       // Update application
       const updatedData = {
         ...application,
-        'Form Data': formData ? JSON.stringify(formData) : application['Form Data'],
+        'Form Data': formDataToStore,
         'Last Updated': new Date().toISOString(),
       };
 

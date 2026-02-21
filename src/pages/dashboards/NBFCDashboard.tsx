@@ -12,6 +12,8 @@ import { useState, useEffect } from 'react';
 interface ApplicationRow {
   id: string;
   fileNumber: string;
+  applicationId?: string;
+  fileId?: string;
   clientName: string;
   loanType: string;
   amount: string;
@@ -81,6 +83,8 @@ export const NBFCDashboard: React.FC = () => {
   const tableData: ApplicationRow[] = assignedApplications.map(app => ({
     id: app.id,
     fileNumber: app.file_number || `SF${app.id.slice(0, 8)}`,
+    applicationId: app.id,
+    fileId: app.file_number,
     clientName: app.client?.company_name || '',
     loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,

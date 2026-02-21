@@ -129,23 +129,42 @@ export class UsersController {
 
       await n8nClient.postUserAccount(userAccountData);
 
-      // When creating a KAM user, also create the KAM Users record so login works
+      // When creating a KAM user, also create the KAM Users record so login works (required for KAM ID at login)
       if (normalizedRole === 'kam') {
-        try {
-          const kamData = {
-            id: newId,
-            'KAM ID': newId,
-            Name: (associatedProfile != null ? String(associatedProfile).trim() : '') || userAccountData.Username,
-            Email: userAccountData.Username,
-            Phone: '',
-            'Managed Clients': '',
-            Role: 'kam',
-            Status: status,
-          };
-          await n8nClient.postKamUser(kamData);
-        } catch (kamErr: any) {
-          console.warn('[createUserAccount] KAM Users record creation failed (user account was created):', kamErr?.message || kamErr);
-          // Do not fail - User Account is primary; KAM can be added manually if needed
+        const kamData = {
+          id: newId,
+          'KAM ID': newId,
+          Name: (associatedProfile != null ? String(associatedProfile).trim() : '') || userAccountData.Username,
+          Email: userAccountData.Username,
+          Phone: '',
+          'Managed Clients': '',
+          Role: 'kam',
+          Status: status,
+        };
+        const maxAttempts = 3;
+        const retryDelayMs = 1000;
+        let lastError: any;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            await n8nClient.postKamUser(kamData);
+            lastError = undefined;
+            break;
+          } catch (kamErr: any) {
+            lastError = kamErr;
+            console.warn(`[createUserAccount] KAM Users record creation attempt ${attempt}/${maxAttempts} failed:`, kamErr?.message || kamErr);
+            if (attempt < maxAttempts) {
+              await new Promise((r) => setTimeout(r, retryDelayMs));
+            }
+          }
+        }
+        if (lastError) {
+          const msg = lastError?.message || String(lastError);
+          console.error('[createUserAccount] KAM Users record creation failed after retries (user account was already created):', msg);
+          res.status(502).json({
+            success: false,
+            error: `User account was created but KAM profile could not be created. The new user will not be able to log in as KAM until the KAM profile exists. Details: ${msg}. Check n8n webhook (N8N_POST_KAM_USERS_URL) and Airtable KAM Users table.`,
+          });
+          return;
         }
       }
 

@@ -78,6 +78,7 @@ describe('Ledger Page - P0 Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('alert', vi.fn());
     (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
       user: mockClientUser,
       loading: false,
@@ -99,6 +100,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -132,6 +135,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -147,13 +152,14 @@ describe('Ledger Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        const balanceEl = screen.queryByText(/22,500/) ?? screen.queryByText(/22500/);
-        expect(balanceEl).toBeTruthy();
+        const balanceEls = screen.queryAllByText(/22,500/).length ? screen.queryAllByText(/22,500/) : screen.queryAllByText(/22500/);
+        expect(balanceEls.length).toBeGreaterThanOrEqual(1);
       });
 
       // Check running balances in entries
       await waitFor(() => {
-        expect(screen.getByText(/₹10,000/i)).toBeInTheDocument();
+        const amountEls = screen.queryAllByText(/₹10,000/i);
+        expect(amountEls.length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -166,6 +172,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -198,6 +206,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -227,6 +237,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -262,6 +274,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -286,7 +300,8 @@ describe('Ledger Page - P0 Tests', () => {
 
       // Should open modal (modal shows "Available Balance:" and "Request Amount")
       await waitFor(() => {
-        expect(screen.getByText(/Available Balance/i)).toBeInTheDocument();
+        const els = screen.queryAllByText(/Available Balance/i);
+        expect(els.length).toBeGreaterThanOrEqual(1);
       }, { timeout: 3000 });
     });
 
@@ -302,6 +317,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -326,7 +343,8 @@ describe('Ledger Page - P0 Tests', () => {
 
       // Wait for modal to open
       await waitFor(() => {
-        expect(screen.getByText(/Available Balance/i)).toBeInTheDocument();
+        const els = screen.queryAllByText(/Available Balance/i);
+        expect(els.length).toBeGreaterThanOrEqual(1);
       }, { timeout: 3000 });
       const requestButtons = screen.getAllByRole('button', { name: /request payout/i });
       const submitButton = requestButtons[requestButtons.length - 1];
@@ -349,6 +367,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {
@@ -378,6 +398,8 @@ describe('Ledger Page - P0 Tests', () => {
         raiseQuery: vi.fn(),
         flagPayout: vi.fn(),
         refetch: vi.fn(),
+        payoutRequests: [],
+        refetchPayoutRequests: vi.fn(),
       });
 
       renderWithProviders(<Ledger />, {

@@ -112,8 +112,9 @@ export default async function handlerWrapper(
   
   try {
     // Handle debug endpoints directly in serverless handler (before Express)
-    // This bypasses Express routing to test if the issue is with Express
-    if (req.url && (req.url.includes('/debug/test') || req.url.includes('/debug/env') || req.url.includes('/debug/webhook-config'))) {
+    // SECURITY: Only in development - production must not expose env vars or webhook URLs
+    const isDebugPath = req.url && (req.url.includes('/debug/test') || req.url.includes('/debug/env') || req.url.includes('/debug/webhook-config'));
+    if (isDebugPath && process.env.NODE_ENV === 'development') {
       console.log(`[HANDLER] Debug endpoint detected, handling directly`);
       const origin = req.headers.origin || req.headers.referer || '*';
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -163,6 +164,15 @@ export default async function handlerWrapper(
         });
         return;
       }
+    } else if (isDebugPath) {
+      // Debug path in production - return 404 to avoid leaking env vars
+      const origin = req.headers.origin || req.headers.referer || '*';
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.status(404).json({ success: false, error: 'Not found' });
+      return;
     }
     
             // Add CORS headers to allow requests from any origin with credentials (cookies)

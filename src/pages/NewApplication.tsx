@@ -196,9 +196,17 @@ export const NewApplication: React.FC = () => {
     }
   };
 
+  /** Default category name when none set; must match backend (mandatoryFieldValidation.service) */
+  const DEFAULT_CATEGORY_NAME = 'Documents';
+  /** File/document radio option values; skip PAN format validation for these (align with backend). */
+  const isFileOptionValue = (v: unknown): boolean => {
+    if (v == null) return false;
+    const s = typeof v === 'string' ? v.trim() : String(v).trim();
+    return ['Yes, Added to Folder', 'Awaiting, Will Update Folder', 'added_to_link', 'to_be_shared', 'yes_added_to_folder', 'awaiting_will_update', 'Not Available', 'not_available'].includes(s);
+  };
   /** Build display key for form_data: "Label - Category Name" (human-readable, unique) */
   const getDisplayKey = (fieldLabel: string, categoryName: string) =>
-    `${fieldLabel} - ${categoryName}`;
+    `${fieldLabel} - ${categoryName || DEFAULT_CATEGORY_NAME}`;
 
   const handleFieldChange = (key: string, value: any) => {
     setFormData(prev => ({
@@ -232,7 +240,7 @@ export const NewApplication: React.FC = () => {
 
     // Validate mandatory form fields from configuration (required + PAN format)
     formConfig.forEach((category: any) => {
-      const categoryName = category.categoryName || category['Category Name'] || '';
+      const categoryName = category.categoryName || category['Category Name'] || category.categoryId || DEFAULT_CATEGORY_NAME;
       (category.fields || []).forEach((field: any) => {
         const fieldId = field.fieldId || field['Field ID'] || field.id;
         const fieldLabel = field.label || field['Field Label'] || field.fieldLabel;
@@ -263,9 +271,16 @@ export const NewApplication: React.FC = () => {
           }
         }
 
-        // PAN format validation (when value is present)
+        // PAN format validation (when value is present). Skip for file-type or file-option values.
         const panField = { fieldId, label: fieldLabel, type: fieldType };
-        if (isPanField(panField) && value && typeof value === 'string' && value.trim().length > 0) {
+        if (
+          isPanField(panField) &&
+          fieldType !== 'file' &&
+          value &&
+          typeof value === 'string' &&
+          value.trim().length > 0 &&
+          !isFileOptionValue(value)
+        ) {
           const panError = getPanValidationError(value);
           if (panError) {
             errors[fieldId] = errors[fieldId] || panError;
@@ -505,7 +520,7 @@ export const NewApplication: React.FC = () => {
                   { id: 'details', label: 'Application Details', description: 'Basic Information' },
                   ...formConfig.map((cat: any, idx: number) => ({
                     id: cat.categoryId || `category-${idx}`,
-                    label: cat.categoryName || cat['Category Name'] || `Section ${idx + 1}`,
+                    label: cat.categoryName || cat['Category Name'] || cat.categoryId || DEFAULT_CATEGORY_NAME,
                     description: cat.description || '',
                   })),
                 ]}
@@ -666,7 +681,7 @@ export const NewApplication: React.FC = () => {
               className="mb-6"
             >
               <CardHeader>
-                <CardTitle>{category.categoryName || category['Category Name']}</CardTitle>
+                <CardTitle>{category.categoryName || category['Category Name'] || category.categoryId || DEFAULT_CATEGORY_NAME}</CardTitle>
                 {category.description && (
                   <p className="text-sm text-neutral-600 mt-1">{category.description}</p>
                 )}
@@ -676,7 +691,7 @@ export const NewApplication: React.FC = () => {
                   {(category.fields || []).map((field: any) => {
                     const fieldId = field.fieldId || field['Field ID'] || field.id;
                     const fieldLabel = field.label || field['Field Label'] || field.fieldLabel;
-                    const categoryName = category.categoryName || category['Category Name'] || '';
+                    const categoryName = category.categoryName || category['Category Name'] || category.categoryId || DEFAULT_CATEGORY_NAME;
                     const displayKey = getDisplayKey(fieldLabel, categoryName);
                     const fieldType = field.type || field['Field Type'] || field.fieldType;
                     const isRequired = field.isRequired || field['Is Required'] === 'True' || field.isMandatory === 'True';

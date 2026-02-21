@@ -15,7 +15,6 @@ export const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
-  const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [phoneError, setPhoneError] = useState<string>('');

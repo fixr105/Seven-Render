@@ -103,6 +103,12 @@ export class LoanController {
         }
       }
 
+      // Transform form data to checklist format (document names as keys, "yes"|"no"|"to be shared soon" as values)
+      const { transformFormDataToChecklistFormat } = await import('../services/formConfig/formDataToChecklistTransformer.js');
+      const transformedFormData = productId
+        ? await transformFormDataToChecklistFormat(productId, finalFormData as Record<string, unknown>)
+        : (finalFormData as Record<string, string>);
+
       // Generate File ID
       const timestamp = Date.now().toString(36).toUpperCase();
       const fileId = `SF${timestamp.slice(-8)}`;
@@ -118,7 +124,7 @@ export class LoanController {
           productId,
           applicantName: finalApplicantName,
           requestedLoanAmount: finalRequestedAmount,
-          formData: finalFormData,
+          formData: transformedFormData,
           documents: '',
           saveAsDraft,
         });
@@ -158,7 +164,7 @@ export class LoanController {
         // KAM will see this in their "needs attention" list
       }
 
-      // Create application in Airtable with all provided data
+      // Create application in Airtable with all provided data (Form Data in checklist format)
       const applicationData: any = {
         id: applicationId,
         'File ID': fileId,
@@ -169,7 +175,7 @@ export class LoanController {
         Status: status,
         'Creation Date': new Date().toISOString().split('T')[0],
         'Last Updated': new Date().toISOString(),
-        'Form Data': JSON.stringify(finalFormData),
+        'Form Data': JSON.stringify(transformedFormData),
         'Form Config Version': formConfigVersion || '', // Module 1: Store form config version
         Documents: '', // Link-first flow: no per-file uploads; Drive link handled separately when implemented
         'Needs Attention': needsAttention ? 'True' : 'False', // Module 2: Flag for KAM attention
@@ -731,11 +737,26 @@ export class LoanController {
 
       if (role === 'client') {
         if (answers) {
-          const currentFormData = application['Form Data'] ? JSON.parse(application['Form Data']) : {};
-          const updatedFormData = { ...currentFormData, ...answers };
+          const productId = application['Loan Product'] || application.loanProduct || '';
+          const { transformFormDataToChecklistFormat } = await import('../services/formConfig/formDataToChecklistTransformer.js');
+          let currentFormData: Record<string, unknown> = {};
+          try {
+            currentFormData = application['Form Data']
+              ? (typeof application['Form Data'] === 'string' ? JSON.parse(application['Form Data']) : application['Form Data'])
+              : {};
+          } catch {
+            currentFormData = {};
+          }
+          const transformedAnswers = productId
+            ? await transformFormDataToChecklistFormat(productId, answers as Record<string, unknown>)
+            : (answers as Record<string, string>);
+          const merged = { ...currentFormData, ...transformedAnswers };
+          const formDataToStore = productId
+            ? await transformFormDataToChecklistFormat(productId, merged)
+            : merged;
           await n8nClient.postLoanApplication({
             ...application,
-            'Form Data': JSON.stringify(updatedFormData),
+            'Form Data': JSON.stringify(formDataToStore),
             'Last Updated': new Date().toISOString(),
           });
         }
@@ -1054,10 +1075,17 @@ export class LoanController {
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
 
+      // Transform form data to checklist format before saving
+      const productId = application['Loan Product'] || application.loanProduct || '';
+      const { transformFormDataToChecklistFormat } = await import('../services/formConfig/formDataToChecklistTransformer.js');
+      const transformedFormData = productId
+        ? await transformFormDataToChecklistFormat(productId, (formData || {}) as Record<string, unknown>)
+        : (formData || {});
+
       // Update form data (preserve existing Documents for backward compatibility)
       const updatedData: any = {
         ...application,
-        'Form Data': JSON.stringify(formData || {}),
+        'Form Data': JSON.stringify(transformedFormData),
         'Last Updated': new Date().toISOString(),
         'Form Config Version': formConfigVersion || '', // Module 1: Preserve or update version
       };
@@ -1199,13 +1227,13 @@ export class LoanController {
       }
 
       // Module 3: Validate status transition using state machine
-      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { validateTransition, toUserRole } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
       
       const previousStatus = application.Status as LoanStatus;
       const newStatus = LoanStatus.UNDER_KAM_REVIEW;
       
-      validateTransition(previousStatus, newStatus, req.user!.role);
+      validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
 
       // Update status - Module 1: Freeze form config version on submission
       await n8nClient.postLoanApplication({

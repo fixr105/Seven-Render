@@ -11,6 +11,7 @@ import {
   validateTransition,
   getStatusDisplayName,
   getStatusColor,
+  normalizeToCanonicalStatus,
 } from '../statusStateMachine.js';
 
 // Test utilities
@@ -123,6 +124,84 @@ test('getStatusColor - returns correct color', () => {
     getStatusColor(LoanStatus.QUERY_WITH_CLIENT) === 'warning',
     'QUERY_WITH_CLIENT returns warning color'
   );
+});
+
+// --- Administrative close (Credit/Admin can close from any non-closed status) ---
+
+test('isValidTransition - CREDIT can transition DRAFT → CLOSED', () => {
+  assert(
+    isValidTransition(LoanStatus.DRAFT, LoanStatus.CLOSED, UserRole.CREDIT),
+    'CREDIT can transition DRAFT → CLOSED (administrative close)'
+  );
+});
+
+test('validateTransition - CREDIT can transition DRAFT → CLOSED', () => {
+  validateTransition(LoanStatus.DRAFT, LoanStatus.CLOSED, UserRole.CREDIT);
+  console.log('   validateTransition did not throw');
+});
+
+test('isValidTransition - CREDIT can transition UNDER_KAM_REVIEW → CLOSED', () => {
+  assert(
+    isValidTransition(LoanStatus.UNDER_KAM_REVIEW, LoanStatus.CLOSED, UserRole.CREDIT),
+    'CREDIT can transition UNDER_KAM_REVIEW → CLOSED (administrative close)'
+  );
+});
+
+test('getAllowedNextStatuses - CREDIT from DRAFT includes CLOSED', () => {
+  const allowed = getAllowedNextStatuses(LoanStatus.DRAFT, UserRole.CREDIT);
+  assert(
+    allowed.includes(LoanStatus.CLOSED),
+    'getAllowedNextStatuses(DRAFT, CREDIT) includes CLOSED'
+  );
+});
+
+test('isValidTransition - CLIENT cannot transition DRAFT → CLOSED', () => {
+  assert(
+    !isValidTransition(LoanStatus.DRAFT, LoanStatus.CLOSED, UserRole.CLIENT),
+    'CLIENT cannot transition DRAFT → CLOSED'
+  );
+});
+
+test('validateTransition - CLIENT cannot transition DRAFT → CLOSED', () => {
+  try {
+    validateTransition(LoanStatus.DRAFT, LoanStatus.CLOSED, UserRole.CLIENT);
+    throw new Error('Should have thrown');
+  } catch (error: any) {
+    assert(
+      error.message.includes('Invalid status transition'),
+      'validateTransition throws for CLIENT DRAFT → CLOSED'
+    );
+  }
+});
+
+test('normalizeToCanonicalStatus - pending_kam_review → under_kam_review', () => {
+  const out = normalizeToCanonicalStatus('pending_kam_review');
+  assert(out === LoanStatus.UNDER_KAM_REVIEW, 'pending_kam_review normalizes to UNDER_KAM_REVIEW');
+});
+
+test('normalizeToCanonicalStatus - kam_query_raised → query_with_client', () => {
+  const out = normalizeToCanonicalStatus('kam_query_raised');
+  assert(out === LoanStatus.QUERY_WITH_CLIENT, 'kam_query_raised normalizes to QUERY_WITH_CLIENT');
+});
+
+test('isValidTransition - CREDIT can transition PENDING_CREDIT_REVIEW → SENT_TO_NBFC', () => {
+  assert(
+    isValidTransition(LoanStatus.PENDING_CREDIT_REVIEW, LoanStatus.SENT_TO_NBFC, UserRole.CREDIT),
+    'CREDIT can transition PENDING_CREDIT_REVIEW → SENT_TO_NBFC'
+  );
+});
+
+test('getAllowedNextStatuses - CREDIT from PENDING_CREDIT_REVIEW includes SENT_TO_NBFC', () => {
+  const allowed = getAllowedNextStatuses(LoanStatus.PENDING_CREDIT_REVIEW, UserRole.CREDIT);
+  assert(
+    allowed.includes(LoanStatus.SENT_TO_NBFC),
+    'getAllowedNextStatuses(PENDING_CREDIT_REVIEW, CREDIT) includes SENT_TO_NBFC'
+  );
+});
+
+test('normalizeToCanonicalStatus - Pending Credit Review with spaces', () => {
+  const out = normalizeToCanonicalStatus('Pending Credit Review');
+  assert(out === LoanStatus.PENDING_CREDIT_REVIEW, 'Pending Credit Review normalizes to PENDING_CREDIT_REVIEW');
 });
 
 console.log('\n✅ All Status State Machine tests passed!');

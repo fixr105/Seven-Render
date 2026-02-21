@@ -27,6 +27,8 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+const AUTH_TOKEN_STORAGE_KEY = 'seven_auth_token';
+
 // Types
 export type UserRole = 'client' | 'kam' | 'credit_team' | 'nbfc' | 'admin';
 
@@ -84,6 +86,33 @@ export interface DashboardSummary {
     status: string;
     requestedDate: string;
   }>;
+  /** KAM dashboard: clients with performance metrics (single source for client stats) */
+  clients?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    activeApplications: number;
+    totalFiles: number;
+    filesLast30Days: number;
+    pendingReview: number;
+    awaitingResponse: number;
+    forwarded: number;
+    approved: number;
+    rejected: number;
+    approvalRate: number | null;
+  }>;
+  /** KAM dashboard: aggregate summary for top tiles */
+  summary?: {
+    totalClients: number;
+    totalFiles: number;
+    filesLast30Days: number;
+    pendingReview: number;
+    awaitingResponse: number;
+    forwarded: number;
+    approved: number;
+    rejected: number;
+    approvalRate: number | null;
+  };
 }
 
 export interface LoanApplication {
@@ -218,11 +247,44 @@ export interface AuditLogEntry {
 
 class ApiService {
   private baseUrl: string;
-  /** Bearer token for when cookies are not sent (e.g. E2E, some proxies). Set on login, cleared on logout. */
+  /** Bearer token for when cookies are not sent (e.g. cross-origin, E2E). Set on login, restored from sessionStorage on load, cleared on logout/401. */
   private bearerToken: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    this.restoreTokenFromStorage();
+  }
+
+  private restoreTokenFromStorage(): void {
+    if (typeof sessionStorage === 'undefined') return;
+    try {
+      const stored = sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      if (stored) this.bearerToken = stored;
+    } catch {
+      // ignore
+    }
+  }
+
+  private clearAuthToken(): void {
+    this.bearerToken = null;
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private setAuthToken(token: string): void {
+    this.bearerToken = token;
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   // Generic request method
@@ -335,6 +397,7 @@ class ApiService {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
+          this.clearAuthToken();
           return {
             success: false,
             error: data.error || `Authentication failed (${response.status}).`,
@@ -410,7 +473,7 @@ class ApiService {
       body: JSON.stringify({ email, password }),
     });
     if (response.success && response.data?.token) {
-      this.bearerToken = response.data.token;
+      this.setAuthToken(response.data.token);
     }
     return response;
   }
@@ -427,7 +490,7 @@ class ApiService {
    * Logout - clears auth cookie on server and in-memory Bearer token.
    */
   async logout(): Promise<ApiResponse<{ message: string }>> {
-    this.bearerToken = null;
+    this.clearAuthToken();
     return this.request<{ message: string }>('/auth/logout', { method: 'POST' });
   }
 

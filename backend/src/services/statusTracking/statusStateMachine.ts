@@ -4,12 +4,27 @@
  * Defines valid status transitions and enforces state machine rules
  */
 
-import { LoanStatus } from '../../config/constants.js';
-import { UserRole } from '../../config/constants.js';
+import { LoanStatus, UserRole } from '../../config/constants.js';
+
+/**
+ * Normalize request/API role string to UserRole for transition validation.
+ * Ensures values like 'credit', 'creditteam' map to UserRole.CREDIT so allowed transitions are correct.
+ */
+export function toUserRole(role: string | undefined): UserRole {
+  if (!role || typeof role !== 'string') return UserRole.CLIENT;
+  const r = role.trim().toLowerCase().replace(/\s+/g, '_');
+  if (r === 'kam') return UserRole.KAM;
+  if (r === 'credit_team' || r === 'credit' || r === 'creditteam') return UserRole.CREDIT;
+  if (r === 'nbfc') return UserRole.NBFC;
+  if (r === 'admin') return UserRole.ADMIN;
+  return UserRole.CLIENT;
+}
 
 /**
  * Status transition map
- * Defines which statuses can transition to which other statuses
+ * Defines which statuses can transition to which other statuses.
+ * Credit and Admin may transition to CLOSED from any non-closed status (administrative close);
+ * that rule is enforced in isValidTransition. All other transitions use this map and ROLE_STATUS_PERMISSIONS.
  */
 export const STATUS_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
   [LoanStatus.DRAFT]: [
@@ -63,9 +78,43 @@ export const STATUS_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
   [LoanStatus.CLOSED]: [], // Terminal state - no transitions
 };
 
+/** Canonical LoanStatus values for lookup */
+const CANONICAL_STATUSES = new Set<LoanStatus>(Object.values(LoanStatus));
+
+/**
+ * Map common aliases (frontend/Airtable) to canonical LoanStatus.
+ * Use before calling validateTransition when status comes from DB or request.
+ */
+export function normalizeToCanonicalStatus(raw: string): LoanStatus {
+  const key = (raw || '').toString().trim().toLowerCase().replace(/-/g, '_').replace(/\s+/g, '_');
+  const aliasMap: Record<string, LoanStatus> = {
+    pending_kam_review: LoanStatus.UNDER_KAM_REVIEW,
+    under_kam_review: LoanStatus.UNDER_KAM_REVIEW,
+    kam_query_raised: LoanStatus.QUERY_WITH_CLIENT,
+    query_with_client: LoanStatus.QUERY_WITH_CLIENT,
+    forwarded_to_credit: LoanStatus.PENDING_CREDIT_REVIEW,
+    pending_credit_review: LoanStatus.PENDING_CREDIT_REVIEW,
+    credit_query_raised: LoanStatus.CREDIT_QUERY_WITH_KAM,
+    credit_query_with_kam: LoanStatus.CREDIT_QUERY_WITH_KAM,
+    in_negotiation: LoanStatus.IN_NEGOTIATION,
+    sent_to_nbfc: LoanStatus.SENT_TO_NBFC,
+    approved: LoanStatus.APPROVED,
+    rejected: LoanStatus.REJECTED,
+    disbursed: LoanStatus.DISBURSED,
+    withdrawn: LoanStatus.WITHDRAWN,
+    draft: LoanStatus.DRAFT,
+    closed: LoanStatus.CLOSED,
+  };
+  const canonical = aliasMap[key];
+  if (canonical) return canonical;
+  if (CANONICAL_STATUSES.has(key as LoanStatus)) return key as LoanStatus;
+  throw new Error(`Unknown or unsupported status: ${raw}`);
+}
+
 /**
  * Role-based status transition permissions
- * Defines which roles can perform which status transitions
+ * Defines which roles can perform which status transitions.
+ * Credit must have SENT_TO_NBFC to transition from PENDING_CREDIT_REVIEW to Sent to NBFC.
  */
 export const ROLE_STATUS_PERMISSIONS: Record<UserRole, LoanStatus[]> = {
   [UserRole.CLIENT]: [
@@ -80,7 +129,7 @@ export const ROLE_STATUS_PERMISSIONS: Record<UserRole, LoanStatus[]> = {
   [UserRole.CREDIT]: [
     LoanStatus.CREDIT_QUERY_WITH_KAM, // Query KAM
     LoanStatus.IN_NEGOTIATION, // Mark in negotiation
-    LoanStatus.SENT_TO_NBFC, // Assign to NBFC
+    LoanStatus.SENT_TO_NBFC, // Assign to NBFC (required for PENDING_CREDIT_REVIEW → Sent to NBFC)
     LoanStatus.APPROVED, // Approve (after NBFC decision)
     LoanStatus.REJECTED, // Reject
     LoanStatus.DISBURSED, // Mark disbursed
@@ -120,6 +169,15 @@ export function isValidTransition(
   toStatus: LoanStatus,
   userRole: UserRole
 ): boolean {
+  // Administrative close: Credit and Admin may close from any non-closed status
+  if (
+    toStatus === LoanStatus.CLOSED &&
+    fromStatus !== LoanStatus.CLOSED &&
+    (userRole === UserRole.CREDIT || userRole === UserRole.ADMIN)
+  ) {
+    return true;
+  }
+
   // Check if transition is allowed in state machine
   const allowedTransitions = STATUS_TRANSITIONS[fromStatus] || [];
   if (!allowedTransitions.includes(toStatus)) {
@@ -148,9 +206,17 @@ export function getAllowedNextStatuses(
 ): LoanStatus[] {
   const allTransitions = STATUS_TRANSITIONS[currentStatus] || [];
   const rolePermissions = ROLE_STATUS_PERMISSIONS[userRole] || [];
-  
-  // Return intersection: statuses that are both allowed by state machine AND by role
-  return allTransitions.filter(status => rolePermissions.includes(status));
+  const fromGraph = allTransitions.filter((status) => rolePermissions.includes(status));
+  // Credit/Admin may close from any non-closed status; include CLOSED if they have permission
+  if (
+    currentStatus !== LoanStatus.CLOSED &&
+    (userRole === UserRole.CREDIT || userRole === UserRole.ADMIN) &&
+    rolePermissions.includes(LoanStatus.CLOSED) &&
+    !fromGraph.includes(LoanStatus.CLOSED)
+  ) {
+    return [...fromGraph, LoanStatus.CLOSED];
+  }
+  return fromGraph;
 }
 
 /**

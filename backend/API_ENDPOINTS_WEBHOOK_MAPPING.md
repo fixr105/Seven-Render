@@ -1616,6 +1616,22 @@ This document provides a comprehensive list of all API endpoints, the n8n webhoo
 
 ---
 
+### POST `/user-accounts`
+**Role**: Credit team or Admin only
+
+**Webhooks Called**:
+1. **POST** `/webhook/adduser` → Airtable: `User Accounts`
+2. **POST** `/webhook/KAMusers` → Airtable: `KAM Users` (only when creating a KAM user)
+
+**Steps**:
+1. Verify user role is credit_team or admin
+2. Create user account via POST `/webhook/adduser`
+3. If role is `kam`, create KAM profile via n8n "KAM Users" POST webhook (with retries). **Requirement:** Creating a KAM user requires the n8n "KAM Users" POST webhook to be enabled and correctly configured. Set `N8N_POST_KAM_USERS_URL` in the environment; without it, KAM creation returns 502 and the new user cannot log in as KAM.
+4. Log to Admin Activity Log
+5. Return 201 with created user data (or 502 if KAM profile creation fails after retries)
+
+---
+
 ### GET `/user-accounts`
 **Role**: Authenticated (all roles)
 

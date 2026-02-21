@@ -125,13 +125,18 @@ export class AuthService {
           clientId = (matchingClient['Client ID'] || matchingClient.clientId || matchingClient.id || null)?.toString() ?? null;
         }
       } else if (base.role === UserRole.KAM) {
-        // Map KAM users to KAM Users table
+        // Map KAM users to KAM Users table (match by email, then fallback to User Account id)
         const kamUsers = await n8nClient.fetchTable('KAM Users');
-        const matchingKam = kamUsers.find((k: any) => {
+        let matchingKam = kamUsers.find((k: any) => {
           const email = (k.Email || k['Email'] || '').toString().trim().toLowerCase();
           return email && email === normalizedEmail;
         });
-
+        if (!matchingKam && account.id) {
+          matchingKam = kamUsers.find((k: any) => {
+            const kid = (k.id || k['KAM ID'] || '').toString().trim();
+            return kid && kid === account.id;
+          });
+        }
         if (matchingKam) {
           kamId = (matchingKam['KAM ID'] || matchingKam.kamId || matchingKam.id || null)?.toString() ?? null;
         }

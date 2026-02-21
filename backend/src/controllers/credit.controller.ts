@@ -4,9 +4,10 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { LoanStatus, LenderDecisionStatus, DisputeStatus, SLA_SENT_TO_NBFC_DAYS } from '../config/constants.js';
+import { LoanStatus, UserRole, LenderDecisionStatus, DisputeStatus, SLA_SENT_TO_NBFC_DAYS } from '../config/constants.js';
 import { getStatusHistory } from '../services/statusTracking/statusHistory.service.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
+import { toUserRole } from '../services/statusTracking/statusStateMachine.js';
 
 export class CreditController {
   /**
@@ -393,7 +394,7 @@ export class CreditController {
       const newStatus = LoanStatus.IN_NEGOTIATION;
       
       try {
-        validateTransition(previousStatus, newStatus, req.user!.role);
+        validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
       } catch (transitionError: any) {
         res.status(400).json({
           success: false,
@@ -465,18 +466,30 @@ export class CreditController {
         res.status(400).json({ success: false, error: 'Status is required' });
         return;
       }
-      const newStatus = (newStatusRaw as string).trim().toLowerCase().replace(/-/g, '_') as LoanStatus;
-      const applications = await n8nClient.fetchTable('Loan Application');
+      // Bypass cache so we validate against current application status
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = applications.find((app: any) => app.id === id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
-      const previousStatus = (application.Status || '').toString().trim().toLowerCase().replace(/-/g, '_') as LoanStatus;
-      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { validateTransition, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+      let previousStatus: LoanStatus;
+      let newStatus: LoanStatus;
       try {
-        validateTransition(previousStatus, newStatus, req.user!.role);
+        previousStatus = normalizeToCanonicalStatus((application.Status ?? '').toString());
+        newStatus = normalizeToCanonicalStatus(newStatusRaw as string);
+      } catch (normErr: any) {
+        res.status(400).json({
+          success: false,
+          error: normErr.message || 'Invalid status',
+        });
+        return;
+      }
+      const role = toUserRole(req.user!.role);
+      try {
+        validateTransition(previousStatus, newStatus, role);
       } catch (transitionError: any) {
         res.status(400).json({
           success: false,
@@ -583,7 +596,7 @@ export class CreditController {
       const newStatus = LoanStatus.SENT_TO_NBFC;
       
       try {
-        validateTransition(previousStatus, newStatus, req.user!.role);
+        validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
       } catch (transitionError: any) {
         res.status(400).json({
           success: false,
@@ -692,7 +705,7 @@ export class CreditController {
         if (application.Status === LoanStatus.SENT_TO_NBFC) {
           const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
           try {
-            validateTransition(application.Status as LoanStatus, LoanStatus.APPROVED, req.user!.role);
+            validateTransition(application.Status as LoanStatus, LoanStatus.APPROVED, toUserRole(req.user!.role));
             updateData.Status = LoanStatus.APPROVED;
           } catch (transitionError) {
             // If transition invalid, keep current status but record decision
@@ -704,7 +717,7 @@ export class CreditController {
         // Module 3: Validate rejection transition
         const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
         try {
-          validateTransition(application.Status as LoanStatus, LoanStatus.REJECTED, req.user!.role);
+          validateTransition(application.Status as LoanStatus, LoanStatus.REJECTED, toUserRole(req.user!.role));
           updateData.Status = LoanStatus.REJECTED;
         } catch (transitionError) {
           console.warn('[captureNBFCDecision] Invalid rejection transition, keeping current status');
@@ -789,7 +802,7 @@ export class CreditController {
       const newStatus = LoanStatus.DISBURSED;
       
       try {
-        validateTransition(previousStatus, newStatus, req.user!.role);
+        validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
       } catch (transitionError: any) {
         res.status(400).json({
           success: false,
@@ -912,7 +925,7 @@ export class CreditController {
    */
   async closeApplication(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'credit_team') {
+      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
@@ -927,7 +940,27 @@ export class CreditController {
         return;
       }
 
-      const previousStatus = application.Status;
+      const previousStatusRaw = application.Status;
+      const { validateTransition, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
+      let previousStatus: LoanStatus;
+      try {
+        previousStatus = normalizeToCanonicalStatus((previousStatusRaw ?? '').toString());
+      } catch (normErr: any) {
+        res.status(400).json({
+          success: false,
+          error: normErr.message || 'Invalid current status',
+        });
+        return;
+      }
+      try {
+        validateTransition(previousStatus, LoanStatus.CLOSED, toUserRole(req.user!.role));
+      } catch (transitionError: any) {
+        res.status(400).json({
+          success: false,
+          error: transitionError.message || 'Invalid status transition',
+        });
+        return;
+      }
 
       // Update status to CLOSED
       await n8nClient.postLoanApplication({
@@ -944,7 +977,7 @@ export class CreditController {
         Timestamp: new Date().toISOString(),
         Actor: req.user.email,
         'Action/Event Type': 'credit_closed_file',
-        'Details/Message': `Application closed by credit team. Previous status: ${previousStatus}`,
+        'Details/Message': `Application closed by credit team. Previous status: ${previousStatusRaw}`,
         'Target User/Role': 'client',
         Resolved: 'False',
       });
@@ -956,7 +989,7 @@ export class CreditController {
         Timestamp: new Date().toISOString(),
         'Performed By': req.user.email,
         'Action Type': 'close_application',
-        'Description/Details': `Credit team closed loan application ${application['File ID']}. Previous status: ${previousStatus}`,
+        'Description/Details': `Credit team closed loan application ${application['File ID']}. Previous status: ${previousStatusRaw}`,
         'Target Entity': 'loan_application',
       });
 
@@ -985,7 +1018,7 @@ export class CreditController {
         data: {
           applicationId: application.id,
           fileId: application['File ID'],
-          previousStatus,
+          previousStatus: previousStatusRaw,
           newStatus: LoanStatus.CLOSED,
         },
       });
