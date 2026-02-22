@@ -115,6 +115,10 @@ export interface DashboardSummary {
   };
 }
 
+/**
+ * Loan application as returned by list/detail APIs. Backend/Airtable may return
+ * status or Status; frontend normalizes at read using app.status ?? app.Status (e.g. in useApplications).
+ */
 export interface LoanApplication {
   id: string;
   fileId: string;
@@ -202,6 +206,23 @@ export interface CommissionLedgerEntry {
   description: string;
   disputeStatus: string;
   payoutRequest: string;
+}
+
+/** Response shape for GET /clients/me/ledger */
+export interface ClientLedgerResponse {
+  entries: CommissionLedgerEntry[];
+  currentBalance: number;
+  totalEarnings: number;
+  totalFeesDue: number;
+}
+
+/** Response shape for GET /kam/ledger */
+export interface KAMLedgerResponse {
+  entries: CommissionLedgerEntry[];
+  currentBalance: number;
+  clientId: string;
+  totalEarnings: number;
+  totalFeesDue: number;
 }
 
 export interface PayoutRequest {
@@ -746,12 +767,14 @@ class ApiService {
     dateFrom?: string;
     dateTo?: string;
     search?: string;
+    unmapped?: boolean;
   }): Promise<ApiResponse<LoanApplication[]>> {
     const queryParams = new URLSearchParams();
     if (params?.status) queryParams.append('status', params.status);
     if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
     if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
     if (params?.search) queryParams.append('search', params.search);
+    if (params?.unmapped) queryParams.append('unmapped', 'true');
 
     const query = queryParams.toString();
     return this.request<LoanApplication[]>(
@@ -1190,6 +1213,8 @@ class ApiService {
   /**
    * Update application status (Credit only - for approved, rejected, credit_query_with_kam, sent_to_nbfc, etc.)
    * Retries once after 2.5s on 404-like failures to mitigate serverless cold-start (timeout, HTML fallback, etc.).
+   * Retry sends the same payload (idempotent); no double-apply of state changes.
+   * Timeouts: auth/create 60s, GET 55s, others 30s (see request() in this file).
    */
   async updateCreditApplicationStatus(
     applicationId: string,
@@ -1359,15 +1384,15 @@ class ApiService {
   /**
    * Get client commission ledger
    */
-  async getClientLedger(): Promise<ApiResponse<CommissionLedgerEntry[]>> {
-    return this.request<CommissionLedgerEntry[]>('/clients/me/ledger');
+  async getClientLedger(): Promise<ApiResponse<ClientLedgerResponse>> {
+    return this.request<ClientLedgerResponse>('/clients/me/ledger');
   }
 
   /**
    * Get KAM ledger for a managed client (read-only view)
    */
-  async getKAMLedger(clientId: string): Promise<ApiResponse<{ entries: CommissionLedgerEntry[]; currentBalance: number; clientId: string }>> {
-    return this.request(`/kam/ledger?clientId=${encodeURIComponent(clientId)}`);
+  async getKAMLedger(clientId: string): Promise<ApiResponse<KAMLedgerResponse>> {
+    return this.request<KAMLedgerResponse>(`/kam/ledger?clientId=${encodeURIComponent(clientId)}`);
   }
 
   /**

@@ -9,35 +9,45 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { SearchBar } from '../components/ui/SearchBar';
-import { Select } from '../components/ui/Select';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Plus, Eye, MessageSquare, RefreshCw, FileText, X } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
-import { getStatusDisplayNameForViewer } from '../lib/statusUtils';
+import { getStatusDisplayNameForViewer, getStatusColor } from '../lib/statusUtils';
 
 // Placeholder data removed - now using real data from database via useApplications hook
 
-const getStatusVariant = (status: string) => {
-  switch (status) {
-    case 'Approved':
-    case 'Disbursed':
+/** Map filter value to tag variant for colourful subtle filter tags */
+const getFilterTagVariant = (filterValue: string): 'neutral' | 'success' | 'warning' | 'error' | 'info' => {
+  switch (filterValue) {
+    case 'approved':
+    case 'disbursed':
       return 'success';
-    case 'Action required':
-    case 'KAM Query Raised':
-    case 'Pending KAM Review':
+    case 'pending':
+    case 'query':
+    case 'awaiting_kam_response':
       return 'warning';
-    case 'Rejected':
+    case 'rejected':
       return 'error';
-    case 'Forwarded to Credit':
-    case 'In Negotiation':
-    case 'Sent to NBFC':
+    case 'credit':
+    case 'negotiation':
+    case 'nbfc':
       return 'info';
+    case 'all':
+    case 'draft':
     default:
       return 'neutral';
   }
+};
+
+const FILTER_TAG_STYLES: Record<string, { base: string; active: string }> = {
+  neutral: { base: 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-neutral-200', active: 'bg-neutral-200 text-neutral-900 border-neutral-300 ring-1 ring-neutral-300' },
+  success: { base: 'bg-success/10 text-success border-success/30 hover:bg-success/20', active: 'bg-success/20 text-success border-success/50 ring-1 ring-success/40' },
+  warning: { base: 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/20', active: 'bg-warning/20 text-warning border-warning/50 ring-1 ring-warning/40' },
+  error: { base: 'bg-error/10 text-error border-error/30 hover:bg-error/20', active: 'bg-error/20 text-error border-error/50 ring-1 ring-error/40' },
+  info: { base: 'bg-info/10 text-info border-info/30 hover:bg-info/20', active: 'bg-info/20 text-info border-info/50 ring-1 ring-info/40' },
 };
 
 const URL_STATUS_TO_FILTER: Record<string, string> = {
@@ -57,10 +67,25 @@ const URL_STATUS_TO_FILTER: Record<string, string> = {
   disbursed: 'disbursed',
 };
 
-/** Map dropdown filter value to raw backend status(es). Filter by raw status so it works for all roles (e.g. client sees "Action required" but raw is kam_query_raised). */
+/** Map filter value to URL param (for shareable links and back/forward). Keep in sync with FILTER_TO_RAW_STATUSES and URL_STATUS_TO_FILTER when adding statuses. */
+const FILTER_TO_URL_PARAM: Record<string, string> = {
+  all: '',
+  draft: 'draft',
+  pending: 'pending_kam_review',
+  query: 'kam_query_raised',
+  credit: 'forwarded_to_credit',
+  negotiation: 'in_negotiation',
+  nbfc: 'sent_to_nbfc',
+  approved: 'approved',
+  rejected: 'rejected',
+  disbursed: 'disbursed',
+  awaiting_kam_response: 'credit_query_with_kam',
+};
+
+/** Map filter tag value to raw backend status(es). "Pending KAM Review" = under_kam_review only; "Forwarded to Credit" = pending_credit_review. Align with statusUtils and backend statusStateMachine when adding statuses. */
 const FILTER_TO_RAW_STATUSES: Record<string, string[]> = {
   draft: ['draft'],
-  pending: ['under_kam_review', 'pending_credit_review'],
+  pending: ['under_kam_review'],
   query: ['kam_query_raised', 'query_with_client', 'credit_query_with_kam', 'credit_query_raised'],
   credit: ['pending_credit_review'],
   negotiation: ['in_negotiation'],
@@ -72,7 +97,7 @@ const FILTER_TO_RAW_STATUSES: Record<string, string[]> = {
 
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const userRole = user?.role || null;
   
@@ -82,8 +107,10 @@ export const Applications: React.FC = () => {
     return '';
   };
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  // Use backend API-driven applications hook (no webhook data)
-  const { applications, loading, refetch } = useApplications();
+  const showUnmappedTab = userRole === 'credit_team' || userRole === 'admin' || userRole === 'kam';
+  const [viewTab, setViewTab] = useState<'all' | 'unmapped'>('all');
+  const unmappedView = showUnmappedTab && viewTab === 'unmapped';
+  const { applications, loading, refetch } = useApplications({ unmapped: unmappedView });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortColumn, setSortColumn] = useState('');
@@ -309,17 +336,21 @@ export const Applications: React.FC = () => {
   const handleRaiseQuery = async () => {
     if (!selectedApplication || !queryMessage.trim()) return;
     try {
-      const response =
-        userRole === 'credit_team'
-          ? await apiService.raiseQueryToKAM(selectedApplication.id, queryMessage.trim())
-          : await apiService.raiseQueryToClient(selectedApplication.id, queryMessage.trim());
-      if (response.success) {
+      let response;
+      if (userRole === 'credit_team') {
+        response = await apiService.raiseQueryToKAM(selectedApplication.id, queryMessage.trim());
+      } else if (userRole === 'kam') {
+        response = await apiService.raiseQueryToClient(selectedApplication.id, queryMessage.trim());
+      } else {
+        response = await apiService.createClientQuery(selectedApplication.id, queryMessage.trim());
+      }
+      if (response?.success) {
         setShowQueryModal(false);
         setQueryMessage('');
         setSelectedApplication(null);
         refetch();
       } else {
-        alert(response.error || 'Failed to raise query');
+        alert(response?.error || 'Failed to raise query');
       }
     } catch (error) {
       console.error('Error raising query:', error);
@@ -338,7 +369,7 @@ export const Applications: React.FC = () => {
       label: 'Status',
       render: (value, row) => (
         <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>
+          <Badge variant={getStatusColor(row.rawStatus ?? '')}>{String(value)}</Badge>
           {userRole === 'credit_team' && row.unresolvedQueryCount > 0 && (
             <Badge variant="warning" className="text-xs">
               {row.unresolvedQueryCount} {row.unresolvedQueryCount === 1 ? 'query' : 'queries'}
@@ -415,9 +446,13 @@ export const Applications: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-sm font-medium text-warning mb-1">No applications found</p>
+                <p className="text-sm font-medium text-warning mb-1">
+                  {unmappedView ? 'No unmapped applications' : 'No applications found'}
+                </p>
                 <p className="text-xs text-neutral-600">
-                  There are no applications in the backend database.
+                  {unmappedView
+                    ? 'Applications not linked to a client or KAM (e.g. input from the backend) will appear under the Unmapped tab.'
+                    : 'There are no applications in the backend database.'}
                 </p>
               </div>
               <Button 
@@ -433,9 +468,39 @@ export const Applications: React.FC = () => {
         </Card>
       )}
 
+      {/* View tabs: All | Unmapped (credit_team, admin, KAM only) */}
+      {showUnmappedTab && (
+        <div className="mb-4 flex gap-1 rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+          <button
+            type="button"
+            onClick={() => setViewTab('all')}
+            aria-pressed={viewTab === 'all'}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              viewTab === 'all'
+                ? 'bg-white text-neutral-900 shadow-sm'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab('unmapped')}
+            aria-pressed={viewTab === 'unmapped'}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              viewTab === 'unmapped'
+                ? 'bg-white text-neutral-900 shadow-sm'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            Unmapped
+          </button>
+        </div>
+      )}
+
       {/* Filters and Search */}
       <Card className="mb-6">
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <SearchBar
@@ -444,25 +509,47 @@ export const Applications: React.FC = () => {
                 placeholder="Search by File ID, Client, Applicant, or Loan Type..."
               />
             </div>
-            <div className="w-full md:w-64">
-              <Select
-                options={statusOptions}
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              />
+            <div className="flex flex-shrink-0 gap-2">
+              <Button
+                variant="secondary"
+                icon={RefreshCw}
+                onClick={refetch}
+                disabled={loading}
+                className={loading ? 'opacity-50 cursor-not-allowed' : ''}
+              >
+                {loading ? 'Loading...' : 'Refresh'}
+              </Button>
+              <Button variant="primary" icon={Plus} onClick={() => navigate('/applications/new')}>
+                New Application
+              </Button>
             </div>
-            <Button 
-              variant="secondary" 
-              icon={RefreshCw} 
-              onClick={refetch}
-              disabled={loading}
-              className={loading ? 'opacity-50 cursor-not-allowed' : ''}
-            >
-              {loading ? 'Loading...' : 'Refresh'}
-            </Button>
-            <Button variant="primary" icon={Plus} onClick={() => navigate('/applications/new')}>
-              New Application
-            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-3 mt-1 border-t border-neutral-200">
+            <span className="text-sm font-medium text-neutral-600 mr-1">Status:</span>
+            {statusOptions.map((opt) => {
+              const variant = getFilterTagVariant(opt.value);
+              const styles = FILTER_TAG_STYLES[variant];
+              const isActive = statusFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(opt.value);
+                    const urlParam = FILTER_TO_URL_PARAM[opt.value];
+                    const next = new URLSearchParams(searchParams);
+                    if (urlParam) next.set('status', urlParam);
+                    else next.delete('status');
+                    setSearchParams(next, { replace: true });
+                  }}
+                  aria-pressed={isActive}
+                  aria-label={`Filter by ${opt.label}`}
+                  className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${isActive ? styles.active : styles.base}`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -526,7 +613,9 @@ export const Applications: React.FC = () => {
       {/* Applications Table */}
       <Card>
         <CardHeader className="flex items-center justify-between">
-          <CardTitle>All Applications ({filteredData.length})</CardTitle>
+          <CardTitle>
+            {unmappedView ? `Unmapped Applications (${filteredData.length})` : `All Applications (${filteredData.length})`}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -548,6 +637,16 @@ export const Applications: React.FC = () => {
                       }}
                     >
                       Clear filters
+                    </Button>
+                  </>
+                ) : unmappedView ? (
+                  <>
+                    <p className="text-neutral-600 font-medium mb-1">No unmapped applications</p>
+                    <p className="text-neutral-500 text-sm mb-4">
+                      Applications not linked to a client (or for KAM, not matching any managed client) will appear here—e.g. records input from the backend.
+                    </p>
+                    <Button variant="tertiary" size="sm" onClick={refetch} className="mt-4">
+                      Refresh
                     </Button>
                   </>
                 ) : (

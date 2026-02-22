@@ -5,9 +5,10 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { LoanStatus } from '../config/constants.js';
+import { LoanStatus, UserRole } from '../config/constants.js';
 import { logApplicationAction, AdminActionType } from '../utils/adminLogger.js';
 import { defaultLogger } from '../utils/logger.js';
+import { matchIds } from '../utils/idMatcher.js';
 
 export class LoanController {
   /**
@@ -62,12 +63,20 @@ export class LoanController {
 
       // Module 2: Soft validation - check required fields but allow submission with warnings
       const { validateFormData } = await import('../services/validation/formValidation.service.js');
-      // Fetch form config for validation (Form Link + Record Titles)
+      // Fetch form config for validation - MUST match frontend source (getFormConfig uses getFormConfigForProduct first, then getSimpleFormConfig)
+      // so displayKeys (e.g. "Applicant Name - Documents" vs "Applicant Name - Section 1") match and validation sees the same keys the user filled in.
       let formConfig: any[] = [];
       try {
-        const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
-        const config = await getSimpleFormConfig(req.user!.clientId!, productId);
-        formConfig = config.categories;
+        if (productId && typeof productId === 'string') {
+          const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
+          const config = await getFormConfigForProduct(productId);
+          formConfig = config.categories;
+        }
+        if (formConfig.length === 0) {
+          const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+          const config = await getSimpleFormConfig(req.user!.clientId!, productId);
+          formConfig = config.categories;
+        }
       } catch (configError) {
         console.warn('[createApplication] Could not fetch form config for validation:', configError);
       }
@@ -296,8 +305,9 @@ export class LoanController {
     console.log(`🚨 [listApplications] Request method: ${req.method}`);
     console.log(`🚨 [listApplications] User: ${req.user ? JSON.stringify(req.user) : 'NO USER'}`);
     try {
-      const { status, dateFrom, dateTo, search } = req.query;
+      const { status, dateFrom, dateTo, search, unmapped } = req.query;
       const user = req.user!;
+      const unmappedOnly = unmapped === 'true' || unmapped === '1';
       
       console.log(`[listApplications] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
       console.log(`[listApplications] Fetching 3 tables in parallel...`);
@@ -340,6 +350,32 @@ export class LoanController {
       // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
       let filteredApplications = await rbacFilterService.filterLoanApplications(applications, user);
+
+      // Apply unmapped filter (credit_team: no client or client not in Clients; KAM: not matching any managed client)
+      if (unmappedOnly && (user.role === UserRole.CREDIT || user.role === UserRole.ADMIN || user.role === UserRole.KAM)) {
+        const getAppClient = (app: any) => {
+          const raw = Array.isArray(app.Client) ? app.Client[0] : (app.Client ?? app['Client'] ?? app['Client ID'] ?? app.clientId);
+          return raw != null && raw !== '' ? raw : null;
+        };
+        if (user.role === UserRole.CREDIT || user.role === UserRole.ADMIN) {
+          const allClientIds: string[] = [];
+          clients.forEach((c: any) => {
+            [c.id, c['Client ID'], c['ID']].filter(Boolean).forEach((id: any) => allClientIds.push(String(id)));
+          });
+          filteredApplications = filteredApplications.filter((app: any) => {
+            const appClient = getAppClient(app);
+            if (!appClient) return true;
+            return !allClientIds.some((id) => matchIds(appClient, id));
+          });
+        } else if (user.role === UserRole.KAM && user.kamId) {
+          const managedClientIds = await rbacFilterService.getKAMManagedClientIds(user.kamId);
+          filteredApplications = filteredApplications.filter((app: any) => {
+            const appClient = getAppClient(app);
+            if (!appClient) return true;
+            return !managedClientIds.some((id) => matchIds(appClient, id));
+          });
+        }
+      }
 
       // Apply status filter
       if (status) {
@@ -392,13 +428,25 @@ export class LoanController {
         const client = clientsMap.get(app.Client || app['Client']);
         const product = productsMap.get(app['Loan Product'] || app.loanProduct);
         
+        let formData: Record<string, unknown> = {};
+        if (app['Form Data'] != null) {
+          if (typeof app['Form Data'] === 'string') {
+            try {
+              formData = JSON.parse(app['Form Data']) as Record<string, unknown>;
+            } catch {
+              formData = {};
+            }
+          } else if (typeof app['Form Data'] === 'object' && app['Form Data'] !== null) {
+            formData = app['Form Data'] as Record<string, unknown>;
+          }
+        }
         return {
           id: app.id,
           fileId: app['File ID'] || app.fileId,
-          client: client?.['Client Name'] || client?.['Client Name'] || app.Client || app['Client'],
+          client: client?.['Client Name'] ?? app.Client ?? app['Client'],
           clientId: app.Client || app['Client'],
           applicantName: app['Applicant Name'] || app.applicantName,
-          product: product?.['Product Name'] || product?.['Product Name'] || app['Loan Product'] || app.loanProduct,
+          product: product?.['Product Name'] ?? app['Loan Product'] ?? app.loanProduct,
           productId: app['Loan Product'] || app.loanProduct,
           requestedAmount: app['Requested Loan Amount'] || app.requestedLoanAmount,
           status: app.Status || app.status,
@@ -411,7 +459,7 @@ export class LoanController {
           lenderDecisionDate: app['Lender Decision Date'] || app.lenderDecisionDate,
           lenderDecisionRemarks: app['Lender Decision Remarks'] || app.lenderDecisionRemarks,
           approvedAmount: app['Approved Loan Amount'] || app.approvedLoanAmount,
-          formData: app['Form Data'] ? (typeof app['Form Data'] === 'string' ? JSON.parse(app['Form Data']) : app['Form Data']) : {},
+          formData,
         };
       });
       

@@ -179,9 +179,22 @@ export class KAMController {
         lenderStatus(app) === LenderDecisionStatus.REJECTED ||
         status(app) === LoanStatus.REJECTED;
 
+      // Normalize app.Client (Airtable linked-record array or multiple field names) so client metrics match RBAC visibility.
+      // clientIdSet must use the same fields as getKAMManagedClientIds (id, Client ID, ID) so app↔client mapping is consistent.
+      const clientIdSet = (c: any) => [c.id, c['Client ID'], c['ID']].filter(Boolean).map(String);
+      const appsForClientFilter = (c: any, app: any) => {
+        const appClient = Array.isArray(app.Client) ? app.Client[0] : (app.Client ?? app['Client'] ?? app['Client ID'] ?? app.clientId);
+        const ids = clientIdSet(c);
+        return ids.some((id) => matchIds(appClient, id));
+      };
+      if (clientApplications.length > 0 && managedClients.length > 0) {
+        const sampleApp = clientApplications[0];
+        const appClientRaw = sampleApp.Client ?? sampleApp['Client'] ?? sampleApp['Client ID'] ?? sampleApp.clientId;
+        const firstClientIds = clientIdSet(managedClients[0]);
+        console.log('[getKAMDashboard] Client↔App match check: sample app Client=', appClientRaw, 'first client ids=', firstClientIds);
+      }
       const clientsWithMetrics = managedClients.map((c: any) => {
-        const clientId = c.id || c['Client ID'] || c['ID'];
-        const appsForClient = clientApplications.filter((app: any) => matchIds(app.Client, clientId));
+        const appsForClient = clientApplications.filter((app: any) => appsForClientFilter(c, app));
         const totalFiles = appsForClient.length;
         const filesLast30Days = appsForClient.filter((app: any) =>
           isWithinLast30Days(getAppDate(app))
@@ -217,6 +230,23 @@ export class KAMController {
           approvalRate: approvalRate,
         };
       });
+
+      // Log applications that pass RBAC but do not match any managed client (orphan apps)
+      const orphanApps = clientApplications.filter(
+        (app: any) => !managedClients.some((c: any) => appsForClientFilter(c, app))
+      );
+      if (orphanApps.length > 0) {
+        const sample = orphanApps.slice(0, 3).map((a: any) => ({
+          fileId: a['File ID'] ?? a.fileId,
+          appClient: a.Client ?? a['Client'] ?? a['Client ID'] ?? a.clientId,
+        }));
+        console.log(
+          '[getKAMDashboard] Orphan apps (pass RBAC but match no client card):',
+          orphanApps.length,
+          'sample:',
+          sample
+        );
+      }
 
       const approvedTotal = clientsWithMetrics.reduce((s, c) => s + c.approved, 0);
       const rejectedTotal = clientsWithMetrics.reduce((s, c) => s + c.rejected, 0);

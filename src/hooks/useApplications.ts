@@ -69,7 +69,18 @@ export function transformApplicationFromApi(app: Record<string, unknown>): LoanA
     })(),
     ai_file_summary: (app.aiFileSummary ?? app['AI File Summary']) != null ? String(app.aiFileSummary ?? app['AI File Summary']) : null,
     form_data: (() => {
-      const fd = app.formData ?? (typeof app['Form Data'] === 'string' ? JSON.parse(String(app['Form Data'] || '{}')) : app['Form Data']);
+      let fd: unknown;
+      if (app.formData != null) {
+        fd = app.formData;
+      } else if (typeof app['Form Data'] === 'string') {
+        try {
+          fd = JSON.parse(String(app['Form Data'] || '{}'));
+        } catch {
+          fd = {};
+        }
+      } else {
+        fd = app['Form Data'];
+      }
       return (fd && typeof fd === 'object' && !Array.isArray(fd) ? fd : {}) as Record<string, unknown>;
     })(),
     created_at: String(app.creationDate ?? app['Creation Date'] ?? app.createdAt ?? new Date().toISOString()),
@@ -95,29 +106,33 @@ export function transformApplicationFromApi(app: Record<string, unknown>): LoanA
   };
 }
 
-export const useApplications = () => {
+export interface UseApplicationsOptions {
+  /** When true, fetch only applications not mapped to a client (or for KAM, not matching any managed client). */
+  unmapped?: boolean;
+}
+
+export const useApplications = (options?: UseApplicationsOptions) => {
   useAuth();
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
+  const unmapped = options?.unmapped ?? false;
 
-  // Fetch on mount (including SPA navigation to Applications or Dashboard) and via explicit refetch.
+  // Fetch on mount and when unmapped toggle changes
   useEffect(() => {
     fetchApplications();
-  }, []);
+  }, [unmapped]);
 
   // Refetch when tab/window regains focus (user returns to app or navigates back)
   useEffect(() => {
     const handleFocus = () => fetchApplications();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+  }, [unmapped]);
 
   const fetchApplications = async () => {
     try {
       setLoading(true);
-      
-      // Use API service to fetch applications
-      const response = await apiService.listApplications();
+      const response = await apiService.listApplications(unmapped ? { unmapped: true } : undefined);
       
       if (response.success && response.data) {
         // Transform API response to match expected format
