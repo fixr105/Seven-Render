@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
 import { NBFC_REJECTION_REASONS } from '../config/nbfcRejectionReasons.js';
+import { parseFormData } from '../utils/parseFormData.js';
 
 export class NBFController {
   /**
@@ -187,11 +188,7 @@ export class NBFController {
           product: application['Loan Product'],
           requestedAmount: application['Requested Loan Amount'],
           approvedLoanAmount: application['Approved Loan Amount'],
-          formData: application['Form Data'] 
-            ? (typeof application['Form Data'] === 'string' 
-                ? JSON.parse(application['Form Data']) 
-                : application['Form Data'])
-            : {},
+          formData: parseFormData(application['Form Data']),
           documents, // Parsed documents array
           aiFileSummary: application['AI File Summary'],
           status: application.Status,

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && cd backend && npm run build && cd ..",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
   "installCommand": "npm install && cd backend && npm install && cd ..",
@@ -10,13 +10,19 @@
     {"source": "/(.*)", "destination": "/index.html"}
   ],
   "functions": {
-    "api/index.ts": {"includeFiles": "backend/**", "maxDuration": 60, "memory": 1024}
+    "api/index.ts": {"includeFiles": "backend/**", "maxDuration": 60}
   },
   "headers": [
     {
       "source": "/assets/(.*)",
       "headers": [
         {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}
+      ]
+    },
+    {
+      "source": "/videos/(.*)",
+      "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=31536000"}
       ]
     },
     {

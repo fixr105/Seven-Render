@@ -2,7 +2,6 @@
  * P0 Tests: Commission Ledger Listing and Payout Request/Approval
  * Tests M1-BE-001, M1-BE-002, M1-BE-003
  */
-
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Request, Response } from 'express';
 import { LedgerController } from '../ledger.controller.js';
@@ -42,7 +41,7 @@ describe('LedgerController - P0 Tests', () => {
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
-    };
+    } as unknown as Response;
   });
 
   describe('M1-BE-001: CLIENT View Commission Ledger', () => {
@@ -65,10 +64,15 @@ describe('LedgerController - P0 Tests', () => {
       expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Commission Ledger');
       expect(mockResponse.status).toHaveBeenCalledWith(200);
       
-      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
+        success: boolean;
+        data: { entries: any[]; currentBalance: number; totalEarnings: number; totalFeesDue: number };
+      };
       expect(responseCall.success).toBe(true);
       expect(responseCall.data.entries).toBeDefined();
       expect(responseCall.data.currentBalance).toBeDefined();
+      expect(responseCall.data.totalEarnings).toBeDefined();
+      expect(responseCall.data.totalFeesDue).toBeDefined();
       
       // Verify only CLIENT001 entries
       const entries = responseCall.data.entries;
@@ -78,6 +82,34 @@ describe('LedgerController - P0 Tests', () => {
       
       // Verify balance calculation (7500 + 15000 = 22500)
       expect(responseCall.data.currentBalance).toBe(22500);
+      // All positive entries: totalEarnings = 22500, totalFeesDue = 0
+      expect(responseCall.data.totalEarnings).toBe(22500);
+      expect(responseCall.data.totalFeesDue).toBe(0);
+    });
+
+    it('should return totalEarnings and totalFeesDue correctly for mix of Payout and Payin', async () => {
+      const clientUser: AuthUser = {
+        id: 'user-1',
+        email: 'client@test.com',
+        role: UserRole.CLIENT,
+        clientId: 'CLIENT001',
+      };
+      const mixedLedger = [
+        { ...mockCommissionLedger[0], 'Payout Amount': '10000' },
+        { ...mockCommissionLedger[1], 'Payout Amount': '-3000', Client: 'CLIENT001' },
+      ] as any;
+      mockRequest = { user: clientUser };
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockResolvedValue(mixedLedger);
+
+      await ledgerController.getClientLedger(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
+        data: { currentBalance: number; totalEarnings: number; totalFeesDue: number };
+      };
+      expect(responseCall.data.currentBalance).toBe(7000);
+      expect(responseCall.data.totalEarnings).toBe(10000);
+      expect(responseCall.data.totalFeesDue).toBe(3000);
     });
 
     it('should return 403 for non-CLIENT role', async () => {

@@ -13,6 +13,8 @@
 3. **Check the expected result** for each step
 4. **Mark as ✅ Pass** or ❌ **Fail** with notes if something doesn't work
 
+**Behavior note:** Client application submission with validation warnings is by design. The user sees a confirmation dialog and can choose to submit anyway; the success message will say "Application submitted successfully with warnings."
+
 ---
 
 ## Test User Credentials
@@ -21,6 +23,17 @@
 - **KAM**: `kam@test.com` / `Test@123456`
 - **Credit Team**: `credit@test.com` / `Test@123456`
 - **NBFC**: `nbfc@test.com` / `Test@123456`
+
+---
+
+## Credit status and state machine (manual test)
+
+Use this to verify status transitions and that the UI only shows allowed next statuses. See also `docs/AUDIT-BROKEN-LOGIC-AND-SYSTEMS.md` and `backend/src/services/statusTracking/statusStateMachine.ts`.
+
+- **Credit: Pending Credit Review** → Allowed next: Sent to NBFC, In Negotiation, Rejected, Credit Query (raise query to KAM).
+- **NBFC decision** → Approved or Rejected (from Sent to NBFC).
+- **Admin close** → Credit/Admin can close from appropriate terminal/near-terminal statuses.
+- **Retries:** Frontend credit status update retries once on 404/timeout (cold-start); retry sends the same payload (idempotent, no double-apply).
 
 ---
 

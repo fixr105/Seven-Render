@@ -45,7 +45,7 @@ async function loadRoutes(): Promise<void> {
       
       // Dynamically import routes to avoid blocking initialization
       // Use .js extension - Vercel compiles TypeScript automatically
-      const routesModule = await import('../backend/src/routes/index.js');
+      const routesModule = await import('../backend/dist/routes/index.js');
       const routes = routesModule.default;
       
       // Type assertion for Router compatibility (using unknown to avoid type conflicts)

@@ -32,6 +32,34 @@ function isValidPan(value: string): boolean {
 /** PAN key aliases that clients may send (e.g. from different form versions). */
 const PAN_KEY_ALIASES = ['pan', 'pan_card', 'pan_number'];
 
+/** Business KYC section IDs: only the selected one is validated when _businessType is set. */
+const BUSINESS_KYC_SECTION_IDS = ['section-2a', 'section-2b', 'section-2c', 'section-2d'];
+
+type FieldConfigItem = {
+  fieldId: string;
+  label: string;
+  type: string;
+  isMandatory: boolean;
+  category: string;
+  categoryName?: string;
+  displayKey?: string;
+};
+
+function filterFieldConfigsByBusinessType(
+  fieldConfigs: FieldConfigItem[],
+  businessType: string | undefined
+): FieldConfigItem[] {
+  if (!businessType || !['2a', '2b', '2c', '2d'].includes(businessType)) return fieldConfigs;
+  const allowedSection = `section-${businessType}`;
+  return fieldConfigs.filter(
+    (f) => {
+      const cat = f.category;
+      if (!cat || !BUSINESS_KYC_SECTION_IDS.includes(cat)) return true;
+      return cat === allowedSection;
+    }
+  );
+}
+
 /** File/document radio option values; do not run PAN format validation on these. */
 const FILE_OPTION_VALUES = new Set([
   'Yes, Added to Folder',
@@ -162,7 +190,11 @@ export async function validateMandatoryFields(
   documentLinks?: Record<string, string>
 ): Promise<MandatoryFieldValidationResult> {
   // Load form fields configuration
-  const fieldConfigs = await loadFormFieldsConfig(clientId, productId);
+  let fieldConfigs = await loadFormFieldsConfig(clientId, productId);
+
+  // When applicant chose one Business KYC type, validate only that section
+  const businessType = formData._businessType;
+  fieldConfigs = filterFieldConfigsByBusinessType(fieldConfigs, businessType);
 
   // Filter to only mandatory fields
   const mandatoryFields = fieldConfigs.filter((f) => f.isMandatory);
@@ -229,8 +261,8 @@ export async function validateMandatoryFields(
   });
 
   // Also validate PAN format for any non-mandatory PAN field that has a value. Skip for file-type or file-option values.
-  const allFieldConfigs = await loadFormFieldsConfig(clientId, productId);
-  allFieldConfigs.forEach((field) => {
+  // Reuse filtered fieldConfigs so Business KYC sections stay aligned with _businessType
+  fieldConfigs.forEach((field: any) => {
     if (!isPanField(field) || field.type === 'file') return;
     const value = getFieldValue(formData, field, true);
     if (!value || typeof value !== 'string' || value.trim().length === 0) return;

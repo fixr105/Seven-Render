@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Save, Send, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Save, Send, AlertTriangle, RefreshCw, Copy } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
@@ -13,6 +13,44 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { Stepper } from '../components/ui/Stepper';
 import { getPanValidationError, isPanField } from '../utils/panValidation';
+
+const GOOGLE_DRIVE_SHARE_EMAIL = 'automation.sevenfincorp@gmail.com';
+const ONEDRIVE_SHARE_EMAIL = 'automation@sevenfincorp.email';
+
+/** Business KYC section IDs (one of these is shown based on business type). */
+const BUSINESS_KYC_SECTION_IDS = ['section-2a', 'section-2b', 'section-2c', 'section-2d'] as const;
+/** Labels for Business type selector. */
+const BUSINESS_KYC_LABELS: Record<string, string> = {
+  '2a': 'Private Limited',
+  '2b': 'LLP',
+  '2c': 'Partnership Firm',
+  '2d': 'Self Employed / Proprietor',
+};
+
+function getDisplayCategories(
+  formConfig: any[],
+  businessType: string | undefined
+): any[] {
+  const businessKycCategories = formConfig.filter((c: any) =>
+    BUSINESS_KYC_SECTION_IDS.includes(c.categoryId)
+  );
+  const otherCategories = formConfig.filter(
+    (c: any) => !BUSINESS_KYC_SECTION_IDS.includes(c.categoryId)
+  );
+
+  if (businessKycCategories.length === 0) return formConfig;
+  if (businessKycCategories.length === 1) {
+    return [...otherCategories, ...businessKycCategories];
+  }
+  // Two or more: show only the selected Business KYC section
+  if (businessType && ['2a', '2b', '2c', '2d'].includes(businessType)) {
+    const selected = businessKycCategories.find(
+      (c: any) => c.categoryId === `section-${businessType}`
+    );
+    if (selected) return [...otherCategories, selected];
+  }
+  return otherCategories;
+}
 
 interface FormData {
   applicant_name: string;
@@ -46,9 +84,21 @@ export const NewApplication: React.FC = () => {
     requested_loan_amount: '',
     form_data: {},
   });
+  const [copiedWhich, setCopiedWhich] = useState<'google' | 'onedrive' | null>(null);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
+
+  const handleCopyShareEmail = async (which: 'google' | 'onedrive') => {
+    const email = which === 'google' ? GOOGLE_DRIVE_SHARE_EMAIL : ONEDRIVE_SHARE_EMAIL;
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopiedWhich(which);
+      setTimeout(() => setCopiedWhich(null), 2500);
+    } catch {
+      alert(`Copy failed. Please copy manually: ${email}`);
+    }
+  };
 
   // Fetch on mount (including SPA navigation) and via Load form when client.
   useEffect(() => {
@@ -218,6 +268,33 @@ export const NewApplication: React.FC = () => {
     }));
   };
 
+  const displayCategories = useMemo(
+    () => getDisplayCategories(formConfig, formData.form_data._businessType),
+    [formConfig, formData.form_data._businessType]
+  );
+
+  const businessKycCategories = useMemo(
+    () => formConfig.filter((c: any) => BUSINESS_KYC_SECTION_IDS.includes(c.categoryId)),
+    [formConfig]
+  );
+
+  // Default _businessType when product has exactly one Business KYC section
+  useEffect(() => {
+    if (businessKycCategories.length !== 1) return;
+    const onlySection = businessKycCategories[0];
+    const sectionId = onlySection?.categoryId?.replace(/^section-/, '') || '';
+    if (sectionId && ['2a', '2b', '2c', '2d'].includes(sectionId)) {
+      setFormData(prev =>
+        prev.form_data._businessType
+          ? prev
+          : {
+              ...prev,
+              form_data: { ...prev.form_data, _businessType: sectionId },
+            }
+      );
+    }
+  }, [businessKycCategories]);
+
   // Validate mandatory fields before submission (strict validation)
   const validateMandatoryFields = (saveAsDraft: boolean): { isValid: boolean; errors: Record<string, string> } => {
     const errors: Record<string, string> = {};
@@ -239,7 +316,8 @@ export const NewApplication: React.FC = () => {
     }
 
     // Validate mandatory form fields from configuration (required + PAN format)
-    formConfig.forEach((category: any) => {
+    // Use displayCategories so only the selected Business KYC section is validated
+    displayCategories.forEach((category: any) => {
       const categoryName = category.categoryName || category['Category Name'] || category.categoryId || DEFAULT_CATEGORY_NAME;
       (category.fields || []).forEach((field: any) => {
         const fieldId = field.fieldId || field['Field ID'] || field.id;
@@ -383,7 +461,8 @@ export const NewApplication: React.FC = () => {
       }
 
       const warnings = response.data?.warnings ?? [];
-      // Module 2: Soft validation - show warnings but allow submission
+      // Submit with warnings is by design: user must confirm in the dialog below; we do not block submission.
+      // Module 2: Soft validation - show warnings but allow submission after confirmation.
       if (!saveAsDraft && (warnings.length > 0 || response.data?.duplicateFound)) {
         // Show confirmation dialog with warnings
         const data = response.data;
@@ -457,41 +536,91 @@ export const NewApplication: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <form onSubmit={(e) => handleSubmit(e, false)}>
-        {/* Video containers - 2 column layout, portrait on mobile */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-w-full">
-          <div
-            data-video-slot="google-drive"
-            className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
-          >
-            <video
-              controls
-              playsInline
-              muted
-              loop
-              className="w-full h-full object-contain rounded-lg"
-              title="How to create a shared folder in Google Drive"
-            >
-              <source src="/videos/drive.mp4" type="video/mp4" />
-              <p className="text-sm text-neutral-500 p-4">Video not available</p>
-            </video>
-          </div>
-          <div
-            data-video-slot="onedrive"
-            className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
-          >
-            <video
-              controls
-              playsInline
-              muted
-              loop
-              className="w-full h-full object-contain rounded-lg"
-              title="How to create a shared folder in OneDrive"
-            >
-              <source src="/videos/onedrive.mp4" type="video/mp4" />
-              <p className="text-sm text-neutral-500 p-4">Video not available</p>
-            </video>
-          </div>
-        </div>
+        {/* How to share your documents - videos embedded in form */}
+        <Card id="how-to-share-documents" className="mb-6">
+          <CardHeader>
+            <CardTitle>How to share your documents</CardTitle>
+            <p className="text-sm text-neutral-500 mt-0.5">Create a shared folder (Google Drive or OneDrive), share it with the email below, then paste the folder link in the next section.</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-full">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-full max-w-[280px] text-center">
+                  <h3 className="text-base font-semibold text-neutral-800">Google Drive</h3>
+                  <p className="text-sm text-neutral-500 mt-0.5">Create a shared folder in Google Drive</p>
+                </div>
+                <div
+                  data-video-slot="google-drive"
+                  className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
+                >
+                  <video
+                    controls
+                    playsInline
+                    muted
+                    loop
+                    className="w-full h-full object-contain rounded-lg"
+                    title="How to create a shared folder in Google Drive"
+                  >
+                    <source src="/videos/drive.mp4" type="video/mp4" />
+                    <p className="text-sm text-neutral-500 p-4">Video not available</p>
+                  </video>
+                </div>
+                <div className="flex flex-col items-center gap-1 w-full max-w-[280px]">
+                  <p className="text-sm font-medium text-neutral-700 w-full text-center">Share folder with this email:</p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    icon={Copy}
+                    onClick={() => handleCopyShareEmail('google')}
+                    aria-label="Copy Google Drive share email to clipboard"
+                    data-testid="copy-google-drive-email"
+                  >
+                    Copy Google Drive share email
+                  </Button>
+                  {copiedWhich === 'google' && <span className="text-sm text-success">Copied!</span>}
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-full max-w-[280px] text-center">
+                  <h3 className="text-base font-semibold text-neutral-800">OneDrive</h3>
+                  <p className="text-sm text-neutral-500 mt-0.5">Create a shared folder in OneDrive</p>
+                </div>
+                <div
+                  data-video-slot="onedrive"
+                  className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
+                >
+                  <video
+                    controls
+                    playsInline
+                    muted
+                    loop
+                    className="w-full h-full object-contain rounded-lg"
+                    title="How to create a shared folder in OneDrive"
+                  >
+                    <source src="/videos/onedrive.mp4" type="video/mp4" />
+                    <p className="text-sm text-neutral-500 p-4">Video not available</p>
+                  </video>
+                </div>
+                <div className="flex flex-col items-center gap-1 w-full max-w-[280px]">
+                  <p className="text-sm font-medium text-neutral-700 w-full text-center">Share folder with this email:</p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    icon={Copy}
+                    onClick={() => handleCopyShareEmail('onedrive')}
+                    aria-label="Copy OneDrive share email to clipboard"
+                    data-testid="copy-onedrive-email"
+                  >
+                    Copy OneDrive share email
+                  </Button>
+                  {copiedWhich === 'onedrive' && <span className="text-sm text-success">Copied!</span>}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Documents folder link - paste Google Drive or OneDrive link */}
         <Card id="documents-folder-link" className="mb-6">
@@ -518,7 +647,7 @@ export const NewApplication: React.FC = () => {
               <Stepper
                 steps={[
                   { id: 'details', label: 'Application Details', description: 'Basic Information' },
-                  ...formConfig.map((cat: any, idx: number) => ({
+                  ...displayCategories.map((cat: any, idx: number) => ({
                     id: cat.categoryId || `category-${idx}`,
                     label: cat.categoryName || cat['Category Name'] || cat.categoryId || DEFAULT_CATEGORY_NAME,
                     description: cat.description || '',
@@ -653,6 +782,43 @@ export const NewApplication: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Business type selector: show only the matching Business KYC section */}
+        {formConfig.length > 0 && businessKycCategories.length >= 1 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Business type</CardTitle>
+              <p className="text-sm text-neutral-500 mt-0.5">
+                {businessKycCategories.length > 1
+                  ? 'Select your business type to see the required documents.'
+                  : 'Your application form includes documents for this business type.'}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Select
+                data-testid="business-type-select"
+                label="Business type"
+                options={
+                  businessKycCategories.length > 1
+                    ? [
+                        { value: '', label: 'Select business type' },
+                        ...businessKycCategories.map((c: any) => {
+                          const sectionId = c.categoryId?.replace(/^section-/, '') || '';
+                          return { value: sectionId, label: BUSINESS_KYC_LABELS[sectionId] || c.categoryName || c.categoryId };
+                        }),
+                      ]
+                    : businessKycCategories.map((c: any) => {
+                        const sectionId = c.categoryId?.replace(/^section-/, '') || '';
+                        return { value: sectionId, label: BUSINESS_KYC_LABELS[sectionId] || c.categoryName || c.categoryId };
+                      })
+                }
+                value={formData.form_data._businessType ?? (businessKycCategories.length === 1 ? (businessKycCategories[0]?.categoryId?.replace(/^section-/, '') ?? '') : '')}
+                onChange={(e) => handleFieldChange('_businessType', e.target.value)}
+                disabled={businessKycCategories.length === 1}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Configured Form Fields from KAM */}
         {formConfigLoading ? (
           <Card className="mb-6">
@@ -672,7 +838,7 @@ export const NewApplication: React.FC = () => {
             </CardContent>
           </Card>
         ) : formConfig.length > 0 ? (
-          formConfig
+          displayCategories
             .filter((category: any) => category.fields && category.fields.length > 0)
             .map((category: any, categoryIndex: number) => (
             <Card 

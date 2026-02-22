@@ -6,7 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc || true",
+    "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "jest",
@@ -39,6 +39,8 @@
     "debug:client-form-mapping": "tsx scripts/print-client-form-mapping.ts",
     "verify:product-documents": "tsx scripts/verify-product-documents-webhook.ts",
     "validate:data": "tsx scripts/validate-assigned-kam-and-ledger.ts",
+    "mapping:app-client-kam": "tsx scripts/applications-clients-kam-mapping.ts",
+    "reassign:applications": "tsx scripts/reassign-applications-to-client.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",

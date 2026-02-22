@@ -63,9 +63,12 @@ router.get('/test-express-auth', authenticate, (req, res) => {
   });
 });
 
-// Debug endpoints - development only (exposed in production would leak env vars and webhook URLs)
+// Debug endpoints - only when NODE_ENV is development and DEBUG_ROUTES_ENABLED is explicitly set.
+// Ensures production never exposes debug even if NODE_ENV is mis-set. See API_ENDPOINTS_WEBHOOK_MAPPING.md.
+const debugRoutesEnabled =
+  process.env.NODE_ENV === 'development' && process.env.DEBUG_ROUTES_ENABLED === 'true';
 router.use('/debug', (req, res, next) => {
-  if (process.env.NODE_ENV !== 'development') {
+  if (!debugRoutesEnabled) {
     res.status(404).json({ success: false, error: 'Not found' });
     return;
   }

@@ -8,6 +8,8 @@ Use this as a prompt for planning and implementing concurrent sync actions acros
 - [backend/src/services/statusTracking/statusStateMachine.ts](../backend/src/services/statusTracking/statusStateMachine.ts) – status transitions
 - [backend/src/services/airtable/n8nClient.ts](../backend/src/services/airtable/n8nClient.ts) – cache invalidation patterns
 
+**Dashboard data:** KAM and Credit dashboards (pending queries, files-by-stage) use filtered applications from the same APIs; cache invalidation runs after status change and new application (see n8nClient invalidation in this checklist).
+
 ---
 
 ## Master Checklist

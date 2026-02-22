@@ -15,6 +15,7 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { rbacFilterService } from '../services/rbac/rbacFilter.service.js';
 import { aiSummaryService } from '../services/ai/aiSummary.service.js';
+import { parseFormData } from '../utils/parseFormData.js';
 
 export class AIController {
   /**
@@ -48,12 +49,8 @@ export class AIController {
       // Step 3: Only fetch clients if we have access and need them for the summary
       const clients = await n8nClient.fetchTable('Clients');
 
-      // Parse form data
-      const formData = application['Form Data'] 
-        ? (typeof application['Form Data'] === 'string' 
-            ? JSON.parse(application['Form Data']) 
-            : application['Form Data'])
-        : {};
+      // Parse form data (safe parse; returns {} on invalid JSON)
+      const formData = parseFormData(application['Form Data']);
 
       // Parse documents from Documents field (format: fieldId:url|fileName,fieldId:url|fileName)
       const documents: Array<{ fieldId: string; url: string; fileName: string }> = [];

@@ -6,13 +6,13 @@ import { Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import { creditController } from '../controllers/credit.controller.js';
 import { ledgerController } from '../controllers/ledger.controller.js';
-import { requireCredit } from '../middleware/rbac.middleware.js';
+import { requireCreditOrAdmin } from '../middleware/rbac.middleware.js';
 import { enforceRolePermissions } from '../middleware/roleEnforcement.middleware.js';
 
 const router = Router();
 
 router.use(authenticate);
-router.use(requireCredit);
+router.use(requireCreditOrAdmin);
 router.use(enforceRolePermissions); // Role enforcement with admin override
 
 router.get('/dashboard', creditController.getDashboard.bind(creditController));

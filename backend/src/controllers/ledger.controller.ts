@@ -49,11 +49,15 @@ export class LedgerController {
       // Sort by date (oldest first for running balance calculation)
       ledgerEntries.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));
 
-      // Calculate running balance (oldest to newest)
+      // Calculate running balance and summary (oldest to newest)
       let runningBalance = 0;
+      let totalEarnings = 0;
+      let totalFeesDue = 0;
       const entriesWithBalance = ledgerEntries.map((entry) => {
         const amount = parseFloat(entry['Payout Amount'] || '0');
         runningBalance += amount;
+        if (amount > 0) totalEarnings += amount;
+        else if (amount < 0) totalFeesDue += Math.abs(amount);
         return {
           ...entry,
           balance: runningBalance,
@@ -69,6 +73,8 @@ export class LedgerController {
         data: {
           entries: entriesWithBalance,
           currentBalance: runningBalance,
+          totalEarnings,
+          totalFeesDue,
         },
       });
     } catch (error: any) {
@@ -329,11 +335,15 @@ export class LedgerController {
       // Sort by date (oldest first for correct running balance)
       ledgerEntries.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));
 
-      // Calculate running balance (oldest to newest)
+      // Calculate running balance and summary (oldest to newest)
       let runningBalance = 0;
+      let totalEarnings = 0;
+      let totalFeesDue = 0;
       const entriesWithBalance = ledgerEntries.map((entry) => {
         const amount = parseFloat(entry['Payout Amount'] || '0');
         runningBalance += amount;
+        if (amount > 0) totalEarnings += amount;
+        else if (amount < 0) totalFeesDue += Math.abs(amount);
         return {
           ...entry,
           balance: runningBalance,
@@ -350,6 +360,8 @@ export class LedgerController {
           entries: entriesWithBalance,
           currentBalance: runningBalance,
           clientId: clientId as string,
+          totalEarnings,
+          totalFeesDue,
         },
       });
     } catch (error: any) {
@@ -362,11 +374,11 @@ export class LedgerController {
 
   /**
    * GET /credit/ledger
-   * Get all ledger entries with optional filters (Credit Team only)
+   * Get all ledger entries with optional filters (Credit Team or Admin)
    */
   async getCreditLedger(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'credit_team') {
+      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }

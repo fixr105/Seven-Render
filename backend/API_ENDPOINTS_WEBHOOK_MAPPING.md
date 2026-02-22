@@ -26,6 +26,8 @@ This document provides a comprehensive list of all API endpoints, the n8n webhoo
 16. [AI Endpoints](#ai-endpoints)
 17. [Public Endpoints](#public-endpoints)
 
+**Debug routes:** `/api/debug/*` (e.g. `/api/debug/test`, `/api/debug/env`) are only available when `NODE_ENV=development` **and** `DEBUG_ROUTES_ENABLED=true`. Production must set `NODE_ENV=production`; do not set `DEBUG_ROUTES_ENABLED` in production. This prevents leaking env vars and webhook URLs.
+
 ---
 
 ## Authentication Endpoints
@@ -690,10 +692,14 @@ This document provides a comprehensive list of all API endpoints, the n8n webhoo
 
 **Steps**:
 1. Verify user role is 'kam'
-2. Fetch Commission Ledger table
-3. Fetch Clients table
-4. Apply RBAC filtering (only entries for managed clients)
-5. Return filtered ledger entries
+2. Require `clientId` query parameter
+3. Verify client is managed by this KAM
+4. Fetch Commission Ledger table
+5. Filter by clientId, sort by date, compute running balance and summary
+6. Return entries, currentBalance, clientId, totalEarnings, totalFeesDue
+
+**Response data**:
+- `entries`, `currentBalance`, `clientId`, `totalEarnings`, `totalFeesDue` (same semantics as GET `/clients/me/ledger`)
 
 ---
 
@@ -1120,6 +1126,8 @@ This document provides a comprehensive list of all API endpoints, the n8n webhoo
 
 ## Commission Ledger Endpoints
 
+**Commission Ledger backfill:** For one-off creation of ledger entries for applications already marked disbursed (e.g. before automation or bulk-updated in Airtable), use the script `backend/scripts/backfill-commission-ledger.js`. See [backend/scripts/README-BACKFILL-LEDGER.md](scripts/README-BACKFILL-LEDGER.md) for usage, env (`N8N_BASE_URL`), and edge cases. Run from repo root: `node backend/scripts/backfill-commission-ledger.js`.
+
 ### GET `/clients/me/ledger`
 **Role**: CLIENT only
 
@@ -1131,9 +1139,15 @@ This document provides a comprehensive list of all API endpoints, the n8n webhoo
 2. Fetch Commission Ledger table
 3. Apply RBAC filtering (only entries where `Client` matches user's `clientId`)
 4. Sort by date (oldest first)
-5. Calculate running balance
+5. Calculate running balance and summary (totalEarnings, totalFeesDue)
 6. Reverse to show newest first
-7. Return ledger entries with running balance
+7. Return ledger entries with running balance and summary fields
+
+**Response data**:
+- `entries`: ledger entries (newest first), each with `runningBalance`
+- `currentBalance`: net running balance (sum of all Payout Amount)
+- `totalEarnings`: sum of positive Payout Amount (client earnings)
+- `totalFeesDue`: absolute sum of negative Payout Amount (fees owed by client)
 
 ---
 

@@ -7,6 +7,7 @@ import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus, UserRole, LenderDecisionStatus, DisputeStatus, SLA_SENT_TO_NBFC_DAYS } from '../config/constants.js';
 import { getStatusHistory } from '../services/statusTracking/statusHistory.service.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
+import { parseFormData } from '../utils/parseFormData.js';
 import { toUserRole } from '../services/statusTracking/statusStateMachine.js';
 
 export class CreditController {
@@ -295,7 +296,7 @@ export class CreditController {
         success: true,
         data: {
           ...application,
-          formData: application['Form Data'] ? JSON.parse(application['Form Data']) : {},
+          formData: parseFormData(application['Form Data']),
           documents, // Parsed documents array
           aiFileSummary: application['AI File Summary'],
           auditLog: fileAuditLog,

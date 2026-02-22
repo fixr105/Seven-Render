@@ -24,6 +24,8 @@ export const useLedger = (options?: UseLedgerOptions) => {
   const [entries, setEntries] = useState<Record<string, unknown>[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequestItem[]>([]);
   const [balance, setBalance] = useState(0);
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [totalFeesDue, setTotalFeesDue] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchLedger = useCallback(async () => {
@@ -32,7 +34,7 @@ export const useLedger = (options?: UseLedgerOptions) => {
         setLoading(true);
         const response = await apiService.getClientLedger();
         if (response.success && response.data) {
-          const ledgerData = response.data as Record<string, unknown> | unknown[];
+          const ledgerData = response.data as unknown as Record<string, unknown> | unknown[];
           const entriesList = Array.isArray(ledgerData)
             ? ledgerData
             : ((ledgerData as Record<string, unknown>).entries as Record<string, unknown>[] | undefined) || [];
@@ -57,14 +59,21 @@ export const useLedger = (options?: UseLedgerOptions) => {
           });
           setEntries(entriesWithBalance.reverse());
           setBalance(runningBalance);
+          const dataObj = ledgerData as Record<string, unknown>;
+          setTotalEarnings(Number(dataObj.totalEarnings ?? 0));
+          setTotalFeesDue(Number(dataObj.totalFeesDue ?? 0));
         } else {
           setEntries([]);
           setBalance(0);
+          setTotalEarnings(0);
+          setTotalFeesDue(0);
         }
       } catch (error) {
         console.error('Exception in fetchLedger:', error);
         setEntries([]);
         setBalance(0);
+        setTotalEarnings(0);
+        setTotalFeesDue(0);
       } finally {
         setLoading(false);
       }
@@ -75,7 +84,12 @@ export const useLedger = (options?: UseLedgerOptions) => {
         setLoading(true);
         const response = await apiService.getKAMLedger(kamClientId);
         if (response.success && response.data) {
-          const data = response.data as unknown as { entries?: Record<string, unknown>[]; currentBalance?: number };
+          const data = response.data as unknown as {
+            entries?: Record<string, unknown>[];
+            currentBalance?: number;
+            totalEarnings?: number;
+            totalFeesDue?: number;
+          };
           const entriesList = data.entries || [];
           const entriesWithBalance = entriesList.map((entry) => {
             const e = entry as Record<string, unknown>;
@@ -90,22 +104,76 @@ export const useLedger = (options?: UseLedgerOptions) => {
           });
           setEntries(entriesWithBalance);
           setBalance(Number(data.currentBalance ?? 0));
+          setTotalEarnings(Number(data.totalEarnings ?? 0));
+          setTotalFeesDue(Number(data.totalFeesDue ?? 0));
         } else {
           setEntries([]);
           setBalance(0);
+          setTotalEarnings(0);
+          setTotalFeesDue(0);
         }
       } catch (error) {
         console.error('Exception in fetchKAMLedger:', error);
         setEntries([]);
         setBalance(0);
+        setTotalEarnings(0);
+        setTotalFeesDue(0);
       } finally {
         setLoading(false);
+      }
+      return;
+    }
+    if (userRole === 'credit_team' || userRole === 'admin') {
+      try {
+        const response = await apiService.getCreditLedger();
+        if (response.success && response.data) {
+          const data = response.data as unknown as { entries: Record<string, unknown>[] };
+          const entriesList = data.entries || [];
+          const sortedByDate = [...entriesList].sort((a, b) => {
+            const dateA = String(a.Date ?? a.date ?? '');
+            const dateB = String(b.Date ?? b.date ?? '');
+            return dateA.localeCompare(dateB);
+          });
+          let runningBalance = 0;
+          let totalEarningsSum = 0;
+          let totalFeesDueSum = 0;
+          const withBalance = sortedByDate.map((entry) => {
+            const amount = parseFloat(String(entry['Payout Amount'] ?? entry.payoutAmount ?? '0'));
+            runningBalance += amount;
+            if (amount > 0) totalEarningsSum += amount;
+            else if (amount < 0) totalFeesDueSum += Math.abs(amount);
+            return {
+              ...entry,
+              runningBalance,
+              balance: runningBalance,
+              formattedAmount: formatCurrency(amount),
+              formattedBalance: formatCurrency(runningBalance),
+            };
+          });
+          setEntries(withBalance.reverse());
+          setBalance(runningBalance);
+          setTotalEarnings(totalEarningsSum);
+          setTotalFeesDue(totalFeesDueSum);
+        } else {
+          setEntries([]);
+          setBalance(0);
+          setTotalEarnings(0);
+          setTotalFeesDue(0);
+        }
+      } catch (error) {
+        console.error('Exception in fetchCreditLedger:', error);
+        setEntries([]);
+        setBalance(0);
+        setTotalEarnings(0);
+        setTotalFeesDue(0);
       }
       return;
     }
     if (userRole === 'kam' && !kamClientId) {
       setEntries([]);
       setBalance(0);
+      setTotalEarnings(0);
+      setTotalFeesDue(0);
       setLoading(false);
       return;
     }
@@ -122,9 +190,9 @@ export const useLedger = (options?: UseLedgerOptions) => {
 
   const fetchPayoutRequests = useCallback(async () => {
     try {
-      // Credit team uses /credit/payout-requests; client uses /clients/me/payout-requests
+      // Credit team and admin use /credit/payout-requests; client uses /clients/me/payout-requests
       const response =
-        userRole === 'credit_team'
+        userRole === 'credit_team' || userRole === 'admin'
           ? await apiService.getPayoutRequests()
           : await apiService.getClientPayoutRequests();
 
@@ -145,8 +213,9 @@ export const useLedger = (options?: UseLedgerOptions) => {
     if (userRole === 'client') {
       fetchLedger();
       fetchPayoutRequests();
-    } else if (userRole === 'credit_team') {
-      fetchPayoutRequests().finally(() => setLoading(false));
+    } else if (userRole === 'credit_team' || userRole === 'admin') {
+      setLoading(true);
+      Promise.all([fetchLedger(), fetchPayoutRequests()]).finally(() => setLoading(false));
     } else if (userRole === 'kam') {
       fetchLedger();
     } else {
@@ -228,17 +297,19 @@ export const useLedger = (options?: UseLedgerOptions) => {
     return entryData;
   };
 
-  return { 
-    entries, 
-    balance, 
-    payoutRequests, 
-    loading, 
-    requestPayout, 
+  return {
+    entries,
+    balance,
+    totalEarnings,
+    totalFeesDue,
+    payoutRequests,
+    loading,
+    requestPayout,
     raiseQuery,
     flagPayout,
-    processPayoutRequest, 
-    refetch: fetchLedger, 
+    processPayoutRequest,
+    refetch: fetchLedger,
     refetchPayoutRequests: fetchPayoutRequests,
-    addLedgerEntry 
+    addLedgerEntry,
   };
 };

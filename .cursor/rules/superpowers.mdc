@@ -1,0 +1,15 @@
+---
+description: This project uses Superpowers — invoke relevant skills before implementation
+globs: "**/*"
+alwaysApply: true
+---
+
+# Superpowers
+
+This workspace has **Superpowers** enabled. Before coding, planning, or debugging:
+
+1. **Check for skills** – If any skill might apply (even ~1%), invoke it first.
+2. **Process first** – Use brainstorming, debugging, or TDD skills before writing code.
+3. **Follow skill flow** – Use the Skill tool to load and follow the skill exactly.
+
+Starter prompts: "help me plan this feature", "let's debug this issue", "review this before we merge".

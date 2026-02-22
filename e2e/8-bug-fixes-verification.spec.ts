@@ -81,6 +81,52 @@ test.describe('8 Bug Fixes Verification', () => {
     }
   });
 
+  test('2c. Client query from list: Client raises query from Applications list and gets success (no 403)', async ({
+    page,
+  }) => {
+    await loginAs(page, 'client');
+    await waitForPageLoad(page);
+
+    await page.goto('/applications');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page).not.toHaveURL(/\/unauthorized/);
+
+    const queryBtn = page.locator('button:has-text("Query")').first();
+    if (!(await queryBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
+      test.skip();
+      return;
+    }
+
+    let createClientQueryStatus: number | null = null;
+    await page.route('**/api/loan-applications/**/queries', async (route) => {
+      if (route.request().method() === 'POST') {
+        const response = await route.fetch();
+        createClientQueryStatus = response.status();
+        await route.fulfill({ response });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await queryBtn.click();
+    const modal = page.getByRole('dialog').or(page.locator('[role="dialog"]'));
+    await expect(modal).toBeVisible({ timeout: 3000 });
+    await expect(modal.getByText(/Raise Query|File #/)).toBeVisible();
+
+    const messageInput = modal.locator('textarea').first();
+    await messageInput.fill('E2E test query from list - please ignore');
+    const sendBtn = modal.locator('button:has-text("Send Query")');
+    await sendBtn.click();
+
+    await expect(modal).not.toBeVisible({ timeout: 5000 });
+    expect(createClientQueryStatus).not.toBe(403);
+    if (createClientQueryStatus !== null) {
+      expect(createClientQueryStatus).toBeGreaterThanOrEqual(200);
+      expect(createClientQueryStatus).toBeLessThan(300);
+    }
+  });
+
   test('3. Query section: Queries section and Application Information render; messages not "No message"', async ({ page }) => {
     await loginAs(page, 'kam');
     await waitForPageLoad(page);

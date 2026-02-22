@@ -66,7 +66,7 @@ async function initializeHandler(): Promise<any> {
         // Fallback: try importing the full server directly
         console.log('[Serverless] Trying full server import as fallback...');
         serverModule = await Promise.race([
-          import('../backend/src/server.js'),
+          import('../backend/dist/server.js'),
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Full server import timeout')), 40000)
           )

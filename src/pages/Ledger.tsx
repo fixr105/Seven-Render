@@ -26,7 +26,7 @@ export const Ledger: React.FC = () => {
   };
 
   const ledgerOptions = userRole === 'kam' ? { clientId: selectedClientId || null } : undefined;
-  const { entries, balance, loading, requestPayout, raiseQuery, flagPayout, payoutRequests, refetchPayoutRequests } = useLedger(ledgerOptions);
+  const { entries, balance, totalEarnings, totalFeesDue, loading, requestPayout, raiseQuery, flagPayout, payoutRequests, refetchPayoutRequests } = useLedger(ledgerOptions);
 
   useEffect(() => {
     if (userRole === 'kam') {
@@ -262,8 +262,8 @@ export const Ledger: React.FC = () => {
           </Card>
         )}
 
-        {/* Credit Team: Payout Requests */}
-        {userRole === 'credit_team' && (
+        {/* Credit Team / Admin: Payout Requests */}
+        {(userRole === 'credit_team' || userRole === 'admin') && (
           <Card>
             <CardHeader>
               <CardTitle>Payout Requests</CardTitle>
@@ -336,19 +336,33 @@ export const Ledger: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle>
-              {userRole === 'kam' ? 'Client Commission Balance' : 'Commission Balance'}
+              {userRole === 'kam'
+                ? 'Client Commission Balance'
+                : userRole === 'credit_team' || userRole === 'admin'
+                  ? 'All Clients Commission Ledger'
+                  : 'Commission Balance'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-neutral-600 mb-1">Current Balance</p>
+              <div className="space-y-1">
                 {userRole === 'kam' && !selectedClientId ? (
                   <p className="text-neutral-500">Select a client to view their commission ledger</p>
                 ) : (
-                  <p className={`text-3xl font-bold ${balance >= 0 ? 'text-success' : 'text-error'}`}>
-                    {formatCurrency(balance)}
-                  </p>
+                  <>
+                    <p className="text-sm text-neutral-600">Total earnings</p>
+                    <p className="text-xl font-semibold text-success">{formatCurrency(totalEarnings)}</p>
+                    {totalFeesDue > 0 && (
+                      <>
+                        <p className="text-sm text-neutral-600 mt-2">Fees due</p>
+                        <p className="text-xl font-semibold text-warning">{formatCurrency(totalFeesDue)}</p>
+                      </>
+                    )}
+                    <p className="text-sm text-neutral-600 mt-2">Current balance</p>
+                    <p className={`text-3xl font-bold ${balance >= 0 ? 'text-success' : 'text-error'}`}>
+                      {formatCurrency(balance)}
+                    </p>
+                  </>
                 )}
               </div>
               {userRole === 'client' && balance > 0 && (

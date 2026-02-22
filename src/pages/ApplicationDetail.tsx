@@ -532,18 +532,14 @@ export const ApplicationDetail: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Role and status-aware options. Clients with DRAFT only get Submit and Withdraw.
+  // Role and status-aware options. One option per label (no duplicates). Clients with DRAFT only get Submit and Withdraw.
   const statusOptions = (() => {
     const allOptions = [
       { value: 'draft', label: 'Draft' },
       { value: 'under_kam_review', label: 'Submitted / Pending KAM Review' },
-      { value: 'pending_kam_review', label: 'Submitted / Pending KAM Review' },
       { value: 'query_with_client', label: 'KAM Query Raised' },
-      { value: 'kam_query_raised', label: 'KAM Query Raised' },
       { value: 'pending_credit_review', label: 'Approved by KAM / Forwarded to Credit' },
-      { value: 'forwarded_to_credit', label: 'Approved by KAM / Forwarded to Credit' },
       { value: 'credit_query_with_kam', label: 'Credit Query Raised' },
-      { value: 'credit_query_raised', label: 'Credit Query Raised' },
       { value: 'in_negotiation', label: 'In Negotiation' },
       { value: 'sent_to_nbfc', label: 'Sent to NBFC' },
       { value: 'approved', label: 'NBFC Approved' },
@@ -1372,9 +1368,9 @@ export const ApplicationDetail: React.FC = () => {
                 formData = rawForm as Record<string, unknown>;
               }
             }
-            const YES_VALUES = ['Yes, Added to Folder', 'added_to_link', 'yes_added_to_folder'];
-            const AWAITING_VALUES = ['Awaiting, Will Update Folder', 'to_be_shared', 'awaiting_will_update'];
-            const NOT_AVAILABLE_VALUES = ['Not Available', 'not_available'];
+            const YES_VALUES = ['Yes, Added to Folder', 'added_to_link', 'yes_added_to_folder', 'yes'];
+            const AWAITING_VALUES = ['Awaiting, Will Update Folder', 'to_be_shared', 'awaiting_will_update', 'to be shared soon'];
+            const NOT_AVAILABLE_VALUES = ['Not Available', 'not_available', 'no'];
             const getDisplayName = (key: string) => {
               if (key === '_documentsFolderLink') return null;
               const label = fieldIdToLabel[key] || key;
