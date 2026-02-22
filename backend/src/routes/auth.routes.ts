@@ -9,8 +9,7 @@ import { authRateLimiter } from '../middleware/rateLimit.middleware.js';
 const router = Router();
 
 router.post('/login', authRateLimiter, authController.login.bind(authController));
-router.post('/validate', authRateLimiter, authController.validateJwt.bind(authController));
-router.post('/validate-credentials', authRateLimiter, authController.validateCredentials.bind(authController));
+router.post('/validate', authRateLimiter, authController.validate.bind(authController));
 
 router.get('/me', authenticate, authController.getMe.bind(authController));
 router.patch('/me/profile', authenticate, authController.updateProfile.bind(authController));
