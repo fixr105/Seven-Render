@@ -307,8 +307,20 @@ export class N8nClient {
           throw new Error(`Webhook failed for ${tableName}: ${response.status} ${response.statusText}`);
         }
 
-        const rawData: any = await response.json();
-        
+        // n8n may return 200 with empty body; avoid response.json() throwing "Unexpected end of JSON input"
+        const text = await response.text();
+        let rawData: any = {};
+        const trimmed = (text || '').trim();
+        if (trimmed) {
+          try {
+            rawData = JSON.parse(trimmed);
+          } catch {
+            console.warn(`[fetchTable] Invalid JSON from ${tableName} webhook, treating as empty`);
+          }
+        } else {
+          console.warn(`[fetchTable] Empty response body from ${tableName} webhook (status 200), treating as empty`);
+        }
+
         // Use type-safe parser to handle n8n response format
         // Parser handles: Airtable format, flattened format, arrays, single records
         const parsed = responseParser.parse(rawData as N8nWebhookResponse);
@@ -433,16 +445,23 @@ export class N8nClient {
           throw new Error(`User Accounts webhook failed: ${response.status} ${response.statusText}`);
         }
 
-        // Also timeout the JSON parsing in case response body is large
+        // n8n may return 200 with empty body; avoid response.json() throwing "Unexpected end of JSON input"
         const jsonStartTime = Date.now();
-        const jsonPromise = response.json();
-        const jsonTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('JSON parsing timeout')), Math.max(timeoutMs - 2000, 2000))
-        );
-        
-        const jsonData = await Promise.race([jsonPromise, jsonTimeout]);
+        const text = await response.text();
         const jsonDuration = Date.now() - jsonStartTime;
-        console.log(`[getUserAccounts] JSON parsing completed in ${jsonDuration}ms`);
+        console.log(`[getUserAccounts] Response body read in ${jsonDuration}ms`);
+        const trimmed = (text || '').trim();
+        if (!trimmed) {
+          console.warn('[getUserAccounts] Empty response body (status 200), returning no users');
+          return [];
+        }
+        let jsonData: any;
+        try {
+          jsonData = JSON.parse(trimmed);
+        } catch (e) {
+          console.warn('[getUserAccounts] Invalid JSON from webhook, returning no users:', (e as Error).message);
+          return [];
+        }
         return jsonData;
       })();
 
