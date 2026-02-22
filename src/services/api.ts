@@ -225,6 +225,16 @@ export interface KAMLedgerResponse {
   totalFeesDue: number;
 }
 
+/** Response shape for GET /credit/ledger */
+export interface CreditLedgerResponse {
+  entries: CommissionLedgerEntry[];
+  stats: {
+    totalPayable: number;
+    totalPaid: number;
+    totalEntries: number;
+  };
+}
+
 export interface PayoutRequest {
   id: string;
   amount: number;
@@ -1396,6 +1406,24 @@ class ApiService {
   }
 
   /**
+   * Get credit ledger (all entries, optional filters). Credit Team or Admin.
+   */
+  async getCreditLedger(params?: {
+    clientId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<ApiResponse<CreditLedgerResponse>> {
+    const searchParams = new URLSearchParams();
+    if (params?.clientId) searchParams.set('clientId', params.clientId);
+    if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) searchParams.set('dateTo', params.dateTo);
+    const query = searchParams.toString();
+    return this.request<CreditLedgerResponse>(
+      query ? `/credit/ledger?${query}` : '/credit/ledger'
+    );
+  }
+
+  /**
    * Create ledger query/dispute
    */
   async createLedgerQuery(
@@ -1466,6 +1494,40 @@ class ApiService {
   async listDailySummaries(limit?: number): Promise<ApiResponse<any[]>> {
     const query = limit ? `?limit=${limit}` : '';
     return this.request<any[]>(`/reports/daily/list${query}`);
+  }
+
+  /**
+   * Commission report: totals and entries in date range, optional client filter
+   */
+  async getCommissionReport(params: { from: string; to: string; clientId?: string }): Promise<ApiResponse<any>> {
+    const q = new URLSearchParams({ from: params.from, to: params.to });
+    if (params.clientId) q.set('clientId', params.clientId);
+    return this.request(`/reports/commission?${q.toString()}`);
+  }
+
+  /**
+   * Ledger report: entries in date range with optional client filter and totals
+   */
+  async getLedgerReport(params: { from: string; to: string; clientId?: string }): Promise<ApiResponse<any>> {
+    const q = new URLSearchParams({ from: params.from, to: params.to });
+    if (params.clientId) q.set('clientId', params.clientId);
+    return this.request(`/reports/ledger?${q.toString()}`);
+  }
+
+  /**
+   * Client-wise report: per-client commission breakdown in date range
+   */
+  async getClientWiseReport(params: { from: string; to: string }): Promise<ApiResponse<any>> {
+    const q = new URLSearchParams({ from: params.from, to: params.to });
+    return this.request(`/reports/client-wise?${q.toString()}`);
+  }
+
+  /**
+   * Date-range report: daily-summary-style metrics over [from, to]
+   */
+  async getDateRangeReport(params: { from: string; to: string }): Promise<ApiResponse<any>> {
+    const q = new URLSearchParams({ from: params.from, to: params.to });
+    return this.request(`/reports/date-range?${q.toString()}`);
   }
 
   // ==================== AUDIT LOGS ====================

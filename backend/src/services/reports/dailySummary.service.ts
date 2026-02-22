@@ -29,6 +29,9 @@ export interface DailySummaryMetrics {
   
   // Commission metrics
   totalCommissions: number;
+  totalPayouts: number;   // sum of positive Payout Amount
+  totalPayins: number;    // absolute sum of negative Payout Amount
+  payinCount: number;     // count of entries with Payout Amount < 0
   totalPayoutRequests: number;
   totalDisputes: number;
   
@@ -226,6 +229,19 @@ export class DailySummaryService {
       parseFloat(entry['Payout Amount'] || '0') > 0
     ).length;
 
+    let totalPayouts = 0;
+    let totalPayins = 0;
+    let payinCount = 0;
+    ledgerEntries.forEach((entry) => {
+      const amount = parseFloat(entry['Payout Amount'] || '0');
+      if (amount > 0) {
+        totalPayouts += amount;
+      } else if (amount < 0) {
+        totalPayins += Math.abs(amount);
+        payinCount += 1;
+      }
+    });
+
     const totalPayoutRequests = ledgerEntries.filter((entry) =>
       entry['Payout Request'] === 'Requested' ||
       entry['Payout Request'] === 'Approved'
@@ -263,6 +279,9 @@ export class DailySummaryService {
       activitiesByType,
       activitiesByRole,
       totalCommissions,
+      totalPayouts,
+      totalPayins,
+      payinCount,
       totalPayoutRequests,
       totalDisputes,
       queriesRaised,
@@ -318,7 +337,10 @@ export class DailySummaryService {
     // Commission Summary
     lines.push('COMMISSION & LEDGER');
     lines.push('-'.repeat(50));
-    lines.push(`Total Commissions: ${metrics.totalCommissions}`);
+    lines.push(`Total Commissions (payout entries): ${metrics.totalCommissions}`);
+    lines.push(`Total Payouts (amount): ₹${metrics.totalPayouts.toLocaleString('en-IN')}`);
+    lines.push(`Total Payins (amount): ₹${metrics.totalPayins.toLocaleString('en-IN')}`);
+    lines.push(`Payin entries: ${metrics.payinCount}`);
     lines.push(`Payout Requests: ${metrics.totalPayoutRequests}`);
     lines.push(`Disputes: ${metrics.totalDisputes}`);
     lines.push('');
@@ -364,6 +386,80 @@ export class DailySummaryService {
       }
       return false;
     });
+  }
+
+  /**
+   * Filter records by date range. Extracts YYYY-MM-DD from given date fields and keeps records within [from, to].
+   */
+  filterByDateRange(
+    records: any[],
+    from: string,
+    to: string,
+    dateFields: string[]
+  ): any[] {
+    return records.filter((record) => {
+      for (const field of dateFields) {
+        const fieldValue = record[field];
+        if (!fieldValue) continue;
+        const str = typeof fieldValue === 'string' ? fieldValue : String(fieldValue);
+        const dateOnly = str.startsWith('2') ? str.slice(0, 10) : str.slice(0, 10);
+        if (dateOnly.length >= 10 && dateOnly >= from && dateOnly <= to) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  /**
+   * Generate date-range summary: same metrics as daily summary but for [from, to].
+   */
+  async generateDateRangeSummary(from: string, to: string): Promise<{
+    from: string;
+    to: string;
+    metrics: DailySummaryMetrics;
+    summaryContent: string;
+  }> {
+    const fetchWithTimeout = async (tableName: string, timeoutMs: number = 20000) => {
+      try {
+        return await n8nClient.fetchTable(tableName, true, undefined, timeoutMs);
+      } catch (error: any) {
+        console.error(`[generateDateRangeSummary] Failed to fetch ${tableName}:`, error.message);
+        return [];
+      }
+    };
+
+    const [applications, adminActivities, auditLogs, ledgerEntries] = await Promise.all([
+      fetchWithTimeout('Loan Application'),
+      fetchWithTimeout('Admin Activity Log'),
+      fetchWithTimeout('File Auditing Log'),
+      fetchWithTimeout('Commission Ledger'),
+    ]);
+
+    const dateApplications = this.filterByDateRange(applications, from, to, [
+      'Creation Date',
+      'Submitted Date',
+      'Last Updated',
+    ]);
+    const dateAdminActivities = this.filterByDateRange(adminActivities, from, to, ['Timestamp']);
+    const dateAuditLogs = this.filterByDateRange(auditLogs, from, to, ['Timestamp']);
+    const dateLedgerEntries = this.filterByDateRange(ledgerEntries, from, to, ['Date']);
+
+    const metrics = this.calculateMetrics(
+      dateApplications,
+      dateAdminActivities,
+      dateAuditLogs,
+      dateLedgerEntries
+    );
+    const reportDateLabel = `${from} to ${to}`;
+    const summaryContent = this.formatSummaryContent(reportDateLabel, metrics);
+
+    return {
+      from,
+      to,
+      metrics,
+      summaryContent,
+    };
   }
 
   /**

@@ -3,12 +3,14 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Mail, Calendar, Clock, RefreshCw, AlertCircle, BarChart3 } from 'lucide-react';
+import { Mail, Calendar, Clock, RefreshCw, AlertCircle, BarChart3, DollarSign, FileText, Users, CalendarRange } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
+
+type ReportTab = 'daily' | 'commission' | 'ledger' | 'client-wise' | 'date-range';
 
 interface DailySummaryReport {
   id: string;
@@ -16,6 +18,16 @@ interface DailySummaryReport {
   summaryContent: string;
   generatedTimestamp: string;
   deliveredTo: string;
+}
+
+function getDefaultDateRange(): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - 7);
+  return {
+    from: from.toISOString().split('T')[0],
+    to: to.toISOString().split('T')[0],
+  };
 }
 
 export const Reports: React.FC = () => {
@@ -35,6 +47,13 @@ export const Reports: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [reportsError, setReportsError] = useState<string | null>(null);
   const [emailRecipients, setEmailRecipients] = useState('');
+  const [reportTab, setReportTab] = useState<ReportTab>('daily');
+  const [reportFrom, setReportFrom] = useState(() => getDefaultDateRange().from);
+  const [reportTo, setReportTo] = useState(() => getDefaultDateRange().to);
+  const [reportClientId, setReportClientId] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<Record<string, unknown> | null>(null);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -159,6 +178,46 @@ export const Reports: React.FC = () => {
     }
   };
 
+  const formatCurrency = (n: number): string =>
+    `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const runReport = async () => {
+    setReportError(null);
+    setReportData(null);
+    setReportLoading(true);
+    try {
+      if (reportTab === 'commission') {
+        const res = await apiService.getCommissionReport({
+          from: reportFrom,
+          to: reportTo,
+          ...(reportClientId && { clientId: reportClientId }),
+        });
+        if (res.success && res.data) setReportData(res.data as Record<string, unknown>);
+        else setReportError(res.error || 'Failed to load report');
+      } else if (reportTab === 'ledger') {
+        const res = await apiService.getLedgerReport({
+          from: reportFrom,
+          to: reportTo,
+          ...(reportClientId && { clientId: reportClientId }),
+        });
+        if (res.success && res.data) setReportData(res.data as Record<string, unknown>);
+        else setReportError(res.error || 'Failed to load report');
+      } else if (reportTab === 'client-wise') {
+        const res = await apiService.getClientWiseReport({ from: reportFrom, to: reportTo });
+        if (res.success && res.data) setReportData(res.data as Record<string, unknown>);
+        else setReportError(res.error || 'Failed to load report');
+      } else if (reportTab === 'date-range') {
+        const res = await apiService.getDateRangeReport({ from: reportFrom, to: reportTo });
+        if (res.success && res.data) setReportData(res.data as Record<string, unknown>);
+        else setReportError(res.error || 'Failed to load report');
+      }
+    } catch (err: unknown) {
+      setReportError((err as Error)?.message || 'Failed to load report');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   // Restrict to credit_team, admin, and kam (client, nbfc get Access Restricted)
   if (userRole !== 'credit_team' && userRole !== 'admin' && userRole !== 'kam') {
     return (
@@ -192,22 +251,234 @@ export const Reports: React.FC = () => {
     );
   }
 
+  const tabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'daily', label: 'Daily Summary', icon: <BarChart3 className="w-4 h-4" /> as React.ReactNode },
+    { id: 'commission', label: 'Commission', icon: <DollarSign className="w-4 h-4" /> as React.ReactNode },
+    { id: 'ledger', label: 'Ledger', icon: <FileText className="w-4 h-4" /> as React.ReactNode },
+    { id: 'client-wise', label: 'Client-wise', icon: <Users className="w-4 h-4" /> as React.ReactNode },
+    { id: 'date-range', label: 'Date range', icon: <CalendarRange className="w-4 h-4" /> as React.ReactNode },
+  ];
+
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Daily Summary Reports"
+      pageTitle="Reports"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
     >
       <div className="space-y-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h1 className="text-2xl font-bold text-neutral-900">Reports</h1>
+              <p className="text-sm text-neutral-600 mt-1">
+                Daily summaries, commission, ledger, client-wise, and date-range reports
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1 border-b border-neutral-200">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setReportTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t border-b-2 -mb-px transition-colors ${
+                  reportTab === tab.id
+                    ? 'border-brand-primary text-brand-primary bg-neutral-50'
+                    : 'border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {reportTab !== 'daily' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {reportTab === 'commission' && 'Commission report'}
+                {reportTab === 'ledger' && 'Ledger report'}
+                {reportTab === 'client-wise' && 'Client-wise report'}
+                {reportTab === 'date-range' && 'Date range report'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-neutral-700">From</label>
+                  <input
+                    type="date"
+                    value={reportFrom}
+                    onChange={(e) => setReportFrom(e.target.value)}
+                    className="border border-neutral-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-neutral-700">To</label>
+                  <input
+                    type="date"
+                    value={reportTo}
+                    onChange={(e) => setReportTo(e.target.value)}
+                    className="border border-neutral-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                {(reportTab === 'commission' || reportTab === 'ledger') && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium text-neutral-700">Client ID (optional)</label>
+                    <input
+                      type="text"
+                      value={reportClientId}
+                      onChange={(e) => setReportClientId(e.target.value)}
+                      placeholder="Filter by client"
+                      className="border border-neutral-300 rounded px-3 py-2 text-sm min-w-[140px]"
+                    />
+                  </div>
+                )}
+                <Button variant="primary" onClick={runReport} loading={reportLoading} disabled={reportLoading}>
+                  Run report
+                </Button>
+              </div>
+              {reportError && (
+                <div className="mt-4 p-3 rounded bg-red-50 text-red-800 text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {reportError}
+                </div>
+              )}
+              {reportData && reportTab === 'commission' && (
+                <div className="mt-6 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-neutral-50 rounded-lg p-3">
+                      <p className="text-xs text-neutral-500 uppercase">Total Payouts</p>
+                      <p className="text-lg font-semibold text-neutral-900">
+                        {formatCurrency(Number(reportData.totalPayoutAmount ?? 0))}
+                      </p>
+                      <p className="text-xs text-neutral-500">{Number(reportData.payoutCount ?? 0)} entries</p>
+                    </div>
+                    <div className="bg-neutral-50 rounded-lg p-3">
+                      <p className="text-xs text-neutral-500 uppercase">Total Payins</p>
+                      <p className="text-lg font-semibold text-neutral-900">
+                        {formatCurrency(Number(reportData.totalPayinAmount ?? 0))}
+                      </p>
+                      <p className="text-xs text-neutral-500">{Number(reportData.payinCount ?? 0)} entries</p>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border border-neutral-200">
+                      <thead>
+                        <tr className="bg-neutral-50 border-b border-neutral-200">
+                          <th className="text-left p-2">Date</th>
+                          <th className="text-left p-2">Client</th>
+                          <th className="text-right p-2">Payout Amount</th>
+                          <th className="text-left p-2">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.isArray(reportData.entries) &&
+                          (reportData.entries as Record<string, unknown>[]).map((entry, i) => (
+                            <tr key={i} className="border-b border-neutral-100">
+                              <td className="p-2">{String(entry['Date'] ?? entry.date ?? '-')}</td>
+                              <td className="p-2">{String(entry['Client'] ?? entry.client ?? '-')}</td>
+                              <td className="p-2 text-right">
+                                {formatCurrency(Number(entry['Payout Amount'] ?? entry.payoutAmount ?? 0))}
+                              </td>
+                              <td className="p-2">{String(entry['Description'] ?? entry.description ?? '-')}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {reportData && reportTab === 'ledger' && (
+                <div className="mt-6 space-y-4">
+                  <div className="flex gap-4 flex-wrap">
+                    <span className="text-sm text-neutral-600">
+                      Total Payouts: <strong>{formatCurrency(Number(reportData.totalPayoutAmount ?? 0))}</strong>
+                    </span>
+                    <span className="text-sm text-neutral-600">
+                      Total Payins: <strong>{formatCurrency(Number(reportData.totalPayinAmount ?? 0))}</strong>
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border border-neutral-200">
+                      <thead>
+                        <tr className="bg-neutral-50 border-b border-neutral-200">
+                          <th className="text-left p-2">Date</th>
+                          <th className="text-left p-2">Client</th>
+                          <th className="text-right p-2">Amount</th>
+                          <th className="text-left p-2">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.isArray(reportData.entries) &&
+                          (reportData.entries as Record<string, unknown>[]).map((entry, i) => (
+                            <tr key={i} className="border-b border-neutral-100">
+                              <td className="p-2">{String(entry['Date'] ?? entry.date ?? '-')}</td>
+                              <td className="p-2">{String(entry['Client'] ?? entry.client ?? '-')}</td>
+                              <td className="p-2 text-right">
+                                {formatCurrency(Number(entry['Payout Amount'] ?? entry.payoutAmount ?? 0))}
+                              </td>
+                              <td className="p-2">{String(entry['Description'] ?? entry.description ?? '-')}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {reportData && reportTab === 'client-wise' && (
+                <div className="mt-6 overflow-x-auto">
+                  <table className="w-full text-sm border border-neutral-200">
+                    <thead>
+                      <tr className="bg-neutral-50 border-b border-neutral-200">
+                        <th className="text-left p-2">Client</th>
+                        <th className="text-left p-2">Name</th>
+                        <th className="text-right p-2">Total Payouts</th>
+                        <th className="text-right p-2">Total Payins</th>
+                        <th className="text-right p-2">Entries</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.isArray(reportData.clients) &&
+                        (reportData.clients as Record<string, unknown>[]).map((c, i) => (
+                          <tr key={i} className="border-b border-neutral-100">
+                            <td className="p-2">{String(c.clientId ?? '-')}</td>
+                            <td className="p-2">{String(c.clientName ?? '-')}</td>
+                            <td className="p-2 text-right">{formatCurrency(Number(c.totalPayoutAmount ?? 0))}</td>
+                            <td className="p-2 text-right">{formatCurrency(Number(c.totalPayinAmount ?? 0))}</td>
+                            <td className="p-2 text-right">{Number(c.entryCount ?? 0)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {reportData && reportTab === 'date-range' && (
+                <div className="mt-6">
+                  <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                    <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-mono">
+                      {String(reportData.summaryContent ?? 'No summary.')}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {reportTab === 'daily' && (
+          <>
         {/* Header with Generate Button */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-neutral-900">Daily Summary Reports</h1>
+              <h2 className="text-lg font-semibold text-neutral-900">Daily Summary</h2>
               <p className="text-sm text-neutral-600 mt-1">
                 Automated daily reports aggregating loan applications, commission ledger, and audit log metrics
               </p>
@@ -387,6 +658,8 @@ export const Reports: React.FC = () => {
             )}
           </CardContent>
         </Card>
+          </>
+        )}
       </div>
     </MainLayout>
   );
