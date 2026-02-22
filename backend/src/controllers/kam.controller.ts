@@ -179,13 +179,23 @@ export class KAMController {
         lenderStatus(app) === LenderDecisionStatus.REJECTED ||
         status(app) === LoanStatus.REJECTED;
 
-      // Normalize app.Client (Airtable linked-record array or multiple field names) so client metrics match RBAC visibility.
+      // Normalize app.Client (Airtable linked-record array/object or multiple field names) so client metrics match RBAC visibility.
       // clientIdSet must use the same fields as getKAMManagedClientIds (id, Client ID, ID) so app↔client mapping is consistent.
+      const normalizeAppClient = (app: any): string | null => {
+        const raw = app.Client ?? app['Client'] ?? app['Client ID'] ?? app.clientId;
+        if (raw == null) return null;
+        if (Array.isArray(raw)) return raw[0] != null ? String(raw[0]) : null;
+        if (typeof raw === 'object' && raw !== null) {
+          const id = (raw as any).id ?? (raw as any).ID ?? (raw as any)['Client ID'];
+          return id != null ? String(id) : null;
+        }
+        return String(raw);
+      };
       const clientIdSet = (c: any) => [c.id, c['Client ID'], c['ID']].filter(Boolean).map(String);
       const appsForClientFilter = (c: any, app: any) => {
-        const appClient = Array.isArray(app.Client) ? app.Client[0] : (app.Client ?? app['Client'] ?? app['Client ID'] ?? app.clientId);
+        const appClient = normalizeAppClient(app);
         const ids = clientIdSet(c);
-        return ids.some((id) => matchIds(appClient, id));
+        return appClient != null && ids.some((id) => matchIds(appClient, id));
       };
       if (clientApplications.length > 0 && managedClients.length > 0) {
         const sampleApp = clientApplications[0];
@@ -624,15 +634,19 @@ export class KAMController {
       
       // Cache is already invalidated in postClient method, no need to invalidate again
 
-      // Return success response immediately
+      // Return success response immediately (include temp password only for new users)
+      const responseData: Record<string, unknown> = {
+        id: clientId,
+        clientId: clientId,
+        userId: userAccountId,
+        message: 'Client created successfully',
+      };
+      if (isNewUser) {
+        responseData.tempPassword = 'TempPassword123!';
+      }
       res.json({
         success: true,
-        data: {
-          id: clientId,
-          clientId: clientId,
-          userId: userAccountId,
-          message: 'Client created successfully',
-        },
+        data: responseData,
       });
 
       // Log admin activity asynchronously (non-blocking - don't fail if this fails)

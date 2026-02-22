@@ -181,6 +181,7 @@ export const Clients: React.FC = () => {
         throw new Error(response.error || 'Failed to onboard client');
       }
 
+      const tempPassword = (response.data as { tempPassword?: string } | undefined)?.tempPassword;
       setShowOnboardModal(false);
       setNewClient({
         company_name: '',
@@ -191,11 +192,13 @@ export const Clients: React.FC = () => {
         commission_rate: '1.0',
         enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'],
       });
-      
-      
+
       // Refresh list so the new client appears immediately
       await fetchClients(true);
-      alert(`Client onboarded successfully!\n\nEmail: ${newClient.email}`);
+      const message = tempPassword
+        ? `Client onboarded successfully!\n\nEmail: ${newClient.email}\nTemporary password: ${tempPassword}\n\nShare this password with the client for first login.`
+        : `Client onboarded successfully!\n\nEmail: ${newClient.email}`;
+      alert(message);
     } catch (error: any) {
       alert(`Failed to onboard client: ${error.message || 'Unknown error'}`);
     } finally {

@@ -595,8 +595,16 @@ export function FormConfiguration() {
                                     <span className="text-sm font-mono text-neutral-600 w-28">{f.key}</span>
                                   </label>
                                   <Input
-                                    placeholder="Label (or Empty to omit)"
-                                    value={f.label}
+                                    placeholder={
+                                      !f.label || f.label.trim().toLowerCase() === 'empty'
+                                        ? `${f.key} — or type Empty to omit`
+                                        : 'Label (or Empty to omit)'
+                                    }
+                                    value={
+                                      f.label && f.label.trim().toLowerCase() !== 'empty'
+                                        ? f.label
+                                        : ''
+                                    }
                                     onChange={(e) =>
                                       updateField(sIdx, fIdx, { label: e.target.value })
                                     }

@@ -32,6 +32,14 @@ export class LoanController {
         return;
       }
 
+      if (!req.user.clientId) {
+        res.status(403).json({
+          success: false,
+          error: 'Your account is not linked to a client record. Please contact your KAM or administrator.',
+        });
+        return;
+      }
+
       const { 
         productId, 
         borrowerIdentifiers, 
