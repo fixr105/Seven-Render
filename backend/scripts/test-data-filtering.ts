@@ -23,7 +23,7 @@ const testUsers: TestUser[] = [
 
 async function login(username: string, passcode: string): Promise<string | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/validate`, {
+    const response = await fetch(`${API_BASE_URL}/auth/validate-credentials`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, passcode }),
@@ -31,7 +31,7 @@ async function login(username: string, passcode: string): Promise<string | null>
     
     if (response.status === 200) {
       const data = await response.json();
-      return data.token;
+      return data.data?.token ?? data.token ?? null;
     }
     return null;
   } catch (error) {

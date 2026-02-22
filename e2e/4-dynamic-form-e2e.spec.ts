@@ -122,7 +122,7 @@ test.describe('E2E: Dynamic Form Workflow', () => {
       await Promise.race([
         newApplicationPage.successMessage.waitFor({ state: 'visible', timeout: 10000 }),
         page.waitForURL(/\/applications/, { timeout: 10000 }),
-        page.waitForSelector('text=/saved|draft/i', { timeout: 10000 }),
+        page.locator('text=/saved|draft/i').first().waitFor({ state: 'visible', timeout: 10000 }),
       ]);
       
       // Assert: Form was created successfully
@@ -146,7 +146,7 @@ test.describe('E2E: Dynamic Form Workflow', () => {
       await newApplicationPage.uploadFile(firstUpload.fieldId, filePath);
       
       // Assert: File upload initiated
-      await page.waitForTimeout(2000); // Wait for upload to process
+      await page.waitForLoadState('networkidle');
       
       // Assert: File appears in attached list
       const isAttached = await newApplicationPage.verifyFileAttached(firstUpload.fieldId, firstUpload.fileName);
@@ -160,7 +160,7 @@ test.describe('E2E: Dynamic Form Workflow', () => {
       await newApplicationPage.uploadFile(secondUpload.fieldId, filePath);
       
       // Assert: Second file upload initiated
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState('networkidle');
       
       // Assert: Second file appears in attached list
       const isAttached = await newApplicationPage.verifyFileAttached(secondUpload.fieldId, secondUpload.fileName);
@@ -206,7 +206,7 @@ test.describe('E2E: Dynamic Form Workflow', () => {
     for (let i = 0; i < testData.fileUploads.length; i++) {
       const upload = testData.fileUploads[i];
       await newApplicationPage.uploadFile(upload.fieldId, uploadedFilePaths[i]);
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState('networkidle');
     }
 
     await test.step('Step 3.1: Submit the finalized form', async () => {

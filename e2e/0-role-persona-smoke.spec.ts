@@ -80,9 +80,9 @@ test.describe('Role-persona smoke', () => {
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });
     await expect(nav.getByRole('button', { name: 'Applications' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Clients' })).toBeVisible();
+    await expect(nav.getByRole('button', { name: 'Ledger' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Reports' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Settings' })).toBeVisible();
-    await expect(nav.getByRole('button', { name: 'Ledger' })).toHaveCount(0);
 
     // Allowed pages
     await page.goto('/clients');

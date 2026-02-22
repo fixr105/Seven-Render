@@ -54,7 +54,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await clientPage.waitForLoadState('networkidle');
 
       // Wait for ledger entries to load
-      await clientPage.waitForSelector('text=/Commission|Ledger|Balance/i', { timeout: 10000 });
+      await clientPage.locator('text=/Commission|Ledger|Balance/i').first().waitFor({ state: 'visible', timeout: 10000 });
 
       // Verify ledger entries are displayed
       const ledgerEntries = clientPage.locator('tr, [data-testid="ledger-entry"], .ledger-entry');
@@ -89,7 +89,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await clientPage.waitForLoadState('networkidle');
 
       // Wait for ledger to load
-      await clientPage.waitForSelector('text=/Commission|Ledger|Balance/i', { timeout: 10000 });
+      await clientPage.locator('text=/Commission|Ledger|Balance/i').first().waitFor({ state: 'visible', timeout: 10000 });
 
       // Find "Request Payout" button
       const requestPayoutButton = clientPage.locator('button:has-text("Request Payout"), button:has-text("Request"), [data-testid="request-payout"]').first();
@@ -123,10 +123,10 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await submitButton.click();
 
       // Wait for success message or confirmation
-      await clientPage.waitForSelector('text=/success|requested|submitted/i, [data-testid="success"]', { timeout: 10000 }).catch(async () => {
-        // If no explicit success message, verify modal closed
-        await expect(payoutModal).not.toBeVisible({ timeout: 3000 });
-      });
+      await Promise.race([
+        clientPage.locator('text=/success|requested|submitted/i, [data-testid="success"]').first().waitFor({ state: 'visible', timeout: 10000 }),
+        expect(payoutModal).not.toBeVisible({ timeout: 10000 }),
+      ]).catch(() => {});
 
       await clientPage.close();
     });
@@ -151,7 +151,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       }
 
       // Wait for payout requests list
-      await creditPage.waitForSelector('text=/Request|Pending|Amount/i', { timeout: 10000 });
+      await creditPage.locator('text=/Request|Pending|Amount/i').first().waitFor({ state: 'visible', timeout: 10000 });
 
       // Find the pending payout request
       const pendingRequest = creditPage.locator('tr:has-text("Pending"), [data-testid="payout-request"], .payout-request').first();
@@ -186,10 +186,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
         }
 
         // Wait for success message
-        await creditPage.waitForSelector('text=/approved|success/i, [data-testid="success"]', { timeout: 10000 }).catch(async () => {
-          // If no explicit message, verify request status changed
-          await creditPage.waitForTimeout(2000);
-        });
+        await creditPage.locator('text=/approved|success/i, [data-testid="success"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
       } else {
         // Alternative: Click on the request row to open details, then approve
         await pendingRequest.click();
@@ -198,12 +195,12 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
         const approveButtonInDetails = creditPage.locator('button:has-text("Approve")').first();
         if (await approveButtonInDetails.isVisible({ timeout: 3000 })) {
           await approveButtonInDetails.click();
-          await creditPage.waitForTimeout(2000);
+          await creditPage.waitForLoadState('networkidle');
         }
       }
 
       // Verify payout was approved (status changed to "Approved" or "Paid")
-      await creditPage.waitForTimeout(2000);
+      await creditPage.waitForLoadState('networkidle');
       const statusText = await creditPage.locator('text=/Approved|Paid/i').first().textContent();
       expect(statusText).toMatch(/Approved|Paid/i);
 
@@ -221,7 +218,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await clientPage.waitForLoadState('networkidle');
 
       // Wait for ledger to load
-      await clientPage.waitForSelector('text=/Commission|Ledger|Balance/i', { timeout: 10000 });
+      await clientPage.locator('text=/Commission|Ledger|Balance/i').first().waitFor({ state: 'visible', timeout: 10000 });
 
       // Verify payout entry exists (negative amount or "Paid" status)
       const payoutEntry = clientPage.locator('text=/Paid|Payout|Requested/i').first();

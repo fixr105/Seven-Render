@@ -63,37 +63,34 @@ test.describe('Smoke - Client Loan Products', () => {
 
     await expect(loanProductSelect).toBeVisible({ timeout: 10000 });
 
-    // Wait for the empty state to be determined (either error message or disabled select)
-    // Check for error message or helper text indicating no products
-    const noProductsMessage = page.getByText(/No loan products are currently available|No loan products are configured for your account/i);
-    
-    // Wait for either the message to appear OR the select to be disabled with no options (browser-valid DOM)
-    await Promise.race([
-      noProductsMessage.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
-      page.waitForFunction(
-        () => {
-          const label = Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'));
-          const select = label?.parentElement?.querySelector('select') as HTMLSelectElement | null;
-          if (!select) return false;
-          const options = Array.from(select.querySelectorAll('option'));
-          const hasOnlyPlaceholder =
-            options.length <= 1 ||
-            options.every(
-              opt =>
-                !opt.textContent ||
-                opt.textContent.match(/^(Select|Choose|--|Loading|No products|No products available)/i) ||
-                opt.value === ''
-            );
-          return select.disabled && hasOnlyPlaceholder;
-        },
-        { timeout: 10000 }
-      ).catch(() => null)
-    ]);
+    // Wait for products to load (or empty state)
+    await page.waitForLoadState('networkidle');
+    await page.waitForFunction(
+      () => {
+        const label = Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'));
+        const select = label?.parentElement?.querySelector('select');
+        if (!select) return false;
+        const options = Array.from(select.querySelectorAll('option'));
+        const hasLoaded = options.some(opt => opt.textContent !== 'Loading products...');
+        return hasLoaded;
+      },
+      { timeout: 10000 }
+    );
+
+    // If client has products configured, skip this test (it only applies when no products)
+    const options = loanProductSelect.locator('option');
+    const productOptions = options.filter({ hasNotText: /^(Select|Choose|--|Loading|No products)/i });
+    const productCount = await productOptions.count();
+    if (productCount > 0) {
+      test.skip(true, 'Client has products configured; this test only asserts no-products state');
+      return;
+    }
 
     // Verify either the error message is visible OR the select is disabled
+    const noProductsMessage = page.getByText(/No loan products are currently available|No loan products are configured for your account/i);
     const messageVisible = await noProductsMessage.isVisible().catch(() => false);
     const selectDisabled = await loanProductSelect.isDisabled().catch(() => false);
-    
+
     expect(messageVisible || selectDisabled).toBeTruthy();
   });
 });

@@ -25,11 +25,18 @@ function addPartitionedToAuthCookie(res: Response): void {
 export class AuthController {
   async login(req: Request, res: Response): Promise<void> {
     try {
-      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      // PRD §6: accept { username, password }; also support { email, password } for backward compatibility
+      const email = (
+        typeof req.body?.email === 'string'
+          ? req.body.email
+          : typeof req.body?.username === 'string'
+            ? req.body.username
+            : ''
+      ).trim();
       const password = typeof req.body?.password === 'string' ? req.body.password : '';
 
       if (!email || !password) {
-        res.status(400).json({ success: false, error: 'Email and password are required' });
+        res.status(400).json({ success: false, error: 'Username/email and password are required' });
         return;
       }
 
@@ -72,7 +79,55 @@ export class AuthController {
     }
   }
 
-  async validate(req: Request, res: Response): Promise<void> {
+  /**
+   * POST /auth/validate (PRD §6): Validate JWT and return new token if valid.
+   * Body: { token: string }.
+   */
+  async validateJwt(req: Request, res: Response): Promise<void> {
+    try {
+      const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+      if (!token) {
+        res.status(400).json({ success: false, error: 'Token is required' });
+        return;
+      }
+
+      const user = await authService.verifyToken(token);
+      if (!user) {
+        res.status(401).json({ success: false, error: 'Invalid or expired token' });
+        return;
+      }
+
+      const newToken = authService.createToken(user);
+      res.cookie(authConfig.cookieName, newToken, authConfig.cookieOptions);
+      addPartitionedToAuthCookie(res);
+
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            name: user.name,
+            clientId: user.clientId,
+            kamId: user.kamId,
+            nbfcId: user.nbfcId,
+            creditTeamId: user.creditTeamId,
+          },
+          token: newToken,
+        },
+      });
+    } catch (err: any) {
+      defaultLogger.error('Validate JWT error', { error: err.message });
+      res.status(500).json({ success: false, error: 'Validation failed. Please try again.' });
+    }
+  }
+
+  /**
+   * POST /auth/validate-credentials: Login with username and passcode (legacy/secondary flow).
+   * Body: { username: string, passcode: string }. For PRD JWT validation use POST /auth/validate with { token }.
+   */
+  async validateCredentials(req: Request, res: Response): Promise<void> {
     try {
       const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
       const passcode = typeof req.body?.passcode === 'string' ? req.body.passcode : '';
@@ -109,7 +164,7 @@ export class AuthController {
         },
       });
     } catch (err: any) {
-      defaultLogger.error('Validate error', { error: err.message });
+      defaultLogger.error('Validate credentials error', { error: err.message });
       res.status(500).json({ success: false, error: 'Validation failed. Please try again.' });
     }
   }

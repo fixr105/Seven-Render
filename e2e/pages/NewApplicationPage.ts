@@ -51,6 +51,10 @@ export class NewApplicationPage {
   readonly errorMessage: Locator;
   readonly loadFormButton: Locator;
 
+  // Copy share-email buttons below videos
+  readonly copyGoogleDriveEmailButton: Locator;
+  readonly copyOneDriveEmailButton: Locator;
+
   constructor(page: Page) {
     this.page = page;
 
@@ -66,6 +70,10 @@ export class NewApplicationPage {
     this.successMessage = page.locator('text=/success|created|submitted/i, [data-testid="success-message"]').first();
     this.errorMessage = page.locator('.text-error, [role="alert"]').first();
     this.loadFormButton = page.locator('[data-testid="load-form-button"], button:has-text("Load form")').first();
+
+    // Copy share-email buttons below videos
+    this.copyGoogleDriveEmailButton = page.getByTestId('copy-google-drive-email');
+    this.copyOneDriveEmailButton = page.getByTestId('copy-onedrive-email');
   }
 
   /**
@@ -85,7 +93,7 @@ export class NewApplicationPage {
     // Wait for product option to appear (products loaded from API)
     await this.page.locator(`select option:has-text("${productNameOrId}")`).first()
       .waitFor({ state: 'attached', timeout: 15000 })
-      .catch(() => this.page.waitForTimeout(3000));
+      .catch(() => this.page.waitForLoadState('networkidle'));
 
     // Try select by label first, then by value
     const optionByLabel = this.page.locator(`[data-testid="loan-product-select"] option:has-text("${productNameOrId}"), select[id="loan_product_id"] option:has-text("${productNameOrId}"), select[name="loan_product_id"] option:has-text("${productNameOrId}")`).first();
@@ -155,7 +163,7 @@ export class NewApplicationPage {
    */
   async fillDynamicFields(formConfig: FormTestData['formConfig'], formData: Record<string, any>) {
     // Wait for form configuration to load
-    await this.page.waitForTimeout(2000);
+    await this.page.waitForLoadState('networkidle');
 
     // Iterate through categories and fields
     for (const category of formConfig.categories) {
@@ -259,13 +267,11 @@ export class NewApplicationPage {
     await fileInput.setInputFiles(filePath);
 
     // Wait for upload to complete (look for success indicator)
-    await this.page.waitForSelector(
-      `text=/uploaded|success|complete/i, [data-field-id="${fieldId}"] .text-success`,
-      { timeout: 10000 }
-    ).catch(() => {
-      // If no success message, wait a bit for upload to process
-      return this.page.waitForTimeout(3000);
-    });
+    await this.page
+      .locator(`text=/uploaded|success|complete/i, [data-field-id="${fieldId}"] .text-success`)
+      .first()
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .catch(() => this.page.waitForLoadState('networkidle'));
   }
 
   /**

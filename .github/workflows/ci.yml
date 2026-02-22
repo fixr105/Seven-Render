@@ -27,15 +27,12 @@ jobs:
       
       - name: Run ESLint (Frontend)
         run: npm run lint
-        continue-on-error: true
       
       - name: Run TypeScript check (Frontend)
         run: npm run typecheck
-        continue-on-error: true
       
       - name: Run TypeScript check (Backend)
         run: cd backend && npm run typecheck
-        continue-on-error: true
 
   test:
     name: Run Tests
@@ -57,11 +54,33 @@ jobs:
       
       - name: Run unit tests (Frontend)
         run: npm test -- --run
-        continue-on-error: true
       
       - name: Run unit tests (Backend)
         run: cd backend && npm test
-        continue-on-error: true
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm install
+          cd backend && npm install
+      
+      - name: Run frontend coverage
+        run: npm run test:coverage
+      
+      - name: Run backend coverage
+        run: cd backend && npm run test:coverage
 
   security-audit:
     name: Security Audit
@@ -83,11 +102,9 @@ jobs:
       
       - name: Run npm audit (Frontend)
         run: npm audit --audit-level=moderate
-        continue-on-error: true
       
       - name: Run npm audit (Backend)
         run: cd backend && npm audit --audit-level=moderate
-        continue-on-error: true
 
   build:
     name: Build
@@ -137,7 +154,6 @@ jobs:
       
       - name: Run E2E tests
         run: npm run test:e2e -- e2e/8-bug-fixes-verification.spec.ts --project=chromium
-        continue-on-error: true
         env:
           CI: true
           E2E_CLIENT_USERNAME: ${{ secrets.E2E_CLIENT_USERNAME || 'sagar@sevenfincorp.email' }}

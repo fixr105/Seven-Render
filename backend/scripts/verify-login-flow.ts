@@ -5,7 +5,7 @@
  * Runs the minimal verification checklist from the Login Failure Diagnostic Plan:
  * 1. Backend health (GET /health at root)
  * 2. n8n POST /webhook/useraccount (200 + single user record or { status: "unmatched" })
- * 3. POST /auth/validate (username + passcode) -> 200 + token + user
+ * 3. POST /auth/validate-credentials (username + passcode) -> 200 + token + user
  *
  * Usage:
  *   cd backend && npx tsx scripts/verify-login-flow.ts
@@ -102,13 +102,13 @@ async function main() {
     fail('POST /webhook/useraccount', e?.message || String(e), 'Check n8n POST workflow active, path useraccount');
   }
 
-  // 3. POST /auth/validate
+  // 3. POST /auth/validate-credentials (username + passcode)
   try {
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), 55_000);
     let r: Awaited<ReturnType<typeof fetch>>;
     try {
-      r = await fetch(`${API_BASE_URL}/auth/validate`, {
+      r = await fetch(`${API_BASE_URL}/auth/validate-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: USERNAME, passcode: PASSWORD }),
@@ -122,7 +122,7 @@ async function main() {
     try {
       data = text ? JSON.parse(text) : {};
     } catch {
-      fail('POST /auth/validate', 'Response is not JSON', text.slice(0, 200));
+      fail('POST /auth/validate-credentials', 'Response is not JSON', text.slice(0, 200));
       data = {};
     }
     if (!r.ok) {
@@ -131,7 +131,7 @@ async function main() {
           ? ' Ensure test user (e.g. Sagar@gmail.com) exists in Airtable User Accounts with Account Status Active and matching password.'
           : '';
       fail(
-        'POST /auth/validate',
+        'POST /auth/validate-credentials',
         `HTTP ${r.status} ${data?.error || text.slice(0, 100)}`,
         hint || undefined
       );
@@ -140,13 +140,13 @@ async function main() {
       const hasToken = d && typeof d.token === 'string';
       const hasUser = d && d.user && typeof d.user === 'object';
       if (!hasToken || !hasUser) {
-        fail('POST /auth/validate', 'Missing data.token or data.user', JSON.stringify(d).slice(0, 200));
+        fail('POST /auth/validate-credentials', 'Missing data.token or data.user', JSON.stringify(d).slice(0, 200));
       } else {
-        ok('POST /auth/validate', `HTTP 200, token + user (${(d.user as any).role})`);
+        ok('POST /auth/validate-credentials', `HTTP 200, token + user (${(d.user as any).role})`);
       }
     }
   } catch (e: any) {
-    fail('POST /auth/validate', e?.message || String(e), 'Check backend, useraccount webhook, Airtable user');
+    fail('POST /auth/validate-credentials', e?.message || String(e), 'Check backend, useraccount webhook, Airtable user');
   }
 
   const passed = steps.filter((s) => s.passed).length;
