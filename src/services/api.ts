@@ -861,7 +861,7 @@ class ApiService {
     commissionRate?: string;
     enabledModules?: string[];
     modules?: string[];
-  }): Promise<ApiResponse<{ clientId: string; userId: string }>> {
+  }): Promise<ApiResponse<{ clientId: string; userId: string; tempPassword?: string }>> {
     // Map modules to enabledModules for backend compatibility
     const payload = {
       name: data.name,

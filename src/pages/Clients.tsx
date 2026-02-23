@@ -9,7 +9,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Eye, UserPlus, RefreshCw, Package } from 'lucide-react';
+import { Eye, UserPlus, RefreshCw, Package, Copy, Check } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useApplications } from '../hooks/useApplications';
 import { useNotifications } from '../hooks/useNotifications';
@@ -74,6 +74,8 @@ export const Clients: React.FC = () => {
     commission_rate: '1.0',
     enabled_modules: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'] as string[], // Preselect all M1-M7
   });
+  const [onboardSuccess, setOnboardSuccess] = useState<{ email: string; tempPassword?: string } | null>(null);
+  const [copiedCredentials, setCopiedCredentials] = useState(false);
 
   const sidebarItems = useSidebarItems();
 
@@ -181,7 +183,7 @@ export const Clients: React.FC = () => {
         throw new Error(response.error || 'Failed to onboard client');
       }
 
-      const tempPassword = (response.data as { tempPassword?: string } | undefined)?.tempPassword;
+      const tempPassword = response.data?.tempPassword;
       setShowOnboardModal(false);
       setNewClient({
         company_name: '',
@@ -195,10 +197,7 @@ export const Clients: React.FC = () => {
 
       // Refresh list so the new client appears immediately
       await fetchClients(true);
-      const message = tempPassword
-        ? `Client onboarded successfully!\n\nEmail: ${newClient.email}\nTemporary password: ${tempPassword}\n\nShare this password with the client for first login.`
-        : `Client onboarded successfully!\n\nEmail: ${newClient.email}`;
-      alert(message);
+      setOnboardSuccess({ email: newClient.email, tempPassword });
     } catch (error: any) {
       alert(`Failed to onboard client: ${error.message || 'Unknown error'}`);
     } finally {
@@ -635,6 +634,69 @@ export const Clients: React.FC = () => {
             loading={submitting}
           >
             Onboard Client
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Onboard success modal – copyable credentials */}
+      <Modal
+        isOpen={!!onboardSuccess}
+        onClose={() => {
+          setOnboardSuccess(null);
+          setCopiedCredentials(false);
+        }}
+        size="md"
+      >
+        <ModalHeader
+          onClose={() => {
+            setOnboardSuccess(null);
+            setCopiedCredentials(false);
+          }}
+        >
+          Client onboarded successfully
+        </ModalHeader>
+        <ModalBody>
+          <div className="space-y-4">
+            <div className="rounded bg-neutral-50 p-3 font-mono text-sm text-neutral-800 space-y-1">
+              <p><strong>Email:</strong> {onboardSuccess?.email}</p>
+              {onboardSuccess?.tempPassword && (
+                <p><strong>Password:</strong> {onboardSuccess.tempPassword}</p>
+              )}
+            </div>
+            {onboardSuccess?.tempPassword && (
+              <p className="text-sm text-neutral-600">
+                Share these credentials with the client for first login.
+              </p>
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          {onboardSuccess?.tempPassword && (
+            <Button
+              variant="secondary"
+              icon={copiedCredentials ? Check : Copy}
+              onClick={async () => {
+                const text = `Email: ${onboardSuccess?.email ?? ''}\nPassword: ${onboardSuccess?.tempPassword ?? ''}`;
+                try {
+                  await navigator.clipboard.writeText(text);
+                  setCopiedCredentials(true);
+                  setTimeout(() => setCopiedCredentials(false), 2000);
+                } catch {
+                  // Fallback: no clipboard API
+                }
+              }}
+            >
+              {copiedCredentials ? 'Copied' : 'Copy login credentials'}
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            onClick={() => {
+              setOnboardSuccess(null);
+              setCopiedCredentials(false);
+            }}
+          >
+            Done
           </Button>
         </ModalFooter>
       </Modal>

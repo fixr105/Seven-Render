@@ -184,6 +184,8 @@ This document provides a comprehensive list of all API endpoints, the n8n webhoo
 
 ## Loan Application Endpoints
 
+**Client field:** When creating or updating a loan application, `Client` is sent to the webhook as a **single string** (client record id). Airtable may return `Client` as a linked record (array or object). The KAM dashboard and RBAC use `normalizeAppClient` / `matchIds` so that applications match clients whether the stored value is string, array, or object.
+
 ### POST `/loan-applications`
 **Role**: CLIENT only
 

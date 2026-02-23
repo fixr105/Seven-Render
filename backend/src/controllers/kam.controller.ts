@@ -256,6 +256,16 @@ export class KAMController {
           'sample:',
           sample
         );
+        const clientsWithZeroFiles = clientsWithMetrics.filter((c) => c.totalFiles === 0).length;
+        if (clientsWithZeroFiles > 0) {
+          console.log(
+            '[getKAMDashboard] No files yet:',
+            clientsWithZeroFiles,
+            'client(s) show 0 files while',
+            orphanApps.length,
+            'orphan app(s) exist; check application Client ID format vs Clients table id.'
+          );
+        }
       }
 
       const approvedTotal = clientsWithMetrics.reduce((s, c) => s + c.approved, 0);

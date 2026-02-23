@@ -1032,10 +1032,20 @@ export class N8nClient {
     if (typeof formData === 'object' && formData !== null) {
       formData = JSON.stringify(formData);
     }
+    // Client: always send a single string (client record id). Airtable may return it as linked record (array/object); KAM dashboard normalizeAppClient handles that on read.
+    const rawClient = data['Client'] ?? data.client ?? '';
+    const clientId =
+      typeof rawClient === 'string'
+        ? rawClient
+        : Array.isArray(rawClient) && rawClient.length > 0
+          ? String(rawClient[0])
+          : rawClient && typeof rawClient === 'object' && (rawClient.id ?? rawClient.ID ?? rawClient['Client ID'])
+          ? String((rawClient as any).id ?? (rawClient as any).ID ?? (rawClient as any)['Client ID'])
+          : '';
     return {
       id: data.id,
       'File ID': data['File ID'] || data.fileId || '',
-      'Client': data['Client'] || data.client || '',
+      'Client': clientId,
       'Applicant Name': data['Applicant Name'] || data.applicantName || '',
       'Loan Product': data['Loan Product'] || data.loanProduct || '',
       'Requested Loan Amount': data['Requested Loan Amount'] || data.requestedLoanAmount || '',
