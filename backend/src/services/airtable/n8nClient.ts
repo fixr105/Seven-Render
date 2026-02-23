@@ -1024,7 +1024,8 @@ export class N8nClient {
   }
 
   /**
-   * Build the loan application payload (same shape as POST /webhook/loanapplications).
+   * Build the loan application payload for POST /webhook/loanapplications.
+   * Fixed format and key order for n8n mapping. Always send all keys so n8n receives a consistent structure.
    * Used by postLoanApplication and by the AI summary big-brain-bro webhook.
    */
   buildLoanApplicationPayload(data: Record<string, any>): Record<string, any> {
@@ -1032,7 +1033,10 @@ export class N8nClient {
     if (typeof formData === 'object' && formData !== null) {
       formData = JSON.stringify(formData);
     }
-    // Client: always send a single string (client record id). Airtable may return it as linked record (array/object); KAM dashboard normalizeAppClient handles that on read.
+    if (formData == null || (typeof formData === 'string' && formData.trim() === '')) {
+      formData = '';
+    }
+    // Client: single string (client record id)
     const rawClient = data['Client'] ?? data.client ?? '';
     const clientId =
       typeof rawClient === 'string'
@@ -1042,15 +1046,28 @@ export class N8nClient {
           : rawClient && typeof rawClient === 'object' && (rawClient.id ?? rawClient.ID ?? rawClient['Client ID'])
           ? String((rawClient as any).id ?? (rawClient as any).ID ?? (rawClient as any)['Client ID'])
           : '';
+    // KAM ID: string (normalize from linked record or text)
+    const rawKamId = data['KAM ID'] ?? data.kamId ?? '';
+    const kamId =
+      typeof rawKamId === 'string'
+        ? rawKamId.trim()
+        : Array.isArray(rawKamId) && rawKamId.length > 0
+          ? String(rawKamId[0]).trim()
+          : rawKamId && typeof rawKamId === 'object' && (rawKamId.id ?? rawKamId['KAM ID'])
+          ? String((rawKamId as any).id ?? (rawKamId as any)['KAM ID']).trim()
+          : '';
+    const md = data['MD'] ?? data.md ?? '';
+
+    // Fixed key order for n8n: same format every time
     return {
-      id: data.id,
+      id: data.id ?? '',
       'File ID': data['File ID'] || data.fileId || '',
-      'Client': clientId,
+      Client: clientId,
       'Applicant Name': data['Applicant Name'] || data.applicantName || '',
       'Loan Product': data['Loan Product'] || data.loanProduct || '',
       'Requested Loan Amount': data['Requested Loan Amount'] || data.requestedLoanAmount || '',
-      'Documents': data['Documents'] || data.documents || '',
-      'Status': data['Status'] || data.status || '',
+      Documents: data['Documents'] || data.documents || '',
+      Status: data['Status'] || data.status || '',
       'Assigned Credit Analyst': data['Assigned Credit Analyst'] || data.assignedCreditAnalyst || '',
       'Assigned NBFC': data['Assigned NBFC'] || data.assignedNBFC || '',
       'Lender Decision Status': data['Lender Decision Status'] || data.lenderDecisionStatus || '',
@@ -1058,12 +1075,14 @@ export class N8nClient {
       'Lender Decision Remarks': data['Lender Decision Remarks'] || data.lenderDecisionRemarks || '',
       'Approved Loan Amount': data['Approved Loan Amount'] || data.approvedLoanAmount || '',
       'AI File Summary': data['AI File Summary'] || data.aiFileSummary || '',
-      'Form Data': formData,
       'Creation Date': data['Creation Date'] || data.creationDate || '',
       'Submitted Date': data['Submitted Date'] || data.submittedDate || '',
       'Last Updated': data['Last Updated'] || data.lastUpdated || '',
       'Asana Task ID': data['Asana Task ID'] || data.asanaTaskId || '',
       'Asana Task Link': data['Asana Task Link'] || data.asanaTaskLink || '',
+      'KAM ID': kamId,
+      'Form Data': formData,
+      MD: md,
     };
   }
 
