@@ -87,6 +87,7 @@ export class LoanWorkflowService {
       Status: status,
       'Creation Date': new Date().toISOString().split('T')[0],
       'Last Updated': new Date().toISOString(),
+      // Full form data (row-wise) from controller; persist as-is
       'Form Data': options.formData ? JSON.stringify(options.formData) : '',
       'Form Config Version': formConfigVersion || '',
       Documents: options.documents || '',

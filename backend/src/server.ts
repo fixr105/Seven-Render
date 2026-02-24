@@ -73,6 +73,15 @@ function normalizeOrigin(o: string): string {
   return t.endsWith('/') ? t.slice(0, -1) : t;
 }
 
+function isVercelOrigin(origin: string): boolean {
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = corsOriginRaw
@@ -88,7 +97,8 @@ const corsOptions = {
     const allowed =
       allowedOrigins.includes('*') ||
       allowedOrigins.includes(origin) ||
-      allowedOrigins.includes(normalizedOrigin);
+      allowedOrigins.includes(normalizedOrigin) ||
+      isVercelOrigin(origin);
 
     if (allowed) {
       callback(null, true);

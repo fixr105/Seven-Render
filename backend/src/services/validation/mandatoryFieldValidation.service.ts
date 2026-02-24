@@ -140,9 +140,6 @@ async function loadFormFieldsConfig(
   } else {
     config = await getSimpleFormConfig(clientId, undefined);
   }
-  if (config.categories.length === 0 && productId) {
-    config = await getSimpleFormConfig(clientId, undefined);
-  }
 
   const fieldConfigs: Array<{
     fieldId: string;

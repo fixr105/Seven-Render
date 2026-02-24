@@ -71,18 +71,12 @@ export class LoanController {
 
       // Module 2: Soft validation - check required fields but allow submission with warnings
       const { validateFormData } = await import('../services/validation/formValidation.service.js');
-      // Fetch form config for validation - MUST match frontend source (getFormConfig uses getFormConfigForProduct first, then getSimpleFormConfig)
-      // so displayKeys (e.g. "Applicant Name - Documents" vs "Applicant Name - Section 1") match and validation sees the same keys the user filled in.
+      // Fetch form config for validation - Loan Products only (matches frontend; no getSimpleFormConfig fallback).
       let formConfig: any[] = [];
       try {
         if (productId && typeof productId === 'string') {
           const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
           const config = await getFormConfigForProduct(productId);
-          formConfig = config.categories;
-        }
-        if (formConfig.length === 0) {
-          const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
-          const config = await getSimpleFormConfig(req.user!.clientId!, productId);
           formConfig = config.categories;
         }
       } catch (configError) {
@@ -120,11 +114,13 @@ export class LoanController {
         }
       }
 
-      // Transform form data to checklist format (document names as keys, "yes"|"no"|"to be shared soon" as values)
-      const { transformFormDataToChecklistFormat } = await import('../services/formConfig/formDataToChecklistTransformer.js');
-      const transformedFormData = productId
-        ? await transformFormDataToChecklistFormat(productId, finalFormData as Record<string, unknown>)
-        : (finalFormData as Record<string, string>);
+      // Build full form data to store (all fields row-wise). Include core fields so Form Data is a complete snapshot.
+      const fullFormDataToStore: Record<string, unknown> = {
+        applicantName: finalApplicantName,
+        requestedLoanAmount: finalRequestedAmount,
+        ...(productId ? { productId } : {}),
+        ...finalFormData,
+      };
 
       // Generate File ID
       const timestamp = Date.now().toString(36).toUpperCase();
@@ -141,7 +137,7 @@ export class LoanController {
           productId,
           applicantName: finalApplicantName,
           requestedLoanAmount: finalRequestedAmount,
-          formData: transformedFormData,
+          formData: fullFormDataToStore,
           documents: '',
           saveAsDraft,
         });
@@ -181,7 +177,7 @@ export class LoanController {
         // KAM will see this in their "needs attention" list
       }
 
-      // Create application in Airtable with all provided data (Form Data in checklist format)
+      // Create application in Airtable with full form data (all fields row-wise)
       const applicationData: any = {
         id: applicationId,
         'File ID': fileId,
@@ -192,7 +188,7 @@ export class LoanController {
         Status: status,
         'Creation Date': new Date().toISOString().split('T')[0],
         'Last Updated': new Date().toISOString(),
-        'Form Data': JSON.stringify(transformedFormData),
+        'Form Data': JSON.stringify(fullFormDataToStore),
         'Form Config Version': formConfigVersion || '', // Module 1: Store form config version
         Documents: '', // Link-first flow: no per-file uploads; Drive link handled separately when implemented
         'Needs Attention': needsAttention ? 'True' : 'False', // Module 2: Flag for KAM attention
@@ -1131,17 +1127,25 @@ export class LoanController {
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
 
-      // Transform form data to checklist format before saving
-      const productId = application['Loan Product'] || application.loanProduct || '';
-      const { transformFormDataToChecklistFormat } = await import('../services/formConfig/formDataToChecklistTransformer.js');
-      const transformedFormData = productId
-        ? await transformFormDataToChecklistFormat(productId, (formData || {}) as Record<string, unknown>)
-        : (formData || {});
+      // Parse existing Form Data and merge with incoming form data (full row-wise storage)
+      let existingFormData: Record<string, unknown> = {};
+      const rawFormData = application['Form Data'] ?? application.formData ?? application['form_data'];
+      if (rawFormData != null) {
+        try {
+          const parsed = typeof rawFormData === 'string' ? JSON.parse(rawFormData) : rawFormData;
+          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+            existingFormData = parsed as Record<string, unknown>;
+          }
+        } catch {
+          existingFormData = {};
+        }
+      }
+      const mergedFormData = { ...existingFormData, ...(formData || {}) };
 
       // Update form data (preserve existing Documents for backward compatibility)
       const updatedData: any = {
         ...application,
-        'Form Data': JSON.stringify(transformedFormData),
+        'Form Data': JSON.stringify(mergedFormData),
         'Last Updated': new Date().toISOString(),
         'Form Config Version': formConfigVersion || '', // Module 1: Preserve or update version
       };

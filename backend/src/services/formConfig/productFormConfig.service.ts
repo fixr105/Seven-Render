@@ -274,8 +274,8 @@ export function buildProductFormConfigPayload(sections: EditorSection[]): Record
 }
 
 /**
- * Get form config for a product from Loan Products (product-embedded) or Product Documents.
- * Returns categories in the same shape as getSimpleFormConfig.
+ * Get form config for a product from Loan Products (product-embedded Section N / Field N).
+ * Only sections with Y are included. Returns empty categories when product not found or has no section keys.
  */
 export async function getFormConfigForProduct(productId: string): Promise<{
   categories: Array<{
@@ -304,6 +304,5 @@ export async function getFormConfigForProduct(productId: string): Promise<{
       })),
     };
   }
-  const { getSimpleFormConfig } = await import('./simpleFormConfig.service.js');
-  return getSimpleFormConfig('_', productId);
+  return { categories: [] };
 }

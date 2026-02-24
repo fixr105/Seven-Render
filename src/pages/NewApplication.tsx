@@ -100,12 +100,12 @@ export const NewApplication: React.FC = () => {
     }
   };
 
-  // Fetch on mount (including SPA navigation) and via Load form when client.
+  // Fetch on mount (including SPA navigation). Form config loads only when user selects a loan product.
   useEffect(() => {
     if (userRole === 'client') {
       fetchClientId();
-      fetchFormConfig();
       fetchConfiguredProducts();
+      setFormConfigLoading(false);
     } else {
       setFormConfigLoading(false);
       setLoanProductsLoading(false);
@@ -130,8 +130,9 @@ export const NewApplication: React.FC = () => {
   const loadForm = () => {
     if (userRole !== 'client') return;
     fetchClientId();
-    // Pass selected product so Money Multiplier (and other product-specific configs) load correctly
-    fetchFormConfig(formData.loan_product_id || undefined);
+    if (formData.loan_product_id) {
+      fetchFormConfig(formData.loan_product_id);
+    }
     fetchConfiguredProducts();
   };
 
@@ -278,11 +279,11 @@ export const NewApplication: React.FC = () => {
     [formConfig]
   );
 
-  // Default _businessType when product has exactly one Business KYC section
+  // Default _businessType when there is one or more Business KYC section so one section is visible (first tab when multiple).
   useEffect(() => {
-    if (businessKycCategories.length !== 1) return;
-    const onlySection = businessKycCategories[0];
-    const sectionId = onlySection?.categoryId?.replace(/^section-/, '') || '';
+    if (businessKycCategories.length === 0) return;
+    const firstSection = businessKycCategories[0];
+    const sectionId = firstSection?.categoryId?.replace(/^section-/, '') || '';
     if (sectionId && ['2a', '2b', '2c', '2d'].includes(sectionId)) {
       setFormData(prev =>
         prev.form_data._businessType
@@ -313,6 +314,9 @@ export const NewApplication: React.FC = () => {
     }
     if (!formData.requested_loan_amount?.trim()) {
       errors.requested_loan_amount = 'Requested Loan Amount is required';
+    }
+    if (businessKycCategories.length > 1 && !formData.form_data._businessType) {
+      errors._businessType = 'Please select your business type.';
     }
 
     // Validate mandatory form fields from configuration (required + PAN format)
@@ -782,39 +786,61 @@ export const NewApplication: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Business type selector: show only the matching Business KYC section */}
+        {/* Business type: tabs (swipe/tap to switch) — only the selected section is shown */}
         {formConfig.length > 0 && businessKycCategories.length >= 1 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Business type</CardTitle>
               <p className="text-sm text-neutral-500 mt-0.5">
                 {businessKycCategories.length > 1
-                  ? 'Select your business type to see the required documents.'
+                  ? 'Tap a type below or swipe to switch. Submit for the selected type.'
                   : 'Your application form includes documents for this business type.'}
               </p>
             </CardHeader>
             <CardContent>
-              <Select
-                data-testid="business-type-select"
-                label="Business type"
-                options={
-                  businessKycCategories.length > 1
-                    ? [
-                        { value: '', label: 'Select business type' },
-                        ...businessKycCategories.map((c: any) => {
-                          const sectionId = c.categoryId?.replace(/^section-/, '') || '';
-                          return { value: sectionId, label: BUSINESS_KYC_LABELS[sectionId] || c.categoryName || c.categoryId };
-                        }),
-                      ]
-                    : businessKycCategories.map((c: any) => {
-                        const sectionId = c.categoryId?.replace(/^section-/, '') || '';
-                        return { value: sectionId, label: BUSINESS_KYC_LABELS[sectionId] || c.categoryName || c.categoryId };
-                      })
-                }
-                value={formData.form_data._businessType ?? (businessKycCategories.length === 1 ? (businessKycCategories[0]?.categoryId?.replace(/^section-/, '') ?? '') : '')}
-                onChange={(e) => handleFieldChange('_businessType', e.target.value)}
-                disabled={businessKycCategories.length === 1}
-              />
+              <div
+                className="flex gap-1 overflow-x-auto pb-1 scroll-smooth snap-x snap-mandatory"
+                style={{ scrollbarWidth: 'thin' }}
+                role="tablist"
+                aria-label="Business type"
+              >
+                {businessKycCategories.map((c: any) => {
+                  const sectionId = c.categoryId?.replace(/^section-/, '') || '';
+                  const label = BUSINESS_KYC_LABELS[sectionId] || c.categoryName || c.categoryId;
+                  const isSelected = (formData.form_data._businessType ?? '') === sectionId;
+                  return (
+                    <button
+                      key={c.categoryId}
+                      type="button"
+                      role="tab"
+                      aria-selected={isSelected}
+                      data-testid={`business-type-tab-${sectionId}`}
+                      className={`shrink-0 snap-start rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                        isSelected
+                          ? 'border-brand-primary bg-brand-primary text-white'
+                          : 'border-neutral-300 bg-neutral-50 text-neutral-700 hover:border-neutral-400 hover:bg-neutral-100'
+                      }`}
+                      onClick={() => {
+                        handleFieldChange('_businessType', sectionId);
+                        if (fieldErrors._businessType) {
+                          setFieldErrors(prev => {
+                            const next = { ...prev };
+                            delete next._businessType;
+                            return next;
+                          });
+                        }
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {fieldErrors._businessType && (
+                <p className="mt-2 text-sm text-error" role="alert">
+                  {fieldErrors._businessType}
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

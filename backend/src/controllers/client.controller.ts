@@ -134,46 +134,17 @@ export class ClientController {
         return;
       }
 
-      // Resolve clientId: use JWT, or look up by email (same as getConfiguredProducts)
-      let effectiveClientId: string | null = req.user.clientId ? req.user.clientId.toString().trim() : null;
-      if (!effectiveClientId && req.user.email) {
-        const clients = await n8nClient.fetchTable('Clients');
-        const userEmail = (req.user.email || '').trim().toLowerCase();
-        const matchingClient = clients.find((c: any) => {
-          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
-          return contact && contact.includes(userEmail);
-        });
-        if (matchingClient) {
-          // Prefer record id (matches public form /form/recXXX and Client Form Mapping Client field)
-          effectiveClientId = (matchingClient.id || matchingClient['Client ID'] || matchingClient.clientId || null)?.toString().trim() ?? null;
-        }
-      }
-      if (!effectiveClientId) {
-        res.status(401).json({
-          success: false,
-          error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.',
-        });
+      const { productId } = req.query;
+      // Form config is only from Loan Products; no productId => no form (no default).
+      if (!productId || typeof productId !== 'string') {
+        res.json({ success: true, data: [] });
         return;
       }
 
-      const { productId } = req.query;
-      let categoriesArray: any[] = [];
-
-      if (productId && typeof productId === 'string') {
-        const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
-        const config = await getFormConfigForProduct(productId);
-        categoriesArray = config.categories;
-      }
-
-      if (categoriesArray.length === 0) {
-        const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
-        let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
-        if (config.categories.length === 0 && productId) {
-          config = await getSimpleFormConfig(effectiveClientId, undefined);
-        }
-        categoriesArray = config.categories;
-      }
-      console.log(`[getFormConfig] Returning ${categoriesArray.length} categories for client ${effectiveClientId}`);
+      const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
+      const config = await getFormConfigForProduct(productId);
+      const categoriesArray = config.categories;
+      console.log(`[getFormConfig] Returning ${categoriesArray.length} categories for productId ${productId}`);
 
       res.json({
         success: true,
@@ -200,46 +171,25 @@ export class ClientController {
         res.status(401).json({ success: false, error: 'Authentication required.' });
         return;
       }
-      let effectiveClientId: string | null = req.user.clientId ? req.user.clientId.toString().trim() : null;
-      if (!effectiveClientId && req.user.email) {
-        const clients = await n8nClient.fetchTable('Clients');
-        const userEmail = (req.user.email || '').trim().toLowerCase();
-        const matchingClient = clients.find((c: any) => {
-          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
-          return contact && contact.includes(userEmail);
+      const { productId } = req.query;
+      if (!productId || typeof productId !== 'string') {
+        res.json({
+          success: true,
+          data: [],
+          _debug: { clientId: null, productId: null, categoriesCount: 0, fieldsCount: 0 },
         });
-        if (matchingClient) {
-          effectiveClientId = (matchingClient.id || matchingClient['Client ID'] || matchingClient.clientId || null)?.toString().trim() ?? null;
-        }
-      }
-      if (!effectiveClientId) {
-        res.status(401).json({ success: false, error: 'Client ID not found. Your email must match Contact Email/Phone on a Clients record.' });
         return;
       }
-      const { productId } = req.query;
-      let categoriesArray: any[] = [];
-
-      if (productId && typeof productId === 'string') {
-        const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
-        const config = await getFormConfigForProduct(productId);
-        categoriesArray = config.categories;
-      }
-
-      if (categoriesArray.length === 0) {
-        const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
-        let config = await getSimpleFormConfig(effectiveClientId, productId as string | undefined);
-        if (config.categories.length === 0 && productId) {
-          config = await getSimpleFormConfig(effectiveClientId, undefined);
-        }
-        categoriesArray = config.categories;
-      }
+      const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
+      const config = await getFormConfigForProduct(productId);
+      const categoriesArray = config.categories;
       const totalFields = categoriesArray.reduce((sum, c) => sum + (c.fields?.length || 0), 0);
       res.json({
         success: true,
         data: categoriesArray,
         _debug: {
-          clientId: effectiveClientId,
-          productId: productId || null,
+          clientId: req.user.clientId?.toString() ?? null,
+          productId,
           categoriesCount: categoriesArray.length,
           fieldsCount: totalFields,
         },
