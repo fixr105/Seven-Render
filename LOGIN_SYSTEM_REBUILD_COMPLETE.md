@@ -52,9 +52,10 @@ The complete login system has been rebuilt from scratch with:
 - 3-second timeout per table fetch
 - Login succeeds even if profile data is missing (profile IDs will be null)
 
-#### HTTP-Only Cookies
+#### HTTP-Only Cookies and Per-Tab Sessions
 - JWT tokens stored in HTTP-only cookies (XSS protection)
-- Automatic cookie inclusion in requests (browser handles)
+- **Multi-tab:** Backend prefers `Authorization: Bearer` over the cookie so each tab keeps its own user (cookie is shared; frontend stores token in sessionStorage per-tab). Refreshing a tab no longer switches to another user who logged in in a different tab.
+- Cookie is fallback for new tabs (no sessionStorage) and cross-origin/E2E.
 - Secure by default:
   - `httpOnly: true` - Prevents JavaScript access
   - `secure: true` in production - HTTPS only

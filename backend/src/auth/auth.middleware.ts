@@ -1,6 +1,8 @@
 /**
  * Authentication Middleware
- * Validates JWT from HTTP-only cookie and attaches user to request
+ * Validates JWT from Bearer header (per-tab) or HTTP-only cookie and attaches user to request.
+ * Bearer is preferred over cookie so each tab keeps its own session when multiple users
+ * are logged in across tabs (cookie is shared; sessionStorage/Bearer is per-tab).
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -18,10 +20,13 @@ declare global {
 }
 
 function getTokenFromRequest(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) return token;
+  }
   const fromCookie = req.cookies?.[authConfig.cookieName];
   if (fromCookie) return fromCookie;
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) return authHeader.slice(7).trim();
   return null;
 }
 

@@ -278,7 +278,7 @@ export interface AuditLogEntry {
 
 class ApiService {
   private baseUrl: string;
-  /** Bearer token for when cookies are not sent (e.g. cross-origin, E2E). Set on login, restored from sessionStorage on load, cleared on logout/401. */
+  /** Per-tab Bearer token (sessionStorage). Backend prefers Bearer over cookie so each tab keeps its own user after refresh. Set on login, restored on load, cleared on logout/401. */
   private bearerToken: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
@@ -329,7 +329,7 @@ class ApiService {
       ...options.headers,
     };
 
-    // Auth: cookies (primary) or Bearer token (fallback when cookies blocked)
+    // Auth: Bearer (per-tab, primary) so multiple tabs can stay as different users; cookie is fallback (new tab, cross-origin)
     if (this.bearerToken && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/validate')) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.bearerToken}`;
     }
