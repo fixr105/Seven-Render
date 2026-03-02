@@ -1141,7 +1141,9 @@ export class N8nClient {
 
   /**
    * PATCH Loan Product - update form config (Section N, Field N, Field N.M).
-   * Payload must include id. All Section/Field keys are passed through to n8n.
+   * Payload must include id (Airtable record id). The n8n workflow MUST update only the
+   * single record with that id; updating all records would cause one product's field
+   * changes to affect other products (document field removal would appear global).
    */
   async patchLoanProduct(payload: Record<string, any>) {
     const id = payload.id ?? payload['id'];

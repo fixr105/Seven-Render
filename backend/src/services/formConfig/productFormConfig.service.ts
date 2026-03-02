@@ -206,46 +206,82 @@ export interface EditorSection {
 }
 
 /**
+ * Build a global master list of section and field keys from all loan products.
+ * Used so the edit UI always shows every document field; each product only supplies its own values.
+ */
+function getMasterSectionAndFieldKeys(products: Record<string, unknown>[]): {
+  sectionKeys: { key: string; sectionId: string; sortKey: string }[];
+  fieldKeysBySectionId: Map<string, string[]>;
+} {
+  const sectionKeySet = new Map<string, { key: string; sectionId: string; sortKey: string }>();
+  const fieldKeysBySectionId = new Map<string, string[]>();
+
+  for (const product of products) {
+    for (const key of Object.keys(product)) {
+      const sectionParsed = parseSectionKey(key);
+      if (sectionParsed) {
+        if (!sectionKeySet.has(sectionParsed.sectionId)) {
+          sectionKeySet.set(sectionParsed.sectionId, {
+            key,
+            sectionId: sectionParsed.sectionId,
+            sortKey: sectionParsed.sortKey,
+          });
+        }
+        continue;
+      }
+      const fieldParsed = parseFieldKey(key);
+      if (fieldParsed) {
+        const list = fieldKeysBySectionId.get(fieldParsed.sectionId) ?? [];
+        if (!list.includes(key)) list.push(key);
+        list.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        fieldKeysBySectionId.set(fieldParsed.sectionId, list);
+      }
+    }
+  }
+
+  const sectionKeys = Array.from(sectionKeySet.values()).sort((a, b) =>
+    a.sortKey.localeCompare(b.sortKey, undefined, { numeric: true })
+  );
+  return { sectionKeys, fieldKeysBySectionId };
+}
+
+/**
  * Extract editor state from a Loan Product for the Form Configuration UI.
  * Returns sections with nested fields. Fields marked with non-empty label (not "Empty") are enabled.
  */
 export function extractProductFormConfigForEdit(product: Record<string, unknown>): {
   sections: EditorSection[];
 } {
-  const sectionKeys: { key: string; sectionId: string; sortKey: string }[] = [];
-  const fieldEntries: { key: string; label: string; enabled: boolean; sectionId: string }[] = [];
+  return extractProductFormConfigForEditWithMaster(product, [product]);
+}
 
-  for (const key of Object.keys(product)) {
-    const parsed = parseSectionKey(key);
-    if (parsed) {
-      sectionKeys.push({ key, sectionId: parsed.sectionId, sortKey: parsed.sortKey });
-    }
-  }
-  sectionKeys.sort((a, b) => a.sortKey.localeCompare(b.sortKey, undefined, { numeric: true }));
-
-  for (const key of Object.keys(product)) {
-    if (!FIELD_KEY_REGEX.test(key)) continue;
-    const parsed = parseFieldKey(key);
-    if (!parsed) continue;
-    const value = product[key];
-    const label = value != null ? String(value).trim() : '';
-    const enabled = !isEmpty(value) && label.toLowerCase() !== 'empty';
-    fieldEntries.push({ key, label: label || '', enabled, sectionId: parsed.sectionId });
-  }
-  fieldEntries.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
+/**
+ * Extract editor state using a global master list of section/field keys, with values from the selected product.
+ * Ensures unselecting a document field in Product A does not remove it from the list when configuring Product B;
+ * each product keeps its own mapping and the UI always shows all document fields.
+ */
+export function extractProductFormConfigForEditWithMaster(
+  selectedProduct: Record<string, unknown>,
+  allProducts: Record<string, unknown>[]
+): { sections: EditorSection[] } {
+  const { sectionKeys, fieldKeysBySectionId } = getMasterSectionAndFieldKeys(allProducts);
 
   const sections: EditorSection[] = sectionKeys.map((s) => {
-    const v = product[s.key];
+    const v = selectedProduct[s.key];
     const sectionEnabled = v != null && String(v).trim().toUpperCase() === 'Y';
     const nameKey = `Section ${s.sectionId} Name`;
-    let name = (product[nameKey] && String(product[nameKey]).trim()) || '';
+    let name = (selectedProduct[nameKey] && String(selectedProduct[nameKey]).trim()) || '';
     if (!name && s.key.includes('–')) {
       name = s.key.split(/[–-]/).slice(1).join('–').trim();
     }
     const sectionNum = /^\d+$/.test(s.sectionId) ? parseInt(s.sectionId, 10) : s.sectionId;
-    const fields = fieldEntries
-      .filter((f) => f.sectionId === s.sectionId)
-      .map((f) => ({ key: f.key, label: f.label, enabled: f.enabled }));
+    const fieldKeys = fieldKeysBySectionId.get(s.sectionId) ?? [];
+    const fields: EditorField[] = fieldKeys.map((key) => {
+      const value = selectedProduct[key];
+      const label = value != null ? String(value).trim() : '';
+      const enabled = !isEmpty(value) && label.toLowerCase() !== 'empty';
+      return { key, label: label || '', enabled };
+    });
     return { sectionNum, enabled: sectionEnabled, name, fields };
   });
 
@@ -281,14 +317,17 @@ export function isFormConfigKey(key: string): boolean {
 /**
  * Build PATCH payload scoped to a single product record so updates never affect other products.
  * Only includes form-config keys that exist on this product; uses edited values where provided,
- * otherwise keeps existing product values. Ensures the payload is explicitly for this record only.
+ * otherwise keeps existing product values. Payload always includes record id so the n8n webhook
+ * must update only the Airtable record with that id (never apply to all records).
  */
 export function buildProductFormConfigPayloadForRecord(
   product: Record<string, unknown>,
   sections: EditorSection[]
 ): Record<string, unknown> {
   const edited = buildProductFormConfigPayload(sections);
-  const payload: Record<string, unknown> = { id: product.id };
+  const recordId = product.id;
+  if (!recordId) throw new Error('Product record id is required for PATCH');
+  const payload: Record<string, unknown> = { id: recordId };
 
   for (const key of Object.keys(product)) {
     if (key === 'id') continue;

@@ -1897,8 +1897,8 @@ export class CreditController {
         res.status(404).json({ success: false, error: 'Product not found' });
         return;
       }
-      const { extractProductFormConfigForEdit } = await import('../services/formConfig/productFormConfig.service.js');
-      const editState = extractProductFormConfigForEdit(product as Record<string, unknown>);
+      const { extractProductFormConfigForEditWithMaster } = await import('../services/formConfig/productFormConfig.service.js');
+      const editState = extractProductFormConfigForEditWithMaster(product as Record<string, unknown>, products as Record<string, unknown>[]);
       res.json({
         success: true,
         data: {
