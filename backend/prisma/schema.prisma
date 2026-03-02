@@ -23,7 +23,7 @@ model UserAccount {
   role              UserRole
   associatedProfile String?  // Display name
   lastLogin         DateTime?
-  accountStatus     AccountStatus @default(ACTIVE)
+  accountStatus     AccountStatus @default(Active)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -32,8 +32,6 @@ model UserAccount {
   kamProfile        KAMUser?
   creditProfile     CreditTeamUser?
   nbfcProfile       NBFCPartner?
-  adminActivities   AdminActivityLog[]
-  auditLogEntries   FileAuditLog[]
   notifications     Notification[]
 
   @@index([username])
@@ -49,7 +47,7 @@ model KAMUser {
   name          String
   email         String   @unique
   phone         String?
-  status        AccountStatus @default(ACTIVE)
+  status        AccountStatus @default(Active)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -57,7 +55,6 @@ model KAMUser {
   userAccountId String?  @unique
   userAccount   UserAccount? @relation(fields: [userAccountId], references: [id], onDelete: Cascade)
   managedClients Client[]
-  loanFiles     LoanFile[] // Files assigned to this KAM
 
   @@index([email])
   @@index([status])
@@ -71,7 +68,7 @@ model CreditTeamUser {
   name          String
   email         String   @unique
   phone         String?
-  status        AccountStatus @default(ACTIVE)
+  status        AccountStatus @default(Active)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -135,7 +132,6 @@ model Client {
   loanFiles         LoanFile[]
   commissionLedger  CommissionLedger[]
   formMappings      ClientFormMapping[]
-  notifications     Notification[]
 
   @@index([clientId])
   @@index([assignedKamId])
@@ -158,7 +154,7 @@ model LoanFile {
   loanProduct           LoanProduct? @relation(fields: [loanProductId], references: [id], onDelete: SetNull)
   requestedLoanAmount   Decimal?
   documents             String?  // JSON string or comma-separated URLs
-  status                LoanStatus @default(DRAFT)
+  status                LoanStatus @default(draft)
   assignedCreditAnalystId String?
   assignedCreditAnalyst CreditTeamUser? @relation(fields: [assignedCreditAnalystId], references: [id], onDelete: SetNull)
   assignedNbfcId        String?
@@ -176,9 +172,6 @@ model LoanFile {
   // Relations
   // KAM is derived from Client.assignedKam
   commissionLedger      CommissionLedger[]
-  auditLog              FileAuditLog[]
-  queries               FileAuditLog[] @relation("LoanFileQueries")
-  notifications         Notification[]
 
   @@index([fileId])
   @@index([clientId])
@@ -225,13 +218,10 @@ model CommissionLedger {
   commissionRate  Decimal?
   payoutAmount    Decimal  // Can be negative for payouts
   description     String?
-  disputeStatus   DisputeStatus @default(NONE)
+  disputeStatus   DisputeStatus @default(None)
   payoutRequest   PayoutRequestStatus?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  // Relations
-  notifications   Notification[]
 
   @@index([ledgerEntryId])
   @@index([clientId])
@@ -245,16 +235,19 @@ model CommissionLedger {
 // AUDIT & ACTIVITY LOGS
 // ============================================================================
 
-/// Admin Activity Log
+/// Admin Activity Log (performedById stores Airtable user id when auth is via n8n)
 model AdminActivityLog {
   id              String   @id @default(uuid())
   activityId      String   @unique // Business ID
   timestamp       DateTime @default(now())
-  performedById   String
-  performedBy     UserAccount @relation(fields: [performedById], references: [id], onDelete: Restrict)
+  performedById   String   // User id (e.g. Airtable record id)
   actionType      String   // e.g., "create_client", "update_loan", etc.
   description     String   // Detailed description
   targetEntity    String?  // Entity type: "client", "loan_file", etc.
+  relatedFileId   String?
+  relatedClientId String?
+  relatedUserId   String?
+  metadata        String?  // JSON string for additional data
   createdAt       DateTime @default(now())
 
   @@index([activityId])
@@ -264,24 +257,20 @@ model AdminActivityLog {
   @@map("admin_activity_log")
 }
 
-/// File Auditing Log - Audit trail and queries
+/// File Auditing Log - Audit trail and queries (actorId stores Airtable user id when auth is via n8n)
 model FileAuditLog {
   id              String   @id @default(uuid())
   logEntryId      String   @unique // Business ID
   fileId          String?
-  file            LoanFile? @relation("LoanFileQueries", fields: [fileId], references: [id], onDelete: SetNull)
   timestamp       DateTime @default(now())
-  actorId         String
-  actor           UserAccount @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actorId         String   // User id (e.g. Airtable record id)
   actionEventType String   // e.g., "query_raised", "status_change", "document_upload"
   detailsMessage  String   // Contains query content and metadata
   targetUserRole  String?  // Target user/role for queries
   resolved        Boolean  @default(false)
+  metadata        String?  // JSON string for additional data
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  // Query threading support (embedded in detailsMessage)
-  // Format: [[parent:<id>]][[status:<open|resolved>]] message
 
   @@index([logEntryId])
   @@index([fileId])
@@ -375,7 +364,7 @@ model Notification {
   notificationType  String   // e.g., "query_raised", "status_change", "payout_approved"
   title             String
   message           String
-  channel           NotificationChannel @default(IN_APP) // email, in_app, both
+  channel           NotificationChannel @default(in_app) // email, in_app, both
   isRead            Boolean  @default(false)
   createdAt         DateTime @default(now())
   readAt            DateTime?

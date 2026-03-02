@@ -156,6 +156,8 @@ export interface LoanApplication {
   lender_decision_remarks?: string;
   disbursedAmount?: string;
   Status?: string;
+  /** Allowed next statuses for current user (from state machine); used to filter status dropdown */
+  allowedNextStatuses?: string[];
 }
 
 /** Extended client type for application detail (object shape) */
@@ -507,6 +509,26 @@ class ApiService {
       this.setAuthToken(response.data.token);
     }
     return response;
+  }
+
+  /**
+   * Request password reset email. Backend sends link if account exists (no user enumeration).
+   */
+  async forgotPassword(email: string): Promise<ApiResponse<{ message?: string }>> {
+    return this.request<{ message?: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /**
+   * Set new password using token from reset email link.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<ApiResponse<{ message?: string }>> {
+    return this.request<{ message?: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
   }
 
   /**

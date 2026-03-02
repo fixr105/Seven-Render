@@ -29,7 +29,7 @@ export const NBFCDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Fetch on mount (including SPA navigation) and via Refresh when userRoleId is available.
+  // Fetch when userRoleId is available (e.g. after auth loads); re-fetch if userRoleId changes.
   useEffect(() => {
     if (userRoleId) {
       fetchAssignedApplications();
@@ -37,7 +37,7 @@ export const NBFCDashboard: React.FC = () => {
       setLoading(false);
       setAssignedApplications([]);
     }
-  }, []);
+  }, [userRoleId]);
 
   const fetchAssignedApplications = async () => {
     if (!userRoleId) return;

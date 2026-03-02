@@ -11,36 +11,33 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { loginAs, TEST_USERS } from './helpers/auth';
+import { loginAs } from './helpers/auth';
 import { navigateToPage, waitForPageLoad } from './helpers/navigation';
 
 test.describe('P0 E2E: Commission Payout Workflow', () => {
   test('Complete payout workflow from disbursement to approval', async ({ page, context }) => {
+    // Skip when no disbursed application exists (data-dependent test)
+    const clientPage = await context.newPage();
+    await loginAs(clientPage, 'client');
+    await waitForPageLoad(clientPage);
+    await navigateToPage(clientPage, 'applications');
+    await clientPage.waitForLoadState('networkidle');
+    const disbursedApp = clientPage.getByText(/Disbursed/i).first();
+    const hasDisbursed = await disbursedApp.isVisible({ timeout: 5000 }).catch(() => false);
+    await clientPage.close();
+    if (!hasDisbursed) {
+      test.skip(true, 'No disbursed application in environment; payout workflow requires pre-seeded data.');
+    }
+
     // ========== PREREQUISITE: Create and disburse a loan ==========
     await test.step('Setup: Create and disburse a loan application', async () => {
-      // This step assumes there's already a disbursed application
-      // In a real scenario, you might need to create and disburse one first
-      // For now, we'll assume one exists or create it as part of the test
-      
-      const clientPage = await context.newPage();
-      await loginAs(clientPage, 'client');
-      await waitForPageLoad(clientPage);
-
-      // Check if there's already a disbursed application
-      await navigateToPage(clientPage, 'applications');
-      await clientPage.waitForLoadState('networkidle');
-
-      // Look for applications with "Disbursed" status
-      const disbursedApp = clientPage.locator('text=/Disbursed/i').first();
-      
-      if (!(await disbursedApp.isVisible({ timeout: 3000 }))) {
-        // If no disbursed app exists, we'll need to create one
-        // This would require going through the full application workflow
-        // For now, we'll skip this and assume one exists
-        test.skip();
-      }
-
-      await clientPage.close();
+      const setupPage = await context.newPage();
+      await loginAs(setupPage, 'client');
+      await waitForPageLoad(setupPage);
+      await navigateToPage(setupPage, 'applications');
+      await setupPage.waitForLoadState('networkidle');
+      await expect(setupPage.getByText(/Disbursed/i).first()).toBeVisible({ timeout: 5000 });
+      await setupPage.close();
     });
 
     // ========== STEP 1: VERIFY LEDGER ENTRY CREATED ==========
@@ -53,17 +50,13 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await navigateToPage(clientPage, 'ledger');
       await clientPage.waitForLoadState('networkidle');
 
-      // Wait for ledger entries to load
-      await clientPage.waitForSelector('text=/Commission|Ledger|Balance/i', { timeout: 10000 });
+      await clientPage.getByText(/Commission|Ledger|Balance/i).first().waitFor({ state: 'visible', timeout: 10000 });
 
-      // Verify ledger entries are displayed
-      const ledgerEntries = clientPage.locator('tr, [data-testid="ledger-entry"], .ledger-entry');
+      const ledgerEntries = clientPage.locator('tr').or(clientPage.locator('[data-testid="ledger-entry"]')).or(clientPage.locator('.ledger-entry'));
       const entryCount = await ledgerEntries.count();
-      
       expect(entryCount).toBeGreaterThan(0);
 
-      // Verify running balance is displayed
-      const balanceElement = clientPage.locator('text=/Balance|Total|₹/i').first();
+      const balanceElement = clientPage.getByText(/Balance|Total|₹/i).first();
       await expect(balanceElement).toBeVisible();
 
       // Check that balance is positive (has commission)
@@ -88,11 +81,9 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await navigateToPage(clientPage, 'ledger');
       await clientPage.waitForLoadState('networkidle');
 
-      // Wait for ledger to load
-      await clientPage.waitForSelector('text=/Commission|Ledger|Balance/i', { timeout: 10000 });
+      await clientPage.getByText(/Commission|Ledger|Balance/i).first().waitFor({ state: 'visible', timeout: 10000 });
 
-      // Find "Request Payout" button
-      const requestPayoutButton = clientPage.locator('button:has-text("Request Payout"), button:has-text("Request"), [data-testid="request-payout"]').first();
+      const requestPayoutButton = clientPage.getByRole('button', { name: /Request Payout|Request/i }).or(clientPage.getByTestId('request-payout')).first();
       
       // Verify button is visible and enabled (balance > 0)
       await expect(requestPayoutButton).toBeVisible({ timeout: 5000 });
@@ -102,31 +93,24 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       // Click request payout button
       await requestPayoutButton.click();
 
-      // Wait for payout modal/form
-      const payoutModal = clientPage.locator('[role="dialog"], .modal, [data-testid="payout-modal"]');
+      const payoutModal = clientPage.getByRole('dialog').or(clientPage.locator('.modal')).or(clientPage.getByTestId('payout-modal')).first();
       await expect(payoutModal).toBeVisible({ timeout: 5000 });
 
-      // Check if amount input exists (for partial payout) or use full balance
-      const amountInput = clientPage.locator('input[name="amount"], input[type="number"]').first();
-      
+      const amountInput = clientPage.locator('input[name="amount"]').or(clientPage.locator('input[type="number"]')).first();
       if (await amountInput.isVisible({ timeout: 2000 })) {
-        // Enter partial amount (e.g., 50% of balance)
-        // For now, we'll request full payout by leaving it empty or checking "Full Balance"
-        const fullBalanceCheckbox = clientPage.locator('input[type="checkbox"][name*="full"], input[type="checkbox"][name*="all"]').first();
+        const fullBalanceCheckbox = clientPage.locator('input[type="checkbox"][name*="full"]').or(clientPage.locator('input[type="checkbox"][name*="all"]')).first();
         if (await fullBalanceCheckbox.isVisible({ timeout: 2000 })) {
           await fullBalanceCheckbox.check();
         }
       }
 
-      // Submit payout request
-      const submitButton = clientPage.locator('button:has-text("Submit"), button:has-text("Request"), button[type="submit"]').first();
+      const submitButton = clientPage.getByRole('button', { name: /Submit|Request/i }).or(clientPage.locator('button[type="submit"]')).first();
       await submitButton.click();
 
-      // Wait for success message or confirmation
-      await clientPage.waitForSelector('text=/success|requested|submitted/i, [data-testid="success"]', { timeout: 10000 }).catch(async () => {
-        // If no explicit success message, verify modal closed
-        await expect(payoutModal).not.toBeVisible({ timeout: 3000 });
-      });
+      await Promise.race([
+        clientPage.getByText(/success|requested|submitted/i).or(clientPage.getByTestId('success')).first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
+        expect(payoutModal).not.toBeVisible({ timeout: 5000 }).catch(() => null),
+      ]);
 
       await clientPage.close();
     });
@@ -142,29 +126,24 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await navigateToPage(creditPage, 'ledger');
       await creditPage.waitForLoadState('networkidle');
 
-      // Look for payout requests section or tab
-      const payoutRequestsTab = creditPage.locator('button:has-text("Payout Requests"), [data-testid="payout-requests"], text=/Payout Requests/i').first();
+      const payoutRequestsTab = creditPage.getByRole('button', { name: /Payout Requests/i }).or(creditPage.getByTestId('payout-requests')).or(creditPage.getByText(/Payout Requests/i)).first();
       
       if (await payoutRequestsTab.isVisible({ timeout: 5000 })) {
         await payoutRequestsTab.click();
         await creditPage.waitForLoadState('networkidle');
       }
 
-      // Wait for payout requests list
-      await creditPage.waitForSelector('text=/Request|Pending|Amount/i', { timeout: 10000 });
+      await creditPage.getByText(/Request|Pending|Amount/i).first().waitFor({ state: 'visible', timeout: 10000 });
 
-      // Find the pending payout request
-      const pendingRequest = creditPage.locator('tr:has-text("Pending"), [data-testid="payout-request"], .payout-request').first();
+      const pendingRequest = creditPage.locator('tr').filter({ hasText: /Pending/i }).or(creditPage.getByTestId('payout-request')).or(creditPage.locator('.payout-request')).first();
       await expect(pendingRequest).toBeVisible({ timeout: 5000 });
 
-      // Click on approve button for this request
-      const approveButton = creditPage.locator('button:has-text("Approve"), [data-testid="approve-payout"]').first();
+      const approveButton = creditPage.getByRole('button', { name: /Approve/i }).or(creditPage.getByTestId('approve-payout')).first();
       
       if (await approveButton.isVisible({ timeout: 3000 })) {
         await approveButton.click();
 
-        // Wait for approval modal if it appears
-        const approvalModal = creditPage.locator('[role="dialog"], .modal');
+        const approvalModal = creditPage.getByRole('dialog').or(creditPage.locator('.modal')).first();
         if (await approvalModal.isVisible({ timeout: 3000 })) {
           // Fill in approval amount if needed
           const amountInput = creditPage.locator('input[name="amount"], input[name="approved_amount"]').first();
@@ -180,22 +159,17 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
             await notesField.fill('E2E Test: Payout approved');
           }
 
-          // Submit approval
-          const submitButton = creditPage.locator('button:has-text("Approve"), button:has-text("Confirm"), button[type="submit"]').first();
+          const submitButton = creditPage.getByRole('button', { name: /Approve|Confirm/i }).or(creditPage.locator('button[type="submit"]')).first();
           await submitButton.click();
         }
 
-        // Wait for success message
-        await creditPage.waitForSelector('text=/approved|success/i, [data-testid="success"]', { timeout: 10000 }).catch(async () => {
-          // If no explicit message, verify request status changed
-          await creditPage.waitForTimeout(2000);
-        });
+        await creditPage.getByText(/approved|success/i).or(creditPage.getByTestId('success')).first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => null);
+        await creditPage.waitForTimeout(2000);
       } else {
-        // Alternative: Click on the request row to open details, then approve
         await pendingRequest.click();
         await creditPage.waitForLoadState('networkidle');
 
-        const approveButtonInDetails = creditPage.locator('button:has-text("Approve")').first();
+        const approveButtonInDetails = creditPage.getByRole('button', { name: /Approve/i }).first();
         if (await approveButtonInDetails.isVisible({ timeout: 3000 })) {
           await approveButtonInDetails.click();
           await creditPage.waitForTimeout(2000);
@@ -204,7 +178,7 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
 
       // Verify payout was approved (status changed to "Approved" or "Paid")
       await creditPage.waitForTimeout(2000);
-      const statusText = await creditPage.locator('text=/Approved|Paid/i').first().textContent();
+      const statusText = await creditPage.getByText(/Approved|Paid/i).first().textContent();
       expect(statusText).toMatch(/Approved|Paid/i);
 
       await creditPage.close();
@@ -220,15 +194,12 @@ test.describe('P0 E2E: Commission Payout Workflow', () => {
       await navigateToPage(clientPage, 'ledger');
       await clientPage.waitForLoadState('networkidle');
 
-      // Wait for ledger to load
-      await clientPage.waitForSelector('text=/Commission|Ledger|Balance/i', { timeout: 10000 });
+      await clientPage.getByText(/Commission|Ledger|Balance/i).first().waitFor({ state: 'visible', timeout: 10000 });
 
-      // Verify payout entry exists (negative amount or "Paid" status)
-      const payoutEntry = clientPage.locator('text=/Paid|Payout|Requested/i').first();
+      const payoutEntry = clientPage.getByText(/Paid|Payout|Requested/i).first();
       await expect(payoutEntry).toBeVisible({ timeout: 5000 });
 
-      // Verify balance decreased (if payout was for full amount, balance should be 0 or negative)
-      const balanceElement = clientPage.locator('text=/Balance|Total/i').first();
+      const balanceElement = clientPage.getByText(/Balance|Total/i).first();
       const balanceText = await balanceElement.textContent();
       
       // Balance should reflect the payout

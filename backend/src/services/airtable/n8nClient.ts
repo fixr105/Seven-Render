@@ -236,6 +236,8 @@ class N8nResponseParser {
 // Singleton parser instance
 const responseParser = new N8nResponseParser();
 
+let _warnedNbfcPostUrlMissing = false;
+
 export class N8nClient {
   /**
    * Fetch data from a single table webhook
@@ -1027,6 +1029,10 @@ export class N8nClient {
    * Build the loan application payload for POST /webhook/loanapplications.
    * Fixed format and key order for n8n mapping. Always send all keys so n8n receives a consistent structure.
    * Used by postLoanApplication and by the AI summary big-brain-bro webhook.
+   *
+   * N8N workflow uses only "File ID" for create vs update: when payload has a non-empty "File ID",
+   * n8n updates that Airtable record (Update record by File ID); otherwise it creates a new one.
+   * The former "id" field was removed from the workflow in favor of File ID.
    */
   buildLoanApplicationPayload(data: Record<string, any>): Record<string, any> {
     let formData = data['Form Data'] || data.formData || '';
@@ -1058,9 +1064,8 @@ export class N8nClient {
           : '';
     const md = data['MD'] ?? data.md ?? '';
 
-    // Fixed key order for n8n: same format every time
+    // Fixed key order for n8n: same format every time. No "id" — n8n uses only "File ID" for update-by-file-id.
     return {
-      id: data.id ?? '',
       'File ID': data['File ID'] || data.fileId || '',
       Client: clientId,
       'Applicant Name': data['Applicant Name'] || data.applicantName || '',
@@ -1157,6 +1162,18 @@ export class N8nClient {
   }
 
   async postNBFCPartner(data: Record<string, any>) {
+    const url = n8nConfig.postNBFCPartnersUrl;
+    if (!url || typeof url !== 'string' || url.trim() === '') {
+      if (!_warnedNbfcPostUrlMissing) {
+        _warnedNbfcPostUrlMissing = true;
+        console.warn(
+          'NBFC Partners POST webhook URL is not configured (N8N_POST_NBFC_PARTNERS_URL or N8N_BASE_URL). Sync to NBFC Partners table will fail.'
+        );
+      }
+      throw new Error(
+        'NBFC Partners POST webhook URL is not configured (N8N_POST_NBFC_PARTNERS_URL or N8N_BASE_URL). Sync to NBFC Partners table will fail.'
+      );
+    }
     // Ensure only exact fields are sent to NBFC webhook
     // Only send: id, Lender ID, Lender Name, Contact Person, Contact Email/Phone, Address/Region, Active
     const nbfcPartnerData = {
@@ -1168,7 +1185,8 @@ export class N8nClient {
       'Address/Region': data['Address/Region'] || data.addressRegion || '',
       'Active': data['Active'] || data.active || 'True',
     };
-    const result = await this.postData(n8nConfig.postNBFCPartnersUrl, nbfcPartnerData);
+    const result = await this.postData(url, nbfcPartnerData);
+    console.log('[postNBFCPartner] Sync success for id:', nbfcPartnerData.id);
     // Invalidate cache for NBFC Partners
     this.invalidateCache('NBFC Partners');
     return result;

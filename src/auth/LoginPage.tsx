@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { Input } from '../components/ui/Input';
@@ -17,12 +17,14 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login, user } = useAuth();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const resetSuccess = searchParams.get('reset') === 'success';
 
   // Redirect if already logged in
   React.useEffect(() => {
@@ -80,6 +82,7 @@ export const LoginPage: React.FC = () => {
         <p className="login-tagline">AI-FIRST TECH-FIRST PLATFORM</p>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
+          {resetSuccess && <div className="login-success mb-3 p-2 rounded bg-green-50 text-green-800 text-sm">Password updated. You can log in with your new password.</div>}
           {error && <div className="login-error">{error}</div>}
 
           <div className="form-group">

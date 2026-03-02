@@ -20,20 +20,21 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** ESM-safe: resolve paths relative to this spec file (no global __dirname in ESM). */
+function getSpecDir(): string {
+  return path.dirname(fileURLToPath(import.meta.url));
+}
 
-// Load test data from JSON file
-const testDataPath = path.join(__dirname, 'test-data', 'form-test-data.json');
+// Load test data from JSON file (ESM path resolution)
+const testDataPath = path.join(getSpecDir(), 'test-data', 'form-test-data.json');
 const testData: FormTestData = JSON.parse(fs.readFileSync(testDataPath, 'utf-8'));
 
-// Create test files directory if it doesn't exist
-const testFilesDir = path.join(__dirname, 'test-files');
+const testFilesDir = path.join(getSpecDir(), 'test-files');
 if (!fs.existsSync(testFilesDir)) {
   fs.mkdirSync(testFilesDir, { recursive: true });
 }
 
-// Create sample test files
-const createTestFile = (fileName: string, content: string = 'Test file content') => {
+function createTestFile(fileName: string, content: string = 'Test file content'): string {
   const filePath = path.join(testFilesDir, fileName);
   if (!fs.existsSync(filePath)) {
     fs.writeFileSync(filePath, content);

@@ -80,11 +80,11 @@ test.describe('Role-persona smoke', () => {
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });
     await expect(nav.getByRole('button', { name: 'Applications' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Clients' })).toBeVisible();
+    await expect(nav.getByRole('button', { name: 'Ledger' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Reports' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Settings' })).toBeVisible();
-    await expect(nav.getByRole('button', { name: 'Ledger' })).toHaveCount(0);
 
-    // Allowed pages
+    // Allowed pages (aligned with getSidebarItemsForRole in src/config/sidebar.ts)
     await page.goto('/clients');
     await page.waitForLoadState('networkidle');
     await expect(page).not.toHaveURL(/\/unauthorized/);
@@ -103,12 +103,13 @@ test.describe('Role-persona smoke', () => {
     await page.waitForLoadState('networkidle');
     await expect(page).not.toHaveURL(/\/unauthorized/);
 
-    // Forbidden: /applications/new, /ledger -> /unauthorized
-    await page.goto('/applications/new');
-    await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/unauthorized/);
-
     await page.goto('/ledger');
+    await page.waitForLoadState('networkidle');
+    await expect(page).not.toHaveURL(/\/unauthorized/);
+    await expect(page.getByText(/Commission Ledger|Ledger|Ledger Entries|No ledger entries/i).first()).toBeVisible({ timeout: 10000 });
+
+    // Forbidden: /applications/new -> /unauthorized (KAM cannot create applications)
+    await page.goto('/applications/new');
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/unauthorized/);
 

@@ -168,13 +168,56 @@ export class UsersController {
         }
       }
 
+      // When creating an NBFC user, also create the NBFC Partners record so login works (nbfcId resolved from Contact Email/Phone)
+      if (normalizedRole === 'nbfc') {
+        const associatedProfileStr = associatedProfile != null ? String(associatedProfile).trim() : '';
+        const nbfcPartnerData = {
+          id: newId,
+          'Lender ID': newId,
+          'Lender Name': associatedProfileStr || userAccountData.Username,
+          'Contact Person': associatedProfileStr || '',
+          'Contact Email/Phone': userAccountData.Username,
+          'Address/Region': '',
+          Active: status === 'Active' ? 'True' : 'False',
+        };
+        const maxAttempts = 3;
+        const retryDelayMs = 1000;
+        let lastError: any;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            await n8nClient.postNBFCPartner(nbfcPartnerData);
+            lastError = undefined;
+            break;
+          } catch (nbfcErr: any) {
+            lastError = nbfcErr;
+            console.warn(`[createUserAccount] NBFC Partners record creation attempt ${attempt}/${maxAttempts} failed:`, nbfcErr?.message || nbfcErr);
+            if (attempt < maxAttempts) {
+              await new Promise((r) => setTimeout(r, retryDelayMs));
+            }
+          }
+        }
+        if (lastError) {
+          const msg = lastError?.message || String(lastError);
+          console.error('[createUserAccount] NBFC Partners record creation failed after retries (user account was already created):', msg);
+          res.status(502).json({
+            success: false,
+            error: `User account was created but NBFC Partner record could not be created. The new user will not function as NBFC until the NBFC Partners record exists. Details: ${msg}. Check n8n webhook (N8N_POST_NBFC_PARTNERS_URL) and Airtable NBFC Partners table.`,
+          });
+          return;
+        }
+      }
+
+      const activityDescription =
+        normalizedRole === 'nbfc'
+          ? `Created user account and NBFC Partner ${username}`
+          : `Created user account ${username}`;
       await n8nClient.postAdminActivityLog({
         id: `ACT-${Date.now()}`,
         'Activity ID': `ACT-${Date.now()}`,
         Timestamp: new Date().toISOString(),
         'Performed By': req.user!.email,
         'Action Type': 'create_user_account',
-        'Description/Details': `Created user account ${username}`,
+        'Description/Details': activityDescription,
         'Target Entity': 'user_account',
       });
 

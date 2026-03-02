@@ -8,6 +8,7 @@ import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
+import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 
 /** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
 const FORWARDED_STATUSES: string[] = [
@@ -1106,7 +1107,8 @@ export class KAMController {
   async listApplications(req: Request, res: Response): Promise<void> {
     try {
       const { status, clientId } = req.query;
-      const allApplications = await n8nClient.fetchTable('Loan Application');
+      let allApplications = await n8nClient.fetchTable('Loan Application');
+      allApplications = deduplicateApplicationsByFileId(allApplications);
 
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
       let applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);

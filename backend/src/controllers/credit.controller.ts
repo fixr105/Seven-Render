@@ -9,6 +9,7 @@ import { getStatusHistory } from '../services/statusTracking/statusHistory.servi
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 import { parseFormData } from '../utils/parseFormData.js';
 import { toUserRole } from '../services/statusTracking/statusStateMachine.js';
+import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 
 export class CreditController {
   /**
@@ -179,6 +180,7 @@ export class CreditController {
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       let applications = await n8nClient.fetchTable('Loan Application');
+      applications = deduplicateApplicationsByFileId(applications);
 
       // Apply filters
       if (status) {
@@ -1935,14 +1937,10 @@ export class CreditController {
         res.status(404).json({ success: false, error: 'Product not found' });
         return;
       }
-      const { buildProductFormConfigPayload } = await import('../services/formConfig/productFormConfig.service.js');
+      const { buildProductFormConfigPayloadForRecord } = await import('../services/formConfig/productFormConfig.service.js');
       const sectionsList = Array.isArray(sections) ? sections : [];
-      const formPayload = buildProductFormConfigPayload(sectionsList);
-      const payload = {
-        id: product.id,
-        ...formPayload,
-      };
-      await n8nClient.patchLoanProduct(payload);
+      const payload = buildProductFormConfigPayloadForRecord(product as Record<string, unknown>, sectionsList);
+      await n8nClient.patchLoanProduct(payload as Record<string, any>);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({

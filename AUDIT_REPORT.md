@@ -3,26 +3,26 @@
 **Target:** https://lms.sevenfincorp.com  
 **User:** sagar@sevenfincorp.email  
 **Role observed:**   
-**Date:** 2026-02-17
+**Date:** 2026-02-26
 
 ## 1. Route coverage
 
 | Route | Status | Note |
 |-------|--------|------|
-| POST /login | error | Unknown |
-| / | redirect | → /dashboard |
+| POST /login | error | Authentication failed. Please try again. |
+| / | ok | - |
 | /dashboard | ok | - |
-| /applications | redirect | → http://localhost:3000/dashboard |
-| /applications/new | redirect | → http://localhost:3000/dashboard |
-| /ledger | redirect | → http://localhost:3000/dashboard |
-| /clients | redirect | → http://localhost:3000/dashboard |
-| /profile | redirect | → http://localhost:3000/dashboard |
-| /settings | redirect | → http://localhost:3000/dashboard |
-| /reports | redirect | → http://localhost:3000/dashboard |
-| /form-configuration | redirect | → http://localhost:3000/dashboard |
-| /unauthorized | redirect | → http://localhost:3000/dashboard |
-| /forgot-password | redirect | → http://localhost:3000/dashboard |
-| /foo | redirect | → /dashboard (catch-all) |
+| /applications | ok | - |
+| /applications/new | ok | - |
+| /ledger | ok | - |
+| /clients | ok | - |
+| /profile | ok | - |
+| /settings | ok | - |
+| /reports | ok | - |
+| /form-configuration | ok | - |
+| /unauthorized | blank | https://lms.sevenfincorp.com/unauthorized |
+| /forgot-password | ok | - |
+| /foo | ok | https://lms.sevenfincorp.com/foo |
 
 ## 2. In-app links tested
 
@@ -32,7 +32,8 @@
 
 ## 3. Flagged items
 
-- Route POST /login: error (Unknown)
+- Route POST /login: error (Authentication failed. Please try again.)
+- Route /unauthorized: blank (https://lms.sevenfincorp.com/unauthorized)
 
 ## 4. Pre-audit findings (from plan)
 

@@ -8,10 +8,11 @@ import { screen, waitFor } from '@testing-library/react';
 import { Applications } from '../Applications';
 import { renderWithProviders, mockClientUser, mockKAMUser, mockCreditUser } from '../../test/helpers';
 
-// Mock API service
+// Mock API service (Applications page also calls getQueries for credit role query counts)
 vi.mock('../../services/api', () => {
   const mockApiService = {
     listApplications: vi.fn(),
+    getQueries: vi.fn().mockResolvedValue({ success: true, data: [] }),
   };
   return {
     apiService: mockApiService,
@@ -431,9 +432,9 @@ describe('Applications Listing Page - P0 Tests', () => {
         expect(screen.getAllByText('John Doe').length).toBeGreaterThanOrEqual(1);
       });
 
-      // Find status filter (combobox or select)
-      const comboboxes = screen.getAllByRole('combobox');
-      expect(comboboxes.length).toBeGreaterThanOrEqual(1);
+      // Status filter is implemented as buttons with "Filter by" in aria-label
+      const statusFilterButtons = screen.getAllByRole('button', { name: /Filter by/i });
+      expect(statusFilterButtons.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

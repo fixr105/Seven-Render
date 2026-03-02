@@ -283,6 +283,30 @@ export class AuthService {
       return null;
     }
   }
+
+  /**
+   * Create a JWT for password reset (stateless). Payload: purpose, email, exp.
+   */
+  createPasswordResetToken(email: string): string {
+    return jwt.sign(
+      { purpose: 'password_reset', email: email.trim().toLowerCase() },
+      authConfig.jwtSecret,
+      { expiresIn: authConfig.passwordResetTokenExpiresIn } as jwt.SignOptions
+    );
+  }
+
+  /**
+   * Verify password reset JWT. Returns { email } or null if invalid/expired.
+   */
+  verifyPasswordResetToken(token: string): { email: string } | null {
+    try {
+      const decoded = jwt.verify(token, authConfig.jwtSecret) as { purpose?: string; email?: string };
+      if (decoded?.purpose !== 'password_reset' || !decoded?.email) return null;
+      return { email: decoded.email };
+    } catch {
+      return null;
+    }
+  }
 }
 
 export const authService = new AuthService();

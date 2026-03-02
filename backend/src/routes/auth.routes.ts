@@ -10,6 +10,8 @@ const router = Router();
 
 router.post('/login', authRateLimiter, authController.login.bind(authController));
 router.post('/validate', authRateLimiter, authController.validate.bind(authController));
+router.post('/forgot-password', authRateLimiter, authController.forgotPassword.bind(authController));
+router.post('/reset-password', authController.resetPassword.bind(authController));
 
 router.get('/me', authenticate, authController.getMe.bind(authController));
 router.patch('/me/profile', authenticate, authController.updateProfile.bind(authController));

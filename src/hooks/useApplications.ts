@@ -112,7 +112,7 @@ export interface UseApplicationsOptions {
 }
 
 export const useApplications = (options?: UseApplicationsOptions) => {
-  useAuth();
+  const { refreshUser } = useAuth();
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const unmapped = options?.unmapped ?? false;
@@ -143,9 +143,9 @@ export const useApplications = (options?: UseApplicationsOptions) => {
       } else {
         console.error('Error fetching applications:', response.error);
         setApplications([]);
-        // If 401/403, token was cleared by API service, auth context will handle redirect
+        // If 401/403, token was cleared by API service; refresh user so ProtectedRoute redirects to login
         if (response.error?.includes('401') || response.error?.includes('403')) {
-          // Don't show error to user, auth context will redirect to login
+          refreshUser();
           return;
         }
       }

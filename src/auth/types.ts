@@ -1,5 +1,5 @@
 /**
- * Auth types for frontend (stub; rebuild auth as needed).
+ * Auth types for frontend. Used by AuthContext and RBAC.
  */
 
 export type UserRole = 'client' | 'kam' | 'credit_team' | 'nbfc' | 'admin';

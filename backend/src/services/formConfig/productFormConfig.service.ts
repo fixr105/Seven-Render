@@ -273,6 +273,34 @@ export function buildProductFormConfigPayload(sections: EditorSection[]): Record
   return payload;
 }
 
+/** Returns true if the key is a Section or Field form-config key (not id, Product ID, etc.). */
+export function isFormConfigKey(key: string): boolean {
+  return SECTION_KEY_REGEX.test(key) || FIELD_KEY_REGEX.test(key) || /^Section\s+\d+[A-Za-z]?\s+Name$/i.test(key);
+}
+
+/**
+ * Build PATCH payload scoped to a single product record so updates never affect other products.
+ * Only includes form-config keys that exist on this product; uses edited values where provided,
+ * otherwise keeps existing product values. Ensures the payload is explicitly for this record only.
+ */
+export function buildProductFormConfigPayloadForRecord(
+  product: Record<string, unknown>,
+  sections: EditorSection[]
+): Record<string, unknown> {
+  const edited = buildProductFormConfigPayload(sections);
+  const payload: Record<string, unknown> = { id: product.id };
+
+  for (const key of Object.keys(product)) {
+    if (key === 'id') continue;
+    if (!isFormConfigKey(key)) continue;
+    // Only include keys that exist on this product; use edited value or keep current
+    const value = edited[key] !== undefined ? edited[key] : product[key];
+    payload[key] = value;
+  }
+
+  return payload;
+}
+
 /**
  * Get form config for a product from Loan Products (product-embedded Section N / Field N).
  * Only sections with Y are included. Returns empty categories when product not found or has no section keys.

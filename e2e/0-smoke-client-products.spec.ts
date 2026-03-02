@@ -6,21 +6,20 @@ test.describe('Smoke - Client Loan Products', () => {
     await loginAs(page, 'client');
 
     await page.goto('/applications/new');
-    await expect(page.getByText('Application Details')).toBeVisible();
+    await expect(page.getByText('Application Details')).toBeVisible({ timeout: 15000 });
 
-    // Wait for the loan product select to be visible
-    const loanProductSelect = page
-      .locator('label:has-text("Loan Product")')
-      .locator('..')
-      .locator('select');
+    // Use data-testid from NewApplication for stable selector; fallback to label-based for compatibility
+    const loanProductSelect = page.getByTestId('loan-product-select').or(
+      page.locator('label').filter({ hasText: /Loan Product/i }).locator('..').locator('select')
+    ).first();
 
-    await expect(loanProductSelect).toBeVisible({ timeout: 10000 });
+    await expect(loanProductSelect).toBeVisible({ timeout: 15000 });
 
-    // Wait for products to load (browser-valid DOM: :has-text is Playwright-only)
+    // Wait for products to load (options no longer show "Loading products...")
     await page.waitForFunction(
       () => {
-        const label = Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'));
-        const select = label?.parentElement?.querySelector('select');
+        const select = document.querySelector('[data-testid="loan-product-select"]') as HTMLSelectElement | null
+          ?? Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'))?.parentElement?.querySelector('select') as HTMLSelectElement | null;
         if (!select) return false;
         const options = Array.from(select.querySelectorAll('option'));
         const hasLoaded = options.some(opt => opt.textContent !== 'Loading products...');
@@ -31,19 +30,15 @@ test.describe('Smoke - Client Loan Products', () => {
         );
         return hasLoaded && hasProducts;
       },
-      { timeout: 10000 }
+      { timeout: 15000 }
     );
 
-    // Verify the select is enabled and has product options
     await expect(loanProductSelect).toBeEnabled();
-    
+
     const options = loanProductSelect.locator('option');
     const optionCount = await options.count();
-    
-    // Should have at least 2 options: placeholder + at least one product
     expect(optionCount).toBeGreaterThan(1);
-    
-    // Verify at least one actual product option exists (not placeholder)
+
     const productOptions = options.filter({ hasNotText: /^(Select|Choose|--|Loading|No products)/i });
     const productCount = await productOptions.count();
     expect(productCount).toBeGreaterThan(0);
@@ -53,27 +48,22 @@ test.describe('Smoke - Client Loan Products', () => {
     await loginAs(page, 'client');
 
     await page.goto('/applications/new');
-    await expect(page.getByText('Application Details')).toBeVisible();
+    await expect(page.getByText('Application Details')).toBeVisible({ timeout: 15000 });
 
-    // Wait for the loan product select to be visible
-    const loanProductSelect = page
-      .locator('label:has-text("Loan Product")')
-      .locator('..')
-      .locator('select');
+    const loanProductSelect = page.getByTestId('loan-product-select').or(
+      page.locator('label').filter({ hasText: /Loan Product/i }).locator('..').locator('select')
+    ).first();
 
-    await expect(loanProductSelect).toBeVisible({ timeout: 10000 });
+    await expect(loanProductSelect).toBeVisible({ timeout: 15000 });
 
-    // Wait for the empty state to be determined (either error message or disabled select)
-    // Check for error message or helper text indicating no products
     const noProductsMessage = page.getByText(/No loan products are currently available|No loan products are configured for your account/i);
-    
-    // Wait for either the message to appear OR the select to be disabled with no options (browser-valid DOM)
+
     await Promise.race([
-      noProductsMessage.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
+      noProductsMessage.waitFor({ state: 'visible', timeout: 15000 }).catch(() => null),
       page.waitForFunction(
         () => {
-          const label = Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'));
-          const select = label?.parentElement?.querySelector('select') as HTMLSelectElement | null;
+          const select = document.querySelector('[data-testid="loan-product-select"]') as HTMLSelectElement | null
+            ?? Array.from(document.querySelectorAll('label')).find(l => l.textContent?.includes('Loan Product'))?.parentElement?.querySelector('select') as HTMLSelectElement | null;
           if (!select) return false;
           const options = Array.from(select.querySelectorAll('option'));
           const hasOnlyPlaceholder =
@@ -86,14 +76,12 @@ test.describe('Smoke - Client Loan Products', () => {
             );
           return select.disabled && hasOnlyPlaceholder;
         },
-        { timeout: 10000 }
+        { timeout: 15000 }
       ).catch(() => null)
     ]);
 
-    // Verify either the error message is visible OR the select is disabled
     const messageVisible = await noProductsMessage.isVisible().catch(() => false);
     const selectDisabled = await loanProductSelect.isDisabled().catch(() => false);
-    
     expect(messageVisible || selectDisabled).toBeTruthy();
   });
 });

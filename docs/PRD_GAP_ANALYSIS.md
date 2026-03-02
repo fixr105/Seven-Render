@@ -23,6 +23,18 @@
 
 ---
 
+## Notifications
+
+Current implementation covers three flows (see NOTIFICATIONS_EMAIL_FLOWS.md):
+
+1. **Query created (KAM→Client, Credit→KAM, etc.):** In-app notification (Airtable Notifications table via n8n) and email via backend SendGrid (notificationService.notifyQueryCreated). Implemented.
+2. **NBFC assigned:** When Credit assigns NBFC(s), backend calls n8n `POST /webhook/email` to notify assigned NBFC(s) with application link. Implemented; n8n workflow must be configured for delivery.
+3. **Daily summary report:** When report is generated with `emailRecipients`, backend calls n8n `POST /webhook/email`. Partial—delivery depends on n8n email config.
+
+The "1 missing" in the Summary table refers to **real-time push notifications** (e.g. WebSocket or live in-app updates without refresh). That capability is out of scope for the current release; users see new notifications on page reload or navigation.
+
+---
+
 ## M1: Pay In/Out Ledger
 
 | PRD Requirement | Status | Notes |
@@ -164,7 +176,7 @@
 
 ## Lower Priority
 
-7. **Commission Ratio (1:99)** – Document that percentage is used; ratio format not supported. (No code change.)
+7. **Commission Ratio (1:99)** – Commission ratio format (e.g. 1:99, -1:101) is out of scope; the system uses percentage only, documented in PRD-Revised and OPERATIONS_LOGIC. No code change.
 8. **Predefined Rejection Reasons** – Done. Dropdown plus Other in NBFC reject flow.
 
 ---
@@ -172,8 +184,8 @@
 ## E2E Baseline (2026-01-31)
 
 - **Passed:** 6 (login-flow, smoke-auth-clients, smoke-credit-nbfc-login x2)
-- **Failed:** 5 (role-persona Client/Credit/NBFC sidebar expectations, smoke-client-products)
-- **Skipped/Broken:** 2-commission-payout (syntax), 4-dynamic-form (__dirname in ESM)
+- **Failed (addressed):** 5 — role-persona (KAM sidebar/ledger aligned to sidebar.ts), smoke-client-products (resilient selectors/waits). Fixes applied in test code only.
+- **Skipped/Broken (addressed):** 2-commission-payout (Playwright locators + conditional skip when no disbursed data), 4-dynamic-form (ESM path via getSpecDir()). Fixes applied in test code only.
 
 ---
 

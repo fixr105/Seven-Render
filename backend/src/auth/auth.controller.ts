@@ -10,6 +10,7 @@ import { defaultLogger } from '../utils/logger.js';
 import { tokenBlacklist } from '../services/auth/tokenBlacklist.service.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { usersController } from '../controllers/users.controller.js';
+import { sendGridService } from '../services/notifications/sendgrid.service.js';
 
 /** Append Partitioned to auth cookie so Chrome accepts it in cross-site (Vercel→Fly) requests. */
 function addPartitionedToAuthCookie(res: Response): void {
@@ -23,6 +24,87 @@ function addPartitionedToAuthCookie(res: Response): void {
 }
 
 export class AuthController {
+  /**
+   * POST /auth/forgot-password – request password reset email (no user enumeration).
+   */
+  async forgotPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      if (!email || email.length > 254) {
+        res.status(400).json({ success: false, error: 'Valid email is required' });
+        return;
+      }
+      const user = await authService.getUserByEmail(email);
+      if (user && (user['Account Status'] as string) === 'Active') {
+        const token = authService.createPasswordResetToken(email);
+        const resetUrl = `${authConfig.frontendOrigin}/reset-password?token=${encodeURIComponent(token)}`;
+        const html = `
+          <p>You requested a password reset for your Seven Fincorp account.</p>
+          <p><a href="${resetUrl}">Reset your password</a></p>
+          <p>This link expires in 1 hour. If you didn't request this, ignore this email.</p>
+        `;
+        try {
+          await sendGridService.sendEmail({
+            to: email,
+            subject: 'Reset your password – Seven Fincorp',
+            html,
+            text: `Reset your password: ${resetUrl}\n\nThis link expires in 1 hour.`,
+          });
+        } catch (err: any) {
+          defaultLogger.error('Forgot password email failed', { error: err.message });
+          res.status(500).json({ success: false, error: 'Failed to send reset email. Try again later.' });
+          return;
+        }
+      }
+      res.json({ success: true, message: "If an account exists for that email, we've sent a reset link." });
+    } catch (err: any) {
+      defaultLogger.error('Forgot password error', { error: err.message });
+      res.status(500).json({ success: false, error: 'Something went wrong. Please try again.' });
+    }
+  }
+
+  /**
+   * POST /auth/reset-password – set new password using token from email link.
+   */
+  async resetPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+      const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+      if (!token || !newPassword) {
+        res.status(400).json({ success: false, error: 'Token and new password are required' });
+        return;
+      }
+      if (newPassword.length < 6) {
+        res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+        return;
+      }
+      const payload = authService.verifyPasswordResetToken(token);
+      if (!payload) {
+        res.status(400).json({ success: false, error: 'Invalid or expired reset link. Request a new one.' });
+        return;
+      }
+      const account = await authService.getUserByEmail(payload.email);
+      if (!account) {
+        res.status(400).json({ success: false, error: 'Account not found. Request a new reset link.' });
+        return;
+      }
+      const hashed = await authService.hashPassword(newPassword);
+      await n8nClient.postUserAccount({
+        id: account.id,
+        Username: account.Username,
+        Password: hashed,
+        Role: account.Role,
+        'Associated Profile': account['Associated Profile'],
+        'Account Status': account['Account Status'] ?? 'Active',
+      });
+      res.clearCookie(authConfig.cookieName, { path: '/' });
+      res.json({ success: true, message: 'Password updated. You can log in with your new password.' });
+    } catch (err: any) {
+      defaultLogger.error('Reset password error', { error: err.message });
+      res.status(500).json({ success: false, error: 'Failed to update password. Please try again.' });
+    }
+  }
+
   async login(req: Request, res: Response): Promise<void> {
     try {
       const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';

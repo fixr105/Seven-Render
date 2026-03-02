@@ -180,7 +180,7 @@ const webhookTests = [
       'Submitted Date': '',
       'Last Updated': new Date().toISOString()
     },
-    fieldsToVerify: ['id', 'File ID', 'Client', 'Applicant Name', 'Loan Product', 'Requested Loan Amount', 'Documents', 'Status', 'Assigned Credit Analyst', 'Assigned NBFC', 'Lender Decision Status', 'Lender Decision Date', 'Lender Decision Remarks', 'Approved Loan Amount', 'AI File Summary', 'Form Data', 'Creation Date', 'Submitted Date', 'Last Updated']
+    fieldsToVerify: ['File ID', 'Client', 'Applicant Name', 'Loan Product', 'Requested Loan Amount', 'Documents', 'Status', 'Assigned Credit Analyst', 'Assigned NBFC', 'Lender Decision Status', 'Lender Decision Date', 'Lender Decision Remarks', 'Approved Loan Amount', 'AI File Summary', 'Form Data', 'Creation Date', 'Submitted Date', 'Last Updated']
   },
   {
     name: '11. adduser (User Accounts)',

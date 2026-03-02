@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Plus, FileText, Clock, CheckCircle, DollarSign, Package, RefreshCw, Sparkles, Wallet, FileEdit, AlertCircle, XCircle } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -12,6 +13,7 @@ import { RecentApplicationsSection } from '../../components/dashboard/RecentAppl
 
 export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const { applications, loading, refetch: refetchApplications } = useApplications();
   const { balance, loading: ledgerLoading, refetch: refetchLedger } = useLedger();
   useNotifications();
@@ -55,8 +57,9 @@ export const ClientDashboard: React.FC = () => {
           // No products configured
         }
       } else if (response.error) {
-        // If 401/403, the API service already cleared the token
-        // The auth context will handle redirect
+        if (response.error.includes('401') || response.error.includes('403')) {
+          refreshUser();
+        }
       }
     } catch (_error) {
       // Fallback: leave products empty
@@ -73,6 +76,9 @@ export const ClientDashboard: React.FC = () => {
       if (response.success && response.data) {
         setConfiguredProductIds(new Set(response.data));
       } else if (response.error) {
+        if (response.error.includes('401') || response.error.includes('403')) {
+          refreshUser();
+        }
         setConfiguredProductsError(response.error);
       }
     } catch (_error) {

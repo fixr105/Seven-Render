@@ -7,6 +7,8 @@ import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
 import { NBFC_REJECTION_REASONS } from '../config/nbfcRejectionReasons.js';
 import { parseFormData } from '../utils/parseFormData.js';
+import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
+import { matchIds } from '../utils/idMatcher.js';
 
 export class NBFController {
   /**
@@ -75,7 +77,8 @@ export class NBFController {
       // Fetch only Loan Application table
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const allApplications = await n8nClient.fetchTable('Loan Application');
+      let allApplications = await n8nClient.fetchTable('Loan Application');
+      allApplications = deduplicateApplicationsByFileId(allApplications);
 
       // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
@@ -386,7 +389,7 @@ export class NBFCPartnersController {
   async createPartner(req: Request, res: Response): Promise<void> {
     try {
       if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
-        res.status(403).json({ success: false, error: 'Forbidden' });
+        res.status(403).json({ success: false, error: 'Only Credit team or Admin can create or update NBFC partners.' });
         return;
       }
 
@@ -408,10 +411,10 @@ export class NBFCPartnersController {
         Active: active !== false ? 'True' : 'False',
       };
 
-      await n8nClient.postNBFCPartner(partnerData);
+      const result = await n8nClient.postNBFCPartner(partnerData);
 
-      // Log admin activity
-      await n8nClient.postAdminActivityLog({
+      // Log admin activity (non-blocking so sync success is not tied to log success)
+      n8nClient.postAdminActivityLog({
         id: `ACT-${Date.now()}`,
         'Activity ID': `ACT-${Date.now()}`,
         Timestamp: new Date().toISOString(),
@@ -419,11 +422,12 @@ export class NBFCPartnersController {
         'Action Type': 'create_nbfc_partner',
         'Description/Details': `Created NBFC partner: ${lenderName}`,
         'Target Entity': 'nbfc_partner',
-      });
+      }).catch((err) => console.warn('[createPartner] Admin activity log failed:', err.message));
 
+      const responseData = result?.id ? { ...partnerData, id: result.id } : partnerData;
       res.json({
         success: true,
-        data: partnerData,
+        data: responseData,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -440,19 +444,32 @@ export class NBFCPartnersController {
   async updatePartner(req: Request, res: Response): Promise<void> {
     try {
       if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
-        res.status(403).json({ success: false, error: 'Forbidden' });
+        res.status(403).json({ success: false, error: 'Only Credit team or Admin can create or update NBFC partners.' });
         return;
       }
 
       const { id } = req.params;
       const { lenderName, contactPerson, contactEmailPhone, addressRegion, active } = req.body;
 
+      const hasAnyField = [lenderName, contactPerson, contactEmailPhone, addressRegion, active].some((v) => v !== undefined);
+      if (!hasAnyField) {
+        res.status(400).json({
+          success: false,
+          error: 'No fields to update. Provide at least one of: lenderName, contactPerson, contactEmailPhone, addressRegion, active.',
+        });
+        return;
+      }
+
       // Fetch only NBFC Partners table
       const partners = await n8nClient.fetchTable('NBFC Partners');
-      const partner = partners.find((p) => p.id === id);
+      const partner = partners.find((p) => matchIds(p.id, id) || matchIds(p['Lender ID'], id));
 
       if (!partner) {
-        res.status(404).json({ success: false, error: 'NBFC partner not found' });
+        const errorMessage =
+          partners.length === 0
+            ? 'NBFC Partners list is empty. Check that the GET webhook for NBFC Partners is configured and returning data.'
+            : 'NBFC partner not found';
+        res.status(404).json({ success: false, error: errorMessage });
         return;
       }
 
@@ -469,8 +486,8 @@ export class NBFCPartnersController {
 
       await n8nClient.postNBFCPartner(updateData);
 
-      // Log admin activity
-      await n8nClient.postAdminActivityLog({
+      // Log admin activity (non-blocking so sync success is not tied to log success)
+      n8nClient.postAdminActivityLog({
         id: `ACT-${Date.now()}`,
         'Activity ID': `ACT-${Date.now()}`,
         Timestamp: new Date().toISOString(),
@@ -478,7 +495,7 @@ export class NBFCPartnersController {
         'Action Type': 'update_nbfc_partner',
         'Description/Details': `Updated NBFC partner: ${updateData['Lender Name']}`,
         'Target Entity': 'nbfc_partner',
-      });
+      }).catch((err) => console.warn('[updatePartner] Admin activity log failed:', err.message));
 
       res.json({
         success: true,

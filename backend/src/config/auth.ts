@@ -25,6 +25,10 @@ if (!jwtSecret || jwtSecret === 'default-secret-change-in-production') {
 export const authConfig = {
   jwtSecret: jwtSecret || 'default-secret-change-in-production',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  /** Password reset token expiry (e.g. 1h). Used for forgot-password link. */
+  passwordResetTokenExpiresIn: process.env.PASSWORD_RESET_TOKEN_EXPIRES_IN || '1h',
+  /** Frontend origin for password reset link (e.g. https://lms.sevenfincorp.com). */
+  frontendOrigin: process.env.FRONTEND_ORIGIN || process.env.CORS_ORIGIN || 'http://localhost:5173',
   cookieName: 'auth_token',
   cookieOptions: {
     httpOnly: true, // Prevents JavaScript access (XSS protection)

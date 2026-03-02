@@ -14,10 +14,7 @@
 import { AuthUser } from '../../types/auth.js';
 import { UserRole } from '../../config/constants.js';
 import { AdminActionType } from '../../utils/adminLogger.js';
-
-// Prisma client will be imported when database is set up
-// import { PrismaClient } from '@prisma/client';
-// const prisma = new PrismaClient();
+import { getPrisma } from '../../lib/prisma.js';
 
 /**
  * Options for logging admin activity
@@ -84,19 +81,24 @@ export class CentralizedLoggerService {
     const userIdentifier = this.getUserIdentifier(user);
 
     try {
-      // TODO: Replace with Prisma when database is set up
-      // await prisma.adminActivityLog.create({
-      //   data: {
-      //     activityId,
-      //     timestamp,
-      //     performedById: user.id,
-      //     actionType: options.actionType,
-      //     description: options.description,
-      //     targetEntity: options.targetEntity,
-      //   },
-      // });
+      const prisma = getPrisma();
+      if (prisma) {
+        await prisma.adminActivityLog.create({
+          data: {
+            activityId,
+            timestamp,
+            performedById: user.id,
+            actionType: options.actionType,
+            description: options.description,
+            targetEntity: options.targetEntity,
+            relatedFileId: options.relatedFileId ?? null,
+            relatedClientId: options.relatedClientId ?? null,
+            relatedUserId: options.relatedUserId ?? null,
+            metadata: options.metadata ? JSON.stringify(options.metadata) : null,
+          },
+        });
+      }
 
-      // For now, log to console and n8n webhook (fallback)
       console.log(`[CentralizedLogger] Admin Activity:`, {
         activityId,
         timestamp: timestamp.toISOString(),
@@ -138,21 +140,23 @@ export class CentralizedLoggerService {
     const userIdentifier = this.getUserIdentifier(user);
 
     try {
-      // TODO: Replace with Prisma when database is set up
-      // await prisma.fileAuditingLog.create({
-      //   data: {
-      //     logEntryId,
-      //     fileId: options.fileId,
-      //     timestamp,
-      //     actorId: user.id,
-      //     actionEventType: options.actionEventType,
-      //     detailsMessage: options.detailsMessage,
-      //     targetUserRole: options.targetUserRole,
-      //     resolved: options.resolved ?? false,
-      //   },
-      // });
+      const prisma = getPrisma();
+      if (prisma) {
+        await prisma.fileAuditLog.create({
+          data: {
+            logEntryId,
+            fileId: options.fileId ?? null,
+            timestamp,
+            actorId: user.id,
+            actionEventType: options.actionEventType,
+            detailsMessage: options.detailsMessage,
+            targetUserRole: options.targetUserRole ?? null,
+            resolved: options.resolved ?? false,
+            metadata: options.metadata ? JSON.stringify(options.metadata) : null,
+          },
+        });
+      }
 
-      // For now, log to console and n8n webhook (fallback)
       console.log(`[CentralizedLogger] File Audit:`, {
         logEntryId,
         fileId: options.fileId,

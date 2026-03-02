@@ -14,6 +14,7 @@ import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminActivityLog } from './pages/AdminActivityLog';
 import { AdminUserAccounts } from './pages/AdminUserAccounts';
@@ -34,6 +35,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/LOGIN" element={<Navigate to="/login" replace />} />
       <Route path="/Login" element={<Navigate to="/login" replace />} />
 

@@ -58,7 +58,7 @@ interface StatusHistoryItem {
 export const ApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
   
   const getUserDisplayName = () => {
@@ -93,6 +93,10 @@ export const ApplicationDetail: React.FC = () => {
   const [editingQueryId, setEditingQueryId] = useState<string | null>(null);
   const [editMessage, setEditMessage] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [nbfcPartners, setNbfcPartners] = useState<Array<{ id: string; lenderName: string }>>([]);
+  const [selectedNbfcId, setSelectedNbfcId] = useState('');
+  const [assignNbfcSubmitting, setAssignNbfcSubmitting] = useState(false);
+  const [assignNbfcError, setAssignNbfcError] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [submittingReplyForId, setSubmittingReplyForId] = useState<string | null>(null);
   const [fieldIdToLabel, setFieldIdToLabel] = useState<Record<string, string>>({});
@@ -130,6 +134,25 @@ export const ApplicationDetail: React.FC = () => {
       }).catch(() => {});
     }
   }, [userRole]);
+
+  const showAssignNbfcSection = (userRole === 'credit_team' || userRole === 'admin') && application && (() => {
+    const s = (application.status || application.Status || '').toString().toLowerCase();
+    return s === 'pending_credit_review' || s === 'in_negotiation';
+  })();
+
+  useEffect(() => {
+    if (showAssignNbfcSection) {
+      apiService.listNBFCPartners().then((res) => {
+        if (res.success && res.data) {
+          setNbfcPartners(res.data.filter((p: { active?: boolean }) => p.active !== false).map((p: { id: string; lenderName: string }) => ({ id: p.id, lenderName: p.lenderName || p.id })));
+        }
+      }).catch(() => setNbfcPartners([]));
+    } else {
+      setNbfcPartners([]);
+      setSelectedNbfcId('');
+      setAssignNbfcError(null);
+    }
+  }, [showAssignNbfcSection]);
 
   // Fetch form config for old key mapping (field-* → human-readable label)
   useEffect(() => {
@@ -233,24 +256,17 @@ export const ApplicationDetail: React.FC = () => {
         setAiSummary(String(appData.aiFileSummary ?? (appData as unknown as Record<string, unknown>)['AI File Summary'] ?? '').trim() || null);
       } else {
         console.error(`[ApplicationDetail] Error fetching application ${id}:`, response.error);
-        // Check if it's an authentication error
-        if (response.error?.includes('401') || response.error?.includes('Authentication')) {
-          console.error('[ApplicationDetail] Authentication failed.');
+        // If 401/403, token was cleared; refresh user so ProtectedRoute redirects to login
+        if (response.error?.includes('401') || response.error?.includes('Authentication') || response.error?.includes('403') || response.error?.includes('Access denied')) {
+          refreshUser();
         }
-        // Check if it's an access denied error
-        if (response.error?.includes('Access denied') || response.error?.includes('403')) {
-          console.error('[ApplicationDetail] Access denied - you may not have permission to view this application');
-        }
-        // Set application to null to show "not found" message
         setApplication(null);
       }
     } catch (error: any) {
       console.error(`[ApplicationDetail] Exception fetching application ${id}:`, error);
-      // Check if it's an authentication error
-      if (error.message?.includes('401')) {
-        // Auth removed; show not found
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        refreshUser();
       }
-      // Set application to null to show "not found" message
       setApplication(null);
     } finally {
       setLoading(false);
@@ -532,7 +548,7 @@ export const ApplicationDetail: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Role and status-aware options. One option per label (no duplicates). Clients with DRAFT only get Submit and Withdraw.
+  // Role and status-aware options. Filter by allowedNextStatuses from backend (state machine); for Credit, exclude sent_to_nbfc (use Assign to NBFC section only).
   const statusOptions = (() => {
     const allOptions = [
       { value: 'draft', label: 'Draft' },
@@ -558,7 +574,17 @@ export const ApplicationDetail: React.FC = () => {
     if (userRole === 'client' && (currentStatus === 'under_kam_review' || currentStatus === 'query_with_client' || currentStatus === 'pending_kam_review' || currentStatus === 'kam_query_raised')) {
       return [{ value: 'withdrawn', label: 'Withdraw' }];
     }
-    return allOptions;
+    let options = allOptions;
+    const allowed = application?.allowedNextStatuses;
+    if (allowed && Array.isArray(allowed) && allowed.length > 0) {
+      const allowedSet = new Set(allowed.map((s: string) => String(s).toLowerCase().trim()));
+      options = allOptions.filter((opt) => allowedSet.has(opt.value));
+    }
+    // Credit must use Assign to NBFC section for sent_to_nbfc; do not show in status dropdown
+    if (userRole === 'credit_team' || userRole === 'admin') {
+      options = options.filter((opt) => opt.value !== 'sent_to_nbfc');
+    }
+    return options;
   })();
 
   if (loading) {
@@ -814,6 +840,68 @@ export const ApplicationDetail: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Assign to NBFC (Credit only when Pending Credit Review or In Negotiation) */}
+          {showAssignNbfcSection && (
+            <Card className="border-brand-primary/20 bg-brand-primary/5">
+              <CardHeader>
+                <CardTitle>Assign to NBFC</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-neutral-600 mb-3">
+                  Select an NBFC partner to send this application for lending decision. This will set status to Sent to NBFC and notify the NBFC.
+                </p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[200px] flex-1">
+                    <Select
+                      label="NBFC Partner"
+                      options={[
+                        { value: '', label: 'Select NBFC...' },
+                        ...nbfcPartners.map((p) => ({ value: p.id, label: p.lenderName })),
+                      ]}
+                      value={selectedNbfcId}
+                      onChange={(e) => {
+                        setSelectedNbfcId(e.target.value);
+                        setAssignNbfcError(null);
+                      }}
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={async () => {
+                      if (!id || !selectedNbfcId) {
+                        setAssignNbfcError('Please select an NBFC.');
+                        return;
+                      }
+                      setAssignNbfcSubmitting(true);
+                      setAssignNbfcError(null);
+                      try {
+                        const res = await apiService.assignNBFCs(id, [selectedNbfcId]);
+                        if (res.success) {
+                          setSelectedNbfcId('');
+                          fetchApplicationDetails();
+                          fetchStatusHistory();
+                        } else {
+                          setAssignNbfcError(res.error || 'Failed to assign.');
+                        }
+                      } catch (err: unknown) {
+                        setAssignNbfcError(err instanceof Error ? err.message : 'Failed to assign.');
+                      } finally {
+                        setAssignNbfcSubmitting(false);
+                      }
+                    }}
+                    disabled={assignNbfcSubmitting || !selectedNbfcId}
+                    loading={assignNbfcSubmitting}
+                  >
+                    Assign to NBFC
+                  </Button>
+                </div>
+                {assignNbfcError && (
+                  <p className="mt-2 text-sm text-error">{assignNbfcError}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Documents Section - Enhanced for Credit Team */}
           {Array.isArray(application.documents) && application.documents.length > 0 && (

@@ -71,6 +71,7 @@ export const CreditDashboard: React.FC = () => {
   const sentToNBFC = applications.filter(a => a.status === 'sent_to_nbfc').length;
   const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
   const pendingPayouts = payoutRequests.filter((p: any) => p.status === 'pending').length;
+  const assignableToNbfc = applications.filter(a => a.status === 'pending_credit_review' || a.status === 'in_negotiation').length;
 
   return (
     <>
@@ -240,6 +241,11 @@ export const CreditDashboard: React.FC = () => {
             {pendingReview > 0 && (
               <Button variant="primary" onClick={() => navigate('/applications?status=pending_credit_review')} title="Review files forwarded to credit">
                 Review Files ({pendingReview})
+              </Button>
+            )}
+            {assignableToNbfc > 0 && (
+              <Button variant="secondary" onClick={() => navigate('/applications?status=pending_credit_review')} title="Open applications to assign to an NBFC">
+                Assign to NBFC ({assignableToNbfc})
               </Button>
             )}
             {pendingPayouts > 0 && (

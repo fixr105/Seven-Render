@@ -19,6 +19,7 @@ export const FRONTEND_PATHS: FrontendPathEntry[] = [
   { path: '/', type: 'redirect', description: 'Redirects to /dashboard' },
   { path: '/login', type: 'action', description: 'Login page' },
   { path: '/forgot-password', type: 'action', description: 'Forgot password page' },
+  { path: '/reset-password', type: 'action', description: 'Reset password with token from email' },
   { path: '/LOGIN', type: 'redirect', description: 'Redirects to /login' },
   { path: '/Login', type: 'redirect', description: 'Redirects to /login' },
   { path: '/dashboard', type: 'action', description: 'Dashboard' },

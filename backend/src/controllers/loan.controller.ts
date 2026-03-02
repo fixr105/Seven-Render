@@ -9,6 +9,7 @@ import { LoanStatus, UserRole } from '../config/constants.js';
 import { logApplicationAction, AdminActionType } from '../utils/adminLogger.js';
 import { defaultLogger } from '../utils/logger.js';
 import { matchIds } from '../utils/idMatcher.js';
+import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 
 export class LoanController {
   /**
@@ -332,7 +333,8 @@ export class LoanController {
       console.log(`[listApplications] Promise.allSettled completed`);
       
       // Extract results, using empty arrays as fallback for failed requests
-      const applications = results[0].status === 'fulfilled' ? results[0].value : [];
+      let applications = results[0].status === 'fulfilled' ? results[0].value : [];
+      applications = deduplicateApplicationsByFileId(applications);
       const clients = results[1].status === 'fulfilled' ? results[1].value : [];
       const loanProducts = results[2].status === 'fulfilled' ? results[2].value : [];
       
@@ -1030,6 +1032,20 @@ export class LoanController {
       const rawStatus = application.Status || application.status || 'draft';
       const normalizedStatus = String(rawStatus).toLowerCase().trim();
 
+      // Allowed next statuses for status dropdown (state machine; single source of truth)
+      let allowedNextStatuses: string[] = [];
+      if (req.user?.role) {
+        try {
+          const { getAllowedNextStatuses, normalizeToCanonicalStatus, toUserRole } = await import('../services/statusTracking/statusStateMachine.js');
+          const currentStatus = normalizeToCanonicalStatus(normalizedStatus);
+          const userRole = toUserRole(req.user.role);
+          const allowed = getAllowedNextStatuses(currentStatus, userRole);
+          allowedNextStatuses = allowed as string[];
+        } catch {
+          // Leave empty on error so frontend can fall back to full list or hide dropdown
+        }
+      }
+
       // Enrich with client name and Assigned KAM (resolve KAM ID to name)
       const clientId = application.Client || application['Client'];
       let clientEnriched: { company_name: string } | undefined;
@@ -1074,6 +1090,7 @@ export class LoanController {
           documents, // Parsed documents array
           auditLog: fileAuditLog,
           aiFileSummary: application['AI File Summary'] || null, // AI File Summary field
+          allowedNextStatuses, // For status dropdown: only valid next transitions for this role
         },
       });
     } catch (error: any) {

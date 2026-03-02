@@ -86,15 +86,16 @@
 
 ### `postLoanApplication()` Method
 
-The backend `postLoanApplication()` method in `n8nClient.ts` sends exactly all 19 required fields:
+The backend `postLoanApplication()` method in `n8nClient.ts` sends the required fields (no `id`; n8n uses only **File ID** for update-by-file-id):
 
 ```typescript
 async postLoanApplication(data: Record<string, any>) {
-  // Ensure only exact fields are sent to applications webhook
-  // Only send: id, File ID, Client, Applicant Name, Loan Product, Requested Loan Amount,
+  // buildLoanApplicationPayload(): n8n workflow uses only "File ID" for create vs update.
+  // When payload has non-empty "File ID", n8n updates that Airtable record; otherwise creates new.
+  // Only send: File ID, Client, Applicant Name, Loan Product, Requested Loan Amount,
   // Documents, Status, Assigned Credit Analyst, Assigned NBFC, Lender Decision Status,
   // Lender Decision Date, Lender Decision Remarks, Approved Loan Amount, AI File Summary,
-  // Form Data, Creation Date, Submitted Date, Last Updated
+  // Form Data, Creation Date, Submitted Date, Last Updated, ...
   
   // Handle Form Data - stringify if it's an object
   let formData = data['Form Data'] || data.formData || '';
@@ -103,7 +104,6 @@ async postLoanApplication(data: Record<string, any>) {
   }
   
   const loanApplicationData = {
-    id: data.id, // for matching
     'File ID': data['File ID'] || data.fileId || '',
     'Client': data['Client'] || data.client || '',
     'Applicant Name': data['Applicant Name'] || data.applicantName || '',
@@ -128,7 +128,7 @@ async postLoanApplication(data: Record<string, any>) {
 ```
 
 **Key Features:**
-- ✅ All 19 fields mapped correctly
+- ✅ All required fields mapped correctly (n8n uses File ID for update, not id)
 - ✅ Form Data automatically stringified if object
 - ✅ Empty fields handled correctly
 - ✅ Field name mapping supports both Airtable format and camelCase
@@ -140,7 +140,7 @@ async postLoanApplication(data: Record<string, any>) {
 **Loan Applications POST webhook is working correctly!**
 
 - ✅ Webhook accepts POST requests
-- ✅ All 19 required fields are sent correctly
+- ✅ All required fields are sent correctly (update by File ID at source)
 - ✅ Record created in Airtable
 - ✅ Backend implementation matches requirements exactly
 - ✅ Response status: 200 OK
