@@ -137,8 +137,9 @@ export const ROLE_STATUS_PERMISSIONS: Record<UserRole, LoanStatus[]> = {
     LoanStatus.PENDING_CREDIT_REVIEW, // Return from query
   ],
   [UserRole.NBFC]: [
-    // NBFC doesn't directly change status, but their decision affects status
-    // Status changes are handled by Credit team based on NBFC decision
+    LoanStatus.APPROVED, // Record approve/reject decision
+    LoanStatus.REJECTED,
+    LoanStatus.DISBURSED, // Mark disbursed after approval
   ],
   [UserRole.ADMIN]: [
     // Admin can perform any transition (same as Credit for full access)

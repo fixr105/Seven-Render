@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -273,14 +274,10 @@ export const Reports: React.FC = () => {
     >
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h1 className="text-2xl font-bold text-neutral-900">Reports</h1>
-              <p className="text-sm text-neutral-600 mt-1">
-                Daily summaries, ledger, client-wise, and date-range reports
-              </p>
-            </div>
-          </div>
+          <PageHero
+            title="Reports"
+            description="Daily summaries, ledger, client-wise, and date-range reports"
+          />
           <div className="flex flex-wrap gap-1 border-b border-neutral-200">
             {tabs.map((tab) => (
               <button

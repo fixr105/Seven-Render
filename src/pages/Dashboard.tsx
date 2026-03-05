@@ -1,5 +1,6 @@
 import React from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -82,6 +83,7 @@ export const Dashboard: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
+      <PageHero title="Dashboard" />
       {renderDashboard()}
     </MainLayout>
   );

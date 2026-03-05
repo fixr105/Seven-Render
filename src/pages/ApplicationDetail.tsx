@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -136,8 +137,8 @@ export const ApplicationDetail: React.FC = () => {
   }, [userRole]);
 
   const showAssignNbfcSection = (userRole === 'credit_team' || userRole === 'admin') && application && (() => {
-    const s = (application.status || application.Status || '').toString().toLowerCase();
-    return s === 'pending_credit_review' || s === 'in_negotiation';
+    const raw = (application.status || application.Status || '').toString().toLowerCase().trim().replace(/\s+/g, '_');
+    return raw === 'pending_credit_review' || raw === 'in_negotiation' || raw === 'forwarded_to_credit';
   })();
 
   useEffect(() => {
@@ -207,7 +208,10 @@ export const ApplicationDetail: React.FC = () => {
       setLoading(true);
       console.log(`[ApplicationDetail] Fetching application with ID: ${id}`);
       
-      const response = await apiService.getApplication(id!) as ApiResponse<LoanApplication>;
+      const response =
+        userRole === 'nbfc'
+          ? (await apiService.getNBFCApplication(id!)) as ApiResponse<LoanApplication>
+          : (await apiService.getApplication(id!)) as ApiResponse<LoanApplication>;
       const appData = response.data;
       console.log(`[ApplicationDetail] Response:`, { success: response.success, hasData: !!appData, error: response.error });
       
@@ -525,6 +529,11 @@ export const ApplicationDetail: React.FC = () => {
         } else {
           response = await apiService.updateCreditApplicationStatus(id, newStatus, statusNotes);
         }
+      } else if (userRole === 'nbfc' && newStatus === 'disbursed') {
+        response = await apiService.markDisbursedNBFC(id, {
+          disbursedAmount: application?.disbursedAmount || '0',
+          disbursedDate: new Date().toISOString(),
+        });
       } else {
         response = await apiService.editApplication(id, { status: newStatus });
       }
@@ -701,6 +710,7 @@ export const ApplicationDetail: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
+      <PageHero title={`Application ${application.file_number || application.fileId || id}`} />
       <PageHeader
         onBack={() => {
           if (window.history.length > 1) {
@@ -876,7 +886,7 @@ export const ApplicationDetail: React.FC = () => {
                       setAssignNbfcSubmitting(true);
                       setAssignNbfcError(null);
                       try {
-                        const res = await apiService.assignNBFCs(id, [selectedNbfcId]);
+                        const res = await apiService.assignNBFCs(application?.id ?? id, [selectedNbfcId]);
                         if (res.success) {
                           setSelectedNbfcId('');
                           fetchApplicationDetails();

@@ -7,13 +7,13 @@ interface PageHeaderProps {
   onBack?: () => void;
   /** Right-side actions (e.g. Update Status, Raise Query) */
   actions?: React.ReactNode;
-  /** Optional title; TopBar already shows page title, so use only for in-content heading */
+  /** Optional in-content subheading; when the page uses PageHero for the main h1, omit title here. */
   title?: React.ReactNode;
 }
 
 /**
  * Consistent action row for detail/list pages: optional back button (left), actions (right).
- * Use inside MainLayout children for a uniform section layout.
+ * Use inside MainLayout children for a uniform section layout. When using PageHero for the main heading, pass only onBack and actions (no title).
  */
 export const PageHeader: React.FC<PageHeaderProps> = ({ onBack, actions, title }) => {
   return (

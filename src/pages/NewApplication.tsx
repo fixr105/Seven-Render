@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -539,6 +540,7 @@ export const NewApplication: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
+      <PageHero title="New Loan Application" />
       <form onSubmit={(e) => handleSubmit(e, false)}>
         {/* How to share your documents - videos embedded in form */}
         <Card id="how-to-share-documents" className="mb-6">

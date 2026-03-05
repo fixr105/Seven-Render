@@ -166,7 +166,7 @@ function AppRoutes() {
         path="/unauthorized"
         element={
           <div className="min-h-screen flex items-center justify-center bg-neutral-100">
-            <div className="text-center">
+            <div className="text-center max-w-md px-4">
               <h1 className="text-2xl font-bold text-neutral-900 mb-2">Unauthorized</h1>
               <p className="text-neutral-600">You don't have permission to access this page.</p>
             </div>

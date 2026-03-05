@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -34,10 +35,12 @@ export const Ledger: React.FC = () => {
       apiService.listClients()
         .then((res) => {
           if (res.success && res.data) {
-            const list = (res.data as any[]).map((c: any) => ({
-              id: c.id ?? c.clientId ?? c['Client ID'] ?? '',
-              name: c.clientName || c.name || c.company_name || c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
-            })).filter((c) => c.id);
+            const list = (res.data as any[]).map((c: any) => {
+              const id = c.id ?? c.clientId ?? c['Client ID'] ?? '';
+              const rawName = c.clientName || c.name || c.company_name || c['Client Name'] || c.primaryContactName || c['Primary Contact Name'] || '';
+              const name = rawName && rawName.trim() !== '' ? rawName.trim() : `Client (${id})`;
+              return { id, name };
+            }).filter((c) => c.id);
             setClients(list);
             if (list.length > 0) {
               setSelectedClientId((prev) => (prev ? prev : list[0].id));
@@ -230,12 +233,16 @@ export const Ledger: React.FC = () => {
       pageTitle="Commission Ledger"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
-        notificationCount={unreadCount}
-        notifications={notifications}
-        onMarkAsRead={markAsRead}
-        onMarkAllAsRead={markAllAsRead}
+      notificationCount={unreadCount}
+      notifications={notifications}
+      onMarkAsRead={markAsRead}
+      onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
+        <PageHero
+          title="Commission Ledger"
+          description="Positive amounts are your earnings; negative amounts are payable to us."
+        />
         {/* KAM: Client selector */}
         {userRole === 'kam' && (
           <Card>
@@ -352,10 +359,11 @@ export const Ledger: React.FC = () => {
                   <>
                     <p className="text-sm text-neutral-600">Total earnings</p>
                     <p className="text-xl font-semibold text-success">{formatCurrency(totalEarnings)}</p>
-                    {totalFeesDue > 0 && (
+                    {totalFeesDue !== 0 && (
                       <>
-                        <p className="text-sm text-neutral-600 mt-2">Fees due</p>
-                        <p className="text-xl font-semibold text-warning">{formatCurrency(totalFeesDue)}</p>
+                        <p className="text-sm text-neutral-600 mt-2">Amount payable to us</p>
+                        <p className="text-xl font-semibold text-warning">{formatCurrency(Math.abs(totalFeesDue))}</p>
+                        <p className="text-xs text-neutral-500">Not received by you—payable to us.</p>
                       </>
                     )}
                     <p className="text-sm text-neutral-600 mt-2">Current balance</p>
@@ -382,11 +390,12 @@ export const Ledger: React.FC = () => {
         </Card>
 
         {/* Ledger Entries Table */}
-      <Card>
-        <CardHeader>
+        <Card>
+          <CardHeader>
             <CardTitle>Ledger Entries</CardTitle>
-        </CardHeader>
-        <CardContent>
+            <p className="text-sm text-neutral-500 mt-1">Positive = earnings; negative = payable to us.</p>
+          </CardHeader>
+          <CardContent>
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
@@ -447,7 +456,14 @@ export const Ledger: React.FC = () => {
                             {commissionRate ? `${commissionRate}%` : '-'}
                           </td>
                           <td className={`py-3 px-4 text-sm font-medium text-right ${payoutAmount >= 0 ? 'text-success' : 'text-error'}`}>
-                            {payoutAmount !== 0 ? formatCurrency(payoutAmount) : '-'}
+                            {payoutAmount !== 0 ? (
+                              <>
+                                {formatCurrency(payoutAmount)}
+                                {payoutAmount < 0 && (
+                                  <span className="block text-xs font-normal text-neutral-500 mt-0.5">Payable to us</span>
+                                )}
+                              </>
+                            ) : '-'}
                           </td>
                           <td className={`py-3 px-4 text-sm font-medium text-right ${runningBalance >= 0 ? 'text-success' : 'text-error'}`}>
                             {formatCurrency(runningBalance)}

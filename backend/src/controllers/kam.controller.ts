@@ -438,10 +438,12 @@ export class KAMController {
         if (assignedKAMName === assignedKAM && (client['Assigned KAM Name'] || client.assignedKAMName)) {
           assignedKAMName = client['Assigned KAM Name'] || client.assignedKAMName || assignedKAMName;
         }
+        const clientId = client['Client ID'] || client.id;
+        const displayName = client['Client Name'] || client['Primary Contact Name'] || null;
         return {
           id: client.id,
-          clientId: client['Client ID'] || client.id,
-          clientName: client['Client Name'] || client['Primary Contact Name'] || 'Unknown',
+          clientId,
+          clientName: displayName && String(displayName).trim() !== '' ? String(displayName).trim() : `Client (${clientId})`,
           primaryContactName: client['Primary Contact Name'],
           contactEmailPhone: client['Contact Email / Phone'],
           assignedKAM,

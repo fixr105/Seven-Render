@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { DataTable, Column } from '../components/ui/DataTable';
@@ -203,6 +204,7 @@ export const AdminUserAccounts: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="p-6">
+        <PageHero title="User Accounts" />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">

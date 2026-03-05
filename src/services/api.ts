@@ -673,6 +673,13 @@ class ApiService {
     });
   }
 
+  /**
+   * Soft-deactivate NBFC partner (sets active: false). Credit/Admin only.
+   */
+  async deleteNBFCPartner(id: string): Promise<ApiResponse> {
+    return this.request(`/nbfc-partners/${id}`, { method: 'DELETE' });
+  }
+
   // ==================== CLIENT ENDPOINTS ====================
 
   /**
@@ -1313,7 +1320,7 @@ class ApiService {
   }
 
   /**
-   * Mark application as disbursed
+   * Mark application as disbursed (Credit team)
    */
   async markDisbursed(
     applicationId: string,
@@ -1323,6 +1330,22 @@ class ApiService {
     }
   ): Promise<ApiResponse> {
     return this.request(`/credit/loan-applications/${applicationId}/mark-disbursed`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Mark application as disbursed (NBFC)
+   */
+  async markDisbursedNBFC(
+    applicationId: string,
+    data: {
+      disbursedAmount: string;
+      disbursedDate: string;
+    }
+  ): Promise<ApiResponse> {
+    return this.request(`/nbfc/loan-applications/${applicationId}/mark-disbursed`, {
       method: 'POST',
       body: JSON.stringify(data),
     });

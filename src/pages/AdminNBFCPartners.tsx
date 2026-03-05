@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { DataTable, Column } from '../components/ui/DataTable';
@@ -17,6 +18,7 @@ interface NBFCPartnerRow {
   lenderName: string;
   contactPerson: string;
   contactEmailPhone: string;
+  addressRegion?: string;
   active: boolean;
 }
 
@@ -37,6 +39,7 @@ export const AdminNBFCPartners: React.FC = () => {
     active: true,
   });
   const [saving, setSaving] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -53,6 +56,7 @@ export const AdminNBFCPartners: React.FC = () => {
             lenderName: p.lenderName ?? '-',
             contactPerson: p.contactPerson ?? '-',
             contactEmailPhone: p.contactEmailPhone ?? '-',
+            addressRegion: p.addressRegion ?? '',
             active: p.active ?? true,
           }))
         );
@@ -88,7 +92,7 @@ export const AdminNBFCPartners: React.FC = () => {
       lenderName: row.lenderName,
       contactPerson: row.contactPerson,
       contactEmailPhone: row.contactEmailPhone,
-      addressRegion: '',
+      addressRegion: row.addressRegion ?? '',
       active: row.active,
     });
     setShowModal(true);
@@ -182,6 +186,7 @@ export const AdminNBFCPartners: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="p-6">
+        <PageHero title="NBFC Partners" />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -253,13 +258,42 @@ export const AdminNBFCPartners: React.FC = () => {
                   <label htmlFor="active" className="text-sm font-medium text-neutral-700">Active</label>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 mt-6">
-                <Button variant="tertiary" onClick={() => !saving && setShowModal(false)} disabled={saving}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleSave} disabled={saving || !form.lenderName.trim()}>
-                  {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
-                </Button>
+              <div className="flex justify-between mt-6">
+                <div>
+                  {editingId && form.active && canManage && (
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        if (!window.confirm('Deactivate this NBFC partner? They will no longer appear for assignment.')) return;
+                        setDeactivating(true);
+                        try {
+                          const res = await apiService.deleteNBFCPartner(editingId);
+                          if (res.success) {
+                            setShowModal(false);
+                            fetchPartners();
+                          } else {
+                            setError(res.error || 'Deactivate failed');
+                          }
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Deactivate failed');
+                        } finally {
+                          setDeactivating(false);
+                        }
+                      }}
+                      disabled={saving || deactivating}
+                    >
+                      {deactivating ? 'Deactivating...' : 'Deactivate partner'}
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="tertiary" onClick={() => !saving && !deactivating && setShowModal(false)} disabled={saving || deactivating}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" onClick={handleSave} disabled={saving || deactivating || !form.lenderName.trim()}>
+                    {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

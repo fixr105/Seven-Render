@@ -4,11 +4,12 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
+import { LoanStatus, LenderDecisionStatus, UserRole } from '../config/constants.js';
 import { NBFC_REJECTION_REASONS } from '../config/nbfcRejectionReasons.js';
 import { parseFormData } from '../utils/parseFormData.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 import { matchIds } from '../utils/idMatcher.js';
+import { getAllowedNextStatuses, normalizeToCanonicalStatus } from '../services/statusTracking/statusStateMachine.js';
 
 export class NBFController {
   /**
@@ -180,6 +181,18 @@ export class NBFController {
         });
       }
 
+      // Allowed next statuses for status dropdown (state machine; NBFC can e.g. mark Disbursed from Approved)
+      let allowedNextStatuses: string[] = [];
+      try {
+        const rawStatus = application.Status || application.status || 'draft';
+        const normalizedStatus = String(rawStatus).toLowerCase().trim();
+        const currentStatus = normalizeToCanonicalStatus(normalizedStatus);
+        const allowed = getAllowedNextStatuses(currentStatus, UserRole.NBFC);
+        allowedNextStatuses = allowed as string[];
+      } catch {
+        // Leave empty on error so frontend can fall back
+      }
+
       // Return complete application info including lender decision fields
       res.json({
         success: true,
@@ -202,6 +215,7 @@ export class NBFController {
           creationDate: application['Creation Date'],
           submittedDate: application['Submitted Date'],
           lastUpdated: application['Last Updated'],
+          allowedNextStatuses,
         },
       });
     } catch (error: any) {
@@ -307,8 +321,35 @@ export class NBFController {
         updateData['Approved Loan Amount'] = approvedAmount.toString();
       }
 
+      // Auto-update application Status when NBFC records Approved or Rejected
+      let previousStatus: string | undefined;
+      let newStatus: LoanStatus | undefined;
+      if (lenderDecisionStatus === LenderDecisionStatus.APPROVED || lenderDecisionStatus === LenderDecisionStatus.REJECTED) {
+        const { validateTransition, toUserRole, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
+        newStatus = lenderDecisionStatus === LenderDecisionStatus.APPROVED ? LoanStatus.APPROVED : LoanStatus.REJECTED;
+        try {
+          const currentStatus = normalizeToCanonicalStatus(application.Status ?? 'sent_to_nbfc');
+          validateTransition(currentStatus, newStatus, toUserRole(req.user!.role));
+          previousStatus = application.Status;
+          updateData.Status = newStatus;
+        } catch (transitionError: any) {
+          res.status(400).json({
+            success: false,
+            error: transitionError?.message || 'Invalid status transition',
+          });
+          return;
+        }
+      }
+
       // Update application via loanapplications POST webhook
       await n8nClient.postLoanApplication(updateData);
+
+      // Record status change in history when Status was updated
+      if (previousStatus !== undefined && newStatus !== undefined) {
+        const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+        const reason = newStatus === LoanStatus.APPROVED ? 'NBFC decision: Approved' : 'NBFC decision: Rejected';
+        await recordStatusChange(req.user!, application['File ID'], previousStatus, newStatus, reason);
+      }
 
       // Log decision in File Auditing Log
       const decisionMessage = lenderDecisionStatus === LenderDecisionStatus.APPROVED
@@ -506,6 +547,59 @@ export class NBFCPartnersController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to update NBFC partner',
+      });
+    }
+  }
+
+  /**
+   * DELETE /nbfc-partners/:id
+   * Soft-deactivate NBFC partner (sets Active: false). Credit/Admin only.
+   */
+  async deactivatePartner(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || (req.user.role !== 'credit_team' && req.user.role !== 'admin')) {
+        res.status(403).json({ success: false, error: 'Only Credit team or Admin can create or update NBFC partners.' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      const partners = await n8nClient.fetchTable('NBFC Partners');
+      const partner = partners.find((p) => matchIds(p.id, id) || matchIds(p['Lender ID'], id));
+
+      if (!partner) {
+        const errorMessage =
+          partners.length === 0
+            ? 'NBFC Partners list is empty. Check that the GET webhook for NBFC Partners is configured and returning data.'
+            : 'NBFC partner not found';
+        res.status(404).json({ success: false, error: errorMessage });
+        return;
+      }
+
+      const updateData = {
+        ...partner,
+        Active: 'False',
+      };
+      await n8nClient.postNBFCPartner(updateData);
+
+      n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user.email,
+        'Action Type': 'update_nbfc_partner',
+        'Description/Details': `Deactivated NBFC partner: ${partner['Lender Name'] || partner.id}`,
+        'Target Entity': 'nbfc_partner',
+      }).catch((err) => console.warn('[deactivatePartner] Admin activity log failed:', err.message));
+
+      res.json({
+        success: true,
+        message: 'NBFC partner deactivated',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to deactivate NBFC partner',
       });
     }
   }

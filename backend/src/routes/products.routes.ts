@@ -35,6 +35,7 @@ router.get('/nbfc-partners', requireCreditOrNBFCOrAdmin, productsController.list
 router.get('/nbfc-partners/:id', requireCreditOrNBFCOrAdmin, productsController.getNBFCPartner.bind(productsController));
 router.post('/nbfc-partners', requireCreditOrAdmin, nbfcPartnersController.createPartner.bind(nbfcPartnersController));
 router.patch('/nbfc-partners/:id', requireCreditOrAdmin, nbfcPartnersController.updatePartner.bind(nbfcPartnersController));
+router.delete('/nbfc-partners/:id', requireCreditOrAdmin, nbfcPartnersController.deactivatePartner.bind(nbfcPartnersController));
 
 export default router;
 

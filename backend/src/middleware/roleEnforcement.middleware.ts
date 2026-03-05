@@ -59,6 +59,13 @@ const PERMISSION_RULES: PermissionRule[] = [
     method: 'POST',
   },
   {
+    action: 'disburse_loan',
+    allowedRoles: [UserRole.NBFC],
+    allowAdminOverride: true,
+    endpoint: '/nbfc/loan-applications/:id/mark-disbursed',
+    method: 'POST',
+  },
+  {
     action: 'edit_commission_post_disbursal',
     allowedRoles: [], // No one allowed by default
     allowAdminOverride: true,

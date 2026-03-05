@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -386,12 +387,13 @@ export const Clients: React.FC = () => {
       pageTitle="Client Management"
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
-        notificationCount={unreadCount}
-        notifications={notifications}
-        onMarkAsRead={markAsRead}
-        onMarkAllAsRead={markAllAsRead}
+      notificationCount={unreadCount}
+      notifications={notifications}
+      onMarkAsRead={markAsRead}
+      onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
+        <PageHero title="Client Management" />
       {/* Debug Info Panel - only visible in development */}
       {import.meta.env.DEV && debugInfo && (
         <Card className="mb-4 border-2 border-brand-primary">

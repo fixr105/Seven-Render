@@ -56,15 +56,15 @@ export const ResetPassword: React.FC = () => {
       <div className="login-page" style={{ ['--login-bg' as string]: `url(${loginBg})` }}>
         <div className="login-card">
           <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-          <h1 className="text-xl font-semibold text-neutral-900 mb-2">Invalid reset link</h1>
-          <p className="text-neutral-600 mb-6">
+          <h1 className="text-xl font-semibold text-white mb-2">Invalid reset link</h1>
+          <p className="text-neutral-200 mb-6">
             This link is missing or invalid. Request a new password reset link.
           </p>
-          <Link to="/forgot-password" className="text-brand-primary hover:underline">
+          <Link to="/forgot-password" className="text-blue-200 hover:text-white hover:underline">
             Forgot password
           </Link>
           <p className="mt-4">
-            <Link to="/login" className="text-neutral-500 hover:underline text-sm">Back to login</Link>
+            <Link to="/login" className="text-neutral-300 hover:text-white hover:underline text-sm">Back to login</Link>
           </p>
         </div>
       </div>
@@ -76,9 +76,9 @@ export const ResetPassword: React.FC = () => {
       <div className="login-page" style={{ ['--login-bg' as string]: `url(${loginBg})` }}>
         <div className="login-card">
           <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-          <h1 className="text-xl font-semibold text-neutral-900 mb-2">Password updated</h1>
-          <p className="text-neutral-600 mb-6">Redirecting you to login...</p>
-          <Link to="/login" className="text-brand-primary hover:underline">
+          <h1 className="text-xl font-semibold text-white mb-2">Password updated</h1>
+          <p className="text-neutral-200 mb-6">Redirecting you to login...</p>
+          <Link to="/login" className="text-blue-200 hover:text-white hover:underline">
             Go to login
           </Link>
         </div>
@@ -90,8 +90,8 @@ export const ResetPassword: React.FC = () => {
     <div className="login-page" style={{ ['--login-bg' as string]: `url(${loginBg})` }}>
       <div className="login-card">
         <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-        <h1 className="text-xl font-semibold text-neutral-900 mb-2">Set new password</h1>
-        <p className="text-neutral-600 mb-4">Enter your new password below.</p>
+        <h1 className="text-xl font-semibold text-white mb-2">Set new password</h1>
+        <p className="text-neutral-200 mb-4">Enter your new password below.</p>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {error && <div className="login-error">{error}</div>}
@@ -130,8 +130,8 @@ export const ResetPassword: React.FC = () => {
           </Button>
         </form>
 
-        <p className="login-forgot-hint text-sm text-neutral-500 mt-4">
-          <Link to="/login" className="text-brand-primary hover:underline">
+        <p className="login-forgot-hint text-sm text-neutral-300 mt-4">
+          <Link to="/login" className="text-blue-200 hover:text-white hover:underline">
             Back to login
           </Link>
         </p>

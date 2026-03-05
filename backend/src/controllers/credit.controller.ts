@@ -582,9 +582,30 @@ export class CreditController {
     try {
       const { id } = req.params;
       const { nbfcIds } = req.body;
+
+      if (nbfcIds == null || (Array.isArray(nbfcIds) && nbfcIds.length === 0)) {
+        res.status(400).json({
+          success: false,
+          error: 'nbfcIds is required and must contain at least one NBFC id',
+        });
+        return;
+      }
+
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      let application = applications.find((app) => app.id === id);
+      if (!application) {
+        application = applications.find(
+          (app) => app['File ID'] === id || String(app['File ID']) === String(id)
+        );
+      }
+      if (!application) {
+        application = applications.find(
+          (app) =>
+            String(app.id).toLowerCase() === String(id).toLowerCase() ||
+            String(app['File ID'] || '').toLowerCase() === String(id).toLowerCase()
+        );
+      }
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -592,12 +613,22 @@ export class CreditController {
       }
 
       // Module 3: Validate status transition using state machine
-      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
+      const { validateTransition, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
-      
-      const previousStatus = application.Status as LoanStatus;
+
+      let previousStatus: LoanStatus;
+      try {
+        previousStatus = normalizeToCanonicalStatus(application.Status ?? '');
+      } catch (normalizeError: any) {
+        res.status(400).json({
+          success: false,
+          error: normalizeError?.message || 'Unable to determine current status for transition',
+        });
+        return;
+      }
+
       const newStatus = LoanStatus.SENT_TO_NBFC;
-      
+
       try {
         validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
       } catch (transitionError: any) {

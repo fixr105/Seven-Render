@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { DataTable, Column } from '../components/ui/DataTable';
@@ -156,16 +157,15 @@ export const AdminActivityLog: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-neutral-900">Admin Activity Log</h1>
-            <p className="text-sm text-neutral-600 mt-1">View system activity by user, date, and action type</p>
-          </div>
-          <Button variant="secondary" icon={RefreshCw} onClick={fetchLog} disabled={loading}>
-            Refresh
-          </Button>
-        </div>
-
+        <PageHero
+          title="Admin Activity Log"
+          description="View system activity by user, date, and action type"
+          actions={
+            <Button variant="secondary" icon={RefreshCw} onClick={fetchLog} disabled={loading}>
+              Refresh
+            </Button>
+          }
+        />
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

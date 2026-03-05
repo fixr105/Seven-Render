@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -10,7 +11,7 @@ import { useSidebarItems } from '../hooks/useSidebarItems';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../services/api';
-import { Settings2, Plus, FileText, Pencil, Trash2, Layers, Save } from 'lucide-react';
+import { Plus, FileText, Pencil, Trash2, Layers, Save } from 'lucide-react';
 
 interface ProductOption {
   id: string;
@@ -468,17 +469,11 @@ export function FormConfiguration() {
       userRole={user?.role === 'admin' ? 'Admin' : (user?.role?.replace('_', ' ').toUpperCase() || 'Credit Team')}
       userName={getUserDisplayName()}
     >
-      <div className="p-6 max-w-5xl">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-neutral-800 flex items-center gap-2">
-            <Settings2 className="w-6 h-6" />
-            Form Configuration
-          </h1>
-          <p className="text-neutral-500 mt-1">
-            Configure form requirements per product. Use Sections & Fields (product-embedded) or Document Checklist (Product Documents).
-          </p>
-        </div>
-
+      <div className="p-6 max-w-5xl mx-auto">
+        <PageHero
+          title="Form Configuration"
+          description="Configure form requirements per product. Use Sections & Fields (product-embedded) or Document Checklist (Product Documents)."
+        />
         {error && (
           <div className="mb-4 p-3 bg-error/10 border border-error/30 rounded text-error text-sm">
             {error}

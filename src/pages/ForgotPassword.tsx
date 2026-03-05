@@ -47,11 +47,11 @@ export const ForgotPassword: React.FC = () => {
       <div className="login-page" style={{ ['--login-bg' as string]: `url(${loginBg})` }}>
         <div className="login-card">
           <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-          <h1 className="text-xl font-semibold text-neutral-900 mb-2">Check your email</h1>
-          <p className="text-neutral-600 mb-6">
+          <h1 className="text-xl font-semibold text-white mb-2">Check your email</h1>
+          <p className="text-neutral-200 mb-6">
             If an account exists for that email, we've sent a reset link. It may take a few minutes to arrive.
           </p>
-          <Link to="/login" className="text-brand-primary hover:underline">
+          <Link to="/login" className="text-blue-200 hover:text-white hover:underline">
             Back to login
           </Link>
         </div>
@@ -63,8 +63,8 @@ export const ForgotPassword: React.FC = () => {
     <div className="login-page" style={{ ['--login-bg' as string]: `url(${loginBg})` }}>
       <div className="login-card">
         <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-        <h1 className="text-xl font-semibold text-neutral-900 mb-2">Forgot password?</h1>
-        <p className="text-neutral-600 mb-4">Enter your email and we'll send you a link to reset your password.</p>
+        <h1 className="text-xl font-semibold text-white mb-2">Forgot password?</h1>
+        <p className="text-neutral-200 mb-4">Enter your email and we'll send you a link to reset your password.</p>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {error && <div className="login-error">{error}</div>}
@@ -87,8 +87,8 @@ export const ForgotPassword: React.FC = () => {
           </Button>
         </form>
 
-        <p className="login-forgot-hint text-sm text-neutral-500 mt-4">
-          <Link to="/login" className="text-brand-primary hover:underline">
+        <p className="login-forgot-hint text-sm text-neutral-300 mt-4">
+          <Link to="/login" className="text-blue-200 hover:text-white hover:underline">
             Back to login
           </Link>
         </p>

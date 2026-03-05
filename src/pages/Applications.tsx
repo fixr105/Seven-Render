@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
+import { PageHero } from '../components/layout/PageHero';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -472,6 +473,7 @@ export const Applications: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
+      <PageHero title="Loan Applications" />
       {/* Loading State */}
       {loading && (
         <Card className="mb-6">
