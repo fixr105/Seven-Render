@@ -112,6 +112,47 @@ router.get('/debug/env', (req, res) => {
   }
 });
 
+// Debug endpoint: check if an NBFC Partner exists by Contact Email/Phone (development only)
+router.get('/debug/nbfc-partners-check', async (req, res) => {
+  const email = (req.query.email as string)?.trim();
+  try {
+    const { n8nClient } = await import('../services/airtable/n8nClient.js');
+    const partners = await n8nClient.fetchTable('NBFC Partners', false);
+    const total = Array.isArray(partners) ? partners.length : 0;
+    let found: Record<string, unknown> | null = null;
+    if (email) {
+      const normalized = email.toLowerCase();
+      found =
+        (partners as any[]).find((p: any) => {
+          const contact = (p['Contact Email/Phone'] || p.contactEmailPhone || '').toString().toLowerCase();
+          return contact && contact.includes(normalized);
+        }) ?? null;
+    }
+    res.json({
+      success: true,
+      table: 'NBFC Partners',
+      totalRecords: total,
+      queryEmail: email || null,
+      found: found
+        ? {
+            id: (found as any).id,
+            'Lender ID': (found as any)['Lender ID'],
+            'Lender Name': (found as any)['Lender Name'],
+            'Contact Email/Phone': (found as any)['Contact Email/Phone'],
+          }
+        : null,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[DEBUG] nbfc-partners-check error:', error?.message || error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || String(error),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Debug endpoint to check environment and webhook configuration (ultra-simple, no imports)
 router.get('/debug/webhook-config', (req, res) => {
   console.log('[DEBUG] /debug/webhook-config endpoint called at', new Date().toISOString());

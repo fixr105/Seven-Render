@@ -7,6 +7,11 @@
  * - SECTION 1A – ..., SECTION 1B – ..., ...; Field 1A.1, Field 1A.2, ...
  */
 
+import {
+  CANONICAL_FIELD_KEYS_BY_SECTION,
+  CANONICAL_SECTION_KEYS,
+} from './loanProductFormConfigConstants.js';
+
 export interface ParsedFormField {
   fieldId: string;
   label: string;
@@ -206,8 +211,9 @@ export interface EditorSection {
 }
 
 /**
- * Build a global master list of section and field keys from all loan products.
- * Used so the edit UI always shows every document field; each product only supplies its own values.
+ * Build a global master list of section and field keys: canonical list merged with keys from products.
+ * Canonical list ensures fields set to Empty in one product remain available when configuring others.
+ * Product-derived keys add any legacy or extra columns that exist in Airtable but not in the doc.
  */
 function getMasterSectionAndFieldKeys(products: Record<string, unknown>[]): {
   sectionKeys: { key: string; sectionId: string; sortKey: string }[];
@@ -216,6 +222,21 @@ function getMasterSectionAndFieldKeys(products: Record<string, unknown>[]): {
   const sectionKeySet = new Map<string, { key: string; sectionId: string; sortKey: string }>();
   const fieldKeysBySectionId = new Map<string, string[]>();
 
+  // Start with canonical keys so the master list is never empty for known sections/fields
+  for (const s of CANONICAL_SECTION_KEYS) {
+    if (!sectionKeySet.has(s.sectionId)) {
+      sectionKeySet.set(s.sectionId, { key: s.key, sectionId: s.sectionId, sortKey: s.sortKey });
+    }
+  }
+  for (const [sectionId, keys] of Object.entries(CANONICAL_FIELD_KEYS_BY_SECTION)) {
+    const existing = fieldKeysBySectionId.get(sectionId) ?? [];
+    const merged = [...new Set([...existing, ...keys])].sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true })
+    );
+    fieldKeysBySectionId.set(sectionId, merged);
+  }
+
+  // Merge in any keys from products (e.g. different section key format, or extra fields)
   for (const product of products) {
     for (const key of Object.keys(product)) {
       const sectionParsed = parseSectionKey(key);

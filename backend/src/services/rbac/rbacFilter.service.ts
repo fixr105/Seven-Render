@@ -122,9 +122,10 @@ export class RBACFilterService {
           console.warn(`[RBACFilter] NBFC ${user.email} has no nbfcId. Returning empty array.`);
           return [];
         }
+        const nbfcMap = await this.getNBFCRecordIdToLenderIdMap();
         return applications.filter((app: any) => {
           const assignedNBFC = app['Assigned NBFC'] || app['Assigned NBFC ID'] || app.assignedNbfcId || app.assignedNBFC;
-          return matchIds(assignedNBFC, user.nbfcId);
+          return this.assignedNBFCMatchesUser(assignedNBFC, user.nbfcId!, nbfcMap);
         });
 
       case UserRole.CREDIT:
@@ -513,6 +514,51 @@ export class RBACFilterService {
   }
 
   /**
+   * Build a map from NBFC record id (and Lender ID) to Lender ID for resolving linked records.
+   * Cached per request (5s TTL) to avoid repeated fetches.
+   */
+  private async getNBFCRecordIdToLenderIdMap(): Promise<Map<string, string>> {
+    const cacheKey = 'nbfc_partners_lender_map';
+    const cached = requestCache.get<Map<string, string>>(cacheKey);
+    if (cached) return cached;
+    try {
+      const partners = (await n8nClient.fetchTable('NBFC Partners', true)) as any[];
+      const map = new Map<string, string>();
+      for (const p of partners || []) {
+        const recordId = p.id;
+        const lenderId = (p['Lender ID'] || p.lenderId || recordId || '').toString().trim();
+        if (recordId) map.set(recordId, lenderId);
+        if (lenderId) map.set(lenderId, lenderId);
+      }
+      requestCache.set(cacheKey, map);
+      return map;
+    } catch (error: any) {
+      console.warn('[RBACFilter] Failed to build NBFC map, matching by raw value only:', error?.message);
+      return new Map();
+    }
+  }
+
+  /**
+   * Return whether the application's Assigned NBFC matches the user's nbfcId (Lender ID).
+   * Handles Assigned NBFC as string (Lender ID) or array (Airtable linked record ids).
+   */
+  private assignedNBFCMatchesUser(
+    assignedNBFC: any,
+    userNbfcId: string,
+    recordIdToLenderId: Map<string, string>
+  ): boolean {
+    if (assignedNBFC == null) return false;
+    if (Array.isArray(assignedNBFC)) {
+      return assignedNBFC.some((id: any) => {
+        const resolved = recordIdToLenderId.get(String(id).trim()) ?? String(id).trim();
+        return matchIds(resolved, userNbfcId);
+      });
+    }
+    const resolved = recordIdToLenderId.get(String(assignedNBFC).trim()) ?? String(assignedNBFC).trim();
+    return matchIds(resolved, userNbfcId);
+  }
+
+  /**
    * Get applications assigned to a specific NBFC
    * 
    * @param nbfcId - NBFC ID
@@ -521,9 +567,10 @@ export class RBACFilterService {
   private async getNBFCApplications(nbfcId: string): Promise<any[]> {
     try {
       const applications = await n8nClient.fetchTable('Loan Application');
+      const nbfcMap = await this.getNBFCRecordIdToLenderIdMap();
       return applications.filter((app: any) => {
         const assignedNBFC = app['Assigned NBFC'] || app['Assigned NBFC ID'] || app.assignedNbfcId || app.assignedNBFC;
-        return matchIds(assignedNBFC, nbfcId);
+        return this.assignedNBFCMatchesUser(assignedNBFC, nbfcId, nbfcMap);
       });
     } catch (error: any) {
       console.error('[RBACFilter] Error fetching NBFC applications:', error);

@@ -35,8 +35,8 @@ export const Ledger: React.FC = () => {
         .then((res) => {
           if (res.success && res.data) {
             const list = (res.data as any[]).map((c: any) => ({
-              id: c.id || c['Client ID'] || '',
-              name: c.name || c.company_name || c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
+              id: c.id ?? c.clientId ?? c['Client ID'] ?? '',
+              name: c.clientName || c.name || c.company_name || c['Client Name'] || c['Primary Contact Name'] || 'Unknown',
             })).filter((c) => c.id);
             setClients(list);
             if (list.length > 0) {

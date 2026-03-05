@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Footer } from './Footer';
@@ -39,7 +40,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     <div className="flex h-screen overflow-hidden bg-neutral-100 relative">
       {/* Logo in corner intersection - fills the area where sidebar and topbar meet; hidden on mobile so TopBar hamburger is accessible */}
       <div className="hidden lg:flex absolute top-0 left-0 z-50 w-64 h-16 bg-brand-primary items-center justify-center">
-        <img src={logo} alt="SEVEN FINCORP Logo" className="h-full w-full object-contain p-3" />
+        <Link to="/dashboard" className="h-full w-full flex items-center justify-center p-3">
+          <img src={logo} alt="SEVEN FINCORP Logo" className="h-full w-full object-contain" />
+        </Link>
       </div>
 
       <Sidebar

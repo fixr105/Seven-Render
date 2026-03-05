@@ -1519,16 +1519,7 @@ class ApiService {
   }
 
   /**
-   * Commission report: totals and entries in date range, optional client filter
-   */
-  async getCommissionReport(params: { from: string; to: string; clientId?: string }): Promise<ApiResponse<any>> {
-    const q = new URLSearchParams({ from: params.from, to: params.to });
-    if (params.clientId) q.set('clientId', params.clientId);
-    return this.request(`/reports/commission?${q.toString()}`);
-  }
-
-  /**
-   * Ledger report: entries in date range with optional client filter and totals
+   * Ledger report: entries in date range with optional client filter, totals and entry counts
    */
   async getLedgerReport(params: { from: string; to: string; clientId?: string }): Promise<ApiResponse<any>> {
     const q = new URLSearchParams({ from: params.from, to: params.to });

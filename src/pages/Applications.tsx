@@ -95,6 +95,51 @@ const FILTER_TO_RAW_STATUSES: Record<string, string[]> = {
   disbursed: ['disbursed'],
 };
 
+type StatusOption = { value: string; label: string };
+
+const STATUS_OPTIONS_CLIENT: StatusOption[] = [
+  { value: 'all', label: 'All Status' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'query', label: 'Action required' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'disbursed', label: 'Disbursed' },
+];
+
+const STATUS_OPTIONS_KAM: StatusOption[] = [
+  { value: 'all', label: 'All Status' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending', label: 'Pending KAM Review' },
+  { value: 'query', label: 'KAM Query Raised' },
+  { value: 'credit', label: 'Forwarded to Credit' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'disbursed', label: 'Disbursed' },
+];
+
+const STATUS_OPTIONS_CREDIT: StatusOption[] = [
+  { value: 'all', label: 'All Status' },
+  { value: 'credit', label: 'Forwarded to Credit' },
+  { value: 'awaiting_kam_response', label: 'Awaiting KAM Response' },
+  { value: 'negotiation', label: 'In Negotiation' },
+  { value: 'nbfc', label: 'Sent to NBFC' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'disbursed', label: 'Disbursed' },
+];
+
+function getStatusOptionsForRole(role: string | null): StatusOption[] {
+  if (role === 'client') return STATUS_OPTIONS_CLIENT;
+  if (role === 'kam') return STATUS_OPTIONS_KAM;
+  if (role === 'credit_team' || role === 'admin') return STATUS_OPTIONS_CREDIT;
+  return STATUS_OPTIONS_KAM;
+}
+
+function getValidFilterValuesForRole(role: string | null): Set<string> {
+  const options = getStatusOptionsForRole(role);
+  return new Set(options.map((o) => o.value));
+}
+
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -139,7 +184,7 @@ export const Applications: React.FC = () => {
           const c = (res.data as any[]).find(
             (x: any) => (x.id || x['Client ID'] || '') === clientIdFromUrl
           );
-          const name = c?.name ?? c?.['Client Name'] ?? c?.['Primary Contact Name'];
+          const name = c?.clientName ?? c?.name ?? c?.['Client Name'] ?? c?.['Primary Contact Name'];
           if (name) setClientFilterDisplayName(String(name));
         }
       } else if (userRole === 'credit_team') {
@@ -158,8 +203,21 @@ export const Applications: React.FC = () => {
 
   useEffect(() => {
     const param = searchParams.get('status');
-    setStatusFilter(param && URL_STATUS_TO_FILTER[param] ? URL_STATUS_TO_FILTER[param] : 'all');
-  }, [searchParams]);
+    const resolved = param && URL_STATUS_TO_FILTER[param] ? URL_STATUS_TO_FILTER[param] : 'all';
+    const validValues = getValidFilterValuesForRole(userRole);
+    if (validValues.has(resolved)) {
+      setStatusFilter(resolved);
+    } else {
+      setStatusFilter('all');
+      if (param) {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('status');
+          return next;
+        }, { replace: true });
+      }
+    }
+  }, [searchParams, userRole, setSearchParams]);
 
   // Fetch query counts for applications (only for credit_team)
   useEffect(() => {
@@ -231,19 +289,7 @@ export const Applications: React.FC = () => {
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const statusOptions = [
-    { value: 'all', label: 'All Status' },
-    { value: 'draft', label: 'Draft' },
-    { value: 'pending', label: 'Pending KAM Review' },
-    { value: 'query', label: 'KAM Query Raised' },
-    { value: 'credit', label: 'Forwarded to Credit' },
-    { value: 'negotiation', label: 'In Negotiation' },
-    { value: 'nbfc', label: 'Sent to NBFC' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'rejected', label: 'Rejected' },
-    { value: 'disbursed', label: 'Disbursed' },
-    ...(userRole === 'credit_team' ? [{ value: 'awaiting_kam_response', label: 'Awaiting KAM Response' }] : []),
-  ];
+  const statusOptions = getStatusOptionsForRole(userRole);
 
   // Convert database applications to display format
   const displayApplications = applications.map(app => {

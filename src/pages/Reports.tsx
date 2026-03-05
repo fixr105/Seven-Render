@@ -71,6 +71,13 @@ export const Reports: React.FC = () => {
     }
   }, []);
 
+  // KAM only sees Ledger tab; ensure reportTab is 'ledger' when role is KAM (e.g. after user loads).
+  useEffect(() => {
+    if (userRole === 'kam' && reportTab !== 'ledger') {
+      setReportTab('ledger');
+    }
+  }, [userRole, reportTab]);
+
   const normalizeReport = (raw: Record<string, unknown>): DailySummaryReport => ({
     id: (raw.id as string) || '',
     reportDate: (raw['Report Date'] ?? raw.reportDate ?? '') as string,
@@ -186,15 +193,7 @@ export const Reports: React.FC = () => {
     setReportData(null);
     setReportLoading(true);
     try {
-      if (reportTab === 'commission') {
-        const res = await apiService.getCommissionReport({
-          from: reportFrom,
-          to: reportTo,
-          ...(reportClientId && { clientId: reportClientId }),
-        });
-        if (res.success && res.data) setReportData(res.data as Record<string, unknown>);
-        else setReportError(res.error || 'Failed to load report');
-      } else if (reportTab === 'ledger') {
+      if (reportTab === 'ledger') {
         const res = await apiService.getLedgerReport({
           from: reportFrom,
           to: reportTo,
@@ -251,13 +250,16 @@ export const Reports: React.FC = () => {
     );
   }
 
-  const tabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
+  const allTabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
     { id: 'daily', label: 'Daily Summary', icon: <BarChart3 className="w-4 h-4" /> as React.ReactNode },
     { id: 'commission', label: 'Commission', icon: <DollarSign className="w-4 h-4" /> as React.ReactNode },
     { id: 'ledger', label: 'Ledger', icon: <FileText className="w-4 h-4" /> as React.ReactNode },
     { id: 'client-wise', label: 'Client-wise', icon: <Users className="w-4 h-4" /> as React.ReactNode },
     { id: 'date-range', label: 'Date range', icon: <CalendarRange className="w-4 h-4" /> as React.ReactNode },
   ];
+  const tabs = userRole === 'kam'
+    ? [{ id: 'ledger' as const, label: 'Ledger', icon: <FileText className="w-4 h-4" /> as React.ReactNode }]
+    : allTabs;
 
   return (
     <MainLayout
@@ -275,7 +277,7 @@ export const Reports: React.FC = () => {
             <div>
               <h1 className="text-2xl font-bold text-neutral-900">Reports</h1>
               <p className="text-sm text-neutral-600 mt-1">
-                Daily summaries, commission, ledger, client-wise, and date-range reports
+                Daily summaries, ledger, client-wise, and date-range reports
               </p>
             </div>
           </div>
@@ -302,7 +304,6 @@ export const Reports: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>
-                {reportTab === 'commission' && 'Commission report'}
                 {reportTab === 'ledger' && 'Ledger report'}
                 {reportTab === 'client-wise' && 'Client-wise report'}
                 {reportTab === 'date-range' && 'Date range report'}
@@ -328,7 +329,7 @@ export const Reports: React.FC = () => {
                     className="border border-neutral-300 rounded px-3 py-2 text-sm"
                   />
                 </div>
-                {(reportTab === 'commission' || reportTab === 'ledger') && (
+                {reportTab === 'ledger' && (
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-neutral-700">Client ID (optional)</label>
                     <input
@@ -350,7 +351,7 @@ export const Reports: React.FC = () => {
                   {reportError}
                 </div>
               )}
-              {reportData && reportTab === 'commission' && (
+              {reportData && reportTab === 'ledger' && (
                 <div className="mt-6 space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="bg-neutral-50 rounded-lg p-3">
@@ -367,43 +368,6 @@ export const Reports: React.FC = () => {
                       </p>
                       <p className="text-xs text-neutral-500">{Number(reportData.payinCount ?? 0)} entries</p>
                     </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border border-neutral-200">
-                      <thead>
-                        <tr className="bg-neutral-50 border-b border-neutral-200">
-                          <th className="text-left p-2">Date</th>
-                          <th className="text-left p-2">Client</th>
-                          <th className="text-right p-2">Payout Amount</th>
-                          <th className="text-left p-2">Description</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Array.isArray(reportData.entries) &&
-                          (reportData.entries as Record<string, unknown>[]).map((entry, i) => (
-                            <tr key={i} className="border-b border-neutral-100">
-                              <td className="p-2">{String(entry['Date'] ?? entry.date ?? '-')}</td>
-                              <td className="p-2">{String(entry['Client'] ?? entry.client ?? '-')}</td>
-                              <td className="p-2 text-right">
-                                {formatCurrency(Number(entry['Payout Amount'] ?? entry.payoutAmount ?? 0))}
-                              </td>
-                              <td className="p-2">{String(entry['Description'] ?? entry.description ?? '-')}</td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-              {reportData && reportTab === 'ledger' && (
-                <div className="mt-6 space-y-4">
-                  <div className="flex gap-4 flex-wrap">
-                    <span className="text-sm text-neutral-600">
-                      Total Payouts: <strong>{formatCurrency(Number(reportData.totalPayoutAmount ?? 0))}</strong>
-                    </span>
-                    <span className="text-sm text-neutral-600">
-                      Total Payins: <strong>{formatCurrency(Number(reportData.totalPayinAmount ?? 0))}</strong>
-                    </span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border border-neutral-200">

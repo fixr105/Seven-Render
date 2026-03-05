@@ -392,8 +392,8 @@ export const Clients: React.FC = () => {
         onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
-      {/* Debug Info Panel */}
-      {debugInfo && (
+      {/* Debug Info Panel - only visible in development */}
+      {import.meta.env.DEV && debugInfo && (
         <Card className="mb-4 border-2 border-brand-primary">
           <CardContent className="p-3">
             <div className="text-sm font-mono bg-neutral-50 p-2 rounded">

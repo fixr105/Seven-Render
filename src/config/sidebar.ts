@@ -37,9 +37,9 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
       ];
       if (enabledModules && enabledModules.length > 0 && !enabledModules.includes('M1')) {
-        return clientItems.filter((item) => item.id !== 'ledger');
+        return clientItems.filter((item) => item.id !== 'ledger').slice(0, 5);
       }
-      return clientItems;
+      return clientItems.slice(0, 5);
     }
     case 'kam':
       return [

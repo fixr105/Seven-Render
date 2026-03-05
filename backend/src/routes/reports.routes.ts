@@ -17,8 +17,7 @@ router.post('/daily/generate', requireCredit, reportsController.generateDailySum
 // Get - CREDIT, KAM, or ADMIN (all 3 report personas)
 router.get('/daily/list', requireCreditOrKAMOrAdmin, reportsController.listDailySummaries.bind(reportsController));
 router.get('/daily/latest', requireCreditOrKAMOrAdmin, reportsController.getLatestDailySummary.bind(reportsController));
-// Commission, Ledger, Client-wise, Date-range (specific paths before :date)
-router.get('/commission', requireCreditOrKAMOrAdmin, reportsController.getCommissionReport.bind(reportsController));
+// Ledger, Client-wise, Date-range (specific paths before :date)
 router.get('/ledger', requireCreditOrKAMOrAdmin, reportsController.getLedgerReport.bind(reportsController));
 router.get('/client-wise', requireCreditOrKAMOrAdmin, reportsController.getClientWiseReport.bind(reportsController));
 router.get('/date-range', requireCreditOrKAMOrAdmin, reportsController.getDateRangeReport.bind(reportsController));

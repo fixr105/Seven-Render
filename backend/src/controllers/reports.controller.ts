@@ -275,10 +275,10 @@ export class ReportsController {
   }
 
   /**
-   * GET /reports/commission
-   * Commission-only report: totals and entries in date range, optional client filter.
+   * GET /reports/ledger
+   * Ledger report: entries in date range with optional client filter, summary totals and entry counts.
    */
-  async getCommissionReport(req: Request, res: Response): Promise<void> {
+  async getLedgerReport(req: Request, res: Response): Promise<void> {
     try {
       const from = (req.query.from as string)?.trim();
       const to = (req.query.to as string)?.trim();
@@ -314,47 +314,6 @@ export class ReportsController {
           payoutCount,
           payinCount,
           entries: filtered,
-        },
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to generate commission report',
-      });
-    }
-  }
-
-  /**
-   * GET /reports/ledger
-   * Ledger report: entries in date range with optional client filter and summary totals.
-   */
-  async getLedgerReport(req: Request, res: Response): Promise<void> {
-    try {
-      const from = (req.query.from as string)?.trim();
-      const to = (req.query.to as string)?.trim();
-      const clientId = (req.query.clientId as string)?.trim() || undefined;
-      if (!from || !to) {
-        res.status(400).json({ success: false, error: 'Query params from and to (YYYY-MM-DD) are required' });
-        return;
-      }
-      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
-      const filtered = this.filterLedgerByRange(ledgerEntries, from, to, clientId);
-      let totalPayoutAmount = 0;
-      let totalPayinAmount = 0;
-      filtered.forEach((entry) => {
-        const amount = parseFloat(entry['Payout Amount'] || '0');
-        if (amount > 0) totalPayoutAmount += amount;
-        else if (amount < 0) totalPayinAmount += Math.abs(amount);
-      });
-      res.json({
-        success: true,
-        data: {
-          from,
-          to,
-          ...(clientId && { clientId }),
-          entries: filtered,
-          totalPayoutAmount,
-          totalPayinAmount,
         },
       });
     } catch (error: any) {

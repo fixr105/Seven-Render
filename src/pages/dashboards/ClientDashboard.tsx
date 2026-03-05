@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
 import { Plus, FileText, Clock, CheckCircle, DollarSign, Package, RefreshCw, Sparkles, Wallet, FileEdit, AlertCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useApplications } from '../../hooks/useApplications';
@@ -93,6 +92,8 @@ export const ClientDashboard: React.FC = () => {
   const actionRequired = applications.filter(a => a.status === 'kam_query_raised').length;
   const rejected = applications.filter(a => a.status === 'rejected').length;
   const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
+
+  const displayProducts = loanProducts.filter((p) => configuredProductIds.has(p.id));
 
   return (
     <>
@@ -209,7 +210,7 @@ export const ClientDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Available Loan Products */}
+      {/* Available Loan Products - only show products configured for this client */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -220,39 +221,23 @@ export const ClientDashboard: React.FC = () => {
         <CardContent>
           {loadingProducts ? (
             <div className="text-center py-4 text-neutral-500">Loading loan products...</div>
-          ) : loanProducts.length === 0 ? (
+          ) : displayProducts.length === 0 ? (
             <div className="text-center py-4 text-neutral-500">No loan products available</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {loanProducts.map((product) => {
-                const isConfigured = configuredProductIds.has(product.id);
-                return (
-                  <div
-                    key={product.id}
-                    className={`p-4 border rounded-lg transition-all ${
-                      isConfigured
-                        ? 'border-neutral-200 hover:border-brand-primary/50 hover:shadow-md cursor-pointer'
-                        : 'border-neutral-300 bg-neutral-100 opacity-50 cursor-not-allowed pointer-events-none'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-1">
-                      <h4 className={`font-semibold ${isConfigured ? 'text-neutral-900' : 'text-neutral-500'}`}>
-                        {product.name}
-                      </h4>
-                      {!isConfigured && (
-                        <Badge variant="neutral" className="ml-2 flex-shrink-0">
-                          Not Available
-                        </Badge>
-                      )}
-                    </div>
-                    {product.description && (
-                      <p className={`text-sm line-clamp-2 ${isConfigured ? 'text-neutral-600' : 'text-neutral-400'}`}>
-                        {product.description}
-                      </p>
-                    )}
+              {displayProducts.map((product) => (
+                <div
+                  key={product.id}
+                  className="p-4 border rounded-lg transition-all border-neutral-200 hover:border-brand-primary/50 hover:shadow-md cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <h4 className="font-semibold text-neutral-900">{product.name}</h4>
                   </div>
-                );
-              })}
+                  {product.description && (
+                    <p className="text-sm line-clamp-2 text-neutral-600">{product.description}</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
