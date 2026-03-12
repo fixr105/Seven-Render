@@ -324,9 +324,14 @@ export async function validateMandatoryFields(
     });
   }
 
+  const hasFolderLinkMissing = missingFields.some((f) => f.fieldId === '_documentsFolderLink');
+  const hasChecklistMissing = missingFields.some((f) => f.type === 'file');
+  const COMBINED_DOCUMENTS_ERROR_MESSAGE =
+    'Please provide the document folder link and update the document checklist before submitting the application.';
+
   const errorMessageForMissing =
-    missingFields.some((f) => f.fieldId === '_documentsFolderLink') && missingFields.length === 1
-      ? DOCUMENTS_OR_LINK_ERROR_MESSAGE
+    hasFolderLinkMissing || hasChecklistMissing
+      ? COMBINED_DOCUMENTS_ERROR_MESSAGE
       : missingFields.length > 0
         ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`
         : undefined;

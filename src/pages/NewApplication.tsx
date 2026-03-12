@@ -416,7 +416,12 @@ export const NewApplication: React.FC = () => {
         if (errorElement) {
           errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        alert(`Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`);
+        const hasDocumentErrors = '_documentsFolderLink' in validation.errors ||
+          Object.keys(validation.errors).some((k) => k !== 'applicant_name' && k !== 'loan_product_id' && k !== 'requested_loan_amount' && k !== '_businessType');
+        const message = hasDocumentErrors
+          ? 'Please provide the document folder link and update the document checklist before submitting the application.'
+          : `Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`;
+        alert(message);
         return;
       }
     }
