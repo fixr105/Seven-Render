@@ -372,6 +372,40 @@ export const NewApplication: React.FC = () => {
       });
     });
 
+    // Global rule: require at least one of (documents or folder link) for submission
+    const fd = formData.form_data;
+    const folderLink = fd._documentsFolderLink;
+    const isValidFolderLink =
+      folderLink &&
+      typeof folderLink === 'string' &&
+      folderLink.trim().length > 0 &&
+      (folderLink.toLowerCase().includes('drive.google.com') ||
+        folderLink.toLowerCase().includes('onedrive.live.com') ||
+        folderLink.toLowerCase().includes('sharepoint.com'));
+    let hasDocumentLink = isValidFolderLink;
+    if (!hasDocumentLink && fd) {
+      for (const key of Object.keys(fd)) {
+        if (key === '_documentsFolderLink') continue;
+        const v = fd[key];
+        if (v && typeof v === 'string' && v.trim().length > 0) {
+          const lower = v.toLowerCase();
+          if (
+            lower.includes('drive.google.com') ||
+            lower.includes('onedrive.live.com') ||
+            lower.includes('sharepoint.com') ||
+            v.startsWith('http')
+          ) {
+            hasDocumentLink = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!hasDocumentLink) {
+      errors._documentsFolderLink =
+        'Please upload the required documents or provide a valid Google Drive / OneDrive link before submitting the application.';
+    }
+
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 

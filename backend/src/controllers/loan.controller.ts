@@ -93,11 +93,19 @@ export class LoanController {
 
       // Strict mandatory field validation for non-draft submissions (must run before workflow)
       if (!saveAsDraft) {
+        const documentLinks: Record<string, string> = {};
+        Object.keys(finalFormData).forEach((key) => {
+          const v = finalFormData[key];
+          if (v && typeof v === 'string' && (v.includes('onedrive') || v.includes('sharepoint') || v.startsWith('http'))) {
+            documentLinks[key] = v;
+          }
+        });
         const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
         const mandatoryValidation = await validateMandatoryFields(
           finalFormData,
           req.user!.clientId!,
-          productId
+          productId,
+          documentLinks
         );
         if (!mandatoryValidation.isValid) {
           res.status(400).json({

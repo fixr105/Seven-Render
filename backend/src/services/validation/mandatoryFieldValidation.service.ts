@@ -78,6 +78,56 @@ function isFileOptionValue(value: unknown): boolean {
   return s.length > 0 && FILE_OPTION_VALUES.has(s);
 }
 
+const DOCUMENTS_OR_LINK_ERROR_MESSAGE =
+  'Please upload the required documents or provide a valid Google Drive / OneDrive link before submitting the application.';
+
+/** True if value looks like a Google Drive or OneDrive/SharePoint URL. */
+function isValidDocumentsFolderLink(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  const s = value.trim();
+  if (s.length === 0) return false;
+  const lower = s.toLowerCase();
+  return (
+    lower.includes('drive.google.com') ||
+    lower.includes('onedrive.live.com') ||
+    lower.includes('sharepoint.com')
+  );
+}
+
+/** True if formData has at least one value that looks like a document/folder URL (excluding _documentsFolderLink). */
+function hasDocumentLinkInFormData(formData: Record<string, any>): boolean {
+  for (const key of Object.keys(formData)) {
+    if (key === '_documentsFolderLink') continue;
+    const v = formData[key];
+    if (v && typeof v === 'string' && v.trim().length > 0) {
+      const lower = v.toLowerCase();
+      if (
+        lower.includes('drive.google.com') ||
+        lower.includes('onedrive.live.com') ||
+        lower.includes('sharepoint.com') ||
+        v.startsWith('http')
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Returns true when the user has provided at least one of: a valid Documents Folder Link,
+ * or document links (in documentLinks map or in formData values).
+ */
+function hasDocumentsOrFolderLink(
+  formData: Record<string, any>,
+  documentLinks?: Record<string, string>
+): boolean {
+  if (isValidDocumentsFolderLink(formData._documentsFolderLink)) return true;
+  if (documentLinks && Object.keys(documentLinks).length > 0) return true;
+  if (hasDocumentLinkInFormData(formData)) return true;
+  return false;
+}
+
 /**
  * Resolve value for a field from formData. For PAN fields, also check common aliases.
  */
@@ -274,6 +324,16 @@ export async function validateMandatoryFields(
     }
   });
 
+  // Global rule: require at least one of (documents or folder link) for submission
+  if (!hasDocumentsOrFolderLink(formData, documentLinks)) {
+    missingFields.push({
+      fieldId: '_documentsFolderLink',
+      label: 'Documents Folder Link',
+      type: 'text',
+      displayKey: '_documentsFolderLink',
+    });
+  }
+
   const isValid = missingFields.length === 0 && formatErrors.length === 0;
 
   if (!isValid) {
@@ -286,17 +346,21 @@ export async function validateMandatoryFields(
     });
   }
 
+  const errorMessageForMissing =
+    missingFields.some((f) => f.fieldId === '_documentsFolderLink') && missingFields.length === 1
+      ? DOCUMENTS_OR_LINK_ERROR_MESSAGE
+      : missingFields.length > 0
+        ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`
+        : undefined;
+
   return {
     isValid,
     missingFields,
     formatErrors: formatErrors.length > 0 ? formatErrors : undefined,
     errorMessage: isValid
       ? undefined
-      : missingFields.length > 0
-        ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`
-        : formatErrors.length > 0
-          ? formatErrors.map((e) => `${e.label}: ${e.message}`).join('; ')
-          : undefined,
+      : errorMessageForMissing ??
+        (formatErrors.length > 0 ? formatErrors.map((e) => `${e.label}: ${e.message}`).join('; ') : undefined),
   };
 }
 

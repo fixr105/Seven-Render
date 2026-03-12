@@ -72,13 +72,6 @@ export const Reports: React.FC = () => {
     }
   }, []);
 
-  // KAM only sees Ledger tab; ensure reportTab is 'ledger' when role is KAM (e.g. after user loads).
-  useEffect(() => {
-    if (userRole === 'kam' && reportTab !== 'ledger') {
-      setReportTab('ledger');
-    }
-  }, [userRole, reportTab]);
-
   const normalizeReport = (raw: Record<string, unknown>): DailySummaryReport => ({
     id: (raw.id as string) || '',
     reportDate: (raw['Report Date'] ?? raw.reportDate ?? '') as string,
@@ -258,9 +251,7 @@ export const Reports: React.FC = () => {
     { id: 'client-wise', label: 'Client-wise', icon: <Users className="w-4 h-4" /> as React.ReactNode },
     { id: 'date-range', label: 'Date range', icon: <CalendarRange className="w-4 h-4" /> as React.ReactNode },
   ];
-  const tabs = userRole === 'kam'
-    ? [{ id: 'ledger' as const, label: 'Ledger', icon: <FileText className="w-4 h-4" /> as React.ReactNode }]
-    : allTabs;
+  const tabs = allTabs;
 
   return (
     <MainLayout
