@@ -184,7 +184,7 @@ export function parseProductFormConfig(product: Record<string, unknown>): Parsed
       fieldId: e.key.replace(/\s+/g, '-').toLowerCase(),
       label: e.value,
       type: 'file',
-      isRequired: false,
+      isRequired: true,
     }));
 
     sections.push({

@@ -332,11 +332,12 @@ export const NewApplication: React.FC = () => {
         const isRequired = field.isRequired || field['Is Required'] === 'True' || field['Is Mandatory'] === 'True' || field.isMandatory === true;
 
         const value = formData.form_data[displayKey] ?? formData.form_data[fieldId];
-        // File fields: satisfied if Yes/Added or Awaiting (new or old values)
+        // File fields: satisfied if Yes/Added, Awaiting, or Not Available (new or old values)
         const fileFieldSatisfied = fieldType === 'file' && (
           value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
           value === 'added_to_link' || value === 'to_be_shared' ||
-          value === 'yes_added_to_folder' || value === 'awaiting_will_update'
+          value === 'yes_added_to_folder' || value === 'awaiting_will_update' ||
+          value === 'Not Available' || value === 'not_available'
         );
 
         if (isRequired) {
@@ -372,7 +373,7 @@ export const NewApplication: React.FC = () => {
       });
     });
 
-    // Global rule: require at least one of (documents or folder link) for submission
+    // Global rule: require valid Documents Folder Link in the dedicated field only
     const fd = formData.form_data;
     const folderLink = fd._documentsFolderLink;
     const isValidFolderLink =
@@ -382,26 +383,7 @@ export const NewApplication: React.FC = () => {
       (folderLink.toLowerCase().includes('drive.google.com') ||
         folderLink.toLowerCase().includes('onedrive.live.com') ||
         folderLink.toLowerCase().includes('sharepoint.com'));
-    let hasDocumentLink = isValidFolderLink;
-    if (!hasDocumentLink && fd) {
-      for (const key of Object.keys(fd)) {
-        if (key === '_documentsFolderLink') continue;
-        const v = fd[key];
-        if (v && typeof v === 'string' && v.trim().length > 0) {
-          const lower = v.toLowerCase();
-          if (
-            lower.includes('drive.google.com') ||
-            lower.includes('onedrive.live.com') ||
-            lower.includes('sharepoint.com') ||
-            v.startsWith('http')
-          ) {
-            hasDocumentLink = true;
-            break;
-          }
-        }
-      }
-    }
-    if (!hasDocumentLink) {
+    if (!isValidFolderLink) {
       errors._documentsFolderLink =
         'Please upload the required documents or provide a valid Google Drive / OneDrive link before submitting the application.';
     }
@@ -435,7 +417,12 @@ export const NewApplication: React.FC = () => {
         if (errorElement) {
           errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        alert(`Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`);
+        const hasDocumentErrors = '_documentsFolderLink' in validation.errors ||
+          Object.keys(validation.errors).some((k) => k !== 'applicant_name' && k !== 'loan_product_id' && k !== 'requested_loan_amount' && k !== '_businessType');
+        const message = hasDocumentErrors
+          ? 'Please provide the document folder link and update the document checklist before submitting the application.'
+          : `Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`;
+        alert(message);
         return;
       }
     }

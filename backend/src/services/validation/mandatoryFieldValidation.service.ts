@@ -94,38 +94,12 @@ function isValidDocumentsFolderLink(value: unknown): boolean {
   );
 }
 
-/** True if formData has at least one value that looks like a document/folder URL (excluding _documentsFolderLink). */
-function hasDocumentLinkInFormData(formData: Record<string, any>): boolean {
-  for (const key of Object.keys(formData)) {
-    if (key === '_documentsFolderLink') continue;
-    const v = formData[key];
-    if (v && typeof v === 'string' && v.trim().length > 0) {
-      const lower = v.toLowerCase();
-      if (
-        lower.includes('drive.google.com') ||
-        lower.includes('onedrive.live.com') ||
-        lower.includes('sharepoint.com') ||
-        v.startsWith('http')
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 /**
- * Returns true when the user has provided at least one of: a valid Documents Folder Link,
- * or document links (in documentLinks map or in formData values).
+ * Returns true only when the dedicated Documents Folder Link field contains a valid
+ * Google Drive / OneDrive / SharePoint URL. Other form fields are not accepted.
  */
-function hasDocumentsOrFolderLink(
-  formData: Record<string, any>,
-  documentLinks?: Record<string, string>
-): boolean {
-  if (isValidDocumentsFolderLink(formData._documentsFolderLink)) return true;
-  if (documentLinks && Object.keys(documentLinks).length > 0) return true;
-  if (hasDocumentLinkInFormData(formData)) return true;
-  return false;
+function hasDocumentsOrFolderLink(formData: Record<string, any>): boolean {
+  return isValidDocumentsFolderLink(formData._documentsFolderLink);
 }
 
 /**
@@ -263,7 +237,8 @@ export async function validateMandatoryFields(
     const fileFieldSatisfied = field.type === 'file' && (
       value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
       value === 'added_to_link' || value === 'to_be_shared' ||
-      value === 'yes_added_to_folder' || value === 'awaiting_will_update'
+      value === 'yes_added_to_folder' || value === 'awaiting_will_update' ||
+      value === 'Not Available' || value === 'not_available'
     );
 
     // Format validation for PAN fields (when value is present). Skip for file-type or file-option values.
@@ -324,8 +299,8 @@ export async function validateMandatoryFields(
     }
   });
 
-  // Global rule: require at least one of (documents or folder link) for submission
-  if (!hasDocumentsOrFolderLink(formData, documentLinks)) {
+  // Global rule: require valid Documents Folder Link in the dedicated field only
+  if (!hasDocumentsOrFolderLink(formData)) {
     missingFields.push({
       fieldId: '_documentsFolderLink',
       label: 'Documents Folder Link',
@@ -346,9 +321,14 @@ export async function validateMandatoryFields(
     });
   }
 
+  const hasFolderLinkMissing = missingFields.some((f) => f.fieldId === '_documentsFolderLink');
+  const hasChecklistMissing = missingFields.some((f) => f.type === 'file');
+  const COMBINED_DOCUMENTS_ERROR_MESSAGE =
+    'Please provide the document folder link and update the document checklist before submitting the application.';
+
   const errorMessageForMissing =
-    missingFields.some((f) => f.fieldId === '_documentsFolderLink') && missingFields.length === 1
-      ? DOCUMENTS_OR_LINK_ERROR_MESSAGE
+    hasFolderLinkMissing || hasChecklistMissing
+      ? COMBINED_DOCUMENTS_ERROR_MESSAGE
       : missingFields.length > 0
         ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`
         : undefined;
