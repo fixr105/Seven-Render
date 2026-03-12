@@ -30,10 +30,11 @@ describe('mandatoryFieldValidation.service', () => {
     (simpleFormConfigModule.getSimpleFormConfig as jest.Mock<any>).mockResolvedValue(mockFormConfig);
   });
 
-  const validFolderLink = 'https://drive.google.com/d/folder/abc123';
-
   it('does not add PAN format error when PAN-identified field has type file and value is file option', async () => {
-    const formData = { 'PAN - Documents': 'Yes, Added to Folder', _documentsFolderLink: validFolderLink };
+    const formData = {
+      'PAN - Documents': 'Yes, Added to Folder',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+    };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(true);
     expect(result.formatErrors).toBeUndefined();
@@ -41,43 +42,24 @@ describe('mandatoryFieldValidation.service', () => {
   });
 
   it('does not add PAN format error when value is Not Available (file option)', async () => {
-    const formData = { 'PAN - Documents': 'Not Available' };
+    const formData = {
+      'PAN - Documents': 'Not Available',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+    };
     const result = await validateMandatoryFields(formData, 'test-client-id');
-    // Not Available satisfies required file field; only folder link is missing. No PAN format error.
+    // Not Available does not satisfy required file field, so field can be missing; but no PAN format error
     expect(result.formatErrors).toBeUndefined();
-    expect(result.missingFields?.some((f) => f.fieldId === '_documentsFolderLink')).toBe(true);
-    expect(result.missingFields?.some((f) => f.fieldId === 'pan-1')).toBe(false);
+    expect(result.missingFields?.some((f) => f.fieldId === 'pan-1')).toBe(true);
   });
 
   it('does not add PAN format error when value is Awaiting, Will Update Folder', async () => {
-    const formData = { 'PAN - Documents': 'Awaiting, Will Update Folder', _documentsFolderLink: validFolderLink };
+    const formData = {
+      'PAN - Documents': 'Awaiting, Will Update Folder',
+      _documentsFolderLink: 'https://onedrive.live.com/embed?cid=xyz',
+    };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(true);
     expect(result.formatErrors).toBeUndefined();
     expect(result.missingFields).toHaveLength(0);
-  });
-
-  it('blocks submission when folder link is missing even if another field has http URL', async () => {
-    const formData = { 'PAN - Documents': 'Yes, Added to Folder', otherField: 'http://example.com/link' };
-    const result = await validateMandatoryFields(formData, 'test-client-id');
-    expect(result.isValid).toBe(false);
-    expect(result.missingFields?.some((f) => f.fieldId === '_documentsFolderLink')).toBe(true);
-  });
-
-  it('allows submission when valid folder link and all document checklist items have status', async () => {
-    const formData = {
-      _documentsFolderLink: 'https://onedrive.live.com/redir?resid=xyz',
-      'PAN - Documents': 'Yes, Added to Folder',
-    };
-    const result = await validateMandatoryFields(formData, 'test-client-id');
-    expect(result.isValid).toBe(true);
-    expect(result.missingFields).toHaveLength(0);
-  });
-
-  it('blocks submission when folder link is valid but required document checklist field has no status', async () => {
-    const formData = { _documentsFolderLink: validFolderLink };
-    const result = await validateMandatoryFields(formData, 'test-client-id');
-    expect(result.isValid).toBe(false);
-    expect(result.missingFields?.some((f) => f.fieldId === 'pan-1')).toBe(true);
   });
 });

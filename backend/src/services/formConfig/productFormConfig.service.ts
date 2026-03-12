@@ -180,6 +180,7 @@ export function parseProductFormConfig(product: Record<string, unknown>): Parsed
     }
     if (!categoryName) categoryName = `Section ${sec.sectionId}`;
 
+    // Document checklist: require a status for each document (block submit until all are set)
     const fields: ParsedFormField[] = fieldsForSection.map((e) => ({
       fieldId: e.key.replace(/\s+/g, '-').toLowerCase(),
       label: e.value,

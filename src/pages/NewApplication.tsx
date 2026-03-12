@@ -332,12 +332,11 @@ export const NewApplication: React.FC = () => {
         const isRequired = field.isRequired || field['Is Required'] === 'True' || field['Is Mandatory'] === 'True' || field.isMandatory === true;
 
         const value = formData.form_data[displayKey] ?? formData.form_data[fieldId];
-        // File fields: satisfied if Yes/Added, Awaiting, or Not Available (new or old values)
+        // File fields: satisfied if Yes/Added or Awaiting (new or old values)
         const fileFieldSatisfied = fieldType === 'file' && (
           value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
           value === 'added_to_link' || value === 'to_be_shared' ||
-          value === 'yes_added_to_folder' || value === 'awaiting_will_update' ||
-          value === 'Not Available' || value === 'not_available'
+          value === 'yes_added_to_folder' || value === 'awaiting_will_update'
         );
 
         if (isRequired) {
@@ -373,7 +372,7 @@ export const NewApplication: React.FC = () => {
       });
     });
 
-    // Global rule: require valid Documents Folder Link in the dedicated field only
+    // Require a valid Documents Folder Link in the dedicated field only (no other field may satisfy this)
     const fd = formData.form_data;
     const folderLink = fd._documentsFolderLink;
     const isValidFolderLink =
@@ -385,7 +384,7 @@ export const NewApplication: React.FC = () => {
         folderLink.toLowerCase().includes('sharepoint.com'));
     if (!isValidFolderLink) {
       errors._documentsFolderLink =
-        'Please upload the required documents or provide a valid Google Drive / OneDrive link before submitting the application.';
+        'Please provide the document folder link and update the document checklist before submitting the application.';
     }
 
     return { isValid: Object.keys(errors).length === 0, errors };
@@ -417,12 +416,7 @@ export const NewApplication: React.FC = () => {
         if (errorElement) {
           errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        const hasDocumentErrors = '_documentsFolderLink' in validation.errors ||
-          Object.keys(validation.errors).some((k) => k !== 'applicant_name' && k !== 'loan_product_id' && k !== 'requested_loan_amount' && k !== '_businessType');
-        const message = hasDocumentErrors
-          ? 'Please provide the document folder link and update the document checklist before submitting the application.'
-          : `Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`;
-        alert(message);
+        alert(`Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`);
         return;
       }
     }

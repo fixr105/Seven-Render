@@ -79,7 +79,7 @@ function isFileOptionValue(value: unknown): boolean {
 }
 
 const DOCUMENTS_OR_LINK_ERROR_MESSAGE =
-  'Please upload the required documents or provide a valid Google Drive / OneDrive link before submitting the application.';
+  'Please provide the document folder link and update the document checklist before submitting the application.';
 
 /** True if value looks like a Google Drive or OneDrive/SharePoint URL. */
 function isValidDocumentsFolderLink(value: unknown): boolean {
@@ -95,10 +95,14 @@ function isValidDocumentsFolderLink(value: unknown): boolean {
 }
 
 /**
- * Returns true only when the dedicated Documents Folder Link field contains a valid
- * Google Drive / OneDrive / SharePoint URL. Other form fields are not accepted.
+ * Returns true only when the user has provided a valid Documents Folder Link
+ * in the dedicated _documentsFolderLink field (Google Drive / OneDrive / SharePoint).
+ * Other form fields are not accepted for this requirement.
  */
-function hasDocumentsOrFolderLink(formData: Record<string, any>): boolean {
+function hasDocumentsOrFolderLink(
+  formData: Record<string, any>,
+  _documentLinks?: Record<string, string>
+): boolean {
   return isValidDocumentsFolderLink(formData._documentsFolderLink);
 }
 
@@ -237,8 +241,7 @@ export async function validateMandatoryFields(
     const fileFieldSatisfied = field.type === 'file' && (
       value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
       value === 'added_to_link' || value === 'to_be_shared' ||
-      value === 'yes_added_to_folder' || value === 'awaiting_will_update' ||
-      value === 'Not Available' || value === 'not_available'
+      value === 'yes_added_to_folder' || value === 'awaiting_will_update'
     );
 
     // Format validation for PAN fields (when value is present). Skip for file-type or file-option values.
@@ -299,8 +302,8 @@ export async function validateMandatoryFields(
     }
   });
 
-  // Global rule: require valid Documents Folder Link in the dedicated field only
-  if (!hasDocumentsOrFolderLink(formData)) {
+  // Global rule: require at least one of (documents or folder link) for submission
+  if (!hasDocumentsOrFolderLink(formData, documentLinks)) {
     missingFields.push({
       fieldId: '_documentsFolderLink',
       label: 'Documents Folder Link',
@@ -321,14 +324,9 @@ export async function validateMandatoryFields(
     });
   }
 
-  const hasFolderLinkMissing = missingFields.some((f) => f.fieldId === '_documentsFolderLink');
-  const hasChecklistMissing = missingFields.some((f) => f.type === 'file');
-  const COMBINED_DOCUMENTS_ERROR_MESSAGE =
-    'Please provide the document folder link and update the document checklist before submitting the application.';
-
   const errorMessageForMissing =
-    hasFolderLinkMissing || hasChecklistMissing
-      ? COMBINED_DOCUMENTS_ERROR_MESSAGE
+    missingFields.some((f) => f.fieldId === '_documentsFolderLink') && missingFields.length === 1
+      ? DOCUMENTS_OR_LINK_ERROR_MESSAGE
       : missingFields.length > 0
         ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`
         : undefined;
