@@ -21,6 +21,8 @@ interface MainLayoutProps {
   onMarkAllAsRead?: () => void;
   /** When true, main content has no padding and fills the space (for NBFCTools 3-column layout) */
   fullBleed?: boolean;
+  /** When true, hide the main sidebar (used on Tools page where only AI Tools bar is shown) */
+  hideSidebar?: boolean;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({
@@ -36,27 +38,32 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   onMarkAsRead,
   onMarkAllAsRead,
   fullBleed = false,
+  hideSidebar = false,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-100 relative">
-      {/* Logo in corner intersection - fills the area where sidebar and topbar meet; hidden on mobile so TopBar hamburger is accessible */}
-      <div className="hidden lg:flex absolute top-0 left-0 z-50 w-64 h-16 bg-brand-primary items-center justify-center">
-        <Link to="/dashboard" className="h-full w-full flex items-center justify-center p-3">
-          <img src={logo} alt="SEVEN FINCORP Logo" className="h-full w-full object-contain" />
-        </Link>
-      </div>
+      {/* Logo in corner intersection - only when sidebar is visible */}
+      {!hideSidebar && (
+        <div className="hidden lg:flex absolute top-0 left-0 z-50 w-64 h-16 bg-brand-primary items-center justify-center">
+          <Link to="/dashboard" className="h-full w-full flex items-center justify-center p-3">
+            <img src={logo} alt="SEVEN FINCORP Logo" className="h-full w-full object-contain" />
+          </Link>
+        </div>
+      )}
 
-      <Sidebar
-        items={sidebarItems}
-        activeItem={activeItem}
-        onItemClick={onItemClick}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        userRole={userRole}
-        userName={userName}
-      />
+      {!hideSidebar && (
+        <Sidebar
+          items={sidebarItems}
+          activeItem={activeItem}
+          onItemClick={onItemClick}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          userRole={userRole}
+          userName={userName}
+        />
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* TopBar extends from left edge to right edge */}
@@ -69,6 +76,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             notifications={notifications}
             onMarkAsRead={onMarkAsRead}
             onMarkAllAsRead={onMarkAllAsRead}
+            hideSidebar={hideSidebar}
           />
         </div>
 

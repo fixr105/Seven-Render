@@ -12,21 +12,27 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 import {
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileText,
   Loader2,
   Copy,
   Send,
+  MessageSquare,
   AlertCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 const JOB_ID_KEY = 'nbfc_tool_job_id';
+const TOOLS_BAR_COLLAPSED_KEY = 'nbfc_tools_bar_collapsed';
 
 const TOOL_ITEMS = [
-  { id: 'raad', label: 'RAAD (Read Assess Allocate Disburse)' },
-  { id: 'pager', label: 'PAGER (Lender One-Pager)' },
-  { id: 'query', label: 'Query Drafter' },
-] as const;
+  { id: 'raad', label: 'RAAD (Read Assess Allocate Disburse)', icon: BarChart3 },
+  { id: 'pager', label: 'PAGER (Lender One-Pager)', icon: FileText },
+  { id: 'query', label: 'Query Drafter', icon: MessageSquare },
+] as const satisfies readonly { id: string; label: string; icon: LucideIcon }[];
 
 type ToolId = (typeof TOOL_ITEMS)[number]['id'];
 
@@ -63,6 +69,17 @@ export const NBFCTools: React.FC = () => {
   const [jobError, setJobError] = useState<string | null>(null);
 
   const [history, setHistory] = useState<HistoryJob[]>([]);
+  const [toolsBarCollapsed, setToolsBarCollapsed] = useState(() =>
+    localStorage.getItem(TOOLS_BAR_COLLAPSED_KEY) === 'true'
+  );
+
+  const toggleToolsBar = () => {
+    setToolsBarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(TOOLS_BAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  };
 
   // RAAD
   const [raadBankFile, setRaadBankFile] = useState<File | null>(null);
@@ -312,6 +329,7 @@ export const NBFCTools: React.FC = () => {
 
   return (
     <MainLayout
+      hideSidebar
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
@@ -324,71 +342,107 @@ export const NBFCTools: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
       fullBleed
     >
-      <div className="grid grid-cols-[220px_1fr_380px] h-full min-h-0">
-        {/* LEFT COLUMN */}
+      <div
+        className="grid h-full min-h-0 transition-[grid-template-columns] duration-300 ease-in-out"
+        style={{
+          gridTemplateColumns: toolsBarCollapsed ? '64px 1fr 380px' : '220px 1fr 380px',
+        }}
+      >
+        {/* LEFT COLUMN - Retractable AI Tools bar */}
         <div className="bg-[#1a1a2e] flex flex-col overflow-hidden">
-          <h2 className="text-white text-sm font-medium uppercase tracking-wider px-4 pt-6 pb-4">
-            AI Tools
-          </h2>
-          <nav className="flex flex-col">
-            {TOOL_ITEMS.map((t) => (
+          {/* Header with toggle */}
+          <div className="flex items-center justify-between px-4 pt-6 pb-4 flex-shrink-0">
+            {toolsBarCollapsed ? (
               <button
-                key={t.id}
-                onClick={() => setSelectedTool(t.id)}
-                className={`text-left px-4 py-3 text-sm border-l-4 transition-colors ${
-                  selectedTool === t.id
-                    ? 'border-[#332f78] bg-white/5 text-white'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-300'
-                }`}
+                onClick={toggleToolsBar}
+                className="w-full flex justify-center p-2 text-neutral-400 hover:text-white transition-colors"
+                aria-label="Expand tools bar"
               >
-                {t.label}
+                <ChevronRight className="w-5 h-5" />
               </button>
-            ))}
-          </nav>
-          <div className="mt-auto border-t border-white/10 px-4 py-4">
-            <h3 className="text-white text-xs font-medium uppercase tracking-wider mb-3">
-              Recent Reports
-            </h3>
-            {history.length === 0 ? (
-              <p className="text-neutral-500 text-xs">No reports yet</p>
             ) : (
-              <ul className="space-y-2">
-                {history.map((j) => (
-                  <li key={j.id}>
-                    <button
-                      onClick={() => handleSelectJob(j)}
-                      className="text-left w-full text-xs text-neutral-400 hover:text-white transition-colors"
-                    >
-                      <span className="block truncate font-medium text-white/90">
-                        {j.tool === 'raad' ? 'RAAD' : j.tool === 'pager' ? 'PAGER' : j.tool}
-                      </span>
-                      <span className="block truncate">
-                        {new Date(j.date).toLocaleDateString()} ·{' '}
-                        <span
-                          className={
-                            j.status === 'ready'
-                              ? 'text-green-400'
-                              : j.status === 'failed'
-                                ? 'text-red-400'
-                                : 'text-amber-400'
-                          }
-                        >
-                          {j.status === 'ready'
-                            ? 'Ready'
-                            : j.status === 'failed'
-                              ? 'Failed'
-                              : 'Processing'}
-                        </span>
-                      </span>
-                      {j.status === 'ready' && j.reportUrl && (
-                        <Download className="inline w-3 h-3 ml-1" />
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <h2 className="text-white text-sm font-medium uppercase tracking-wider truncate flex-1">
+                  AI Tools
+                </h2>
+                <button
+                  onClick={toggleToolsBar}
+                  className="p-1 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
+                  aria-label="Collapse tools bar"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </>
             )}
           </div>
+          <nav className="flex flex-col flex-1 min-h-0">
+            {TOOL_ITEMS.map((t) => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedTool(t.id)}
+                  title={t.label}
+                  className={`flex items-center gap-3 border-l-4 transition-colors ${
+                    toolsBarCollapsed ? 'justify-center px-0 py-3' : 'text-left px-4 py-3 text-sm'
+                  } ${
+                    selectedTool === t.id
+                      ? 'border-[#332f78] bg-white/5 text-white'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!toolsBarCollapsed && <span className="truncate">{t.label}</span>}
+                </button>
+              );
+            })}
+          </nav>
+          {!toolsBarCollapsed && (
+            <div className="mt-auto border-t border-white/10 px-4 py-4">
+              <h3 className="text-white text-xs font-medium uppercase tracking-wider mb-3">
+                Recent Reports
+              </h3>
+              {history.length === 0 ? (
+                <p className="text-neutral-500 text-xs">No reports yet</p>
+              ) : (
+                <ul className="space-y-2">
+                  {history.map((j) => (
+                    <li key={j.id}>
+                      <button
+                        onClick={() => handleSelectJob(j)}
+                        className="text-left w-full text-xs text-neutral-400 hover:text-white transition-colors"
+                      >
+                        <span className="block truncate font-medium text-white/90">
+                          {j.tool === 'raad' ? 'RAAD' : j.tool === 'pager' ? 'PAGER' : j.tool}
+                        </span>
+                        <span className="block truncate">
+                          {new Date(j.date).toLocaleDateString()} ·{' '}
+                          <span
+                            className={
+                              j.status === 'ready'
+                                ? 'text-green-400'
+                                : j.status === 'failed'
+                                  ? 'text-red-400'
+                                  : 'text-amber-400'
+                            }
+                          >
+                            {j.status === 'ready'
+                              ? 'Ready'
+                              : j.status === 'failed'
+                                ? 'Failed'
+                                : 'Processing'}
+                          </span>
+                        </span>
+                        {j.status === 'ready' && j.reportUrl && (
+                          <Download className="inline w-3 h-3 ml-1" />
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         {/* CENTER COLUMN */}

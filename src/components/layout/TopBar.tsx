@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Bell, Menu, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { Notification } from '../../hooks/useNotifications';
@@ -14,6 +14,8 @@ interface TopBarProps {
   notifications?: Notification[];
   onMarkAsRead?: (notificationId: string) => void;
   onMarkAllAsRead?: () => void;
+  /** When true, sidebar is hidden (Tools page) - adjusts layout and Tools button acts as back to Dashboard */
+  hideSidebar?: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -24,8 +26,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   notifications = [],
   onMarkAsRead,
   onMarkAllAsRead,
+  hideSidebar = false,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -90,11 +94,23 @@ export const TopBar: React.FC<TopBarProps> = ({
     setShowNotifications(false);
   };
 
+  const isOnToolsPage = location.pathname === '/nbfc/tools';
+  const handleToolsClick = () => {
+    if (isOnToolsPage) {
+      navigate('/dashboard');
+    } else {
+      navigate('/nbfc/tools');
+    }
+  };
+
   return (
-    <header className="bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full lg:ml-[-256px] lg:w-[calc(100%+256px)]" aria-label={title ? `Page: ${title}` : undefined}>
+    <header
+      className={`bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full ${hideSidebar ? '' : 'lg:ml-[-256px] lg:w-[calc(100%+256px)]'}`}
+      aria-label={title ? `Page: ${title}` : undefined}
+    >
       <div className="flex items-center justify-between h-16 w-full">
-        {/* Left section - account for logo space on desktop; show page title */}
-        <div className="flex items-center gap-4 pl-4 lg:pl-64 flex-1 min-w-0">
+        {/* Left section - account for logo space on desktop when sidebar visible; show page title */}
+        <div className={`flex items-center gap-4 pl-4 flex-1 min-w-0 ${hideSidebar ? 'lg:pl-4' : 'lg:pl-64'}`}>
           <button
             onClick={onMenuToggle}
             className="lg:hidden p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
@@ -111,15 +127,15 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Right section */}
         <div className="flex items-center gap-2 pr-4">
-          {/* Tools - NBFC only */}
+          {/* Tools - NBFC only; when on Tools page, acts as "Back to Dashboard" */}
           {user?.role === 'nbfc' && (
             <button
-              onClick={() => navigate('/nbfc/tools')}
+              onClick={handleToolsClick}
               className="relative bg-[#332f78] text-white text-sm px-3 py-1.5 rounded-full hover:opacity-90 transition-opacity touch-manipulation"
-              aria-label="AI Tools"
+              aria-label={isOnToolsPage ? 'Back to Dashboard' : 'AI Tools'}
             >
-              ⚡ Tools
-              {hasUnreadTools && (
+              {isOnToolsPage ? '← Dashboard' : '⚡ Tools'}
+              {!isOnToolsPage && hasUnreadTools && (
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-error rounded-full" />
               )}
             </button>

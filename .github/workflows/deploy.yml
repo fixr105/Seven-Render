@@ -29,11 +29,15 @@ jobs:
     name: Deploy Frontend to Vercel
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    outputs:
+      deployment-url: ${{ steps.vercel-deploy.outputs.deployment-url }}
+      preview-url: ${{ steps.vercel-deploy.outputs.preview-url }}
     
     steps:
       - uses: actions/checkout@v4
       
       - name: Deploy to Vercel
+        id: vercel-deploy
         uses: amondnet/vercel-action@v25
         env:
           VERCEL_FORCE_NO_BUILD_CACHE: '1'
@@ -42,3 +46,28 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           vercel-args: '--prod --force'
+
+  deploy-summary:
+    name: Deploy Summary - Test Links
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    steps:
+      - name: Post deploy test links
+        run: |
+          FRONTEND_URL="${{ needs.deploy-frontend.outputs.deployment-url || needs.deploy-frontend.outputs.preview-url }}"
+          if [ -z "$FRONTEND_URL" ]; then
+            FRONTEND_URL="https://seven-dashboard-seven.vercel.app"
+          fi
+          echo "## Test links (deploy complete)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Frontend** | $FRONTEND_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Backend API** | https://seven-dash.fly.dev |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Primary test link:** [$FRONTEND_URL]($FRONTEND_URL)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "Frontend: $FRONTEND_URL" >> $GITHUB_STEP_SUMMARY
+          echo "Backend:  https://seven-dash.fly.dev"
