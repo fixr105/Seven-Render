@@ -19,6 +19,8 @@ export default {
         'warning': '#FFC107',
         'error': '#DC3545',
         'info': '#17A2B8',
+        'nbfc-accent': '#332f78',
+        'nbfc-dark': '#2a265f',
       },
       fontFamily: {
         sans: ['Lato', 'sans-serif'],

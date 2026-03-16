@@ -377,6 +377,26 @@ model Notification {
   @@map("notifications")
 }
 
+/// NBFC AI Tools - RAAD, PAGER, Query Drafter job records
+model ToolJob {
+  id                String    @id @default(uuid())
+  nbfcUserId        String
+  tool              String    // 'raad' | 'pager' | 'query'
+  status            String    @default("processing") // 'processing' | 'ready' | 'failed'
+  stage             String?   // current pipeline stage for display
+  reportUrl         String?   // Vercel Blob URL
+  draftedQuery      String?   // for query drafter tool
+  loanApplicationId String?
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+  expiresAt         DateTime  // set to createdAt + 30 days
+
+  @@index([nbfcUserId])
+  @@index([createdAt])
+  @@map("tool_jobs")
+}
+
 // ============================================================================
 // ENUMS
 // ============================================================================

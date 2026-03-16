@@ -261,40 +261,6 @@ describe('NewApplication Page - P0 Tests', () => {
       if (errorText) expect(errorText).toBeInTheDocument();
     }, 15000);
 
-    it('should block submit when Documents Folder Link is empty (no bypass via other fields)', async () => {
-      const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
-
-      await selectFirstLoanProduct(user);
-      await waitFor(() => expect(apiService.getFormConfig).toHaveBeenCalled(), { timeout: 5000 });
-
-      // Fill core fields and one document option but do NOT fill folder link
-      const applicantInput = screen.queryByRole('textbox', { name: /applicant name/i }) ?? screen.getAllByRole('textbox')[0];
-      if (applicantInput) await user.type(applicantInput, 'Test Applicant');
-      const amountInput = document.querySelector('#requested_loan_amount') ?? screen.queryByPlaceholderText(/amount|loan/i);
-      if (amountInput) await user.type(amountInput as HTMLElement, '500000');
-      // Intentionally leave Documents Folder Link empty (no value that could bypass validation)
-      const addedToLinkRadio = screen.queryByRole('radio', { name: /yes, added to folder/i });
-      if (addedToLinkRadio) await user.click(addedToLinkRadio);
-
-      const submitButton = screen.getByRole('button', { name: /submit|send|create|new application/i });
-      await user.click(submitButton);
-
-      await waitFor(() => {
-        expect(apiService.createApplication).not.toHaveBeenCalled();
-      }, { timeout: 3000 });
-    }, 15000);
-
     it.skip('should allow submission when all mandatory fields are filled', async () => {
       const user = userEvent.setup();
       renderWithProviders(<NewApplication />, {

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Menu, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { Notification } from '../../hooks/useNotifications';
 import { formatRelativeTime } from '../../utils/dateFormatter';
+import { apiService } from '../../services/api';
 
 interface TopBarProps {
   title: string;
@@ -25,9 +26,29 @@ export const TopBar: React.FC<TopBarProps> = ({
   onMarkAllAsRead,
 }) => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [hasUnreadTools, setHasUnreadTools] = useState(false);
+
+  const fetchToolsUnread = useCallback(async () => {
+    if (user?.role !== 'nbfc') return;
+    try {
+      const res = await apiService.getNBFCToolsHistory();
+      if (!res.success || !res.data?.jobs) return;
+      const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+      const hasRecentReady = (res.data.jobs as Array<{ status?: string; createdAt?: string; date?: string }>).some(
+        (j) => j.status === 'ready' && new Date(j.createdAt ?? j.date ?? 0).getTime() > twentyFourHoursAgo
+      );
+      setHasUnreadTools(hasRecentReady);
+    } catch {
+      setHasUnreadTools(false);
+    }
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role === 'nbfc') fetchToolsUnread();
+  }, [user?.role, fetchToolsUnread]);
 
   const handleLogout = () => {
     logout();
@@ -90,6 +111,19 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Right section */}
         <div className="flex items-center gap-2 pr-4">
+          {/* Tools - NBFC only */}
+          {user?.role === 'nbfc' && (
+            <button
+              onClick={() => navigate('/nbfc/tools')}
+              className="relative bg-[#332f78] text-white text-sm px-3 py-1.5 rounded-full hover:opacity-90 transition-opacity touch-manipulation"
+              aria-label="AI Tools"
+            >
+              ⚡ Tools
+              {hasUnreadTools && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-error rounded-full" />
+              )}
+            </button>
+          )}
           {/* Notifications */}
           <div className="relative">
             <button

@@ -156,19 +156,28 @@ export const ApplicationDetail: React.FC = () => {
   }, [showAssignNbfcSection]);
 
   // Fetch form config for old key mapping (field-* → human-readable label)
-  useEffect(() => {
-    if (!application) return;
-    const productId = (application as any).loan_product_id ?? (application as any).productId ?? (application as any)['Product ID'] ?? (application.loan_product as any)?.code ?? (application as any)['Loan Product'];
-    const clientId = (application as any).Client ?? (application as any).clientId ?? (typeof (application as any).client === 'string' ? (application as any).client : null);
-    if (!productId || typeof productId !== 'string') return;
+  const appRecord = application ? (application as unknown) as Record<string, unknown> : null;
+  const productIdForConfig = appRecord
+    ? String(appRecord.loan_product_id ?? appRecord.productId ?? appRecord['Product ID'] ?? (application?.loan_product as { code?: string } | undefined)?.code ?? appRecord['Loan Product'] ?? '')
+    : '';
+  const clientIdForConfig = appRecord
+    ? (() => {
+        const client = appRecord.Client ?? appRecord.clientId;
+        if (typeof client === 'string') return client;
+        return null;
+      })()
+    : null;
 
-    const buildMap = (config: any[]) => {
+  useEffect(() => {
+    if (!application || !productIdForConfig) return;
+
+    const buildMap = (config: Array<{ categoryName?: string; 'Category Name'?: string; fields?: Array<{ fieldId?: string; 'Field ID'?: string; id?: string; label?: string; 'Field Label'?: string }> }>) => {
       const map: Record<string, string> = {};
-      (config || []).forEach((cat: any) => {
-        const categoryName = cat.categoryName || cat['Category Name'] || '';
-        (cat.fields || []).forEach((f: any) => {
-          const fid = f.fieldId || f['Field ID'] || f.id;
-          const label = f.label || f['Field Label'] || '';
+      (config || []).forEach((cat: Record<string, unknown>) => {
+        const categoryName = (cat.categoryName ?? cat['Category Name'] ?? '') as string;
+        ((cat.fields ?? []) as Array<Record<string, unknown>>).forEach((f: Record<string, unknown>) => {
+          const fid = (f.fieldId || f['Field ID'] || f.id) as string | undefined;
+          const label = (f.label || f['Field Label'] || '') as string;
           if (fid && label) map[fid] = `${label} - ${categoryName}`;
         });
       });
@@ -177,10 +186,10 @@ export const ApplicationDetail: React.FC = () => {
 
     const fetchConfig = () => {
       if (typeof apiService.getFormConfig === 'function') {
-        return apiService.getFormConfig(productId);
+        return apiService.getFormConfig(productIdForConfig);
       }
-      if (clientId && typeof clientId === 'string' && typeof apiService.getPublicFormConfig === 'function') {
-        return apiService.getPublicFormConfig(clientId, productId);
+      if (clientIdForConfig && typeof clientIdForConfig === 'string' && typeof apiService.getPublicFormConfig === 'function') {
+        return apiService.getPublicFormConfig(clientIdForConfig, productIdForConfig);
       }
       return Promise.resolve({ success: false });
     };
@@ -191,8 +200,8 @@ export const ApplicationDetail: React.FC = () => {
         buildMap(Array.isArray(config) ? config : []);
       }
     }).catch(() => {
-      if (clientId && typeof clientId === 'string' && typeof apiService.getPublicFormConfig === 'function') {
-        apiService.getPublicFormConfig(clientId, productId).then((r: ApiResponse<unknown>) => {
+      if (clientIdForConfig && typeof clientIdForConfig === 'string' && typeof apiService.getPublicFormConfig === 'function') {
+        apiService.getPublicFormConfig(clientIdForConfig, productIdForConfig).then((r: ApiResponse<unknown>) => {
           if (r.success && r.data) {
             const raw = r.data;
             const config = Array.isArray(raw) ? raw : Array.isArray((raw as Record<string, unknown>)?.categories) ? (raw as Record<string, unknown>).categories : [];
@@ -201,7 +210,7 @@ export const ApplicationDetail: React.FC = () => {
         }).catch(() => {});
       }
     });
-  }, [application?.id, application?.loan_product, (application as any)?.loan_product_id, (application as any)?.productId, (application as any)?.Client]);
+  }, [application?.id, application?.loan_product, productIdForConfig, clientIdForConfig]);
 
   const fetchApplicationDetails = async () => {
     try {
@@ -245,7 +254,7 @@ export const ApplicationDetail: React.FC = () => {
           requested_loan_amount: Number.isNaN(requested_loan_amount) ? undefined : requested_loan_amount,
           created_at: d.created_at ?? d.creationDate ?? d['Creation Date'],
           updated_at: d.updated_at ?? d.lastUpdated ?? d['Last Updated'],
-          assignedKAMName: d.assignedKAMName ?? (d as any).assigned_kam_name,
+          assignedKAMName: d.assignedKAMName ?? (d as Record<string, unknown>).assigned_kam_name,
           client:
             d.client != null && typeof d.client === 'object' && !Array.isArray(d.client) && 'company_name' in (d.client as object)
               ? d.client
@@ -287,7 +296,8 @@ export const ApplicationDetail: React.FC = () => {
       
       if (response.success && response.data) {
         // Handle both structured and plain summary formats
-        const summary = response.data.summary || response.data.structured?.fullSummary || '';
+        const data = response.data as { summary?: string; structured?: { fullSummary?: string } };
+        const summary = data.summary || data.structured?.fullSummary || '';
         
         if (summary) {
           setAiSummary(summary);
@@ -321,7 +331,7 @@ export const ApplicationDetail: React.FC = () => {
       if (error.response?.status === 403) {
         alert('You do not have permission to generate an AI summary for this application.');
       } else if (error.response?.status === 404) {
-        alert('Application not found. Please refresh the page and try again.');
+        alert('Application not found. Try navigating back to the applications list.');
       } else if (error.response?.status >= 500) {
         alert('Server error while generating summary. Please try again in a moment.');
       } else {
@@ -1590,6 +1600,8 @@ export const ApplicationDetail: React.FC = () => {
                     variant="primary"
                     icon={Sparkles}
                     onClick={handleGenerateAISummary}
+                    loading={generatingSummary}
+                    disabled={generatingSummary}
                   >
                     Generate AI Summary
                   </Button>

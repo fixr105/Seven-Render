@@ -7,7 +7,7 @@ import { DataTable, Column } from '../../components/ui/DataTable';
 import { FileText, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { apiService } from '../../services/api';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface ApplicationRow {
   id: string;
@@ -29,36 +29,26 @@ export const NBFCDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Fetch when userRoleId is available (e.g. after auth loads); re-fetch if userRoleId changes.
-  useEffect(() => {
-    if (userRoleId) {
-      fetchAssignedApplications();
-    } else {
-      setLoading(false);
-      setAssignedApplications([]);
-    }
-  }, [userRoleId]);
-
-  const fetchAssignedApplications = async () => {
+  const fetchAssignedApplications = useCallback(async () => {
     if (!userRoleId) return;
     try {
       setLoading(true);
       setFetchError(null);
       // Use API service to fetch NBFC applications
       const response = await apiService.listNBFCApplications();
-      
+
       if (response.success && response.data) {
         // Transform API response to match expected format
-        const transformed = (response.data as any[]).map((app: any) => ({
+        const transformed = (response.data as unknown as Array<Record<string, unknown>>).map((app) => ({
           id: app.id,
-          file_number: app.fileId || app['File ID'] || `SF${app.id.slice(0, 8)}`,
+          file_number: app.fileId || app['File ID'] || `SF${String(app.id || '').slice(0, 8)}`,
           status: app.status || app.Status || 'sent_to_nbfc',
           created_at: app.creationDate || app['Creation Date'] || app.createdAt || new Date().toISOString(),
-          client: app.client ? { company_name: app.client.name || app.client['Client Name'] } : undefined,
-          loan_product: app.loanProduct ? { name: app.loanProduct.name || app.loanProduct['Product Name'] } : undefined,
-          requested_loan_amount: app.requestedAmount || parseFloat(app['Requested Loan Amount'] || '0') || 0,
+          client: app.client && typeof app.client === 'object' ? { company_name: (app.client as Record<string, unknown>).name || (app.client as Record<string, unknown>)['Client Name'] } : undefined,
+          loan_product: app.loanProduct && typeof app.loanProduct === 'object' ? { name: (app.loanProduct as Record<string, unknown>).name || (app.loanProduct as Record<string, unknown>)['Product Name'] } : undefined,
+          requested_loan_amount: app.requestedAmount || parseFloat(String(app['Requested Loan Amount'] || '0')) || 0,
         }));
-        
+
         setAssignedApplications(transformed);
       } else {
         console.error('Error fetching NBFC applications:', response.error);
@@ -72,7 +62,17 @@ export const NBFCDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userRoleId]);
+
+  // Fetch when userRoleId is available (e.g. after auth loads); re-fetch if userRoleId changes.
+  useEffect(() => {
+    if (userRoleId) {
+      fetchAssignedApplications();
+    } else {
+      setLoading(false);
+      setAssignedApplications([]);
+    }
+  }, [userRoleId, fetchAssignedApplications]);
 
   // Calculate stats
   const pendingDecision = assignedApplications.filter(a => a.status === 'sent_to_nbfc').length;

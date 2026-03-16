@@ -47,9 +47,9 @@ describe('mandatoryFieldValidation.service', () => {
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
-    // Not Available does not satisfy required file field, so field can be missing; but no PAN format error
+    // Not Available satisfies required file field (user has made a selection); no PAN format error
     expect(result.formatErrors).toBeUndefined();
-    expect(result.missingFields?.some((f) => f.fieldId === 'pan-1')).toBe(true);
+    expect(result.missingFields?.some((f) => f.fieldId === 'pan-1')).toBe(false);
   });
 
   it('does not add PAN format error when value is Awaiting, Will Update Folder', async () => {

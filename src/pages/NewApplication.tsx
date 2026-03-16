@@ -332,9 +332,10 @@ export const NewApplication: React.FC = () => {
         const isRequired = field.isRequired || field['Is Required'] === 'True' || field['Is Mandatory'] === 'True' || field.isMandatory === true;
 
         const value = formData.form_data[displayKey] ?? formData.form_data[fieldId];
-        // File fields: satisfied if Yes/Added or Awaiting (new or old values)
+        // File fields: satisfied if Yes/Added or Awaiting or Not Available (new or old values)
         const fileFieldSatisfied = fieldType === 'file' && (
           value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
+          value === 'Not Available' || value === 'not_available' ||
           value === 'added_to_link' || value === 'to_be_shared' ||
           value === 'yes_added_to_folder' || value === 'awaiting_will_update'
         );

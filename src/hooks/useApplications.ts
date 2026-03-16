@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import { mapClientFromApi } from '../utils/applicationTransform';
@@ -117,19 +117,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
   const [loading, setLoading] = useState(true);
   const unmapped = options?.unmapped ?? false;
 
-  // Fetch on mount and when unmapped toggle changes
-  useEffect(() => {
-    fetchApplications();
-  }, [unmapped]);
-
-  // Refetch when tab/window regains focus (user returns to app or navigates back)
-  useEffect(() => {
-    const handleFocus = () => fetchApplications();
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [unmapped]);
-
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.listApplications(unmapped ? { unmapped: true } : undefined);
@@ -155,7 +143,19 @@ export const useApplications = (options?: UseApplicationsOptions) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [unmapped, refreshUser]);
+
+  // Fetch on mount and when unmapped toggle changes
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
+
+  // Refetch when tab/window regains focus (user returns to app or navigates back)
+  useEffect(() => {
+    const handleFocus = () => fetchApplications();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchApplications]);
 
   const updateStatus = async (_applicationId: string, _newStatus: string) => {
     // Status updates should go through specific endpoints (e.g., submit, forward, etc.)

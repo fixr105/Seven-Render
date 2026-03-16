@@ -19,6 +19,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminActivityLog } from './pages/AdminActivityLog';
 import { AdminUserAccounts } from './pages/AdminUserAccounts';
 import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
+import { NBFCTools } from './pages/NBFCTools';
 
 function App() {
   return (
@@ -42,18 +43,22 @@ function AppRoutes() {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
       <Route
         path="/applications"
         element={
-          <ProtectedRoute>
-            <Applications />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Applications />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
@@ -82,70 +87,86 @@ function AppRoutes() {
       <Route
         path="/ledger"
         element={
-          <ProtectedRoute allowedRoles={['client', 'kam', 'credit_team', 'admin']}>
-            <Ledger />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['client', 'kam', 'credit_team', 'admin']}>
+              <Ledger />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
       <Route
         path="/clients"
         element={
-          <ProtectedRoute allowedRoles={['kam', 'credit_team', 'admin']}>
-            <Clients />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['kam', 'credit_team', 'admin']}>
+              <Clients />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
       <Route
         path="/profile"
         element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
       <Route
         path="/settings"
         element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
       <Route
         path="/reports"
         element={
-          <ProtectedRoute>
-            <Reports />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Reports />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
       <Route
         path="/admin/activity-log"
         element={
-          <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
-            <AdminActivityLog />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
+              <AdminActivityLog />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
       <Route
         path="/admin/user-accounts"
         element={
-          <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
-            <AdminUserAccounts />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
+              <AdminUserAccounts />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
       <Route
         path="/admin/nbfc-partners"
         element={
-          <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
-            <AdminNBFCPartners />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
+              <AdminNBFCPartners />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
 
@@ -155,6 +176,17 @@ function AppRoutes() {
           <ErrorBoundary>
             <ProtectedRoute allowedRoles={['credit_team', 'admin']}>
               <FormConfiguration />
+            </ProtectedRoute>
+          </ErrorBoundary>
+        }
+      />
+
+      <Route
+        path="/nbfc/tools"
+        element={
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['nbfc']}>
+              <NBFCTools />
             </ProtectedRoute>
           </ErrorBoundary>
         }

@@ -19,6 +19,8 @@ interface MainLayoutProps {
   notifications?: Notification[];
   onMarkAsRead?: (notificationId: string) => void;
   onMarkAllAsRead?: () => void;
+  /** When true, main content has no padding and fills the space (for NBFCTools 3-column layout) */
+  fullBleed?: boolean;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({
@@ -33,6 +35,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   notifications,
   onMarkAsRead,
   onMarkAllAsRead,
+  fullBleed = false,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -69,10 +72,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           />
         </div>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto min-h-[calc(100vh-8rem)] animate-fade-in">
-            {children}
-          </div>
+        <main className={`flex-1 overflow-y-auto ${fullBleed ? 'p-0 overflow-hidden' : 'p-4 lg:p-6'}`}>
+          {fullBleed ? (
+            children
+          ) : (
+            <div className="max-w-7xl mx-auto min-h-[calc(100vh-8rem)] animate-fade-in">
+              {children}
+            </div>
+          )}
         </main>
         <Footer />
       </div>

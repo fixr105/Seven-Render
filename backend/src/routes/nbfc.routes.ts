@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import { creditController } from '../controllers/credit.controller.js';
 import { nbfcController } from '../controllers/nbfc.controller.js';
+import { nbfcToolsController } from '../controllers/nbfcTools.controller.js';
 import { requireNBFC } from '../middleware/rbac.middleware.js';
 
 const router = Router();
@@ -19,6 +20,7 @@ router.get('/loan-applications', nbfcController.listApplications.bind(nbfcContro
 router.get('/loan-applications/:id', nbfcController.getApplication.bind(nbfcController));
 router.post('/loan-applications/:id/decision', nbfcController.recordDecision.bind(nbfcController));
 router.post('/loan-applications/:id/mark-disbursed', creditController.markDisbursed.bind(creditController));
+router.post('/loan-applications/:id/queries', nbfcToolsController.raiseQuery.bind(nbfcToolsController));
 
 export default router;
 

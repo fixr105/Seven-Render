@@ -51,7 +51,7 @@ const roleNavigationTests = [
   { role: UserRole.CLIENT, allowedRoutes: ['/client/dashboard', '/loan-applications', '/clients/me/ledger'] },
   { role: UserRole.KAM, allowedRoutes: ['/kam/dashboard', '/kam/clients', '/kam/loan-applications'] },
   { role: UserRole.CREDIT, allowedRoutes: ['/credit/dashboard', '/credit/loan-applications', '/credit/clients'] },
-  { role: UserRole.NBFC, allowedRoutes: ['/nbfc/dashboard', '/nbfc/loan-applications'] },
+  { role: UserRole.NBFC, allowedRoutes: ['/nbfc/dashboard', '/nbfc/loan-applications', '/nbfc/tools'] },
 ];
 
 let navigationTestsPassed = 0;

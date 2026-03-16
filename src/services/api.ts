@@ -32,7 +32,7 @@ const AUTH_TOKEN_STORAGE_KEY = 'seven_auth_token';
 // Types
 export type UserRole = 'client' | 'kam' | 'credit_team' | 'nbfc' | 'admin';
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -326,8 +326,9 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
+    const isFormData = options.body instanceof FormData;
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      ...(!isFormData && { 'Content-Type': 'application/json' }),
       ...options.headers,
     };
 
@@ -1431,6 +1432,54 @@ class ApiService {
     return this.request(`/nbfc/loan-applications/${applicationId}/decision`, {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // NBFC AI Tools
+  async getNBFCToolsHistory(): Promise<
+    ApiResponse<{ jobs: Array<{ id: string; tool: string; date: string; status: string; reportUrl?: string }> }>
+  > {
+    return this.request('/nbfc/tools/history');
+  }
+
+  async getNBFCToolsJobStatus(jobId: string): Promise<
+    ApiResponse<{ status: string; stage?: string | null; reportUrl?: string | null; error?: string | null }>
+  > {
+    return this.request(`/nbfc/tools/jobs/${jobId}/status`);
+  }
+
+  async submitRAADJob(formData: FormData): Promise<ApiResponse<{ jobId: string }>> {
+    return this.request('/nbfc/tools/raad', {
+      method: 'POST',
+      body: formData,
+      headers: {}, // Let browser set Content-Type for multipart
+    });
+  }
+
+  async submitPAGERJob(formData: FormData): Promise<ApiResponse<{ jobId: string }>> {
+    return this.request('/nbfc/tools/pager', {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  }
+
+  async submitQueryDrafter(payload: {
+    roughQuery: string;
+    tone?: 'formal' | 'urgent' | 'polite';
+    documentText?: string;
+    loanApplicationId?: string;
+  }): Promise<ApiResponse<{ draftedQuery: string }>> {
+    return this.request('/nbfc/tools/query-drafter', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async raiseNBFCQuery(applicationId: string, payload: { message: string }): Promise<ApiResponse> {
+    return this.request(`/nbfc/loan-applications/${applicationId}/queries`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 

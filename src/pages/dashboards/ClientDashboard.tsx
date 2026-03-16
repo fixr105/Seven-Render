@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -21,11 +21,53 @@ export const ClientDashboard: React.FC = () => {
   const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
   const [configuredProductsError, setConfiguredProductsError] = useState<string | null>(null);
 
+  const fetchLoanProducts = useCallback(async () => {
+    try {
+      setLoadingProducts(true);
+      const response = await apiService.listLoanProducts(true); // activeOnly = true
+
+      if (response.success && response.data) {
+        const products = response.data.map((product: { productId?: string; id?: string; productName?: string; 'Product Name'?: string; name?: string; description?: string; Description?: string }) => ({
+          id: product.productId || product.id || '',
+          name: product.productName || product['Product Name'] || product.name || '',
+          description: product.description || product['Description'],
+        }));
+        setLoanProducts(products);
+      } else if (response.error) {
+        if (response.error.includes('401') || response.error.includes('403')) {
+          refreshUser();
+        }
+      }
+    } catch (_error) {
+      // Fallback: leave products empty
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, [refreshUser]);
+
+  const fetchConfiguredProducts = useCallback(async () => {
+    try {
+      setConfiguredProductsError(null);
+      const response = await apiService.getConfiguredProducts();
+
+      if (response.success && response.data) {
+        setConfiguredProductIds(new Set(response.data));
+      } else if (response.error) {
+        if (response.error.includes('401') || response.error.includes('403')) {
+          refreshUser();
+        }
+        setConfiguredProductsError(response.error);
+      }
+    } catch (_error) {
+      setConfiguredProductsError('Could not load your configured products.');
+    }
+  }, [refreshUser]);
+
   // Fetch on mount (including SPA navigation) and via Refresh.
   useEffect(() => {
     fetchLoanProducts();
     fetchConfiguredProducts();
-  }, []);
+  }, [fetchLoanProducts, fetchConfiguredProducts]);
 
   const refreshAll = () => {
     refetchApplications();
@@ -38,52 +80,6 @@ export const ClientDashboard: React.FC = () => {
     !loadingProducts &&
     (configuredProductsError != null ||
       (applications.length === 0 && configuredProductIds.size === 0 && loanProducts.length > 0));
-
-  const fetchLoanProducts = async () => {
-    try {
-      setLoadingProducts(true);
-      const response = await apiService.listLoanProducts(true); // activeOnly = true
-      
-      if (response.success && response.data) {
-        const products = response.data.map((product: any) => ({
-          id: product.productId || product.id,
-          name: product.productName || product['Product Name'] || product.name,
-          description: product.description || product['Description'],
-        }));
-        setLoanProducts(products);
-
-        if (products.length === 0) {
-          // No products configured
-        }
-      } else if (response.error) {
-        if (response.error.includes('401') || response.error.includes('403')) {
-          refreshUser();
-        }
-      }
-    } catch (_error) {
-      // Fallback: leave products empty
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
-
-  const fetchConfiguredProducts = async () => {
-    try {
-      setConfiguredProductsError(null);
-      const response = await apiService.getConfiguredProducts();
-      
-      if (response.success && response.data) {
-        setConfiguredProductIds(new Set(response.data));
-      } else if (response.error) {
-        if (response.error.includes('401') || response.error.includes('403')) {
-          refreshUser();
-        }
-        setConfiguredProductsError(response.error);
-      }
-    } catch (_error) {
-      setConfiguredProductsError('Could not load your configured products.');
-    }
-  };
 
   // Calculate stats
   const totalApplications = applications.length;

@@ -142,8 +142,14 @@ export class ClientController {
       }
 
       const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
-      const config = await getFormConfigForProduct(productId);
-      const categoriesArray = config.categories;
+      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+      let config = await getFormConfigForProduct(productId);
+      let categoriesArray = config.categories;
+      if (categoriesArray.length === 0) {
+        const clientId = (req.user?.clientId ?? '').toString();
+        config = await getSimpleFormConfig(clientId, productId);
+        categoriesArray = config.categories;
+      }
       console.log(`[getFormConfig] Returning ${categoriesArray.length} categories for productId ${productId}`);
 
       res.json({
@@ -181,8 +187,14 @@ export class ClientController {
         return;
       }
       const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
-      const config = await getFormConfigForProduct(productId);
-      const categoriesArray = config.categories;
+      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+      let config = await getFormConfigForProduct(productId);
+      let categoriesArray = config.categories;
+      if (categoriesArray.length === 0) {
+        const clientId = (req.user?.clientId ?? '').toString();
+        config = await getSimpleFormConfig(clientId, productId);
+        categoriesArray = config.categories;
+      }
       const totalFields = categoriesArray.reduce((sum, c) => sum + (c.fields?.length || 0), 0);
       res.json({
         success: true,

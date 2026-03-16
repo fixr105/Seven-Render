@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import { apiRateLimiter } from '../middleware/rateLimit.middleware.js';
-import { requireClient } from '../middleware/rbac.middleware.js';
+import { requireClient, requireNBFC } from '../middleware/rbac.middleware.js';
 import { loanController } from '../controllers/loan.controller.js';
 import healthRoutes, { trackMetrics } from './health.routes.js';
 import authRoutes from './auth.routes.js';
@@ -14,6 +14,7 @@ import loanRoutes from './loan.routes.js';
 import kamRoutes from './kam.routes.js';
 import creditRoutes from './credit.routes.js';
 import nbfcRoutes from './nbfc.routes.js';
+import nbfcToolsRoutes from './nbfcTools.routes.js';
 import ledgerRoutes from './ledger.routes.js';
 import reportsRoutes from './reports.routes.js';
 import auditRoutes from './audit.routes.js';
@@ -226,6 +227,7 @@ router.use('/client', apiRateLimiter, clientRoutes);
 router.use('/loan-applications', apiRateLimiter, loanRoutes);
 router.use('/kam', apiRateLimiter, kamRoutes);
 router.use('/credit', apiRateLimiter, creditRoutes);
+router.use('/nbfc/tools', apiRateLimiter, authenticate, requireNBFC, nbfcToolsRoutes);
 router.use('/nbfc', apiRateLimiter, nbfcRoutes);
 router.use('/clients', apiRateLimiter, ledgerRoutes); // Client ledger routes
 router.use('/reports', apiRateLimiter, reportsRoutes);

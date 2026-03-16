@@ -164,7 +164,10 @@ async function loadFormFieldsConfig(
   let config: { categories: Array<{ categoryId: string; fields: Array<{ fieldId: string; label: string; type: string; isRequired: boolean }> }> };
   if (productId) {
     const { getFormConfigForProduct } = await import('../formConfig/productFormConfig.service.js');
-    config = await getFormConfigForProduct(productId);
+    const productConfig = await getFormConfigForProduct(productId);
+    config = productConfig.categories.length > 0
+      ? productConfig
+      : await getSimpleFormConfig(clientId, productId);
   } else {
     config = await getSimpleFormConfig(clientId, undefined);
   }
@@ -240,6 +243,7 @@ export async function validateMandatoryFields(
     // or legacy values (added_to_link, to_be_shared)
     const fileFieldSatisfied = field.type === 'file' && (
       value === 'Yes, Added to Folder' || value === 'Awaiting, Will Update Folder' ||
+      value === 'Not Available' || value === 'not_available' ||
       value === 'added_to_link' || value === 'to_be_shared' ||
       value === 'yes_added_to_folder' || value === 'awaiting_will_update'
     );

@@ -166,6 +166,7 @@ export const Applications: React.FC = () => {
   const [queryMessage, setQueryMessage] = useState('');
   const [queryCounts, setQueryCounts] = useState<Record<string, { unresolved: number; lastActivity: string | null }>>({});
   const [loadingQueryCounts, setLoadingQueryCounts] = useState(false);
+  const [submittingQuery, setSubmittingQuery] = useState(false);
   const [clientFilterDisplayName, setClientFilterDisplayName] = useState<string | null>(null);
 
   const clientIdFromUrl = searchParams.get('clientId');
@@ -382,6 +383,7 @@ export const Applications: React.FC = () => {
 
   const handleRaiseQuery = async () => {
     if (!selectedApplication || !queryMessage.trim()) return;
+    setSubmittingQuery(true);
     try {
       let response;
       if (userRole === 'credit_team') {
@@ -402,6 +404,8 @@ export const Applications: React.FC = () => {
     } catch (error) {
       console.error('Error raising query:', error);
       alert(error instanceof Error ? error.message : 'Failed to raise query');
+    } finally {
+      setSubmittingQuery(false);
     }
   };
 
@@ -780,7 +784,8 @@ export const Applications: React.FC = () => {
           <Button
             variant="primary"
             onClick={handleRaiseQuery}
-            disabled={!queryMessage.trim()}
+            disabled={!queryMessage.trim() || submittingQuery}
+            loading={submittingQuery}
           >
             Send Query
           </Button>

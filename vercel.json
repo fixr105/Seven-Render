@@ -1,17 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build && cd backend && npm run build && cd ..",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
-  "installCommand": "npm install && cd backend && npm install && cd ..",
+  "installCommand": "npm install",
   "framework": "vite",
   "rewrites": [
-    {"source": "/api/(.*)", "destination": "/api/index.ts"},
+    {"source": "/api/:path*", "destination": "https://seven-dash.fly.dev/api/:path*"},
     {"source": "/(.*)", "destination": "/index.html"}
   ],
-  "functions": {
-    "api/index.ts": {"includeFiles": "backend/**", "maxDuration": 60}
-  },
   "headers": [
     {
       "source": "/assets/(.*)",
