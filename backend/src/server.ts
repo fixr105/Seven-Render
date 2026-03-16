@@ -134,6 +134,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // Routes - mount at /api for frontend compatibility
+// NBFC Tools: /api/nbfc/tools/raad, /api/nbfc/tools/history, etc.
 app.use('/api', routes);
 
 // Health check at root (for Fly.io health checks)
