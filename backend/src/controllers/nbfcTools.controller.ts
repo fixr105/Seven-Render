@@ -12,6 +12,7 @@ import { nbfcToolsStorage } from '../services/nbfcToolsStorage.service.js';
 import { generateRaadPdf, type RaadResult } from '../services/raadPdfGenerator.service.js';
 
 const N8N_NBFC_TOOLS_BASE_URL = 'https://n8n-h9n3.srv1314414.hstgr.cloud';
+const N8N_RAAD_WEBHOOK_DEFAULT = 'https://n8n-fvmj.srv1499064.hstgr.cloud/webhook/upload-bankstatement';
 
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -20,18 +21,14 @@ function addDays(date: Date, days: number): Date {
 }
 
 function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
-  const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
-  const paths: Record<'raad' | 'pager', string> = {
-    raad: 'upload-bankstatement',
-    pager: 'upload-pager',
-  };
-  if (tool === 'raad' && process.env.N8N_RAAD_WEBHOOK_URL) {
-    return process.env.N8N_RAAD_WEBHOOK_URL;
+  if (tool === 'raad') {
+    return process.env.N8N_RAAD_WEBHOOK_URL || N8N_RAAD_WEBHOOK_DEFAULT;
   }
-  if (tool === 'pager' && process.env.N8N_PAGER_WEBHOOK_URL) {
+  if (process.env.N8N_PAGER_WEBHOOK_URL) {
     return process.env.N8N_PAGER_WEBHOOK_URL;
   }
-  return `${base.replace(/\/$/, '')}/webhook/${paths[tool]}`;
+  const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
+  return `${base.replace(/\/$/, '')}/webhook/upload-pager`;
 }
 
 export class NBFCToolsController {
