@@ -11,10 +11,27 @@ import { getPrisma } from '../lib/prisma.js';
 import { nbfcToolsStorage } from '../services/nbfcToolsStorage.service.js';
 import { generateRaadPdf, type RaadResult } from '../services/raadPdfGenerator.service.js';
 
+const N8N_NBFC_TOOLS_BASE_URL = 'https://n8n-h9n3.srv1314414.hstgr.cloud';
+
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
   return result;
+}
+
+function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
+  const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
+  const paths: Record<'raad' | 'pager', string> = {
+    raad: 'upload-bankstatement',
+    pager: 'upload-pager',
+  };
+  if (tool === 'raad' && process.env.N8N_RAAD_WEBHOOK_URL) {
+    return process.env.N8N_RAAD_WEBHOOK_URL;
+  }
+  if (tool === 'pager' && process.env.N8N_PAGER_WEBHOOK_URL) {
+    return process.env.N8N_PAGER_WEBHOOK_URL;
+  }
+  return `${base.replace(/\/$/, '')}/webhook/${paths[tool]}`;
 }
 
 export class NBFCToolsController {
@@ -65,10 +82,7 @@ export class NBFCToolsController {
 
       setImmediate(async () => {
         try {
-          const webhookUrl = process.env.N8N_RAAD_WEBHOOK_URL;
-          if (!webhookUrl) {
-            throw new Error('N8N_RAAD_WEBHOOK_URL is not configured');
-          }
+          const webhookUrl = getN8nWebhookUrl('raad');
 
           const formData = new FormData();
           formData.append('bankFile', new Blob([bankFile.buffer], { type: bankFile.mimetype || 'application/pdf' }), bankFile.originalname || 'bank.pdf');
@@ -170,10 +184,7 @@ export class NBFCToolsController {
 
       setImmediate(async () => {
         try {
-          const webhookUrl = process.env.N8N_PAGER_WEBHOOK_URL;
-          if (!webhookUrl) {
-            throw new Error('N8N_PAGER_WEBHOOK_URL is not configured');
-          }
+          const webhookUrl = getN8nWebhookUrl('pager');
 
           const formData = new FormData();
           formData.append('borrowerFile', new Blob([borrowerFile.buffer], { type: borrowerFile.mimetype || 'application/pdf' }), borrowerFile.originalname || 'borrower.pdf');

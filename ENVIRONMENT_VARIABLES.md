@@ -46,6 +46,21 @@ CORS_ORIGIN=https://lms.sevenfincorp.com
 NODE_ENV=production
 ```
 
+### NBFC AI Tools (RAAD, PAGER) - Production n8n
+
+All NBFC tools use the production n8n instance. Set `N8N_NBFC_TOOLS_BASE_URL`; the backend constructs URLs as `{base}/webhook/{path}`:
+
+| Tool | Webhook path |
+|------|--------------|
+| RAAD | upload-bankstatement |
+| PAGER | upload-pager |
+
+```bash
+N8N_NBFC_TOOLS_BASE_URL=https://n8n-h9n3.srv1314414.hstgr.cloud
+```
+
+Optional: override with full URLs per tool: `N8N_RAAD_WEBHOOK_URL`, `N8N_PAGER_WEBHOOK_URL`.
+
 ### Optional Backend Variables
 
 ```bash
@@ -66,6 +81,9 @@ fly secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud --app seven-dash
 fly secrets set JWT_SECRET=$(openssl rand -hex 32) --app seven-dash
 fly secrets set CORS_ORIGIN=https://lms.sevenfincorp.com --app seven-dash
 fly secrets set NODE_ENV=production --app seven-dash
+
+# NBFC AI Tools (RAAD, PAGER) - production n8n
+fly secrets set N8N_NBFC_TOOLS_BASE_URL=https://n8n-h9n3.srv1314414.hstgr.cloud --app seven-dash
 
 # Optional: Set cron schedule
 fly secrets set CRON_SCHEDULE="0 0 * * *" --app seven-dash
