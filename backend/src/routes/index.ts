@@ -227,6 +227,8 @@ router.use('/client', apiRateLimiter, clientRoutes);
 router.use('/loan-applications', apiRateLimiter, loanRoutes);
 router.use('/kam', apiRateLimiter, kamRoutes);
 router.use('/credit', apiRateLimiter, creditRoutes);
+// Unauthenticated ping to verify /nbfc/tools mount exists (deploy verification)
+router.get('/nbfc/tools/ping', (req, res) => res.json({ ok: true }));
 router.use('/nbfc/tools', apiRateLimiter, authenticate, requireNBFC, nbfcToolsRoutes);
 router.use('/nbfc', apiRateLimiter, nbfcRoutes);
 router.use('/clients', apiRateLimiter, ledgerRoutes); // Client ledger routes

@@ -20,10 +20,19 @@ jobs:
       - name: Deploy to Fly.io
         run: |
           cd backend
-          flyctl deploy --config fly.toml --app seven-dash --local-only
+          flyctl deploy --config fly.toml --app seven-dash --local-only --no-cache
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         timeout-minutes: 15
+
+      - name: Verify backend deployment
+        run: |
+          BACKEND_URL="https://seven-dash.fly.dev"
+          echo "Smoke testing backend endpoints..."
+          curl -sf "$BACKEND_URL/health" | grep -q '"success":true' || (echo "Health check failed" && exit 1)
+          curl -sf "$BACKEND_URL/api/test-express" | grep -q '"success":true' || (echo "test-express failed" && exit 1)
+          curl -sf "$BACKEND_URL/api/nbfc/tools/ping" | grep -q '"ok":true' || (echo "nbfc/tools/ping failed" && exit 1)
+          echo "All backend smoke tests passed."
 
   deploy-frontend:
     name: Deploy Frontend to Vercel
