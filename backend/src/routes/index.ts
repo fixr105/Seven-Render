@@ -54,6 +54,9 @@ router.get('/test-express', (req, res) => {
   });
 });
 
+// Unauthenticated ping to verify NBFC tools routes are deployed (deploy verification)
+router.get('/nbfc-tools-ping', (req, res) => res.json({ ok: true }));
+
 // Test endpoint with authentication
 router.get('/test-express-auth', authenticate, (req, res) => {
   res.json({ 
@@ -63,6 +66,9 @@ router.get('/test-express-auth', authenticate, (req, res) => {
     user: req.user,
   });
 });
+
+// Unauthenticated ping to verify NBFC tools routes exist (deploy verification; path avoids /nbfc/tools prefix)
+router.get('/nbfc-tools-ping', (req, res) => res.json({ ok: true }));
 
 // Debug endpoints - only when NODE_ENV is development and DEBUG_ROUTES_ENABLED is explicitly set.
 // Ensures production never exposes debug even if NODE_ENV is mis-set. See API_ENDPOINTS_WEBHOOK_MAPPING.md.
@@ -227,8 +233,6 @@ router.use('/client', apiRateLimiter, clientRoutes);
 router.use('/loan-applications', apiRateLimiter, loanRoutes);
 router.use('/kam', apiRateLimiter, kamRoutes);
 router.use('/credit', apiRateLimiter, creditRoutes);
-// Unauthenticated ping to verify /nbfc/tools mount exists (deploy verification)
-router.get('/nbfc/tools/ping', (req, res) => res.json({ ok: true }));
 router.use('/nbfc/tools', apiRateLimiter, authenticate, requireNBFC, nbfcToolsRoutes);
 router.use('/nbfc', apiRateLimiter, nbfcRoutes);
 router.use('/clients', apiRateLimiter, ledgerRoutes); // Client ledger routes

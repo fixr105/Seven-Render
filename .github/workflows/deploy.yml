@@ -28,10 +28,12 @@ jobs:
       - name: Verify backend deployment
         run: |
           BACKEND_URL="https://seven-dash.fly.dev"
+          echo "Waiting for Fly.io machines to finish restarting..."
+          sleep 15
           echo "Smoke testing backend endpoints..."
           curl -sf "$BACKEND_URL/health" | grep -q '"success":true' || (echo "Health check failed" && exit 1)
           curl -sf "$BACKEND_URL/api/test-express" | grep -q '"success":true' || (echo "test-express failed" && exit 1)
-          curl -sf "$BACKEND_URL/api/nbfc/tools/ping" | grep -q '"ok":true' || (echo "nbfc/tools/ping failed" && exit 1)
+          curl -sf "$BACKEND_URL/api/nbfc-tools-ping" | grep -q '"ok":true' || (echo "nbfc-tools-ping failed" && exit 1)
           echo "All backend smoke tests passed."
 
   deploy-frontend:
