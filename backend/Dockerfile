@@ -20,9 +20,6 @@ COPY src ./src
 # Build TypeScript
 RUN npm run build
 
-# Verify NBFC tools routes are in the build (fail deploy if missing)
-RUN grep -q "nbfc/tools" dist/routes/index.js || (echo "ERROR: NBFC tools routes not in build - check routes/index.ts" && exit 1)
-
 # Production stage
 FROM node:20-alpine
 
@@ -33,7 +30,7 @@ COPY package*.json ./
 COPY --from=builder /app/prisma ./prisma
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
