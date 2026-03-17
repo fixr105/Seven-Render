@@ -67,9 +67,6 @@ router.get('/test-express-auth', authenticate, (req, res) => {
   });
 });
 
-// Unauthenticated ping to verify NBFC tools routes exist (deploy verification; path avoids /nbfc/tools prefix)
-router.get('/nbfc-tools-ping', (req, res) => res.json({ ok: true }));
-
 // Debug endpoints - only when NODE_ENV is development and DEBUG_ROUTES_ENABLED is explicitly set.
 // Ensures production never exposes debug even if NODE_ENV is mis-set. See API_ENDPOINTS_WEBHOOK_MAPPING.md.
 const debugRoutesEnabled =
