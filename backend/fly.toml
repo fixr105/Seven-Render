@@ -5,7 +5,8 @@ app = "seven-dash"
 primary_region = "sin"  # Singapore - change to your preferred region
 
 [build]
-  # Build command is handled by fly.toml or can be set in dashboard
+  dockerfile = "Dockerfile"
+  # Force Fly to use backend/ context; deploy with: cd backend && fly deploy
 
 [env]
   PORT = "3001"
