@@ -205,6 +205,7 @@ export const NBFCTools: React.FC = () => {
   const handleRaadSubmit = async () => {
     if (!raadBankFile) return;
     setRaadSubmitting(true);
+    setJobError(null);
     try {
       const fd = new FormData();
       fd.append('bankFile', raadBankFile);
@@ -219,7 +220,13 @@ export const NBFCTools: React.FC = () => {
         setReportUrl(null);
         setJobError(null);
         fetchHistory();
+      } else {
+        setJobError(res.error || 'RAAD submission failed. Try logging in again.');
+        setJobStatus('failed');
       }
+    } catch (err) {
+      setJobError(err instanceof Error ? err.message : 'RAAD submission failed.');
+      setJobStatus('failed');
     } finally {
       setRaadSubmitting(false);
     }
@@ -228,6 +235,7 @@ export const NBFCTools: React.FC = () => {
   const handlePagerSubmit = async () => {
     if (!pagerBorrowerFile) return;
     setPagerSubmitting(true);
+    setJobError(null);
     try {
       const fd = new FormData();
       fd.append('borrowerFile', pagerBorrowerFile);
@@ -242,7 +250,13 @@ export const NBFCTools: React.FC = () => {
         setReportUrl(null);
         setJobError(null);
         fetchHistory();
+      } else {
+        setJobError(res.error || 'PAGER submission failed. Try logging in again.');
+        setJobStatus('failed');
       }
+    } catch (err) {
+      setJobError(err instanceof Error ? err.message : 'PAGER submission failed.');
+      setJobStatus('failed');
     } finally {
       setPagerSubmitting(false);
     }

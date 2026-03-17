@@ -38,6 +38,8 @@ export class NBFCToolsController {
    */
   async startRaad(req: Request, res: Response): Promise<void> {
     try {
+      const { defaultLogger } = await import('../utils/logger.js');
+      defaultLogger.info('RAAD submit received', { userId: req.user?.id, role: req.user?.role });
       const prisma = getPrisma();
       if (!prisma) {
         res.status(503).json({
