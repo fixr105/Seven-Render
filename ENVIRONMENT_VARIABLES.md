@@ -8,7 +8,7 @@ Complete list of environment variables needed for deployment.
 
 ```bash
 # Backend API URL (point to Fly.io backend)
-VITE_API_BASE_URL=https://seven-dash.fly.dev
+VITE_API_BASE_URL=https://seven-render.fly.dev
 ```
 
 **Important Notes:**
@@ -20,7 +20,7 @@ VITE_API_BASE_URL=https://seven-dash.fly.dev
 
 ```bash
 # If you want to override default API URL
-# VITE_API_BASE_URL=https://seven-dash.fly.dev
+# VITE_API_BASE_URL=https://seven-render.fly.dev
 
 # If using different backend URL
 # VITE_API_BASE_URL=https://your-backend-url.com
@@ -77,16 +77,19 @@ PORT=3001
 cd backend
 
 # Set all required secrets
-fly secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud --app seven-dash
-fly secrets set JWT_SECRET=$(openssl rand -hex 32) --app seven-dash
-fly secrets set CORS_ORIGIN=https://lms.sevenfincorp.com --app seven-dash
-fly secrets set NODE_ENV=production --app seven-dash
+fly secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud --app seven-render
+fly secrets set JWT_SECRET=$(openssl rand -hex 32) --app seven-render
+fly secrets set CORS_ORIGIN=https://lms.sevenfincorp.com --app seven-render
+fly secrets set NODE_ENV=production --app seven-render
 
 # NBFC AI Tools (RAAD, PAGER) - production n8n
-fly secrets set N8N_NBFC_TOOLS_BASE_URL=https://n8n-h9n3.srv1314414.hstgr.cloud --app seven-dash
+fly secrets set N8N_NBFC_TOOLS_BASE_URL=https://n8n-h9n3.srv1314414.hstgr.cloud --app seven-render
+
+# RAAD: Override to use your n8n instance (e.g. n8n-fvmj.srv1499064.hstgr.cloud)
+fly secrets set N8N_RAAD_WEBHOOK_URL="https://n8n-fvmj.srv1499064.hstgr.cloud/webhook/upload-bankstatement" --app seven-render
 
 # Optional: Set cron schedule
-fly secrets set CRON_SCHEDULE="0 0 * * *" --app seven-dash
+fly secrets set CRON_SCHEDULE="0 0 * * *" --app seven-render
 ```
 
 ---
@@ -149,13 +152,13 @@ JWT_SECRET=$(openssl rand -hex 32)
 echo "JWT_SECRET: $JWT_SECRET"
 
 # Set all secrets at once
-fly secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud --app seven-dash
-fly secrets set JWT_SECRET=$JWT_SECRET --app seven-dash
-fly secrets set CORS_ORIGIN=https://lms.sevenfincorp.com --app seven-dash
-fly secrets set NODE_ENV=production --app seven-dash
+fly secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud --app seven-render
+fly secrets set JWT_SECRET=$JWT_SECRET --app seven-render
+fly secrets set CORS_ORIGIN=https://lms.sevenfincorp.com --app seven-render
+fly secrets set NODE_ENV=production --app seven-render
 
 # Verify secrets
-fly secrets list --app seven-dash
+fly secrets list --app seven-render
 ```
 
 ### Vercel Frontend Setup
@@ -212,7 +215,7 @@ fly secrets list --app seven-dash
 ### Verify Fly.io Secrets
 
 ```bash
-fly secrets list --app seven-dash
+fly secrets list --app seven-render
 ```
 
 ### Verify Vercel Environment Variables
@@ -239,15 +242,15 @@ fetch('https://seven-dash.fly.dev/health')
 ### Frontend Can't Connect to Backend
 
 1. ✅ Check `VITE_API_BASE_URL` is set to `https://seven-dash.fly.dev`
-2. ✅ Check backend is running: `fly status --app seven-dash`
+2. ✅ Check backend is running: `fly status --app seven-render`
 3. ✅ Check CORS_ORIGIN matches frontend domain
 4. ✅ Redeploy frontend after changing environment variables
 
 ### Backend Errors
 
-1. ✅ Check all Fly.io secrets are set: `fly secrets list --app seven-dash`
+1. ✅ Check all Fly.io secrets are set: `fly secrets list --app seven-render`
 2. ✅ Verify `N8N_BASE_URL` is correct
-3. ✅ Check backend logs: `fly logs --app seven-dash`
+3. ✅ Check backend logs: `fly logs --app seven-render`
 
 
 

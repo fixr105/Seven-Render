@@ -5,7 +5,7 @@
 # Requires: flyctl logged in, app name seven-dash
 
 set -e
-FLY_APP="${FLY_APP:-seven-dash}"
+FLY_APP="${FLY_APP:-seven-render}"
 
 # Values for lms.sevenfincorp.com
 N8N_BASE_URL="${N8N_BASE_URL:-https://fixrrahul.app.n8n.cloud}"

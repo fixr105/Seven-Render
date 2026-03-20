@@ -6,7 +6,7 @@
 
 set -e
 ORIGIN="${1:-}"
-FLY_APP="${FLY_APP:-seven-dash}"
+FLY_APP="${FLY_APP:-seven-render}"
 
 if [ -z "$ORIGIN" ]; then
   echo "Usage: $0 <CORS_ORIGIN>"

@@ -476,11 +476,11 @@ class ApiService {
         const isRelativeUrl = this.baseUrl.startsWith('/') || !this.baseUrl.includes('://');
         
         if (isRelativeUrl) {
-          errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-dash.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
+          errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-render.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
         } else {
           const origin = typeof window !== 'undefined' ? window.location.origin : '';
           const corsHint = endpoint.includes('/auth/login')
-            ? `\n\nFor login at ${origin || 'this site'}: the backend CORS_ORIGIN (Fly.io) must include your frontend URL. Run:\n  fly secrets set CORS_ORIGIN="${origin || 'https://lms.sevenfincorp.com'}" --app seven-dash\nThen Fly will redeploy automatically.`
+            ? `\n\nFor login at ${origin || 'this site'}: the backend CORS_ORIGIN (Fly.io) must include your frontend URL. Run:\n  fly secrets set CORS_ORIGIN="${origin || 'https://lms.sevenfincorp.com'}" --app seven-render\nThen Fly will redeploy automatically.`
             : '';
           errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration (backend must allow your frontend origin)\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.${corsHint}`;
         }

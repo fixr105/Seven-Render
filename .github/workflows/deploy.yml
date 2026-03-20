@@ -25,15 +25,14 @@ jobs:
 
       - name: Deploy to Fly.io
         run: |
-          cd backend
-          flyctl deploy --config fly.toml --app seven-dash --remote-only --strategy immediate
+          flyctl deploy --config fly.toml --app seven-render --remote-only --strategy immediate
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         timeout-minutes: 15
 
       - name: Verify backend deployment
         run: |
-          BACKEND_URL="https://seven-dash.fly.dev"
+          BACKEND_URL="https://seven-render.fly.dev"
           echo "Waiting for Fly.io machines to finish restarting..."
           sleep 15
           echo "Smoke testing backend endpoints..."
@@ -83,10 +82,10 @@ jobs:
           echo "| Environment | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|-------------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| **Frontend** | $FRONTEND_URL |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Backend API** | https://seven-dash.fly.dev |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Backend API** | https://seven-render.fly.dev |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Primary test link:** [$FRONTEND_URL]($FRONTEND_URL)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "Frontend: $FRONTEND_URL" >> $GITHUB_STEP_SUMMARY
-          echo "Backend:  https://seven-dash.fly.dev"
+          echo "Backend:  https://seven-render.fly.dev"
