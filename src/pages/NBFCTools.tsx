@@ -82,8 +82,10 @@ export const NBFCTools: React.FC = () => {
   };
 
   // RAAD
-  const [raadBankFile, setRaadBankFile] = useState<File | null>(null);
   const [raadGstFile, setRaadGstFile] = useState<File | null>(null);
+  const [raadBankFile, setRaadBankFile] = useState<File | null>(null);
+  const [raadAuditedFile, setRaadAuditedFile] = useState<File | null>(null);
+  const [raadItrFile, setRaadItrFile] = useState<File | null>(null);
   const [raadLoanId, setRaadLoanId] = useState('');
   const [raadSubmitting, setRaadSubmitting] = useState(false);
 
@@ -203,14 +205,17 @@ export const NBFCTools: React.FC = () => {
   };
 
   const handleRaadSubmit = async () => {
-    if (!raadBankFile) return;
+    if (!raadGstFile || !raadBankFile || !raadAuditedFile || !raadItrFile || !raadLoanId.trim())
+      return;
     setRaadSubmitting(true);
     setJobError(null);
     try {
       const fd = new FormData();
+      fd.append('gstFile', raadGstFile);
       fd.append('bankFile', raadBankFile);
-      if (raadGstFile) fd.append('gstFile', raadGstFile);
-      if (raadLoanId) fd.append('loanApplicationId', raadLoanId);
+      fd.append('auditedFile', raadAuditedFile);
+      fd.append('itrFile', raadItrFile);
+      fd.append('loanApplicationId', raadLoanId.trim());
       const res = await apiService.submitRAADJob(fd);
       if (res.success && res.data?.jobId) {
         setCurrentJobId(res.data.jobId);
@@ -467,31 +472,55 @@ export const NBFCTools: React.FC = () => {
                 RAAD — Credit Analysis
               </h3>
               <p className="text-sm text-neutral-600 mb-6">
-                Upload the borrower's bank statement and GST documents. We'll analyze, flag, and
-                recommend.
+                Upload GST, Bank Statement, Audited Financials, and ITR. All files are sent as
+                GST.pdf, BANK.pdf, AUDITED.pdf, ITR.pdf. Loan ID is required.
               </p>
               <UploadZone
-                label="Bank Statement (PDF)"
+                label="GST (PDF, sent as GST.pdf)"
+                file={raadGstFile}
+                onFile={setRaadGstFile}
+                required
+              />
+              <UploadZone
+                label="Bank Statement (PDF, sent as BANK.pdf)"
                 file={raadBankFile}
                 onFile={setRaadBankFile}
                 required
               />
-              <UploadZone label="GST Document (PDF)" file={raadGstFile} onFile={setRaadGstFile} />
+              <UploadZone
+                label="Audited Financials (PDF, sent as AUDITED.pdf)"
+                file={raadAuditedFile}
+                onFile={setRaadAuditedFile}
+                required
+              />
+              <UploadZone
+                label="ITR (PDF, sent as ITR.pdf)"
+                file={raadItrFile}
+                onFile={setRaadItrFile}
+                required
+              />
               <div className="mb-4">
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Loan Application ID (optional)
+                  Loan Application ID (required)
                 </label>
                 <input
                   type="text"
                   value={raadLoanId}
                   onChange={(e) => setRaadLoanId(e.target.value)}
-                  placeholder="For tagging the report"
+                  placeholder="Required for tagging the report"
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
                 />
               </div>
               <button
                 onClick={handleRaadSubmit}
-                disabled={!raadBankFile || raadSubmitting}
+                disabled={
+                  !raadGstFile ||
+                  !raadBankFile ||
+                  !raadAuditedFile ||
+                  !raadItrFile ||
+                  !raadLoanId.trim() ||
+                  raadSubmitting
+                }
                 className="px-6 py-3 bg-[#332f78] text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors"
               >
                 {raadSubmitting ? (

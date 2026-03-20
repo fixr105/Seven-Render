@@ -23,7 +23,7 @@ function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
   const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
   const baseClean = base.replace(/\/$/, '');
   if (tool === 'raad') {
-    return process.env.N8N_RAAD_WEBHOOK_URL || `${baseClean}/webhook/upload-bankstatement-1`;
+    return process.env.N8N_RAAD_WEBHOOK_URL || `${baseClean}/webhook/big-brain-bro-1`;
   }
   if (process.env.N8N_PAGER_WEBHOOK_URL) {
     return process.env.N8N_PAGER_WEBHOOK_URL;
@@ -34,7 +34,7 @@ function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
 export class NBFCToolsController {
   /**
    * POST /nbfc/tools/raad
-   * Accepts multipart: bankFile (required), gstFile (optional), loanApplicationId (optional)
+   * Accepts multipart: gstFile, bankFile, auditedFile, itrFile (all required), loanApplicationId (required)
    */
   async startRaad(req: Request, res: Response): Promise<void> {
     try {
@@ -56,14 +56,23 @@ export class NBFCToolsController {
       }
 
       const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+      const gstFile = files?.gstFile?.[0];
       const bankFile = files?.bankFile?.[0];
-      if (!bankFile) {
-        res.status(400).json({ success: false, error: 'bankFile is required' });
+      const auditedFile = files?.auditedFile?.[0];
+      const itrFile = files?.itrFile?.[0];
+      if (!gstFile || !bankFile || !auditedFile || !itrFile) {
+        res.status(400).json({
+          success: false,
+          error: 'gstFile, bankFile, auditedFile, and itrFile are required',
+        });
         return;
       }
 
       const loanApplicationId = (req.body?.loanApplicationId as string)?.trim() || null;
-      const gstFile = files?.gstFile?.[0];
+      if (!loanApplicationId) {
+        res.status(400).json({ success: false, error: 'loanApplicationId is required' });
+        return;
+      }
 
       const expiresAt = addDays(new Date(), 30);
       const job = await prisma.toolJob.create({
@@ -86,21 +95,22 @@ export class NBFCToolsController {
           jobId: job.id,
           webhookHost: new URL(webhookUrl).hostname,
           hasGstFile: !!gstFile,
+          hasBankFile: !!bankFile,
+          hasAuditedFile: !!auditedFile,
+          hasItrFile: !!itrFile,
         });
 
         try {
           const formData = new FormData();
-          formData.append('bankFile', new Blob([bankFile.buffer], { type: bankFile.mimetype || 'application/pdf' }), bankFile.originalname || 'bank.pdf');
-          if (gstFile) {
-            formData.append('gstFile', new Blob([gstFile.buffer], { type: gstFile.mimetype || 'application/pdf' }), gstFile.originalname || 'gst.pdf');
-          }
-          if (loanApplicationId) {
-            formData.append('loanApplicationId', loanApplicationId);
-          }
+          formData.append('gstFile', new Blob([gstFile.buffer], { type: gstFile.mimetype || 'application/pdf' }), 'GST.pdf');
+          formData.append('bankFile', new Blob([bankFile.buffer], { type: bankFile.mimetype || 'application/pdf' }), 'BANK.pdf');
+          formData.append('auditedFile', new Blob([auditedFile.buffer], { type: auditedFile.mimetype || 'application/pdf' }), 'AUDITED.pdf');
+          formData.append('itrFile', new Blob([itrFile.buffer], { type: itrFile.mimetype || 'application/pdf' }), 'ITR.pdf');
+          formData.append('loanApplicationId', loanApplicationId);
 
           const n8nController = new AbortController();
           const n8nTimeoutId = setTimeout(() => n8nController.abort(), 120_000);
-          let n8nRes: Response;
+          let n8nRes: Awaited<ReturnType<typeof fetch>>;
           try {
             n8nRes = await fetch(webhookUrl, {
               method: 'POST',
@@ -225,7 +235,7 @@ export class NBFCToolsController {
 
           const n8nController = new AbortController();
           const n8nTimeoutId = setTimeout(() => n8nController.abort(), 120_000);
-          let n8nRes: Response;
+          let n8nRes: Awaited<ReturnType<typeof fetch>>;
           try {
             n8nRes = await fetch(webhookUrl, {
               method: 'POST',

@@ -13,10 +13,12 @@ const router = Router();
 // Multer: in-memory storage for file buffers
 const upload = multer({ storage: multer.memoryStorage() });
 
-// RAAD: bankFile (required), gstFile (optional), loanApplicationId (optional text field in form)
+// RAAD: gstFile, bankFile, auditedFile, itrFile (all required), loanApplicationId (required)
 const raadUpload = upload.fields([
-  { name: 'bankFile', maxCount: 1 },
   { name: 'gstFile', maxCount: 1 },
+  { name: 'bankFile', maxCount: 1 },
+  { name: 'auditedFile', maxCount: 1 },
+  { name: 'itrFile', maxCount: 1 },
 ]);
 
 // PAGER: borrowerFile (required), letterheadFile (optional), loanApplicationId (optional)
