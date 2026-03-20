@@ -331,6 +331,10 @@ class ApiService {
       ...(!isFormData && { 'Content-Type': 'application/json' }),
       ...options.headers,
     };
+    // Ensure multipart: never send Content-Type for FormData so browser sets multipart/form-data with boundary
+    if (isFormData) {
+      delete (headers as Record<string, string>)['Content-Type'];
+    }
 
     // Auth: Bearer (per-tab, primary) so multiple tabs can stay as different users; cookie is fallback (new tab, cross-origin)
     if (this.bearerToken && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/validate')) {

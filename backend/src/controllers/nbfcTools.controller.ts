@@ -98,10 +98,18 @@ export class NBFCToolsController {
             formData.append('loanApplicationId', loanApplicationId);
           }
 
-          const n8nRes = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData,
-          });
+          const n8nController = new AbortController();
+          const n8nTimeoutId = setTimeout(() => n8nController.abort(), 120_000);
+          let n8nRes: Response;
+          try {
+            n8nRes = await fetch(webhookUrl, {
+              method: 'POST',
+              body: formData,
+              signal: n8nController.signal,
+            });
+          } finally {
+            clearTimeout(n8nTimeoutId);
+          }
 
           defaultLogger.info('RAAD webhook response', {
             jobId: job.id,
@@ -114,7 +122,7 @@ export class NBFCToolsController {
             throw new Error(`n8n RAAD webhook failed: ${n8nRes.status} ${errText}`);
           }
 
-          const n8nData = (await n8nRes.json()) as Record<string, unknown>;
+          const n8nData = (await n8nRes!.json()) as Record<string, unknown>;
           const raadResult: RaadResult = {
             customer_name: String(n8nData.customer_name ?? n8nData.customerName ?? ''),
             total_revenue: typeof n8nData.total_revenue === 'number' ? n8nData.total_revenue : undefined,
@@ -209,16 +217,24 @@ export class NBFCToolsController {
           const formData = new FormData();
           formData.append('borrowerFile', new Blob([borrowerFile.buffer], { type: borrowerFile.mimetype || 'application/pdf' }), borrowerFile.originalname || 'borrower.pdf');
           if (letterheadFile) {
-            formData.append('letterhead', new Blob([letterheadFile.buffer], { type: letterheadFile.mimetype || 'application/pdf' }), letterheadFile.originalname || 'letterhead.pdf');
+            formData.append('letterheadFile', new Blob([letterheadFile.buffer], { type: letterheadFile.mimetype || 'application/pdf' }), letterheadFile.originalname || 'letterhead.pdf');
           }
           if (loanApplicationId) {
             formData.append('loanApplicationId', loanApplicationId);
           }
 
-          const n8nRes = await fetch(webhookUrl, {
-            method: 'POST',
-            body: formData,
-          });
+          const n8nController = new AbortController();
+          const n8nTimeoutId = setTimeout(() => n8nController.abort(), 120_000);
+          let n8nRes: Response;
+          try {
+            n8nRes = await fetch(webhookUrl, {
+              method: 'POST',
+              body: formData,
+              signal: n8nController.signal,
+            });
+          } finally {
+            clearTimeout(n8nTimeoutId);
+          }
 
           defaultLogger.info('PAGER webhook response', {
             jobId: job.id,
