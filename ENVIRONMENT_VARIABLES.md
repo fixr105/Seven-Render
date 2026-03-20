@@ -168,7 +168,7 @@ fly secrets list --app seven-render
 3. Settings → Environment Variables
 4. Add:
    - Name: `VITE_API_BASE_URL`
-   - Value: `https://seven-dash.fly.dev`
+   - Value: `https://seven-render.fly.dev`
    - Environment: Production, Preview, Development
 5. Save and Redeploy
 
@@ -178,7 +178,7 @@ fly secrets list --app seven-render
 
 | Variable | Frontend | Backend | Required | Default | Example |
 |----------|----------|---------|----------|---------|---------|
-| `VITE_API_BASE_URL` | ✅ Vercel | ❌ | ✅ | `/api` | `https://seven-dash.fly.dev` |
+| `VITE_API_BASE_URL` | ✅ Vercel | ❌ | ✅ | `/api` | `https://seven-render.fly.dev` |
 | `N8N_BASE_URL` | ❌ | ✅ Fly.io | ✅ | - | `https://fixrrahul.app.n8n.cloud` |
 | `JWT_SECRET` | ❌ | ✅ Fly.io | ✅ | - | `abc123...` (random) |
 | `CORS_ORIGIN` | ❌ | ✅ Fly.io | ✅ | - | `https://lms.sevenfincorp.com` |
@@ -227,10 +227,10 @@ fly secrets list --app seven-render
 
 ```bash
 # Test backend
-curl https://seven-dash.fly.dev/health
+curl https://seven-render.fly.dev/health
 
 # Test from browser console (on frontend)
-fetch('https://seven-dash.fly.dev/health')
+fetch('https://seven-render.fly.dev/health')
   .then(r => r.json())
   .then(console.log)
 ```
@@ -241,7 +241,7 @@ fetch('https://seven-dash.fly.dev/health')
 
 ### Frontend Can't Connect to Backend
 
-1. ✅ Check `VITE_API_BASE_URL` is set to `https://seven-dash.fly.dev`
+1. ✅ Check `VITE_API_BASE_URL` is set to `https://seven-render.fly.dev`
 2. ✅ Check backend is running: `fly status --app seven-render`
 3. ✅ Check CORS_ORIGIN matches frontend domain
 4. ✅ Redeploy frontend after changing environment variables
