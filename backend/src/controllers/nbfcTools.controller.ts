@@ -12,7 +12,6 @@ import { nbfcToolsStorage } from '../services/nbfcToolsStorage.service.js';
 import { generateRaadPdf, type RaadResult } from '../services/raadPdfGenerator.service.js';
 
 const N8N_NBFC_TOOLS_BASE_URL = 'https://n8n-h9n3.srv1314414.hstgr.cloud';
-const N8N_RAAD_WEBHOOK_DEFAULT = 'https://n8n-fvmj.srv1499064.hstgr.cloud/webhook/upload-bankstatement';
 
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -21,14 +20,15 @@ function addDays(date: Date, days: number): Date {
 }
 
 function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
+  const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
+  const baseClean = base.replace(/\/$/, '');
   if (tool === 'raad') {
-    return process.env.N8N_RAAD_WEBHOOK_URL || N8N_RAAD_WEBHOOK_DEFAULT;
+    return process.env.N8N_RAAD_WEBHOOK_URL || `${baseClean}/webhook/upload-bankstatement`;
   }
   if (process.env.N8N_PAGER_WEBHOOK_URL) {
     return process.env.N8N_PAGER_WEBHOOK_URL;
   }
-  const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
-  return `${base.replace(/\/$/, '')}/webhook/upload-pager`;
+  return `${baseClean}/webhook/upload-pager`;
 }
 
 export class NBFCToolsController {
@@ -79,10 +79,16 @@ export class NBFCToolsController {
 
       res.status(202).json({ success: true, data: { jobId: job.id } });
 
-      setImmediate(async () => {
-        try {
-          const webhookUrl = getN8nWebhookUrl('raad');
+      const runRaadWebhook = async () => {
+        const { defaultLogger } = await import('../utils/logger.js');
+        const webhookUrl = getN8nWebhookUrl('raad');
+        defaultLogger.info('RAAD webhook starting', {
+          jobId: job.id,
+          webhookHost: new URL(webhookUrl).hostname,
+          hasGstFile: !!gstFile,
+        });
 
+        try {
           const formData = new FormData();
           formData.append('bankFile', new Blob([bankFile.buffer], { type: bankFile.mimetype || 'application/pdf' }), bankFile.originalname || 'bank.pdf');
           if (gstFile) {
@@ -95,6 +101,12 @@ export class NBFCToolsController {
           const n8nRes = await fetch(webhookUrl, {
             method: 'POST',
             body: formData,
+          });
+
+          defaultLogger.info('RAAD webhook response', {
+            jobId: job.id,
+            status: n8nRes.status,
+            ok: n8nRes.ok,
           });
 
           if (!n8nRes.ok) {
@@ -124,12 +136,15 @@ export class NBFCToolsController {
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          defaultLogger.error('RAAD webhook failed', { jobId: job.id, error: message });
           await prisma.toolJob.update({
             where: { id: job.id },
             data: { status: 'failed', errorMessage: message },
           });
         }
-      });
+      };
+
+      setImmediate(() => void runRaadWebhook());
     } catch (error: unknown) {
       const err = error as Error;
       res.status(500).json({ success: false, error: err.message || 'Failed to start RAAD job' });
@@ -181,10 +196,16 @@ export class NBFCToolsController {
 
       res.status(202).json({ success: true, data: { jobId: job.id } });
 
-      setImmediate(async () => {
-        try {
-          const webhookUrl = getN8nWebhookUrl('pager');
+      const runPagerWebhook = async () => {
+        const { defaultLogger } = await import('../utils/logger.js');
+        const webhookUrl = getN8nWebhookUrl('pager');
+        defaultLogger.info('PAGER webhook starting', {
+          jobId: job.id,
+          webhookHost: new URL(webhookUrl).hostname,
+          hasLetterhead: !!letterheadFile,
+        });
 
+        try {
           const formData = new FormData();
           formData.append('borrowerFile', new Blob([borrowerFile.buffer], { type: borrowerFile.mimetype || 'application/pdf' }), borrowerFile.originalname || 'borrower.pdf');
           if (letterheadFile) {
@@ -197,6 +218,12 @@ export class NBFCToolsController {
           const n8nRes = await fetch(webhookUrl, {
             method: 'POST',
             body: formData,
+          });
+
+          defaultLogger.info('PAGER webhook response', {
+            jobId: job.id,
+            status: n8nRes.status,
+            ok: n8nRes.ok,
           });
 
           if (!n8nRes.ok) {
@@ -215,12 +242,15 @@ export class NBFCToolsController {
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          defaultLogger.error('PAGER webhook failed', { jobId: job.id, error: message });
           await prisma.toolJob.update({
             where: { id: job.id },
             data: { status: 'failed', errorMessage: message },
           });
         }
-      });
+      };
+
+      setImmediate(() => void runPagerWebhook());
     } catch (error: unknown) {
       const err = error as Error;
       res.status(500).json({ success: false, error: err.message || 'Failed to start PAGER job' });
