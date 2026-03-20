@@ -2,7 +2,7 @@
 
 ## Problem
 
-Frontend at `https://lms.sevenfincorp.com` is trying to use `/api` (which points to old Vercel serverless), but backend is now on Fly.io at `https://seven-dash.fly.dev` (no `/api` prefix).
+Frontend at `https://lms.sevenfincorp.com` is trying to use `/api` (which points to old Vercel serverless), but backend is now on Fly.io at `https://seven-render.fly.dev` (no `/api` prefix).
 
 ## Solution: Update Vercel Environment Variable
 
@@ -16,7 +16,7 @@ Frontend at `https://lms.sevenfincorp.com` is trying to use `/api` (which points
 
 Add or update:
 - **Name**: `VITE_API_BASE_URL`
-- **Value**: `https://seven-dash.fly.dev`
+- **Value**: `https://seven-render.fly.dev`
 - **Important**: Do NOT include `/api` at the end
 - **Environments**: ✅ Production, ✅ Preview, ✅ Development
 
@@ -41,7 +41,7 @@ After redeployment:
 1. Open `https://lms.sevenfincorp.com` in browser
 2. Open DevTools (F12) → **Network** tab
 3. Log in
-4. Check Network tab - API requests should go to `https://seven-dash.fly.dev/api/loan-products` (not `https://lms.sevenfincorp.com/api/...`)
+4. Check Network tab - API requests should go to `https://seven-render.fly.dev/api/loan-products` (not `https://lms.sevenfincorp.com/api/...`)
 5. Loan products and applications should load
 
 ## Current Status
@@ -57,11 +57,11 @@ After redeployment:
 After redeploy, test in browser console on `https://lms.sevenfincorp.com`:
 
 ```javascript
-// Should show: "https://seven-dash.fly.dev" or "https://seven-dash.fly.dev/api"
+// Should show: "https://seven-render.fly.dev" or "https://seven-render.fly.dev/api"
 console.log(import.meta.env.VITE_API_BASE_URL);
 
 // Test API call
-fetch('https://seven-dash.fly.dev/api/loan-products', {
+fetch('https://seven-render.fly.dev/api/loan-products', {
   credentials: 'include',
   headers: {
     'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`

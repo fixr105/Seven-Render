@@ -10,7 +10,7 @@ flowchart LR
     FE[lms.sevenfincorp.com]
   end
   subgraph Backend
-    API[seven-dash.fly.dev]
+    API[seven-render.fly.dev]
   end
   subgraph External
     N8N[fixrrahul.app.n8n.cloud]
@@ -39,7 +39,7 @@ The browser never talks to n8n directly; all n8n calls are server-side.
 ### CORS preflight
 
 ```bash
-curl -s -I -X OPTIONS "https://seven-dash.fly.dev/api/auth/login" \
+curl -s -I -X OPTIONS "https://seven-render.fly.dev/api/auth/login" \
   -H "Origin: https://lms.sevenfincorp.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Content-Type"
@@ -50,7 +50,7 @@ Look for: `Access-Control-Allow-Origin: https://lms.sevenfincorp.com`
 ### Login
 
 ```bash
-curl -X POST "https://seven-dash.fly.dev/api/auth/login" \
+curl -X POST "https://seven-render.fly.dev/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD"}'
 ```
@@ -58,18 +58,18 @@ curl -X POST "https://seven-dash.fly.dev/api/auth/login" \
 ### Backend health
 
 ```bash
-curl -s https://seven-dash.fly.dev/health
+curl -s https://seven-render.fly.dev/health
 ```
 
 ### Debug webhook config
 
 ```bash
-curl -s https://seven-dash.fly.dev/api/debug/webhook-config
+curl -s https://seven-render.fly.dev/api/debug/webhook-config
 ```
 
 ## Recommendations
 
-1. **CORS_ORIGIN** – Use `https://lms.sevenfincorp.com,https://seven-dashboard-seven.vercel.app` for production and Vercel previews. Set via `./scripts/set-fly-secrets-lms.sh`.
+1. **CORS_ORIGIN** – Use `https://lms.sevenfincorp.com,https://seven-renderboard-seven.vercel.app` for production and Vercel previews. Set via `./scripts/set-fly-secrets-lms.sh`.
 
 2. **N8N_BASE_URL** – Ensure Fly.io can reach n8n (no firewall/network restrictions).
 
@@ -81,4 +81,4 @@ curl -s https://seven-dash.fly.dev/api/debug/webhook-config
 
 ## Vercel Preview URLs
 
-Vercel preview deployments use unique URLs (e.g. `seven-dashboard-seven-abc123-seven.vercel.app`). CORS does not support wildcards for subdomains. To test from a preview deployment, add that specific URL to `CORS_ORIGIN` on Fly.io when needed.
+Vercel preview deployments use unique URLs (e.g. `seven-renderboard-seven-abc123-seven.vercel.app`). CORS does not support wildcards for subdomains. To test from a preview deployment, add that specific URL to `CORS_ORIGIN` on Fly.io when needed.

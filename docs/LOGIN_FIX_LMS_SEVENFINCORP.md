@@ -4,11 +4,11 @@
 
 Login works locally but fails on production with:
 
-> Cannot connect to backend API at https://seven-dash.fly.dev/api/auth/login. This could be due to: CORS configuration (backend must allow your frontend origin)...
+> Cannot connect to backend API at https://seven-render.fly.dev/api/auth/login. This could be due to: CORS configuration (backend must allow your frontend origin)...
 
 ## Root cause
 
-The backend on Fly.io (`seven-dash.fly.dev`) only accepts requests from origins listed in `CORS_ORIGIN`. If this secret is set to an old URL (e.g. `https://seven-dashboard-seven.vercel.app`) or is missing `https://lms.sevenfincorp.com`, the browser blocks the login request.
+The backend on Fly.io (`seven-render.fly.dev`) only accepts requests from origins listed in `CORS_ORIGIN`. If this secret is set to an old URL (e.g. `https://seven-renderboard-seven.vercel.app`) or is missing `https://lms.sevenfincorp.com`, the browser blocks the login request.
 
 ## Fix (2 steps)
 
@@ -17,13 +17,13 @@ The backend on Fly.io (`seven-dash.fly.dev`) only accepts requests from origins 
 Run this command (requires [Fly CLI](https://fly.io/docs/hacks/install-flyctl/) and `fly auth login`):
 
 ```bash
-fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com" --app seven-dash
+fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com" --app seven-render
 ```
 
 **To allow both production and Vercel previews:**
 
 ```bash
-fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com,https://seven-dashboard-seven.vercel.app" --app seven-dash
+fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com,https://seven-renderboard-seven.vercel.app" --app seven-render
 ```
 
 Fly will redeploy after changing secrets. Wait ~1–2 minutes.
@@ -31,7 +31,7 @@ Fly will redeploy after changing secrets. Wait ~1–2 minutes.
 ### 2. Confirm Vercel env
 
 1. Vercel project → **Settings** → **Environment Variables**
-2. Ensure `VITE_API_BASE_URL` = `https://seven-dash.fly.dev` (no trailing slash, no `/api`)
+2. Ensure `VITE_API_BASE_URL` = `https://seven-render.fly.dev` (no trailing slash, no `/api`)
 3. Redeploy if you changed it
 
 ## Verify
@@ -39,14 +39,14 @@ Fly will redeploy after changing secrets. Wait ~1–2 minutes.
 ### Backend health
 
 ```bash
-curl -s https://seven-dash.fly.dev/health
+curl -s https://seven-render.fly.dev/health
 # Expected: {"success":true,"message":"API is running",...}
 ```
 
 ### CORS preflight
 
 ```bash
-curl -s -I -X OPTIONS "https://seven-dash.fly.dev/api/auth/login" \
+curl -s -I -X OPTIONS "https://seven-render.fly.dev/api/auth/login" \
   -H "Origin: https://lms.sevenfincorp.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Content-Type"

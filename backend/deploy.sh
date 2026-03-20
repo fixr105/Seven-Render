@@ -11,6 +11,6 @@ echo "Current directory: $(pwd)"
 echo "Deploying to Fly.io..."
 
 # Deploy
-fly deploy --app seven-dash
+fly deploy --app seven-render
 
 

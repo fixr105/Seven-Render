@@ -181,7 +181,7 @@ curl -s https://fixrrahul.app.n8n.cloud/webhook/useraccount | jq '.[] | select(.
 
 ### Test 3: Test Login
 ```bash
-curl -X POST https://seven-dash.fly.dev/api/auth/login \
+curl -X POST https://seven-render.fly.dev/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"sagar@sevenfincorp.email","password":"pass@123"}' \
   -c cookies.txt

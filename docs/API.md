@@ -2,7 +2,7 @@
 
 ## Base URL
 
-- **Production**: `https://seven-dash.fly.dev/api`
+- **Production**: `https://seven-render.fly.dev/api`
 - **Development**: `http://localhost:3001/api`
 
 ## Authentication

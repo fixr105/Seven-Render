@@ -6,7 +6,7 @@
  *   cd backend && npm run test:post-one-application
  *
  * Env:
- *   API_BASE_URL          - e.g. http://localhost:3001/api or https://seven-dash.fly.dev/api
+ *   API_BASE_URL          - e.g. http://localhost:3001/api or https://seven-render.fly.dev/api
  *   TEST_CLIENT_EMAIL     - client user email (for login)
  *   TEST_CLIENT_PASSWORD  - client user password (for login)
  *   Or: TEST_CLIENT_USERNAME, TEST_CLIENT_PASSCODE (for /auth/validate)

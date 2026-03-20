@@ -1,0 +1,7 @@
+DUMMY BANK STATEMENT - TEST DATA
+Account: XXXXXX1234
+Period: Jan 2025 - Mar 2025
+Opening Balance: 50000.00
+Closing Balance: 75000.00
+Total Credits: 125000.00
+Total Debits: 100000.00

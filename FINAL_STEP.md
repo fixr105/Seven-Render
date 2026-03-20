@@ -11,7 +11,7 @@
 ### Step 1: Go to Vercel Dashboard
 
 1. Visit: https://vercel.com/dashboard
-2. Find your project (probably `seven-dashboard` or similar)
+2. Find your project (probably `seven-renderboard` or similar)
 3. Click on it
 
 ### Step 2: Add/Update Environment Variable
@@ -19,7 +19,7 @@
 1. Go to **Settings** → **Environment Variables**
 2. Find or add:
    - **Key**: `VITE_API_BASE_URL`
-   - **Value**: `https://seven-dash.fly.dev`
+   - **Value**: `https://seven-render.fly.dev`
    - **Important**: Do NOT include `/api` - the frontend code adds it automatically
    - ✅ Check: **Production**
    - ✅ Check: **Preview** 
@@ -57,10 +57,10 @@ After logging in, test:
 // Check API base URL
 console.log(import.meta.env.VITE_API_BASE_URL);
 
-// Should show: "https://seven-dash.fly.dev"
+// Should show: "https://seven-render.fly.dev"
 
 // Test API call
-fetch('https://seven-dash.fly.dev/api/loan-products', {
+fetch('https://seven-render.fly.dev/api/loan-products', {
   credentials: 'include',
   headers: {
     'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
@@ -73,7 +73,7 @@ fetch('https://seven-dash.fly.dev/api/loan-products', {
 ## Summary
 
 - ✅ Backend deployed with `/api` prefix
-- ⏳ Frontend needs: `VITE_API_BASE_URL=https://seven-dash.fly.dev` in Vercel
+- ⏳ Frontend needs: `VITE_API_BASE_URL=https://seven-render.fly.dev` in Vercel
 - ⏳ Frontend needs redeploy after updating env variable
 
 Once you update Vercel and redeploy, loan products and applications will load!

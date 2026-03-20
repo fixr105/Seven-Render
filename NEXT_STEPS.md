@@ -20,7 +20,7 @@ cd ~/Desktop/Seven-Render/backend
 ## Step 3: Deploy the Backend
 
 ```bash
-fly deploy --app seven-dash
+fly deploy --app seven-render
 ```
 
 This will:
@@ -33,7 +33,7 @@ This will:
 After deployment completes:
 
 ```bash
-fly logs --app seven-dash
+fly logs --app seven-render
 ```
 
 You should see Node.js starting, NOT goStatic.
@@ -41,7 +41,7 @@ You should see Node.js starting, NOT goStatic.
 ## Step 5: Test the API
 
 ```bash
-curl https://seven-dash.fly.dev/health
+curl https://seven-render.fly.dev/health
 ```
 
 Should return: `{"success":true,"message":"API is running",...}`

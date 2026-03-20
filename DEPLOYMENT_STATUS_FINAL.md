@@ -4,14 +4,14 @@
 
 ### Backend (Fly.io)
 - ✅ **Status**: Successfully Deployed
-- ✅ **URL**: https://seven-dash.fly.dev
-- ✅ **App**: `seven-dash`
+- ✅ **URL**: https://seven-render.fly.dev
+- ✅ **App**: `seven-render`
 - ✅ **Region**: `bom` (Bombay/Mumbai)
 - ✅ **Machine**: Running and healthy
 
 ### Frontend (Vercel)
 - ✅ **Status**: Successfully Deployed
-- ✅ **Project**: `rajas-projects-e7f1e274/seven-dashboard`
+- ✅ **Project**: `rajas-projects-e7f1e274/seven-renderboard`
 - ✅ **Build**: Completed successfully
 - ✅ **Production**: Live
 
@@ -53,10 +53,10 @@
 ### 1. Test Backend
 ```bash
 # Health check (root endpoint)
-curl https://seven-dash.fly.dev/health
+curl https://seven-render.fly.dev/health
 
 # API health check
-curl https://seven-dash.fly.dev/api/health
+curl https://seven-render.fly.dev/api/health
 ```
 
 ### 2. Test Frontend
@@ -88,7 +88,7 @@ curl https://fixrrahul.app.n8n.cloud/webhook/useraccount
 
 | Component | Status | URL/Info |
 |-----------|--------|----------|
-| Backend | ✅ Deployed | https://seven-dash.fly.dev |
+| Backend | ✅ Deployed | https://seven-render.fly.dev |
 | Frontend | ✅ Deployed | Check Vercel dashboard |
 | n8n Workflow | ⏳ Needs Update | https://fixrrahul.app.n8n.cloud |
 
@@ -116,7 +116,7 @@ vercel env ls
 ```
 
 Should include:
-- `VITE_API_BASE_URL` (production) = `https://seven-dash.fly.dev`
+- `VITE_API_BASE_URL` (production) = `https://seven-render.fly.dev`
 
 ---
 
@@ -172,7 +172,7 @@ flyctl logs
 flyctl status
 
 # Restart if needed
-flyctl apps restart seven-dash
+flyctl apps restart seven-render
 ```
 
 ### Frontend Issues

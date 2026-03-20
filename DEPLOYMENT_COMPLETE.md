@@ -4,7 +4,7 @@
 
 ### Backend (Fly.io)
 - ✅ **Status**: Deployed and Running
-- ✅ **URL**: https://seven-dash.fly.dev
+- ✅ **URL**: https://seven-render.fly.dev
 - ✅ **Health Check**: Passing
 - ✅ **Machine**: Running in `bom` region
 
@@ -42,7 +42,7 @@ After updating n8n workflow, test:
 
 ### 1. Backend Health
 ```bash
-curl https://seven-dash.fly.dev/api/health
+curl https://seven-render.fly.dev/api/health
 ```
 **Expected**: `{"success":true,"message":"API is running",...}`
 
@@ -76,7 +76,7 @@ curl https://seven-dash.fly.dev/api/health
 ### Backend
 ```bash
 # Health check
-curl https://seven-dash.fly.dev/api/health
+curl https://seven-render.fly.dev/api/health
 
 # Check logs
 cd backend

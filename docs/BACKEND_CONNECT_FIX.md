@@ -1,16 +1,16 @@
-# Fix: Cannot connect to backend API at seven-dash.fly.dev
+# Fix: Cannot connect to backend API at seven-render.fly.dev
 
 ## What’s going on
 
-The frontend at `https://lms.sevenfincorp.com` calls `https://seven-dash.fly.dev/api/auth/login`. You see:
+The frontend at `https://lms.sevenfincorp.com` calls `https://seven-render.fly.dev/api/auth/login`. You see:
 
-> Cannot connect to backend API at https://seven-dash.fly.dev/api/auth/login. This could be due to: Network connectivity, CORS, Server down, Missing VITE_API_BASE_URL
+> Cannot connect to backend API at https://seven-render.fly.dev/api/auth/login. This could be due to: Network connectivity, CORS, Server down, Missing VITE_API_BASE_URL
 
 Common causes:
 
-1. **Wrong image on Fly (goStatic)** – The app `seven-dash` was previously deployed with the **root** `Dockerfile` (goStatic on 8080) instead of the **backend** Node/Express API. The root `fly.toml` and `Dockerfile` have been removed; you must deploy from `backend/`.
+1. **Wrong image on Fly (goStatic)** – The app `seven-render` was previously deployed with the **root** `Dockerfile` (goStatic on 8080) instead of the **backend** Node/Express API. The root `fly.toml` and `Dockerfile` have been removed; you must deploy from `backend/`.
 2. **CORS** – Backend must allow `https://lms.sevenfincorp.com` in `Access-Control-Allow-Origin`.
-3. **Vercel env** – Frontend needs `VITE_API_BASE_URL=https://seven-dash.fly.dev` and a redeploy.
+3. **Vercel env** – Frontend needs `VITE_API_BASE_URL=https://seven-render.fly.dev` and a redeploy.
 
 ---
 
@@ -22,10 +22,10 @@ From the repo root:
 
 ```bash
 cd backend
-flyctl deploy --app seven-dash --remote-only
+flyctl deploy --app seven-render --remote-only
 ```
 
-(Or `fly deploy --app seven-dash --remote-only` if you use `fly`.)
+(Or `fly deploy --app seven-render --remote-only` if you use `fly`.)
 
 - Needs: [Fly CLI](https://fly.io/docs/hacks/install-flyctl/) and `flyctl auth login` (or `FLY_API_TOKEN` in CI).
 - Deploy uses `backend/Dockerfile` and runs `node dist/server.js` on port 3001.
@@ -39,13 +39,13 @@ The backend defaults to `https://lms.sevenfincorp.com` when `CORS_ORIGIN` is **u
 **If you want to set it explicitly (recommended):**
 
 ```bash
-fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com" --app seven-dash
+fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com" --app seven-render
 ```
 
 **To allow both production and Vercel previews:**
 
 ```bash
-fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com,https://seven-dashboard-seven.vercel.app" --app seven-dash
+fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com,https://seven-renderboard-seven.vercel.app" --app seven-render
 ```
 
 After changing secrets, Fly restarts the app automatically.
@@ -57,7 +57,7 @@ After changing secrets, Fly restarts the app automatically.
 1. Vercel project → **Settings** → **Environment Variables**
 2. Add or update:
    - **Key:** `VITE_API_BASE_URL`
-   - **Value:** `https://seven-dash.fly.dev`  
+   - **Value:** `https://seven-render.fly.dev`  
      (no `/api` – the frontend adds it)
 3. Enable: Production, Preview, Development.
 4. **Redeploy** (Deployments → ⋯ → Redeploy) so the new value is used.
@@ -69,7 +69,7 @@ After changing secrets, Fly restarts the app automatically.
 **Confirm it’s Node, not goStatic:**
 
 ```bash
-fly logs -a seven-dash
+flyctl logs -a seven-render
 ```
 
 You should see Node/Express logs (e.g. `Server started`, `Daily summary job started`). If you see `goStatic` or `Listening at http://0.0.0.0:8080`, the wrong image is still deployed — deploy again from `backend/` as in step 1.
@@ -77,21 +77,21 @@ You should see Node/Express logs (e.g. `Server started`, `Daily summary job star
 **Health:**
 
 ```bash
-curl -s https://seven-dash.fly.dev/health
+curl -s https://seven-render.fly.dev/health
 # Expected: {"success":true,"message":"API is running",...}
 ```
 
 **API health:**
 
 ```bash
-curl -s https://seven-dash.fly.dev/api/health
+curl -s https://seven-render.fly.dev/api/health
 # Expected: JSON with success/status.
 ```
 
 **CORS (from browser or with Origin):**
 
 ```bash
-curl -s -I -X OPTIONS "https://seven-dash.fly.dev/api/auth/login" \
+curl -s -I -X OPTIONS "https://seven-render.fly.dev/api/auth/login" \
   -H "Origin: https://lms.sevenfincorp.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Content-Type"
@@ -118,8 +118,8 @@ So in production, `lms.sevenfincorp.com` is allowed even when `CORS_ORIGIN` is n
 
 | Step | Action |
 |------|--------|
-| 1 | `cd backend && flyctl deploy --app seven-dash --remote-only` |
-| 2 | `fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com" --app seven-dash` (optional but recommended) |
-| 3 | In Vercel: `VITE_API_BASE_URL=https://seven-dash.fly.dev` and redeploy |
-| 4 | `curl -s https://seven-dash.fly.dev/health` → JSON with `"success":true` |
+| 1 | `cd backend && flyctl deploy --app seven-render --remote-only` |
+| 2 | `fly secrets set CORS_ORIGIN="https://lms.sevenfincorp.com" --app seven-render` (optional but recommended) |
+| 3 | In Vercel: `VITE_API_BASE_URL=https://seven-render.fly.dev` and redeploy |
+| 4 | `curl -s https://seven-render.fly.dev/health` → JSON with `"success":true` |
 | 5 | Login at https://lms.sevenfincorp.com |

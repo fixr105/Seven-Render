@@ -35,7 +35,7 @@ Complete the browser authentication.
 
 After authentication succeeds:
 ```bash
-fly deploy --app seven-dash
+fly deploy --app seven-render
 ```
 
 This should:
@@ -46,7 +46,7 @@ This should:
 ### Step 3: Verify Deployment
 
 ```bash
-fly logs --app seven-dash
+fly logs --app seven-render
 ```
 
 You should see:
@@ -57,7 +57,7 @@ You should see:
 ### Step 4: Test Health Endpoint
 
 ```bash
-curl https://seven-dash.fly.dev/health
+curl https://seven-render.fly.dev/health
 ```
 
 Should return: `{"success":true,"message":"API is running",...}`

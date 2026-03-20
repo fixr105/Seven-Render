@@ -2,11 +2,11 @@
 
 ## What You're Seeing
 
-- `seven-dash.fly.dev/api/auth/login` → **401**
-- `seven-dash.fly.dev/api/loan-applications` → **401**
-- `seven-dash.fly.dev/api/kam/dashboard` → **401**
-- `seven-dash.fly.dev/api/kam/clients` → **401**
-- `seven-dash.fly.dev/api/notifications` → **401**
+- `seven-render.fly.dev/api/auth/login` → **401**
+- `seven-render.fly.dev/api/loan-applications` → **401**
+- `seven-render.fly.dev/api/kam/dashboard` → **401**
+- `seven-render.fly.dev/api/kam/clients` → **401**
+- `seven-render.fly.dev/api/notifications` → **401**
 - Frontend: "Session expired. Please login again."
 
 ---
@@ -44,7 +44,7 @@
 ### Step 1: Test login with curl
 
 ```bash
-curl -X POST "https://seven-dash.fly.dev/api/auth/login" \
+curl -X POST "https://seven-render.fly.dev/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD"}'
 ```
@@ -60,12 +60,12 @@ curl -X POST "https://seven-dash.fly.dev/api/auth/login" \
 ### Step 2: Check Fly.io secrets
 
 ```bash
-fly secrets list --app seven-dash
+fly secrets list --app seven-render
 ```
 
 Required:
 - `N8N_BASE_URL` – e.g. `https://fixrrahul.app.n8n.cloud/webhook`
-- `CORS_ORIGIN` – e.g. `https://lms.sevenfincorp.com,https://seven-dashboard-seven.vercel.app`
+- `CORS_ORIGIN` – e.g. `https://lms.sevenfincorp.com,https://seven-renderboard-seven.vercel.app`
 - `JWT_SECRET` – secure random string (32+ chars)
 
 If `N8N_BASE_URL` is wrong or n8n is unreachable from Fly.io, `getUserAccounts()` may fail or return empty → login 401.
@@ -73,7 +73,7 @@ If `N8N_BASE_URL` is wrong or n8n is unreachable from Fly.io, `getUserAccounts()
 ### Step 3: Check backend logs
 
 ```bash
-fly logs --app seven-dash
+fly logs --app seven-render
 ```
 
 Look for:
@@ -85,7 +85,7 @@ Look for:
 ### Step 4: Verify CORS
 
 ```bash
-curl -s -I -X OPTIONS "https://seven-dash.fly.dev/api/auth/login" \
+curl -s -I -X OPTIONS "https://seven-render.fly.dev/api/auth/login" \
   -H "Origin: https://lms.sevenfincorp.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Content-Type"

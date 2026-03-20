@@ -17,7 +17,7 @@
 ## ⚠️ Backend Deployment - NEEDS VERIFICATION
 
 **Platform**: Fly.io  
-**App Name**: `seven-dash`  
+**App Name**: `seven-render`  
 **Status**: ⚠️ Restarted, but returning 503 errors  
 **Issue**: Backend appears unresponsive or timing out
 
@@ -48,7 +48,7 @@
 ## Next Steps
 
 1. **Verify Backend Status**:
-   - Check Fly.io logs: `flyctl logs -a seven-dash`
+   - Check Fly.io logs: `flyctl logs -a seven-render`
    - Verify environment variables are set correctly
    - Wait 1-2 minutes after restart and retry
 

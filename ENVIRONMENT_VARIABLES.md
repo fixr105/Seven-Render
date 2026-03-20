@@ -52,7 +52,7 @@ All NBFC tools use the production n8n instance. Set `N8N_NBFC_TOOLS_BASE_URL`; t
 
 | Tool | Webhook path |
 |------|--------------|
-| RAAD | upload-bankstatement |
+| RAAD | upload-bankstatement-1 |
 | PAGER | upload-pager |
 
 ```bash
@@ -85,8 +85,8 @@ fly secrets set NODE_ENV=production --app seven-render
 # NBFC AI Tools (RAAD, PAGER) - production n8n
 fly secrets set N8N_NBFC_TOOLS_BASE_URL=https://n8n-h9n3.srv1314414.hstgr.cloud --app seven-render
 
-# RAAD: Override to use your n8n instance (e.g. n8n-fvmj.srv1499064.hstgr.cloud)
-fly secrets set N8N_RAAD_WEBHOOK_URL="https://n8n-fvmj.srv1499064.hstgr.cloud/webhook/upload-bankstatement" --app seven-render
+# RAAD: Override to use your n8n instance
+fly secrets set N8N_RAAD_WEBHOOK_URL="https://fixrrahul.app.n8n.cloud/webhook/upload-bankstatement-1" --app seven-render
 
 # Optional: Set cron schedule
 fly secrets set CRON_SCHEDULE="0 0 * * *" --app seven-render

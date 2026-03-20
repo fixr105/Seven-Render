@@ -3,7 +3,7 @@
 ## Problem
 The frontend deployed on Vercel cannot connect to the backend on Fly.io, showing:
 ```
-Cannot connect to backend API at https://seven-dash.fly.dev/api/auth/validate
+Cannot connect to backend API at https://seven-render.fly.dev/api/auth/validate
 ```
 
 ## Root Cause
@@ -18,7 +18,7 @@ The frontend needs the `VITE_API_BASE_URL` environment variable set in Vercel to
 3. Go to **Settings** → **Environment Variables**
 4. Add/Update the following variable:
    - **Name**: `VITE_API_BASE_URL`
-   - **Value**: `https://seven-dash.fly.dev`
+   - **Value**: `https://seven-render.fly.dev`
    - **Environment**: Production, Preview, Development (select all)
 5. Click **Save**
 
@@ -35,7 +35,7 @@ After setting the environment variable, you need to redeploy:
 
 Test the backend directly:
 ```bash
-curl -X POST https://seven-dash.fly.dev/api/auth/validate \
+curl -X POST https://seven-render.fly.dev/api/auth/validate \
   -H "Content-Type: application/json" \
   -d '{"username":"test","passcode":"test"}'
 ```
@@ -82,12 +82,12 @@ However, the current setup (Fly.io backend) is recommended for better performanc
 1. **Check browser console** for CORS errors
 2. **Verify CORS_ORIGIN** in Fly.io backend:
    ```bash
-   fly secrets list --app seven-dash
+   fly secrets list --app seven-render
    ```
    Should include: `CORS_ORIGIN=https://lms.sevenfincorp.com`
 3. **Test from browser console**:
    ```javascript
-   fetch('https://seven-dash.fly.dev/api/health')
+   fetch('https://seven-render.fly.dev/api/health')
      .then(r => r.json())
      .then(console.log)
    ```
@@ -100,7 +100,7 @@ This is expected if the n8n webhook isn't activated. The backend is working corr
 
 ```bash
 # 1. Set in Vercel Dashboard → Settings → Environment Variables
-VITE_API_BASE_URL=https://seven-dash.fly.dev
+VITE_API_BASE_URL=https://seven-render.fly.dev
 
 # 2. Redeploy frontend in Vercel
 

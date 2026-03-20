@@ -2,14 +2,14 @@
 # Set all Fly.io secrets for lms.sevenfincorp.com
 # Usage: ./scripts/set-fly-secrets-lms.sh
 #        N8N_BASE_URL=https://your-n8n.app.n8n.cloud ./scripts/set-fly-secrets-lms.sh  # override n8n URL
-# Requires: flyctl logged in, app name seven-dash
+# Requires: flyctl logged in, app name seven-render
 
 set -e
 FLY_APP="${FLY_APP:-seven-render}"
 
 # Values for lms.sevenfincorp.com
 N8N_BASE_URL="${N8N_BASE_URL:-https://fixrrahul.app.n8n.cloud}"
-CORS_ORIGIN="https://lms.sevenfincorp.com,https://seven-dashboard-seven.vercel.app"
+CORS_ORIGIN="https://lms.sevenfincorp.com,https://seven-renderboard-seven.vercel.app"
 NODE_ENV="production"
 API_RATE_LIMIT_MAX="${API_RATE_LIMIT_MAX:-500}"
 
@@ -36,4 +36,4 @@ fly secrets set \
 echo ""
 echo "Done. Fly will redeploy automatically (~1-2 min)."
 echo "Verify: fly logs -a $FLY_APP"
-echo "Health: curl -s https://seven-dash.fly.dev/health"
+echo "Health: curl -s https://seven-render.fly.dev/health"

@@ -4,7 +4,7 @@
 
 ### Command
 ```bash
-curl -X POST https://seven-dash.fly.dev/api/auth/login \
+curl -X POST https://seven-render.fly.dev/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "sagar@sevenfincorp.email",

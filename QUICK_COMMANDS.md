@@ -16,24 +16,24 @@ fly auth login
 
 ## Step 3: Deploy Backend
 ```bash
-fly deploy --app seven-dash
+fly deploy --app seven-render
 ```
 
 ## Step 4: Check Deployment Status
 ```bash
-fly status --app seven-dash
+fly status --app seven-render
 ```
 
 ## Step 5: View Logs
 ```bash
-fly logs --app seven-dash
+fly logs --app seven-render
 ```
 
 You should see Node.js starting (not goStatic).
 
 ## Step 6: Test Health Endpoint
 ```bash
-curl https://seven-dash.fly.dev/health
+curl https://seven-render.fly.dev/health
 ```
 
 Expected output: `{"success":true,"message":"API is running",...}`

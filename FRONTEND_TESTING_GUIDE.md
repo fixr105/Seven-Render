@@ -5,7 +5,7 @@ This guide explains how to test your frontend with the Fly.io backend.
 ## Architecture
 
 - **Frontend**: React app (deploy on Vercel or run locally)
-- **Backend**: Express API on Fly.io (`https://seven-dash.fly.dev`)
+- **Backend**: Express API on Fly.io (`https://seven-render.fly.dev`)
 
 ## Step 1: Start Backend on Fly.io
 
@@ -13,18 +13,18 @@ Your backend machines are currently stopped. Start them:
 
 ```bash
 cd backend
-fly machine start --app seven-dash
+fly machine start --app seven-render
 ```
 
 Or scale up:
 ```bash
-fly scale count 1 --app seven-dash
+fly scale count 1 --app seven-render
 ```
 
 Verify backend is running:
 ```bash
-fly status --app seven-dash
-curl https://seven-dash.fly.dev/health
+fly status --app seven-render
+curl https://seven-render.fly.dev/health
 ```
 
 ## Step 2: Configure Frontend to Point to Fly.io Backend
@@ -35,7 +35,7 @@ curl https://seven-dash.fly.dev/health
 
 ```bash
 # .env
-VITE_API_BASE_URL=https://seven-dash.fly.dev
+VITE_API_BASE_URL=https://seven-render.fly.dev
 ```
 
 2. **Start frontend dev server**:
@@ -51,7 +51,7 @@ npm run dev
 
 1. **Set Environment Variable in Vercel Dashboard**:
    - Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-   - Add: `VITE_API_BASE_URL` = `https://seven-dash.fly.dev`
+   - Add: `VITE_API_BASE_URL` = `https://seven-render.fly.dev`
    - Apply to: Production, Preview, Development
 
 2. **Deploy**:
@@ -74,12 +74,12 @@ npm run dev
 
 2. **API Connection**:
    - Open browser DevTools → Network tab
-   - Look for requests to `seven-dash.fly.dev`
+   - Look for requests to `seven-render.fly.dev`
    - Verify requests are successful (200 status)
 
 3. **Health Check**:
    - Open browser console
-   - Run: `fetch('https://seven-dash.fly.dev/health').then(r => r.json()).then(console.log)`
+   - Run: `fetch('https://seven-render.fly.dev/health').then(r => r.json()).then(console.log)`
    - Should return: `{success: true, message: "API is running"}`
 
 ### Test Login
@@ -88,7 +88,7 @@ Use test credentials (if you have them set up):
 
 ```javascript
 // In browser console or test script
-fetch('https://seven-dash.fly.dev/auth/login', {
+fetch('https://seven-render.fly.dev/auth/login', {
   method: 'POST',
   headers: {'Content-Type': 'application/json'},
   body: JSON.stringify({
@@ -108,46 +108,46 @@ If you see CORS errors:
 
 1. **Check backend CORS configuration**:
    ```bash
-   fly secrets list --app seven-dash
+   fly secrets list --app seven-render
    ```
 
 2. **Set CORS_ORIGIN**:
    ```bash
    # For local development
-   fly secrets set CORS_ORIGIN=http://localhost:3000 --app seven-dash
+   fly secrets set CORS_ORIGIN=http://localhost:3000 --app seven-render
    
    # For Vercel production
-   fly secrets set CORS_ORIGIN=https://your-app.vercel.app --app seven-dash
+   fly secrets set CORS_ORIGIN=https://your-app.vercel.app --app seven-render
    ```
 
 3. **Restart backend**:
    ```bash
-   fly apps restart --app seven-dash
+   fly apps restart --app seven-render
    ```
 
 ### Backend Not Responding
 
 1. **Check backend status**:
    ```bash
-   fly status --app seven-dash
-   fly logs --app seven-dash
+   fly status --app seven-render
+   fly logs --app seven-render
    ```
 
 2. **Verify backend is running**:
    ```bash
-   curl https://seven-dash.fly.dev/health
+   curl https://seven-render.fly.dev/health
    ```
 
 3. **Start backend if stopped**:
    ```bash
-   fly scale count 1 --app seven-dash
+   fly scale count 1 --app seven-render
    ```
 
 ### API Requests Failing
 
 1. **Check environment variable**:
    - Verify `VITE_API_BASE_URL` is set correctly
-   - For local: Should be `https://seven-dash.fly.dev`
+   - For local: Should be `https://seven-render.fly.dev`
    - No `/api` suffix needed (Fly.io serves at root)
 
 2. **Check browser console**:
@@ -156,17 +156,17 @@ If you see CORS errors:
 
 3. **Verify backend logs**:
    ```bash
-   fly logs --app seven-dash
+   fly logs --app seven-render
    ```
 
 ## Quick Test Checklist
 
 - [ ] Backend is running (`fly status` shows machines running)
-- [ ] Health endpoint works (`curl https://seven-dash.fly.dev/health`)
-- [ ] Frontend environment variable set (`VITE_API_BASE_URL=https://seven-dash.fly.dev`)
+- [ ] Health endpoint works (`curl https://seven-render.fly.dev/health`)
+- [ ] Frontend environment variable set (`VITE_API_BASE_URL=https://seven-render.fly.dev`)
 - [ ] Frontend running (locally or on Vercel)
 - [ ] Can access login page
-- [ ] Browser console shows API calls to `seven-dash.fly.dev`
+- [ ] Browser console shows API calls to `seven-render.fly.dev`
 - [ ] No CORS errors in console
 - [ ] Login works (or shows proper error messages)
 

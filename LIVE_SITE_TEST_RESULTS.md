@@ -6,8 +6,8 @@ Run date: 2026-02-12 (from plan "Test if the live site works").
 
 | Endpoint | Result |
 |----------|--------|
-| GET https://seven-dash.fly.dev/health | **200** – `{"success":true,"message":"API is running",...}` |
-| GET https://seven-dash.fly.dev/api/health | **401** – "Authentication required" (expected when unauthenticated) |
+| GET https://seven-render.fly.dev/health | **200** – `{"success":true,"message":"API is running",...}` |
+| GET https://seven-render.fly.dev/api/health | **401** – "Authentication required" (expected when unauthenticated) |
 
 **Verdict:** Backend is up and responding.
 
@@ -21,7 +21,7 @@ Run date: 2026-02-12 (from plan "Test if the live site works").
 
 ## 3. API and CORS
 
-- **GET** https://seven-dash.fly.dev/api/health **without** `Origin`: **401** (expected).
+- **GET** https://seven-render.fly.dev/api/health **without** `Origin`: **401** (expected).
 - **GET** with `Origin: https://lms.sevenfincorp.com`: **401** and response headers include `access-control-allow-origin: https://lms.sevenfincorp.com`, `access-control-allow-credentials: true`.
 - **GET** with `Origin: https://seven-dashboard-seven.vercel.app`: **500** and no `Access-Control-Allow-Origin` header.
 
@@ -50,4 +50,4 @@ Not run in this automated pass. After fixing CORS (step 3), retest manually: ope
 | Frontend load | Pass (200, app shell) |
 | CORS from Vercel origin | **Pass** – fixed; `CORS_ORIGIN` on Fly.io set to include `https://seven-dashboard-seven.vercel.app`. Verified working by user. |
 
-Live site is working: https://seven-dashboard-seven.vercel.app with backend https://seven-dash.fly.dev.
+Live site is working: https://seven-dashboard-seven.vercel.app with backend https://seven-render.fly.dev.

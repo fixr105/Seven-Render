@@ -15,7 +15,7 @@
 ## Deploy
 
 ```bash
-fly deploy --app seven-dash
+fly deploy --app seven-render
 ```
 
 ## If You Get Permission Errors
@@ -25,7 +25,7 @@ The `.dockerignore` file has been added to exclude `.Trash` and other system fil
 1. Make sure you're in the backend directory (not home directory)
 2. Try deploying with:
    ```bash
-   fly deploy --app seven-dash --remote-only
+   fly deploy --app seven-render --remote-only
    ```
 
 ## Verify Deployment
@@ -33,7 +33,7 @@ The `.dockerignore` file has been added to exclude `.Trash` and other system fil
 After deployment completes (2-3 minutes), test:
 
 ```bash
-curl -X POST https://seven-dash.fly.dev/api/auth/validate \
+curl -X POST https://seven-render.fly.dev/api/auth/validate \
   -H "Content-Type: application/json" \
   -d '{"username":"test","passcode":"test"}'
 ```
@@ -43,8 +43,8 @@ Should return validation response (not "No token provided").
 ## Check Deployment Status
 
 ```bash
-fly status --app seven-dash
-fly logs --app seven-dash
+fly status --app seven-render
+fly logs --app seven-render
 ```
 
 

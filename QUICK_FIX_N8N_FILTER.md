@@ -84,7 +84,7 @@ I've created a fixed version: `n8n-useraccount-webhook-FIXED.json`
 curl https://fixrrahul.app.n8n.cloud/webhook/useraccount | jq '.'
 
 # Test login
-curl -X POST https://seven-dash.fly.dev/api/auth/login \
+curl -X POST https://seven-render.fly.dev/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"sagar@sevenfincorp.email","password":"pass@123"}'
 ```

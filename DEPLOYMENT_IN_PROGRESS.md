@@ -12,7 +12,7 @@
 
 ### Backend (Fly.io)
 - ✅ Authenticated: `foundersfirstalways@gmail.com`
-- ✅ App: `seven-dash`
+- ✅ App: `seven-render`
 - 🔄 Building and deploying...
 - ⏳ This may take 2-5 minutes
 
@@ -36,7 +36,7 @@ flyctl status
 flyctl logs
 
 # Test health endpoint
-curl https://seven-dash.fly.dev/api/health
+curl https://seven-render.fly.dev/api/health
 ```
 
 ### 2. Verify Frontend Deployment
@@ -85,7 +85,7 @@ curl https://seven-dash.fly.dev/api/health
 ### Backend Issues
 - Check: `flyctl logs`
 - Verify: Environment variables are set
-- Test: `curl https://seven-dash.fly.dev/api/health`
+- Test: `curl https://seven-render.fly.dev/api/health`
 
 ### Frontend Issues
 - Check: Vercel deployment logs

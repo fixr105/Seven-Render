@@ -2,7 +2,7 @@
 
 ## Problem
 
-Login request to `https://seven-dash.fly.dev/api/auth/login` returns **503 Service Unavailable**.
+Login request to `https://seven-render.fly.dev/api/auth/login` returns **503 Service Unavailable**.
 
 ## Root Cause
 
@@ -25,13 +25,13 @@ This indicates the `/webhook/useraccount` n8n webhook is likely:
 
 ```bash
 # View recent logs
-flyctl logs -a seven-dash
+flyctl logs -a seven-render
 
 # Follow logs in real-time
-flyctl logs -a seven-dash --follow
+flyctl logs -a seven-render --follow
 
 # Filter for login errors
-flyctl logs -a seven-dash | grep -i "login\|503\|timeout\|unavailable"
+flyctl logs -a seven-render | grep -i "login\|503\|timeout\|unavailable"
 ```
 
 **Look for:**
@@ -87,7 +87,7 @@ The n8n filter might be blocking all users. Check:
 
 ```bash
 # Check N8N_BASE_URL
-flyctl secrets list -a seven-dash
+flyctl secrets list -a seven-render
 
 # Should see:
 # N8N_BASE_URL=https://fixrrahul.app.n8n.cloud
@@ -95,7 +95,7 @@ flyctl secrets list -a seven-dash
 
 **If missing or wrong:**
 ```bash
-flyctl secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud -a seven-dash
+flyctl secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud -a seven-render
 ```
 
 ## Common Issues and Fixes

@@ -9,7 +9,7 @@
 
 ### Request Format
 ```bash
-curl -X POST https://seven-dash.fly.dev/api/auth/login \
+curl -X POST https://seven-render.fly.dev/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "sagar@sevenfincorp.email",
@@ -223,7 +223,7 @@ Set-Cookie: auth_token=<JWT_TOKEN>; Path=/; HttpOnly; Secure; SameSite=Strict; M
 Run this command to test:
 
 ```bash
-curl -X POST https://seven-dash.fly.dev/api/auth/login \
+curl -X POST https://seven-render.fly.dev/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"sagar@sevenfincorp.email","password":"pass@123"}' \
   -c cookies.txt \

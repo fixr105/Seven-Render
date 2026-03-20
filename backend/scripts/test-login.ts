@@ -10,7 +10,7 @@
  *
  * Usage:
  *   cd backend && npx tsx scripts/test-login.ts
- *   API_BASE_URL=https://seven-dash.fly.dev/api npx tsx scripts/test-login.ts
+ *   API_BASE_URL=https://seven-render.fly.dev/api npx tsx scripts/test-login.ts
  *   E2E_CLIENT_USERNAME=sagar@sevenfincorp.email E2E_CLIENT_PASSWORD=pass@123 npx tsx scripts/test-login.ts
  *
  * Tip: Set SKIP_AUTH_RATE_LIMIT=true when testing locally to bypass rate limits.

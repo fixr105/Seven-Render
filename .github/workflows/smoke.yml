@@ -19,7 +19,7 @@ jobs:
 
       - name: Check backend health
         run: |
-          BACKEND_URL="${BACKEND_URL:-https://seven-dash.fly.dev}"
+          BACKEND_URL="${BACKEND_URL:-https://seven-render.fly.dev}"
           echo "Checking backend at $BACKEND_URL/health"
           curl -sf "$BACKEND_URL/health" || (echo "Backend health check failed" && exit 1)
         env:

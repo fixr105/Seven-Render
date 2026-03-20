@@ -2,7 +2,7 @@
 # Set CORS_ORIGIN on Fly.io so the backend allows requests from your frontend.
 # Usage: ./scripts/set-fly-cors.sh "https://your-vercel-app.vercel.app"
 #        ./scripts/set-fly-cors.sh "https://app1.vercel.app,https://lms.sevenfincorp.com"
-# Requires: flyctl logged in, app name seven-dash
+# Requires: flyctl logged in, app name seven-render
 
 set -e
 ORIGIN="${1:-}"

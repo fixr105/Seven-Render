@@ -23,7 +23,7 @@ function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
   const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
   const baseClean = base.replace(/\/$/, '');
   if (tool === 'raad') {
-    return process.env.N8N_RAAD_WEBHOOK_URL || `${baseClean}/webhook/upload-bankstatement`;
+    return process.env.N8N_RAAD_WEBHOOK_URL || `${baseClean}/webhook/upload-bankstatement-1`;
   }
   if (process.env.N8N_PAGER_WEBHOOK_URL) {
     return process.env.N8N_PAGER_WEBHOOK_URL;

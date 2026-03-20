@@ -33,7 +33,7 @@ export const authConfig = {
   cookieOptions: {
     httpOnly: true, // Prevents JavaScript access (XSS protection)
     secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-    // Use sameSite: 'none' for cross-origin (e.g. lms.sevenfincorp.com -> seven-dash.fly.dev)
+    // Use sameSite: 'none' for cross-origin (e.g. lms.sevenfincorp.com -> seven-render.fly.dev)
     sameSite: (process.env.CORS_ORIGIN ? 'none' : 'strict') as 'strict' | 'none' | 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches JWT expiration)
     path: '/',

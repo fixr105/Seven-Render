@@ -117,7 +117,7 @@ Make sure your user exists in Airtable:
 **View logs on Fly.io:**
 
 ```bash
-flyctl logs -a seven-dash --follow
+flyctl logs -a seven-render --follow
 ```
 
 **Look for:**
@@ -152,7 +152,7 @@ flyctl logs -a seven-dash --follow
 
 2. **Share backend logs:**
    ```bash
-   flyctl logs -a seven-dash | grep -i "auth\|webhook" > backend-logs.txt
+   flyctl logs -a seven-render | grep -i "auth\|webhook" > backend-logs.txt
    ```
 
 3. **Check n8n workflow:**

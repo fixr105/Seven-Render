@@ -106,7 +106,7 @@ After fixing the n8n workflow:
 **On Fly.io:**
 
 ```bash
-flyctl logs -a seven-dash --follow
+flyctl logs -a seven-render --follow
 ```
 
 **Look for:**
@@ -137,7 +137,7 @@ flyctl logs -a seven-dash --follow
 
 1. **Check backend logs** for exact error:
    ```bash
-   flyctl logs -a seven-dash | grep -i "auth\|webhook\|503"
+   flyctl logs -a seven-render | grep -i "auth\|webhook\|503"
    ```
 
 2. **Share the error message** from logs

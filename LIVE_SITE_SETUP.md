@@ -6,11 +6,11 @@ Use this checklist when the GitHub Deploy workflow succeeds but the live app doe
 
 Backend should respond at:
 
-- **GET** https://seven-dash.fly.dev/health → expect `200` and `{"success":true,"message":"API is running",...}`
-- **GET** https://seven-dash.fly.dev/api/health → may return `401` if auth is required; that is OK. `502`/timeout means the app is down.
+- **GET** https://seven-render.fly.dev/health → expect `200` and `{"success":true,"message":"API is running",...}`
+- **GET** https://seven-render.fly.dev/api/health → may return `401` if auth is required; that is OK. `502`/timeout means the app is down.
 
 ```bash
-curl -s https://seven-dash.fly.dev/health
+curl -s https://seven-render.fly.dev/health
 ```
 
 ## 2. Vercel: set API URL and redeploy
@@ -20,7 +20,7 @@ The frontend needs the backend URL at **build time** via `VITE_API_BASE_URL`.
 1. Open **Vercel** → your project → **Settings** → **Environment Variables**.
 2. Add or edit:
    - **Name:** `VITE_API_BASE_URL`
-   - **Value:** `https://seven-dash.fly.dev`
+   - **Value:** `https://seven-render.fly.dev`
    - **Environments:** Production (and Preview if you use preview deployments).
 3. Do **not** add `/api`; the client appends it.
 4. **Redeploy** the frontend (Vite bakes `VITE_*` into the build):
@@ -36,13 +36,13 @@ The backend allows only origins listed in `CORS_ORIGIN`. If the live site is on 
 
 ```bash
 # Replace YOUR_VERCEL_URL with your actual Vercel production URL (no trailing slash)
-flyctl secrets set CORS_ORIGIN=https://YOUR_VERCEL_URL -a seven-dash
+flyctl secrets set CORS_ORIGIN=https://YOUR_VERCEL_URL -a seven-render
 ```
 
 Multiple origins (comma-separated, no spaces):
 
 ```bash
-flyctl secrets set "CORS_ORIGIN=https://seven-render.vercel.app,https://lms.sevenfincorp.com" -a seven-dash
+flyctl secrets set "CORS_ORIGIN=https://seven-render.vercel.app,https://lms.sevenfincorp.com" -a seven-render
 ```
 
 3. Fly redeploys automatically when secrets change.
@@ -52,21 +52,21 @@ flyctl secrets set "CORS_ORIGIN=https://seven-render.vercel.app,https://lms.seve
 Backend expects these secrets on Fly.io. Set them if missing:
 
 ```bash
-flyctl secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud -a seven-dash
-flyctl secrets set JWT_SECRET="$(openssl rand -base64 32)" -a seven-dash
+flyctl secrets set N8N_BASE_URL=https://fixrrahul.app.n8n.cloud -a seven-render
+flyctl secrets set JWT_SECRET="$(openssl rand -base64 32)" -a seven-render
 # CORS_ORIGIN already set in step 3
 ```
 
 List secrets (values are hidden):
 
 ```bash
-flyctl secrets list -a seven-dash
+flyctl secrets list -a seven-render
 ```
 
 View logs after redeploy:
 
 ```bash
-flyctl logs -a seven-dash
+flyctl logs -a seven-render
 ```
 
 ## 5. Retest the live site
@@ -75,7 +75,7 @@ flyctl logs -a seven-dash
 2. Open DevTools → **Console** and **Network**.
 3. If you see:
    - **"VITE_API_BASE_URL environment variable is required"** → Vercel env not set or frontend not redeployed after setting it.
-   - **CORS error** on requests to `https://seven-dash.fly.dev` → `CORS_ORIGIN` on Fly.io does not include your Vercel origin (step 3).
+   - **CORS error** on requests to `https://seven-render.fly.dev` → `CORS_ORIGIN` on Fly.io does not include your Vercel origin (step 3).
    - **401** on API calls → often CORS/cookie related; ensure `CORS_ORIGIN` is set so the backend sends cookies for your origin.
    - **500** or **"N8N_BASE_URL required"** → set Fly.io secrets (step 4).
 
@@ -83,7 +83,7 @@ flyctl logs -a seven-dash
 
 | Where   | Variable             | Value / action |
 |---------|----------------------|----------------|
-| Vercel  | `VITE_API_BASE_URL` | `https://seven-dash.fly.dev` then **redeploy** |
+| Vercel  | `VITE_API_BASE_URL` | `https://seven-render.fly.dev` then **redeploy** |
 | Fly.io  | `CORS_ORIGIN`        | Your exact frontend URL(s), e.g. Vercel production URL |
 | Fly.io  | `N8N_BASE_URL`       | `https://fixrrahul.app.n8n.cloud` |
 | Fly.io  | `JWT_SECRET`         | At least 32 chars, e.g. `openssl rand -base64 32` |

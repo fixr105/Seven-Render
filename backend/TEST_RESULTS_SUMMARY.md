@@ -38,14 +38,14 @@
 
 2. ⚠️ **Backend API Testing Requires Server**
    - Local backend server not running
-   - Can test against production: `https://seven-dash.fly.dev`
+   - Can test against production: `https://seven-render.fly.dev`
    - Or start locally: `cd backend && npm run dev`
 
 ## Next Steps
 
 1. **Test Against Production Backend**:
    ```bash
-   API_BASE_URL=https://seven-dash.fly.dev/api npm run test:fixes
+   API_BASE_URL=https://seven-render.fly.dev/api npm run test:fixes
    ```
 
 2. **Start Local Backend**:
