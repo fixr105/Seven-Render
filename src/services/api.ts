@@ -394,7 +394,7 @@ class ApiService {
         let errorMessage = `Server returned HTML instead of JSON (${response.status} ${response.statusText})`;
         
         if (response.status === 404) {
-          errorMessage = `Endpoint not found: ${endpoint}. The API route may not exist or the backend may not be properly deployed.`;
+          errorMessage = `Endpoint not found: ${endpoint}. Set VITE_API_BASE_URL=https://seven-render.fly.dev in Vercel and redeploy. See docs/NBFC_TOOLS_404_FIX.md.`;
         } else if (response.status === 401 || response.status === 403) {
           errorMessage = `Authentication failed (${response.status}).`;
         } else if (response.status >= 500) {
@@ -1447,9 +1447,22 @@ class ApiService {
   }
 
   async getNBFCToolsJobStatus(jobId: string): Promise<
-    ApiResponse<{ status: string; stage?: string | null; reportUrl?: string | null; error?: string | null }>
+    ApiResponse<{
+      status: string;
+      stage?: string | null;
+      reportUrl?: string | null;
+      loanApplicationId?: string | null;
+      error?: string | null;
+    }>
   > {
     return this.request(`/nbfc/tools/jobs/${jobId}/status`);
+  }
+
+  async requestRAADData(loanApplicationId: string): Promise<ApiResponse<unknown>> {
+    return this.request('/nbfc/tools/raad/request-data', {
+      method: 'POST',
+      body: JSON.stringify({ loanApplicationId }),
+    });
   }
 
   async submitRAADJob(formData: FormData): Promise<ApiResponse<{ jobId: string }>> {
