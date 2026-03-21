@@ -409,12 +409,71 @@ export class NBFCToolsController {
           stage: job.stage ?? undefined,
           reportUrl: job.reportUrl ?? undefined,
           tool: job.tool,
+          loanApplicationId: job.loanApplicationId ?? undefined,
           createdAt: job.createdAt.toISOString(),
         },
       });
     } catch (error: unknown) {
       const err = error as Error;
       res.status(500).json({ success: false, error: err.message || 'Failed to get job status' });
+    }
+  }
+
+  /**
+   * POST /nbfc/tools/raad/request-data
+   * Proxies to n8n fetch webhook with loanApplicationId. Requires NBFC auth.
+   */
+  async requestRaadData(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId || req.user?.role !== 'nbfc') {
+        res.status(403).json({ success: false, error: 'NBFC role required' });
+        return;
+      }
+
+      const loanApplicationId = (req.body?.loanApplicationId as string)?.trim();
+      if (!loanApplicationId) {
+        res.status(400).json({ success: false, error: 'loanApplicationId is required' });
+        return;
+      }
+
+      const webhookUrl = process.env.N8N_RAAD_FETCH_WEBHOOK_URL;
+      if (!webhookUrl) {
+        res.status(503).json({
+          success: false,
+          error: 'N8N_RAAD_FETCH_WEBHOOK_URL is not configured',
+        });
+        return;
+      }
+
+      const webhookRes = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanApplicationId }),
+      });
+
+      const contentType = webhookRes.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+      let data = isJson ? await webhookRes.json() : await webhookRes.text();
+
+      if (!webhookRes.ok) {
+        res.status(webhookRes.status).json({
+          success: false,
+          error: isJson ? (data as { message?: string }).message : String(data),
+        });
+        return;
+      }
+
+      // n8n Respond to Webhook may return array; normalize to single object
+      let normalized = data;
+      if (Array.isArray(data) && data.length > 0) {
+        const first = data[0];
+        normalized = typeof first === 'object' && first !== null && 'json' in first ? first.json : first;
+      }
+      res.json({ success: true, data: normalized });
+    } catch (error: unknown) {
+      const err = error as Error;
+      res.status(500).json({ success: false, error: err.message || 'Failed to request RAAD data' });
     }
   }
 

@@ -22,11 +22,13 @@ import {
   Send,
   MessageSquare,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 const JOB_ID_KEY = 'nbfc_tool_job_id';
 const TOOLS_BAR_COLLAPSED_KEY = 'nbfc_tools_bar_collapsed';
+const RAAD_REQUEST_UNLOCK_PREFIX = 'nbfc_raad_request_unlock_';
 
 const TOOL_ITEMS = [
   { id: 'raad', label: 'RAAD (Read Assess Allocate Disburse)', icon: BarChart3 },
@@ -51,6 +53,7 @@ interface HistoryJob {
   date: string;
   status: string;
   reportUrl?: string;
+  loanApplicationId?: string;
 }
 
 export const NBFCTools: React.FC = () => {
@@ -67,6 +70,18 @@ export const NBFCTools: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<string | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [currentLoanId, setCurrentLoanId] = useState<string | null>(null);
+
+  const [raadRequestUnlockAt, setRaadRequestUnlockAt] = useState<number | null>(() => {
+    const jobId = localStorage.getItem(JOB_ID_KEY);
+    if (!jobId) return null;
+    const stored = localStorage.getItem(RAAD_REQUEST_UNLOCK_PREFIX + jobId);
+    return stored ? parseInt(stored, 10) : null;
+  });
+  const [raadRequestCountdown, setRaadRequestCountdown] = useState(0);
+  const [raadRequestLoading, setRaadRequestLoading] = useState(false);
+  const [raadRequestError, setRaadRequestError] = useState<string | null>(null);
+  const [raadFetchedHtml, setRaadFetchedHtml] = useState<string | null>(null);
 
   const [history, setHistory] = useState<HistoryJob[]>([]);
   const [toolsBarCollapsed, setToolsBarCollapsed] = useState(() =>
@@ -131,6 +146,7 @@ export const NBFCTools: React.FC = () => {
             tool?: string;
             status?: string;
             reportUrl?: string;
+            loanApplicationId?: string;
           }>
         ).map((j) => ({
           id: j.jobId ?? j.id ?? '',
@@ -138,6 +154,7 @@ export const NBFCTools: React.FC = () => {
           date: j.createdAt ?? j.date ?? '',
           status: j.status ?? '',
           reportUrl: j.reportUrl,
+          loanApplicationId: j.loanApplicationId,
         }));
         setHistory(jobs);
       }
@@ -157,6 +174,7 @@ export const NBFCTools: React.FC = () => {
       const d = res.data!;
       setCurrentStage(d.stage ?? null);
       setJobError(d.error ?? null);
+      if (d.loanApplicationId) setCurrentLoanId(d.loanApplicationId);
       if (d.status === 'ready') {
         setJobStatus('ready');
         setReportUrl(d.reportUrl ?? null);
@@ -186,13 +204,68 @@ export const NBFCTools: React.FC = () => {
     }
   }, [currentJobId]);
 
+  useEffect(() => {
+    if (!currentJobId) return;
+    const stored = localStorage.getItem(RAAD_REQUEST_UNLOCK_PREFIX + currentJobId);
+    if (stored) setRaadRequestUnlockAt(parseInt(stored, 10));
+  }, [currentJobId]);
+
+  useEffect(() => {
+    if (raadRequestUnlockAt == null) {
+      setRaadRequestCountdown(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((raadRequestUnlockAt - Date.now()) / 1000));
+      setRaadRequestCountdown(remaining);
+      if (remaining <= 0) setRaadRequestUnlockAt(null);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [raadRequestUnlockAt]);
+
+  useEffect(() => {
+    if (selectedTool !== 'raad') setRaadFetchedHtml(null);
+  }, [selectedTool]);
+
+  const handleRequestRaadData = async () => {
+    const loanId = currentLoanId?.trim();
+    if (!loanId || raadRequestCountdown > 0) return;
+    setRaadRequestLoading(true);
+    setRaadRequestError(null);
+    setRaadFetchedHtml(null);
+    try {
+      const res = await apiService.requestRAADData(loanId);
+      if (!res.success) {
+        setRaadRequestError(res.error || 'Request failed');
+        return;
+      }
+      const payload = res.data as { html?: string } | Array<{ html?: string }> | undefined;
+      const html =
+        payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? payload.html
+          : Array.isArray(payload) && payload.length > 0 && payload[0]
+            ? (payload[0] as { html?: string }).html
+            : undefined;
+      if (html && typeof html === 'string') setRaadFetchedHtml(html);
+      else setRaadRequestError('No HTML in response');
+    } catch (err) {
+      setRaadRequestError(err instanceof Error ? err.message : 'Request failed');
+    } finally {
+      setRaadRequestLoading(false);
+    }
+  };
+
   const handleSelectJob = (job: HistoryJob) => {
+    setRaadFetchedHtml(null);
+    setCurrentJobId(job.id);
+    if (job.loanApplicationId) setCurrentLoanId(job.loanApplicationId);
     if (job.status === 'ready' && job.reportUrl) {
       setReportUrl(job.reportUrl);
       setJobStatus('ready');
       setJobError(null);
     } else if (job.status === 'processing') {
-      setCurrentJobId(job.id);
       localStorage.setItem(JOB_ID_KEY, job.id);
       setJobStatus('processing');
       setReportUrl(null);
@@ -218,8 +291,13 @@ export const NBFCTools: React.FC = () => {
       fd.append('loanApplicationId', raadLoanId.trim());
       const res = await apiService.submitRAADJob(fd);
       if (res.success && res.data?.jobId) {
-        setCurrentJobId(res.data.jobId);
-        localStorage.setItem(JOB_ID_KEY, res.data.jobId);
+        const jobId = res.data.jobId;
+        setCurrentJobId(jobId);
+        setCurrentLoanId(raadLoanId.trim());
+        localStorage.setItem(JOB_ID_KEY, jobId);
+        const unlockAt = Date.now() + 60_000;
+        setRaadRequestUnlockAt(unlockAt);
+        localStorage.setItem(RAAD_REQUEST_UNLOCK_PREFIX + jobId, String(unlockAt));
         setJobStatus('processing');
         setCurrentStage('uploading');
         setReportUrl(null);
@@ -738,7 +816,7 @@ export const NBFCTools: React.FC = () => {
                 <p>Run a tool to see results here</p>
               </div>
             )}
-            {jobStatus === 'processing' && (
+            {jobStatus === 'processing' && !raadFetchedHtml && (
               <div className="flex flex-col items-center justify-center flex-1 text-center">
                 <Loader2 className="w-12 h-12 text-[#332f78] animate-pulse mb-4" />
                 <p className="text-neutral-700 font-medium mb-1">Processing...</p>
@@ -746,9 +824,71 @@ export const NBFCTools: React.FC = () => {
                   This can take 1–3 minutes. You can leave this page and come back — your report will
                   be saved.
                 </p>
+                {selectedTool === 'raad' && currentLoanId && (
+                  <div className="mt-4 w-full max-w-xs">
+                    <button
+                      onClick={handleRequestRaadData}
+                      disabled={raadRequestCountdown > 0 || raadRequestLoading}
+                      className={`flex items-center justify-center gap-2 w-full px-4 py-2 rounded-lg text-sm font-medium ${
+                        raadRequestCountdown > 0 || raadRequestLoading
+                          ? 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
+                          : 'bg-[#332f78] text-white hover:bg-[#2a265f]'
+                      }`}
+                    >
+                      <RefreshCw className={`w-4 h-4 ${raadRequestLoading ? 'animate-spin' : ''}`} />
+                      {raadRequestCountdown > 0
+                        ? `Request data (${currentLoanId}) — ${raadRequestCountdown}s`
+                        : raadRequestLoading
+                          ? 'Requesting...'
+                          : `Request RAAD data (${currentLoanId})`}
+                    </button>
+                    {raadRequestError && <p className="mt-2 text-xs text-red-500">{raadRequestError}</p>}
+                  </div>
+                )}
               </div>
             )}
-            {jobStatus === 'ready' && reportUrl && (
+            {raadFetchedHtml && (
+              <div className="flex flex-col flex-1 min-h-0">
+                <iframe
+                  srcDoc={raadFetchedHtml}
+                  title="RAAD Deal Brief"
+                  sandbox="allow-same-origin"
+                  className="flex-1 w-full min-h-[400px] rounded border border-neutral-200 bg-white"
+                />
+                <div className="mt-4 flex flex-col gap-2">
+                  {selectedTool === 'raad' && currentLoanId && (
+                    <button
+                      onClick={handleRequestRaadData}
+                      disabled={raadRequestCountdown > 0 || raadRequestLoading}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                        raadRequestCountdown > 0 || raadRequestLoading
+                          ? 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
+                          : 'bg-neutral-100 border border-neutral-300 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      <RefreshCw className={`w-4 h-4 ${raadRequestLoading ? 'animate-spin' : ''}`} />
+                      {raadRequestCountdown > 0
+                        ? `Request data: ${currentLoanId} (${raadRequestCountdown}s)`
+                        : raadRequestLoading
+                          ? 'Requesting...'
+                          : `Request data: ${currentLoanId}`}
+                    </button>
+                  )}
+                  {reportUrl && (
+                    <a
+                      href={reportUrl.startsWith('/') ? `${window.location.origin}${reportUrl}` : reportUrl}
+                      download
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
+                    >
+                      <Download className="w-4 h-4" /> Download PDF
+                    </a>
+                  )}
+                  {raadRequestError && <p className="text-xs text-red-500">{raadRequestError}</p>}
+                  <p className="text-xs text-neutral-500">Report saved for 30 days</p>
+                </div>
+              </div>
+            )}
+            {jobStatus === 'ready' && reportUrl && !raadFetchedHtml && (
               <div className="flex flex-col flex-1 min-h-0">
                 <iframe
                   src={reportUrl.startsWith('http') ? reportUrl : `${window.location.origin}${reportUrl.startsWith('/') ? reportUrl : `/${reportUrl}`}`}
@@ -756,6 +896,24 @@ export const NBFCTools: React.FC = () => {
                   className="flex-1 w-full min-h-[400px] rounded border border-neutral-200 bg-white"
                 />
                 <div className="mt-4 flex flex-col gap-2">
+                  {selectedTool === 'raad' && currentLoanId && (
+                    <button
+                      onClick={handleRequestRaadData}
+                      disabled={raadRequestCountdown > 0 || raadRequestLoading}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                        raadRequestCountdown > 0 || raadRequestLoading
+                          ? 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
+                          : 'bg-neutral-100 border border-neutral-300 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      <RefreshCw className={`w-4 h-4 ${raadRequestLoading ? 'animate-spin' : ''}`} />
+                      {raadRequestCountdown > 0
+                        ? `Request data: ${currentLoanId} (${raadRequestCountdown}s)`
+                        : raadRequestLoading
+                          ? 'Requesting...'
+                          : `Request data: ${currentLoanId}`}
+                    </button>
+                  )}
                   <a
                     href={reportUrl.startsWith('/') ? `${window.location.origin}${reportUrl}` : reportUrl}
                     download
@@ -763,6 +921,7 @@ export const NBFCTools: React.FC = () => {
                   >
                     <Download className="w-4 h-4" /> Download PDF
                   </a>
+                  {raadRequestError && <p className="text-xs text-red-500">{raadRequestError}</p>}
                   <p className="text-xs text-neutral-500">Report saved for 30 days</p>
                 </div>
               </div>
