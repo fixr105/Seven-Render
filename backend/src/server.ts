@@ -41,26 +41,7 @@ if (process.env.UPTIME_NOTIFY_URL) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security Headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      // N8N_BASE_URL in connectSrc for future direct n8n calls; currently all n8n traffic is server-side
-      connectSrc: ["'self'", process.env.N8N_BASE_URL || ''].filter(Boolean),
-    },
-  },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true,
-  },
-}));
-
-// CORS configuration
+// CORS must run BEFORE helmet/other middleware so preflight OPTIONS gets correct headers
 // In production, default to lms.sevenfincorp.com + Vercel when CORS_ORIGIN is unset (e.g. Fly.io without secret)
 const corsOriginRaw =
   process.env.CORS_ORIGIN ||
@@ -82,6 +63,15 @@ function isVercelOrigin(origin: string): boolean {
   }
 }
 
+function isLmsSevenFincorpOrigin(origin: string): boolean {
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === 'lms.sevenfincorp.com' || hostname === 'www.lms.sevenfincorp.com';
+  } catch {
+    return false;
+  }
+}
+
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = corsOriginRaw
@@ -98,7 +88,8 @@ const corsOptions = {
       allowedOrigins.includes('*') ||
       allowedOrigins.includes(origin) ||
       allowedOrigins.includes(normalizedOrigin) ||
-      isVercelOrigin(origin);
+      isVercelOrigin(origin) ||
+      isLmsSevenFincorpOrigin(origin);
 
     if (allowed) {
       callback(null, true);
@@ -114,6 +105,24 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// Security Headers (after CORS so preflight succeeds)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", process.env.N8N_BASE_URL || ''].filter(Boolean),
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
 
 // APM middleware for performance monitoring
 app.use(apmMiddleware);

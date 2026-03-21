@@ -7,15 +7,16 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files and Prisma schema (needed for postinstall prisma generate)
-COPY package*.json ./
-COPY tsconfig.json ./
-COPY prisma ./prisma
+# Build context = repo root (fly.toml at root) so paths use backend/ prefix
+COPY backend/package*.json ./
+COPY backend/tsconfig.json ./
+COPY backend/prisma ./prisma
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY src ./src
+COPY backend/src ./src
 
 # Build TypeScript
 RUN npm run build
@@ -26,7 +27,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files and Prisma schema (needed for postinstall prisma generate)
-COPY package*.json ./
+COPY backend/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 
 # Install production dependencies only
