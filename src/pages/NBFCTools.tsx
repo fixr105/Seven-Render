@@ -315,7 +315,7 @@ export const NBFCTools: React.FC = () => {
     setRaadIdList([]);
     apiService
       .listRAADIds()
-      .then((res) => {
+      .then((res: { success: boolean; data?: unknown; error?: string }) => {
         if (cancelled) return;
         if (res.success && Array.isArray(res.data)) {
           setRaadIdList(res.data as Array<{ id?: string; loanApplicationId?: string; status?: string; error?: string; html?: string; pdfUrl?: string }>);
@@ -324,7 +324,7 @@ export const NBFCTools: React.FC = () => {
           setRaadListError(res.error || 'Failed to load RAAD reports');
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (!cancelled) setRaadListError(err instanceof Error ? err.message : 'Failed to load RAAD reports');
       })
       .finally(() => {

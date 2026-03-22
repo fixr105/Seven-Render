@@ -1464,6 +1464,17 @@ class ApiService {
     return this.request(`/nbfc/tools/jobs/${jobId}/status`);
   }
 
+  /** List all RAAD IDs (POST with no body). Returns array of { id, status, error?, html?, pdfUrl? } */
+  async listRAADIds(): Promise<
+    ApiResponse<Array<{ id?: string; status?: string; error?: string; html?: string; pdfUrl?: string }>>
+  > {
+    return this.request('/nbfc/tools/raad/request-data', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  /** Fetch RAAD report for a single loanApplicationId (tile click) */
   async requestRAADData(loanApplicationId: string): Promise<ApiResponse<unknown>> {
     return this.request('/nbfc/tools/raad/request-data', {
       method: 'POST',
@@ -1471,7 +1482,7 @@ class ApiService {
     });
   }
 
-  async submitRAADJob(formData: FormData): Promise<ApiResponse<{ jobId: string }>> {
+  async submitRAADJob(formData: FormData): Promise<ApiResponse<{ jobId?: string; loanApplicationId?: string }>> {
     return this.request('/nbfc/tools/raad', {
       method: 'POST',
       body: formData,
