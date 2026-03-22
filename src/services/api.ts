@@ -8,14 +8,15 @@ import { errorTracker } from '../utils/errorTracker.js';
 
 // Ensure API_BASE_URL includes /api prefix for Vercel deployment
 const getApiBaseUrl = () => {
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  let baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
   // In development (including E2E), use /api so Vite proxy works when VITE_API_BASE_URL is unset
   if (!baseUrl) {
-    if (typeof window !== 'undefined' && !import.meta.env.DEV) {
-      throw new Error('VITE_API_BASE_URL environment variable is required. Please set it in your environment configuration.');
+    if (import.meta.env.DEV) {
+      return '/api';
     }
-    return '/api';
+    // Production fallback: default to Fly.io backend (avoids 404 when env var missing)
+    baseUrl = 'https://seven-render.fly.dev';
   }
 
   // Ensure /api is appended if not present
