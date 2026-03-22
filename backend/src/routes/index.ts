@@ -32,7 +32,11 @@ const router = Router();
 // Request logging and metrics tracking middleware
 router.use(trackMetrics);
 
-// Health and metrics routes (no rate limiting)
+// Health and metrics routes (no rate limiting, no auth)
+// Explicit GET /health so /api/health returns 200 without auth (for proxies, Fly checks)
+router.get('/health', (req, res) =>
+  res.json({ success: true, message: 'API is running', timestamp: new Date().toISOString(), uptime: process.uptime() })
+);
 router.use('/health', healthRoutes);
 router.use('/metrics', healthRoutes);
 

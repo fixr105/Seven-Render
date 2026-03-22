@@ -29,10 +29,10 @@ const metrics = {
 };
 
 /**
- * GET /health (mounted at /health, so GET /api/health matches here)
+ * GET /health (nested under mount; main router has explicit GET /health for /api/health)
  * Expanded health check endpoint
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/health', async (req: Request, res: Response) => {
   try {
     const checks: Record<string, { status: string; message?: string; latency?: number }> = {};
 
