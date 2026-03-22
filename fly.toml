@@ -11,6 +11,7 @@ primary_region = "sin"
   PORT = "3001"
   NODE_ENV = "production"
   CORS_ORIGIN = "https://lms.sevenfincorp.com,https://www.lms.sevenfincorp.com,https://seven-dashboard-seven.vercel.app"
+  N8N_BASE_URL = "https://fixrrahul.app.n8n.cloud"
 
 [http_service]
   internal_port = 3001
