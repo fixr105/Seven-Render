@@ -25,7 +25,6 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
 import type { LucideIcon } from 'lucide-react';
 
 const JOB_ID_KEY = 'nbfc_tool_job_id';
@@ -469,7 +468,12 @@ export const NBFCTools: React.FC = () => {
     try {
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       await new Promise<void>((r) => setTimeout(r, 100));
-      await html2pdf()
+      const html2pdfFn = (window as unknown as { html2pdf?: () => { set: (o: unknown) => { from: (el: HTMLElement) => { save: () => Promise<void> } } } }).html2pdf;
+      if (!html2pdfFn) {
+        alert('PDF export is loading. Please try again in a moment.');
+        return;
+      }
+      await html2pdfFn()
         .set({
           margin: 10,
           filename: `raad-report-${currentLoanId || 'report'}.pdf`,

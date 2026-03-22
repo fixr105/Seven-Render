@@ -1,19 +1,10 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { demoVideos } from './vite-plugin-demo-videos';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), demoVideos()],
-  resolve: {
-    alias: {
-      'html2pdf.js': path.resolve(__dirname, 'node_modules/html2pdf.js/dist/html2pdf.js'),
-    },
-  },
   server: {
     port: 3000,
     host: '0.0.0.0', // Listen on all interfaces
@@ -28,7 +19,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
-    include: ['html2pdf.js'],
   },
   test: {
     globals: true,
