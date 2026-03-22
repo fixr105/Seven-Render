@@ -4,7 +4,7 @@
  * Tools: RAAD, PAGER, Query Drafter. NBFC-only.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
@@ -23,12 +23,33 @@ import {
   MessageSquare,
   AlertCircle,
   RefreshCw,
+  X,
 } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 import type { LucideIcon } from 'lucide-react';
 
 const JOB_ID_KEY = 'nbfc_tool_job_id';
 const TOOLS_BAR_COLLAPSED_KEY = 'nbfc_tools_bar_collapsed';
 const RAAD_REQUEST_UNLOCK_PREFIX = 'nbfc_raad_request_unlock_';
+
+/** Resolve report URL for iframe src or fetch. Handles data:, http(s), and relative paths. */
+function getReportSrc(url: string): string {
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://'))
+    return url;
+  return `${window.location.origin}${url.startsWith('/') ? url : `/${url}`}`;
+}
+
+/** Map backend/n8n config errors to user-friendly RAAD Report Viewer messages */
+function formatRaadError(error: string | null | undefined): string | null {
+  if (!error) return null;
+  if (error.includes('Database is not configured') || error.includes('DATABASE_URL')) {
+    return 'RAAD reports load from the get-raad webhook. Set N8N_RAAD_FETCH_WEBHOOK_URL on the backend.';
+  }
+  if (error.includes('N8N_RAAD_FETCH_WEBHOOK_URL')) {
+    return 'Set N8N_RAAD_FETCH_WEBHOOK_URL on the backend for RAAD Report Viewer.';
+  }
+  return error;
+}
 
 const TOOL_ITEMS = [
   { id: 'raad', label: 'RAAD (Read Assess Allocate Disburse)', icon: BarChart3 },
@@ -54,6 +75,8 @@ interface HistoryJob {
   status: string;
   reportUrl?: string;
   loanApplicationId?: string;
+  /** When 'webhook': from listRAADIds, use requestRAADData; when 'history': from getNBFCToolsHistory, use job APIs */
+  source?: 'webhook' | 'history';
 }
 
 export const NBFCTools: React.FC = () => {
@@ -82,6 +105,15 @@ export const NBFCTools: React.FC = () => {
   const [raadRequestLoading, setRaadRequestLoading] = useState(false);
   const [raadRequestError, setRaadRequestError] = useState<string | null>(null);
   const [raadFetchedHtml, setRaadFetchedHtml] = useState<string | null>(null);
+
+  const [raadIdList, setRaadIdList] = useState<
+    Array<{ id?: string; loanApplicationId?: string; status?: string; error?: string; html?: string; pdfUrl?: string }>
+  >([]);
+  const [raadIdListLoading, setRaadIdListLoading] = useState(false);
+  const [raadListError, setRaadListError] = useState<string | null>(null);
+  const [raadPdfDownloading, setRaadPdfDownloading] = useState(false);
+  const [raadPdfUrlDownloading, setRaadPdfUrlDownloading] = useState(false);
+  const raadReportContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [history, setHistory] = useState<HistoryJob[]>([]);
   const [toolsBarCollapsed, setToolsBarCollapsed] = useState(() =>
@@ -190,12 +222,58 @@ export const NBFCTools: React.FC = () => {
     }
   }, [fetchHistory]);
 
+  const refreshRaadList = useCallback(async () => {
+    setRaadListError(null);
+    const res = await apiService.listRAADIds();
+    if (res.success && Array.isArray(res.data)) {
+      setRaadIdList(res.data as Array<{ id?: string; loanApplicationId?: string; status?: string; error?: string; html?: string; pdfUrl?: string }>);
+    } else {
+      setRaadListError(res.error || 'Failed to load RAAD reports');
+    }
+  }, []);
+
+  /** Poll get-raad webhook when we have loanApplicationId but no jobId (DB-less RAAD submit) */
+  const pollRaadByWebhook = useCallback(async (loanId: string) => {
+    try {
+      const res = await apiService.requestRAADData(loanId);
+      if (!res.success) return;
+      const payload = res.data as { html?: string; pdfUrl?: string; status?: string; error?: string } | Array<{ html?: string; pdfUrl?: string; status?: string; error?: string }> | undefined;
+      const item = payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload) && payload.length > 0
+          ? (payload[0] as { html?: string; pdfUrl?: string; status?: string; error?: string })
+          : undefined;
+      if (!item) return;
+      if (item.status === 'error' || item.error) {
+        setJobStatus('failed');
+        setJobError(item.error || 'RAAD processing failed');
+        return;
+      }
+      if (item.html || item.pdfUrl) {
+        setJobStatus('ready');
+        if (item.html) setRaadFetchedHtml(item.html);
+        if (item.pdfUrl) setReportUrl(item.pdfUrl);
+        refreshRaadList();
+      }
+    } catch {
+      // Keep polling
+    }
+  }, [refreshRaadList]);
+
   useEffect(() => {
     if (!currentJobId || jobStatus !== 'processing') return;
     const t = setInterval(() => pollJobStatus(currentJobId), 5000);
     pollJobStatus(currentJobId);
     return () => clearInterval(t);
   }, [currentJobId, jobStatus, pollJobStatus]);
+
+  /** Poll get-raad webhook when processing without jobId (DB-less RAAD) */
+  useEffect(() => {
+    if (!currentLoanId || jobStatus !== 'processing' || currentJobId) return;
+    const t = setInterval(() => pollRaadByWebhook(currentLoanId), 5000);
+    pollRaadByWebhook(currentLoanId);
+    return () => clearInterval(t);
+  }, [currentLoanId, jobStatus, currentJobId, pollRaadByWebhook]);
 
   useEffect(() => {
     if (currentJobId && jobStatus === 'idle') {
@@ -229,36 +307,195 @@ export const NBFCTools: React.FC = () => {
     if (selectedTool !== 'raad') setRaadFetchedHtml(null);
   }, [selectedTool]);
 
-  const handleRequestRaadData = async () => {
-    const loanId = currentLoanId?.trim();
-    if (!loanId || raadRequestCountdown > 0) return;
+  useEffect(() => {
+    if (selectedTool !== 'raad') return;
+    let cancelled = false;
+    setRaadIdListLoading(true);
+    setRaadListError(null);
+    setRaadIdList([]);
+    apiService
+      .listRAADIds()
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && Array.isArray(res.data)) {
+          setRaadIdList(res.data as Array<{ id?: string; loanApplicationId?: string; status?: string; error?: string; html?: string; pdfUrl?: string }>);
+          setRaadListError(null);
+        } else {
+          setRaadListError(res.error || 'Failed to load RAAD reports');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setRaadListError(err instanceof Error ? err.message : 'Failed to load RAAD reports');
+      })
+      .finally(() => {
+        if (!cancelled) setRaadIdListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTool]);
+
+  const fetchRaadDataById = useCallback(async (id: string) => {
     setRaadRequestLoading(true);
     setRaadRequestError(null);
     setRaadFetchedHtml(null);
+    setReportUrl(null);
     try {
-      const res = await apiService.requestRAADData(loanId);
+      const res = await apiService.requestRAADData(id);
       if (!res.success) {
         setRaadRequestError(res.error || 'Request failed');
         return;
       }
-      const payload = res.data as { html?: string } | Array<{ html?: string }> | undefined;
-      const html =
+      const payload = res.data as Record<string, unknown> | Array<Record<string, unknown>> | undefined;
+      const item =
         payload && typeof payload === 'object' && !Array.isArray(payload)
-          ? payload.html
-          : Array.isArray(payload) && payload.length > 0 && payload[0]
-            ? (payload[0] as { html?: string }).html
+          ? (payload as Record<string, unknown>)
+          : Array.isArray(payload) && payload.length > 0
+            ? (payload[0] as Record<string, unknown>)
             : undefined;
-      if (html && typeof html === 'string') setRaadFetchedHtml(html);
-      else setRaadRequestError('No HTML in response');
+      if (!item || typeof item !== 'object') {
+        setRaadRequestError('No HTML or PDF in response');
+        return;
+      }
+      // Extract HTML from Anthropic/n8n message format: content = "[{\"type\":\"text\",\"text\":\"<html>...\"}]"
+      let html: string | undefined =
+        (item.html as string | undefined) ?? (item.htmlContent as string | undefined);
+      if (!html && typeof item.content === 'string') {
+        try {
+          const parsed = JSON.parse(item.content as string) as Array<{ type?: string; text?: string }>;
+          const arr = Array.isArray(parsed) ? parsed : [parsed];
+          const textPart = arr.find((p) => p && p.type === 'text' && typeof p.text === 'string');
+          if (textPart?.text?.trim()) html = textPart.text.trim();
+        } catch {
+          // content is not JSON, ignore
+        }
+      }
+      // If content is already an array (not string)
+      if (!html && Array.isArray(item.content)) {
+        const textPart = (item.content as Array<{ type?: string; text?: string }>).find(
+          (p) => p?.type === 'text' && typeof p.text === 'string'
+        );
+        if (textPart?.text?.trim()) html = textPart.text.trim();
+      }
+      const pdfUrl =
+        (item.pdfUrl as string | undefined) ??
+        (item.pdf_url as string | undefined) ??
+        (item.reportUrl as string | undefined);
+      const pdfBase64 = (item.pdf as string | undefined) ?? (item.pdfBase64 as string | undefined);
+
+      if (typeof html === 'string' && html.trim().length > 0) {
+        setRaadFetchedHtml(html.trim());
+      } else if (typeof pdfUrl === 'string' && pdfUrl.trim().length > 0) {
+        const url = pdfUrl.trim();
+        setReportUrl(url);
+        setJobStatus('ready');
+      } else if (typeof pdfBase64 === 'string' && pdfBase64.length > 0) {
+        const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
+        setReportUrl(dataUrl);
+        setJobStatus('ready');
+      } else {
+        setRaadRequestError('No HTML or PDF in response');
+      }
     } catch (err) {
       setRaadRequestError(err instanceof Error ? err.message : 'Request failed');
     } finally {
       setRaadRequestLoading(false);
     }
+  }, []);
+
+  const handleRequestRaadData = async () => {
+    const loanId = currentLoanId?.trim();
+    if (!loanId || raadRequestCountdown > 0) return;
+    await fetchRaadDataById(loanId);
+  };
+
+  const handleRaadTileClick = (item: { id?: string; loanApplicationId?: string; status?: string; error?: string; pdfUrl?: string }) => {
+    const id = item.id || item.loanApplicationId;
+    if (!id) return;
+    if (item.status === 'error' || item.error) return;
+    setCurrentLoanId(id);
+    fetchRaadDataById(id);
+  };
+
+  const closeRaadFullScreenViewer = () => {
+    setRaadFetchedHtml(null);
+    if (selectedTool === 'raad') setReportUrl(null);
+  };
+
+  const handleDownloadRaadPdfUrl = async () => {
+    if (!reportUrl) return;
+    const url = getReportSrc(reportUrl);
+    const filename = `raad-report-${currentLoanId || 'report'}.pdf`;
+    setRaadPdfUrlDownloading(true);
+    try {
+      if (url.startsWith('data:')) {
+        const base64 = url.split(',')[1];
+        if (!base64) throw new Error('Invalid data URL');
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } else {
+        const isSameOrigin = url.startsWith(window.location.origin);
+        const res = await fetch(url, { credentials: isSameOrigin ? 'include' : 'omit' });
+        if (!res.ok) throw new Error(res.statusText);
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+    } catch {
+      window.open(url, '_blank');
+    } finally {
+      setRaadPdfUrlDownloading(false);
+    }
+  };
+
+  const handleDownloadRaadAsPdf = async () => {
+    if (!raadFetchedHtml) return;
+    const el = raadReportContainerRef.current;
+    if (!el) {
+      console.error('Report container not found');
+      return;
+    }
+    setRaadPdfDownloading(true);
+    try {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await new Promise<void>((r) => setTimeout(r, 100));
+      await html2pdf()
+        .set({
+          margin: 10,
+          filename: `raad-report-${currentLoanId || 'report'}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+        })
+        .from(el)
+        .save();
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      alert('PDF download failed. Try opening the report in a new tab and using Print → Save as PDF.');
+    } finally {
+      setRaadPdfDownloading(false);
+    }
   };
 
   const handleSelectJob = (job: HistoryJob) => {
     setRaadFetchedHtml(null);
+    const loanId = job.loanApplicationId || job.id;
+    if (job.source === 'webhook' || job.tool === 'raad') {
+      setCurrentJobId(null);
+      setCurrentLoanId(loanId);
+      setJobError(null);
+      fetchRaadDataById(loanId);
+      return;
+    }
     setCurrentJobId(job.id);
     if (job.loanApplicationId) setCurrentLoanId(job.loanApplicationId);
     if (job.status === 'ready' && job.reportUrl) {
@@ -290,19 +527,26 @@ export const NBFCTools: React.FC = () => {
       fd.append('itrFile', raadItrFile);
       fd.append('loanApplicationId', raadLoanId.trim());
       const res = await apiService.submitRAADJob(fd);
-      if (res.success && res.data?.jobId) {
-        const jobId = res.data.jobId;
-        setCurrentJobId(jobId);
-        setCurrentLoanId(raadLoanId.trim());
-        localStorage.setItem(JOB_ID_KEY, jobId);
-        const unlockAt = Date.now() + 60_000;
-        setRaadRequestUnlockAt(unlockAt);
-        localStorage.setItem(RAAD_REQUEST_UNLOCK_PREFIX + jobId, String(unlockAt));
+      const loanId = raadLoanId.trim();
+      if (res.success && res.data) {
+        const jobId = (res.data as { jobId?: string }).jobId;
+        const loanApplicationId = (res.data as { loanApplicationId?: string }).loanApplicationId ?? loanId;
+        setCurrentLoanId(loanApplicationId);
+        if (jobId) {
+          setCurrentJobId(jobId);
+          localStorage.setItem(JOB_ID_KEY, jobId);
+          const unlockAt = Date.now() + 60_000;
+          setRaadRequestUnlockAt(unlockAt);
+          localStorage.setItem(RAAD_REQUEST_UNLOCK_PREFIX + jobId, String(unlockAt));
+          fetchHistory();
+        } else {
+          setCurrentJobId(null);
+          localStorage.removeItem(JOB_ID_KEY);
+        }
         setJobStatus('processing');
         setCurrentStage('uploading');
         setReportUrl(null);
         setJobError(null);
-        fetchHistory();
       } else {
         setJobError(res.error || 'RAAD submission failed. Try logging in again.');
         setJobStatus('failed');
@@ -424,6 +668,8 @@ export const NBFCTools: React.FC = () => {
     );
   };
 
+  const showRaadFullScreen = raadFetchedHtml || (reportUrl && jobStatus === 'ready');
+
   return (
     <MainLayout
       hideSidebar
@@ -439,6 +685,7 @@ export const NBFCTools: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
       fullBleed
     >
+      <>
       <div
         className="grid h-full min-h-0 transition-[grid-template-columns] duration-300 ease-in-out"
         style={{
@@ -499,45 +746,67 @@ export const NBFCTools: React.FC = () => {
               <h3 className="text-white text-xs font-medium uppercase tracking-wider mb-3">
                 Recent Reports
               </h3>
-              {history.length === 0 ? (
-                <p className="text-neutral-500 text-xs">No reports yet</p>
-              ) : (
-                <ul className="space-y-2">
-                  {history.map((j) => (
-                    <li key={j.id}>
-                      <button
-                        onClick={() => handleSelectJob(j)}
-                        className="text-left w-full text-xs text-neutral-400 hover:text-white transition-colors"
-                      >
-                        <span className="block truncate font-medium text-white/90">
-                          {j.tool === 'raad' ? 'RAAD' : j.tool === 'pager' ? 'PAGER' : j.tool}
-                        </span>
-                        <span className="block truncate">
-                          {new Date(j.date).toLocaleDateString()} ·{' '}
-                          <span
-                            className={
-                              j.status === 'ready'
-                                ? 'text-green-400'
-                                : j.status === 'failed'
-                                  ? 'text-red-400'
-                                  : 'text-amber-400'
-                            }
-                          >
-                            {j.status === 'ready'
-                              ? 'Ready'
-                              : j.status === 'failed'
-                                ? 'Failed'
-                                : 'Processing'}
+              {(() => {
+                const getRaadId = (r: Record<string, unknown>) =>
+                  r.loanApplicationId || r.id || r.ID || `row-${r.row_number ?? '?'}`;
+                const raadItems: HistoryJob[] = raadIdList.map((r) => {
+                  const rec = r as Record<string, unknown>;
+                  const loanId = String(getRaadId(rec));
+                  return {
+                    id: loanId,
+                    tool: 'raad',
+                    date: '',
+                    status: rec.status === 'error' || rec.error ? 'failed' : rec.html || rec.pdfUrl || rec.content ? 'ready' : 'processing',
+                    reportUrl: rec.pdfUrl as string | undefined,
+                    loanApplicationId: loanId,
+                    source: 'webhook' as const,
+                  };
+                });
+                const pagerQueryItems: HistoryJob[] = history
+                  .filter((j) => j.tool !== 'raad')
+                  .map((j) => ({ ...j, source: 'history' as const }));
+                const recentReports = [...raadItems, ...pagerQueryItems];
+                if (recentReports.length === 0) {
+                  return <p className="text-neutral-500 text-xs">No reports yet</p>;
+                }
+                return (
+                  <ul className="space-y-2">
+                    {recentReports.map((j) => (
+                      <li key={`${j.source}-${j.id}`}>
+                        <button
+                          onClick={() => handleSelectJob(j)}
+                          className="text-left w-full text-xs text-neutral-400 hover:text-white transition-colors"
+                        >
+                          <span className="block truncate font-medium text-white/90">
+                            {j.tool === 'raad' ? 'RAAD' : j.tool === 'pager' ? 'PAGER' : j.tool}
                           </span>
-                        </span>
-                        {j.status === 'ready' && j.reportUrl && (
-                          <Download className="inline w-3 h-3 ml-1" />
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                          <span className="block truncate">
+                            {j.date ? new Date(j.date).toLocaleDateString() + ' · ' : ''}
+                            <span
+                              className={
+                                j.status === 'ready'
+                                  ? 'text-green-400'
+                                  : j.status === 'failed'
+                                    ? 'text-red-400'
+                                    : 'text-amber-400'
+                              }
+                            >
+                              {j.status === 'ready'
+                                ? 'Ready'
+                                : j.status === 'failed'
+                                  ? 'Failed'
+                                  : 'Processing'}
+                            </span>
+                          </span>
+                          {j.status === 'ready' && (j.reportUrl || j.source === 'webhook') && (
+                            <Download className="inline w-3 h-3 ml-1" />
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -805,12 +1074,79 @@ export const NBFCTools: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN */}
-        <div className="bg-[#f8f9ff] flex flex-col overflow-hidden border-l border-neutral-200">
+        <div data-testid="report-viewer" className="bg-[#f8f9ff] flex flex-col overflow-hidden border-l border-neutral-200">
           <h3 className="px-4 py-4 text-lg font-semibold text-neutral-900 border-b border-neutral-200">
             Report Viewer
           </h3>
           <div className="flex-1 flex flex-col min-h-0 p-4">
-            {jobStatus === 'idle' && !reportUrl && (
+            {jobStatus === 'idle' && selectedTool === 'raad' && (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-neutral-700">RAAD Reports</h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRaadIdListLoading(true);
+                        refreshRaadList().finally(() => setRaadIdListLoading(false));
+                      }}
+                    disabled={raadIdListLoading}
+                    className="p-1.5 rounded text-neutral-500 hover:text-[#332f78] hover:bg-neutral-100 disabled:opacity-50"
+                    title="Refresh list"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${raadIdListLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+                {raadIdListLoading ? (
+                  <div className="flex flex-col items-center justify-center flex-1 text-neutral-500">
+                    <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                    <p className="text-sm">Loading reports...</p>
+                  </div>
+                ) : raadListError ? (
+                  <div className="flex flex-col items-center justify-center flex-1 text-center text-red-600">
+                    <AlertCircle className="w-12 h-12 mb-3" />
+                    <p className="text-sm">{formatRaadError(raadListError) ?? raadListError}</p>
+                  </div>
+                ) : raadIdList.length > 0 ? (
+                  <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2">
+                    {raadIdList.map((item, idx) => {
+                      const id = item.id || item.loanApplicationId || `item-${idx}`;
+                      const label = String(id);
+                      const isError = item.status === 'error' || !!item.error;
+                      const hasDownload = item.status === 'ready' || !!item.pdfUrl || !!item.html;
+                      return (
+                        <button
+                          key={label + idx}
+                          type="button"
+                          onClick={() => handleRaadTileClick(item)}
+                          disabled={isError}
+                          className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-lg border text-left transition-colors ${
+                            isError
+                              ? 'border-red-200 bg-red-50 cursor-default'
+                              : 'border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff]'
+                          }`}
+                        >
+                          {isError ? (
+                            <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
+                          ) : hasDownload ? (
+                            <Download className="w-5 h-5 flex-shrink-0 text-[#332f78]" />
+                          ) : (
+                            <FileText className="w-5 h-5 flex-shrink-0 text-neutral-400" />
+                          )}
+                          <span className="flex-1 truncate text-sm font-medium text-neutral-900">{label}</span>
+                          {item.error && <span className="text-xs text-red-500 truncate max-w-[120px]">{formatRaadError(item.error) ?? item.error}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center flex-1 text-center text-neutral-500">
+                    <FileText className="w-16 h-16 mb-4 opacity-40" />
+                    <p className="text-sm">No RAAD reports yet. Run a tool to see results here.</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {jobStatus === 'idle' && !reportUrl && selectedTool !== 'raad' && (
               <div className="flex flex-col items-center justify-center flex-1 text-center text-neutral-500">
                 <FileText className="w-16 h-16 mb-4 opacity-40" />
                 <p>Run a tool to see results here</p>
@@ -825,11 +1161,11 @@ export const NBFCTools: React.FC = () => {
                   be saved.
                 </p>
                 {selectedTool === 'raad' && currentLoanId && (
-                  <div className="mt-4 w-full max-w-xs">
+                  <div className="mt-4">
                     <button
                       onClick={handleRequestRaadData}
                       disabled={raadRequestCountdown > 0 || raadRequestLoading}
-                      className={`flex items-center justify-center gap-2 w-full px-4 py-2 rounded-lg text-sm font-medium ${
+                      className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
                         raadRequestCountdown > 0 || raadRequestLoading
                           ? 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
                           : 'bg-[#332f78] text-white hover:bg-[#2a265f]'
@@ -842,12 +1178,12 @@ export const NBFCTools: React.FC = () => {
                           ? 'Requesting...'
                           : `Request RAAD data (${currentLoanId})`}
                     </button>
-                    {raadRequestError && <p className="mt-2 text-xs text-red-500">{raadRequestError}</p>}
+                    {raadRequestError && <p className="mt-2 text-xs text-red-500">{formatRaadError(raadRequestError) ?? raadRequestError}</p>}
                   </div>
                 )}
               </div>
             )}
-            {raadFetchedHtml && (
+            {raadFetchedHtml && !showRaadFullScreen && (
               <div className="flex flex-col flex-1 min-h-0">
                 <iframe
                   srcDoc={raadFetchedHtml}
@@ -860,7 +1196,7 @@ export const NBFCTools: React.FC = () => {
                     <button
                       onClick={handleRequestRaadData}
                       disabled={raadRequestCountdown > 0 || raadRequestLoading}
-                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                      className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
                         raadRequestCountdown > 0 || raadRequestLoading
                           ? 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
                           : 'bg-neutral-100 border border-neutral-300 text-neutral-700 hover:bg-neutral-200'
@@ -876,22 +1212,22 @@ export const NBFCTools: React.FC = () => {
                   )}
                   {reportUrl && (
                     <a
-                      href={reportUrl.startsWith('/') ? `${window.location.origin}${reportUrl}` : reportUrl}
+                      href={getReportSrc(reportUrl)}
                       download
                       className="flex items-center justify-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
                     >
                       <Download className="w-4 h-4" /> Download PDF
                     </a>
                   )}
-                  {raadRequestError && <p className="text-xs text-red-500">{raadRequestError}</p>}
+                  {raadRequestError && <p className="text-xs text-red-500">{formatRaadError(raadRequestError) ?? raadRequestError}</p>}
                   <p className="text-xs text-neutral-500">Report saved for 30 days</p>
                 </div>
               </div>
             )}
-            {jobStatus === 'ready' && reportUrl && !raadFetchedHtml && (
+            {jobStatus === 'ready' && reportUrl && !raadFetchedHtml && !showRaadFullScreen && (
               <div className="flex flex-col flex-1 min-h-0">
                 <iframe
-                  src={reportUrl.startsWith('http') ? reportUrl : `${window.location.origin}${reportUrl.startsWith('/') ? reportUrl : `/${reportUrl}`}`}
+                  src={getReportSrc(reportUrl)}
                   title="Report PDF"
                   className="flex-1 w-full min-h-[400px] rounded border border-neutral-200 bg-white"
                 />
@@ -900,7 +1236,7 @@ export const NBFCTools: React.FC = () => {
                     <button
                       onClick={handleRequestRaadData}
                       disabled={raadRequestCountdown > 0 || raadRequestLoading}
-                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                      className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
                         raadRequestCountdown > 0 || raadRequestLoading
                           ? 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
                           : 'bg-neutral-100 border border-neutral-300 text-neutral-700 hover:bg-neutral-200'
@@ -915,13 +1251,13 @@ export const NBFCTools: React.FC = () => {
                     </button>
                   )}
                   <a
-                    href={reportUrl.startsWith('/') ? `${window.location.origin}${reportUrl}` : reportUrl}
+                    href={getReportSrc(reportUrl)}
                     download
                     className="flex items-center justify-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
                   >
                     <Download className="w-4 h-4" /> Download PDF
                   </a>
-                  {raadRequestError && <p className="text-xs text-red-500">{raadRequestError}</p>}
+                  {raadRequestError && <p className="text-xs text-red-500">{formatRaadError(raadRequestError) ?? raadRequestError}</p>}
                   <p className="text-xs text-neutral-500">Report saved for 30 days</p>
                 </div>
               </div>
@@ -930,7 +1266,7 @@ export const NBFCTools: React.FC = () => {
               <div className="flex flex-col items-center justify-center flex-1 text-center">
                 <AlertCircle className="w-12 h-12 text-error mb-4" />
                 <p className="text-neutral-700 font-medium mb-1">Failed</p>
-                <p className="text-sm text-neutral-500 mb-4">{jobError || 'Something went wrong.'}</p>
+                <p className="text-sm text-neutral-500 mb-4">{formatRaadError(jobError) ?? jobError ?? 'Something went wrong.'}</p>
                 <button
                   onClick={() => {
                     setJobStatus('idle');
@@ -946,6 +1282,63 @@ export const NBFCTools: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showRaadFullScreen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white" data-testid="report-fullscreen-viewer">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 shrink-0 bg-white">
+            <h3 className="text-lg font-semibold text-neutral-900">Report Viewer</h3>
+            <div className="flex items-center gap-3">
+              {raadFetchedHtml ? (
+                <button
+                  type="button"
+                  onClick={handleDownloadRaadAsPdf}
+                  disabled={raadPdfDownloading}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
+                >
+                  {raadPdfDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Download PDF
+                </button>
+              ) : reportUrl ? (
+                <button
+                  type="button"
+                  onClick={handleDownloadRaadPdfUrl}
+                  disabled={raadPdfUrlDownloading}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
+                >
+                  {raadPdfUrlDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Download PDF
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={closeRaadFullScreenViewer}
+                className="p-2 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {raadFetchedHtml ? (
+              <div className="flex-1 min-h-0 overflow-auto">
+                <div
+                  ref={raadReportContainerRef}
+                  className="min-h-full w-full max-w-4xl mx-auto p-6 bg-white"
+                  dangerouslySetInnerHTML={{ __html: raadFetchedHtml }}
+                />
+              </div>
+            ) : reportUrl ? (
+              <iframe
+                src={getReportSrc(reportUrl)}
+                title="Report PDF"
+                className="flex-1 min-h-0 w-full border-0"
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
+      </>
     </MainLayout>
   );
 };
