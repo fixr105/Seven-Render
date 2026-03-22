@@ -5,6 +5,11 @@ import { demoVideos } from './vite-plugin-demo-videos';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), demoVideos()],
+  resolve: {
+    alias: {
+      'html2pdf.js': 'html2pdf.js/dist/html2pdf.js',
+    },
+  },
   server: {
     port: 3000,
     host: '0.0.0.0', // Listen on all interfaces
@@ -19,6 +24,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
+    include: ['html2pdf.js'],
   },
   test: {
     globals: true,
