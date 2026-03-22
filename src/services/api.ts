@@ -348,11 +348,17 @@ class ApiService {
       const isGetRequest = !options.method || options.method === 'GET';
       
       // Validate endpoint: 50s timeout (Fly.io backend has no 30s limit, n8n webhook can be slow)
-      // Login, validate, and application creation: 60s (n8n webhook can be slow)
-      // GET requests: 55s for n8n webhooks
+      // Login, validate: 120s (cold start + multiple n8n webhooks: User Accounts, Clients, KAM Users, etc.)
+      // Application creation: 60s
+      // GET requests (incl /auth/me): 90s for n8n-backed endpoints
       // Other requests: 30s timeout
       const isAuthRequest = endpoint.includes('/auth/login') || endpoint.includes('/auth/validate');
-      const timeoutMs = isAuthRequest || isApplicationRequest ? 60000 : isGetRequest ? 55000 : 30000;
+      const isAuthMe = endpoint.includes('/auth/me');
+      const timeoutMs = isAuthRequest ? 120000
+        : isAuthMe ? 90000
+        : isApplicationRequest ? 60000
+        : isGetRequest ? 55000
+        : 30000;
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
