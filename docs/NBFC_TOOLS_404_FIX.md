@@ -1,19 +1,24 @@
 # Fix NBFC Tools 404 Errors
 
-When NBFC tools (RAAD, history, etc.) return 404, the frontend is likely calling the wrong backend. The backend with NBFC tools is deployed to **seven-render.fly.dev**, not seven-dash.fly.dev.
+When NBFC tools (RAAD, history, etc.) return 404, the frontend is likely calling the wrong backend or the env var wasn’t baked into the build.
 
 ## Root Cause
 
-- **Frontend calls**: `https://seven-dash.fly.dev/api/nbfc/tools/...` → 404
-- **Correct backend**: `https://seven-render.fly.dev` (where CI deploys and NBFC routes exist)
+- **Wrong backend** (old): `https://seven-dash.fly.dev` → 404
+- **Correct backend**: `https://seven-render.fly.dev` (NBFC routes exist here)
+- **Missing env var**: `VITE_API_BASE_URL` must be set in Vercel and a **new deploy** run so it’s included in the build
 
-## Fix: Update Vercel VITE_API_BASE_URL
+## Fix: Set VITE_API_BASE_URL in Vercel and Redeploy
 
-1. **Vercel Dashboard** → Your project → **Settings** → **Environment Variables**
-2. Find `VITE_API_BASE_URL`
-3. **Change** from `https://seven-dash.fly.dev` to **`https://seven-render.fly.dev`**
-4. Ensure it applies to **Production** (and Preview if needed)
-5. **Redeploy** the frontend so the new URL is baked into the build
+1. **Vercel Dashboard** → [Environment Variables](https://vercel.com/dashboard) → Your project → **Settings** → **Environment Variables**
+2. Add or edit `VITE_API_BASE_URL`:
+   - **Name**: `VITE_API_BASE_URL`
+   - **Value**: `https://seven-render.fly.dev` (no trailing slash, no `/api`)
+   - **Environments**: Production, Preview, Development
+3. **Save**
+4. **Redeploy** so the env var is baked in:
+   - Deployments tab → ⋮ on latest → **Redeploy**
+   - Or push a commit to trigger a new build
 
 ## Verification
 
