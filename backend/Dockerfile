@@ -1,5 +1,6 @@
 # Dockerfile for Fly.io deployment
 # Multi-stage build for optimized image size
+# Prisma binaryTargets include linux-musl-openssl-3.0.x (Alpine's default OpenSSL 3)
 
 # Build stage
 FROM node:20-alpine AS builder
@@ -21,8 +22,10 @@ COPY backend/src ./src
 # Build TypeScript
 RUN npm run build
 
-# Production stage
+# Production stage (openssl for Prisma linux-musl-openssl-3.0.x engine)
 FROM node:20-alpine
+
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
