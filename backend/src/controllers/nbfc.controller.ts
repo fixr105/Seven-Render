@@ -9,6 +9,7 @@ import { NBFC_REJECTION_REASONS } from '../config/nbfcRejectionReasons.js';
 import { parseFormData } from '../utils/parseFormData.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 import { matchIds } from '../utils/idMatcher.js';
+import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 import { getAllowedNextStatuses, normalizeToCanonicalStatus } from '../services/statusTracking/statusStateMachine.js';
 
 export class NBFController {
@@ -148,14 +149,18 @@ export class NBFController {
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       const allApplications = await n8nClient.fetchTable('Loan Application');
-      
-      // Apply RBAC filtering using centralized service
-      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
-      const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
-      const application = applications.find((app) => app.id === id);
-
+      const application = findLoanApplicationByParamId(allApplications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({
+          success: false,
+          error: 'Access denied. You do not have permission to view this application.',
+        });
         return;
       }
 
@@ -287,16 +292,19 @@ export class NBFController {
         }
       }
 
-      // Fetch application
       const allApplications = await n8nClient.fetchTable('Loan Application');
-      
-      // Apply RBAC filtering using centralized service
-      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
-      const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
-      const application = applications.find((app) => app.id === id);
-
+      const application = findLoanApplicationByParamId(allApplications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({
+          success: false,
+          error: 'Access denied. You do not have permission to update this application.',
+        });
         return;
       }
 

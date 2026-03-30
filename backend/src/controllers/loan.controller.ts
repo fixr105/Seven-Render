@@ -10,6 +10,7 @@ import { logApplicationAction, AdminActionType } from '../utils/adminLogger.js';
 import { defaultLogger } from '../utils/logger.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
+import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 
 export class LoanController {
   /**
@@ -513,7 +514,7 @@ export class LoanController {
     try {
       const { id } = req.params;
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -593,7 +594,7 @@ export class LoanController {
       }
 
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -652,7 +653,7 @@ export class LoanController {
       }
 
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -704,7 +705,7 @@ export class LoanController {
 
       // Step 1: Fetch applications and find the specific one
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -769,7 +770,7 @@ export class LoanController {
       const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
 
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
@@ -824,7 +825,13 @@ export class LoanController {
         }
         if (newDocs && newDocs.length > 0) {
           const documents = application.Documents ? application.Documents.split(',').filter(Boolean) : [];
-          newDocs.forEach((doc: any) => documents.push(`${doc.fieldId}:${doc.fileUrl}`));
+          newDocs.forEach((doc: any) => {
+            const fieldId = doc.fieldId || '';
+            const fileUrl = doc.fileUrl || '';
+            const fileName = doc.fileName;
+            const entry = fileName ? `${fieldId}:${fileUrl}|${fileName}` : `${fieldId}:${fileUrl}`;
+            if (fieldId && fileUrl) documents.push(entry);
+          });
           await n8nClient.postLoanApplication({
             ...application,
             Documents: documents.join(','),
@@ -900,25 +907,7 @@ export class LoanController {
       // Step 1: Fetch only applications first (cached, so minimal cost)
       const applications = await n8nClient.fetchTable('Loan Application');
 
-      // Step 2: Try to find application by multiple ID formats
-      // First try exact match on id (Airtable record ID)
-      let application = applications.find((app) => app.id === id);
-      
-      // If not found, try File ID (in case frontend is using File ID instead of record ID)
-      if (!application) {
-        application = applications.find((app) => 
-          app['File ID'] === id || 
-          String(app['File ID']) === String(id)
-        );
-      }
-      
-      // If still not found, try case-insensitive match
-      if (!application) {
-        application = applications.find((app) => 
-          String(app.id).toLowerCase() === String(id).toLowerCase() ||
-          String(app['File ID'] || '').toLowerCase() === String(id).toLowerCase()
-        );
-      }
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         const sampleIds = applications.slice(0, 5).map(a => ({
@@ -1124,7 +1113,7 @@ export class LoanController {
       const { formData } = req.body;
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application || application.Client !== req.user.clientId) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -1237,7 +1226,7 @@ export class LoanController {
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application || application.Client !== req.user.clientId) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -1388,7 +1377,7 @@ export class LoanController {
       const { id } = req.params;
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application || application.Client !== req.user.clientId) {
         res.status(404).json({ success: false, error: 'Application not found' });

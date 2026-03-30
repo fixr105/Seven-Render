@@ -116,8 +116,18 @@ export const ApplicationDetail: React.FC = () => {
   const sidebarItems = useSidebarItems();
 
   // Load application data ONLY on initial mount or when navigating to a different application
-  // No automatic refetch - user must manually refresh
   const lastFetchedIdRef = React.useRef<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchApplicationDetails();
+      await fetchQueries();
+      await fetchStatusHistory();
+    } finally {
+      setRefreshing(false);
+    }
+  };
   useEffect(() => {
     if (id && id !== lastFetchedIdRef.current) {
       lastFetchedIdRef.current = id;
@@ -185,10 +195,17 @@ export const ApplicationDetail: React.FC = () => {
     };
 
     const fetchConfig = () => {
-      if (typeof apiService.getFormConfig === 'function') {
+      if (
+        userRole === 'client' &&
+        typeof apiService.getFormConfig === 'function'
+      ) {
         return apiService.getFormConfig(productIdForConfig);
       }
-      if (clientIdForConfig && typeof clientIdForConfig === 'string' && typeof apiService.getPublicFormConfig === 'function') {
+      if (
+        clientIdForConfig &&
+        typeof clientIdForConfig === 'string' &&
+        typeof apiService.getPublicFormConfig === 'function'
+      ) {
         return apiService.getPublicFormConfig(clientIdForConfig, productIdForConfig);
       }
       return Promise.resolve({ success: false });
@@ -210,7 +227,7 @@ export const ApplicationDetail: React.FC = () => {
         }).catch(() => {});
       }
     });
-  }, [application?.id, application?.loan_product, productIdForConfig, clientIdForConfig]);
+  }, [application?.id, application?.loan_product, productIdForConfig, clientIdForConfig, userRole]);
 
   const fetchApplicationDetails = async () => {
     try {
@@ -731,6 +748,9 @@ export const ApplicationDetail: React.FC = () => {
         }}
         actions={
           <>
+            <Button variant="tertiary" icon={RefreshCw} onClick={handleRefresh} disabled={refreshing} loading={refreshing}>
+              Refresh
+            </Button>
             {((userRole === 'kam' || userRole === 'credit_team') ||
               (userRole === 'client' && ['draft', 'under_kam_review', 'query_with_client', 'pending_kam_review', 'kam_query_raised'].includes((application?.status || application?.Status || '').toString().toLowerCase()))) && (
               <Button variant="primary" icon={Edit} onClick={() => setShowStatusModal(true)}>

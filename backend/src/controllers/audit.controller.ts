@@ -4,6 +4,7 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
+import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 
 export class AuditController {
   /**
@@ -19,13 +20,19 @@ export class AuditController {
         n8nClient.fetchTable('File Auditing Log'),
       ]);
 
-      // Apply RBAC filtering using centralized service
-      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
-      const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
-      const application = applications.find((app) => app.id === id);
-
+      const application = findLoanApplicationByParamId(allApplications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({
+          success: false,
+          error: 'Access denied. You do not have permission to view this application.',
+        });
         return;
       }
 
