@@ -4,6 +4,7 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
+import { invalidateRbacRequestCache } from '../services/rbac/rbacFilter.service.js';
 import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 import { matchIds } from '../utils/idMatcher.js';
@@ -491,10 +492,33 @@ export class KAMController {
         return;
       }
 
-      // Check if email already exists in User Accounts
+      // Resolve Assigned KAM once; duplicate-email onboard reassigns client to this KAM via postClient below
+      let assignedKAM = kamId || req.user!.kamId || '';
+      if (!assignedKAM && req.user!.email) {
+        try {
+          const kamUsers = await n8nClient.fetchTable('KAM Users');
+          const kamUser = kamUsers.find(
+            (k: any) => k.Email?.toLowerCase() === req.user!.email?.toLowerCase()
+          );
+          if (kamUser) {
+            assignedKAM = kamUser.id || kamUser['KAM ID'] || '';
+            console.log('[createClient] Found KAM ID from KAM Users table:', assignedKAM);
+          }
+        } catch (error) {
+          console.warn('[createClient] Could not fetch KAM Users table:', error);
+        }
+      }
+      if (!assignedKAM) {
+        res.status(400).json({
+          success: false,
+          error: 'Assigned KAM is required. Please ensure the KAM user exists and has a valid KAM ID.',
+        });
+        return;
+      }
+
       const existingUsers = await n8nClient.fetchTable('User Accounts');
-      const existingUser = existingUsers.find((u: any) => 
-        (u.Username || u.Email || '').toLowerCase() === email.toLowerCase()
+      const existingUser = existingUsers.find(
+        (u: any) => (u.Username || u.Email || '').toLowerCase() === email.toLowerCase()
       );
 
       let userAccountId: string;
@@ -504,45 +528,92 @@ export class KAMController {
       if (existingUser) {
         console.log('[createClient] User account already exists:', existingUser.id);
         userAccountId = existingUser.id;
-        clientId = existingUser.id; // Use same ID for client record
-        
-        // Check if client record exists
+        clientId = existingUser.id;
+
         const existingClients = await n8nClient.fetchTable('Clients');
-        const existingClient = existingClients.find((c: any) => 
-          c.id === userAccountId || c['Client ID'] === userAccountId
+        const existingClient = existingClients.find(
+          (c: any) => c.id === userAccountId || c['Client ID'] === userAccountId
         );
 
         if (existingClient) {
-          console.log('[createClient] Client record already exists:', existingClient.id);
-          console.log('[createClient] EARLY RETURN - postClient will NOT be called');
-          // Client already exists, return success with existing client info
+          console.log(
+            '[createClient] Client record already exists, syncing assignment to creating KAM:',
+            existingClient.id
+          );
+          const existingCommission = existingClient['Commission Rate'];
+          const effectiveCommission =
+            commissionRate != null && commissionRate !== '' ? commissionRate : existingCommission;
+          if (effectiveCommission == null || effectiveCommission === '') {
+            res.status(400).json({
+              success: false,
+              error: 'Commission rate is required.',
+            });
+            return;
+          }
+
+          const modulesValue =
+            enabledModules !== undefined
+              ? Array.isArray(enabledModules)
+                ? enabledModules.join(', ')
+                : String(enabledModules)
+              : (existingClient['Enabled Modules'] ?? '');
+
+          const updatePayload = {
+            ...existingClient,
+            'Client Name': name,
+            'Primary Contact Name': contactPerson || name,
+            'Contact Email / Phone': `${email} / ${phone || ''}`,
+            'Assigned KAM': assignedKAM,
+            'Enabled Modules': modulesValue,
+            'Commission Rate': String(effectiveCommission),
+            Status: existingClient.Status || 'Active',
+          };
+
+          try {
+            await n8nClient.postClient(updatePayload);
+            invalidateRbacRequestCache();
+          } catch (clientError: any) {
+            console.error('[createClient] Failed to update existing client record:', clientError);
+            throw new Error(`Failed to update client record: ${clientError.message || 'Unknown error'}`);
+          }
+
           res.json({
             success: true,
             data: {
               id: existingClient.id,
               clientId: existingClient.id,
               userId: userAccountId,
-              message: 'Client already exists',
+              message: 'Client updated and assigned to you',
               existing: true,
+              updated: true,
             },
           });
+
+          n8nClient
+            .postAdminActivityLog({
+              id: `ACT-${Date.now()}`,
+              'Activity ID': `ACT-${Date.now()}`,
+              Timestamp: new Date().toISOString(),
+              'Performed By': req.user!.email,
+              'Action Type': 'create_client',
+              'Description/Details': `Onboarded / reassigned existing client: ${name} (${email})`,
+              'Target Entity': 'client',
+            })
+            .then(() => console.log('[createClient] Admin activity logged successfully'))
+            .catch((logError: any) =>
+              console.warn('[createClient] Failed to log admin activity (non-critical):', logError)
+            );
           return;
-        } else {
-          console.log('[createClient] User exists but client record missing, creating client record');
-          console.log('[createClient] Will proceed to call postClient');
-          // User exists but client record doesn't - create client record only
         }
+        console.log('[createClient] User exists but client record missing, creating client record');
       } else {
         isNewUser = true;
-        // Create new user account
         userAccountId = `USER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         clientId = userAccountId;
       }
 
       console.log('[createClient] Creating client:', { name, email, contactPerson, phone, isNewUser });
 
-      // Create user account only if it doesn't exist (non-blocking for existing users)
-      let userAccountPromise: Promise<any> | null = null;
       if (isNewUser) {
         const { authService } = await import('../auth/auth.service.js');
         const hashedPassword = await authService.hashPassword('TempPassword123!');
@@ -569,35 +640,6 @@ export class KAMController {
         console.log('[createClient] Skipping user account creation (already exists)');
       }
 
-      // Create client record with commission rate
-      // Use the User Account ID as the Client ID to maintain consistency
-      // Get KAM ID - try multiple sources to ensure we have it
-      let assignedKAM = kamId || req.user!.kamId || '';
-      
-      // If KAM ID is not set, try to get it from KAM Users table by email
-      if (!assignedKAM && req.user!.email) {
-        try {
-          const kamUsers = await n8nClient.fetchTable('KAM Users');
-          const kamUser = kamUsers.find((k: any) => k.Email?.toLowerCase() === req.user!.email?.toLowerCase());
-          if (kamUser) {
-            assignedKAM = kamUser.id || kamUser['KAM ID'] || '';
-            console.log('[createClient] Found KAM ID from KAM Users table:', assignedKAM);
-          }
-        } catch (error) {
-          console.warn('[createClient] Could not fetch KAM Users table:', error);
-        }
-      }
-      
-      // Assigned KAM is required - throw error if not found
-      if (!assignedKAM) {
-        res.status(400).json({
-          success: false,
-          error: 'Assigned KAM is required. Please ensure the KAM user exists and has a valid KAM ID.',
-        });
-        return;
-      }
-      
-      // Commission rate is required
       if (!commissionRate) {
         res.status(400).json({
           success: false,
@@ -613,39 +655,34 @@ export class KAMController {
         'Primary Contact Name': contactPerson || name,
         'Contact Email / Phone': `${email} / ${phone || ''}`,
         'Assigned KAM': assignedKAM,
-        'Enabled Modules': Array.isArray(enabledModules) ? enabledModules.join(', ') : (enabledModules || ''),
+        'Enabled Modules': Array.isArray(enabledModules) ? enabledModules.join(', ') : enabledModules || '',
         'Commission Rate': commissionRate.toString(),
-        'Status': 'Active',
+        Status: 'Active',
         'Form Categories': '',
       };
 
       console.log('[createClient] Creating client record:', clientId);
       console.log('[createClient] Client data:', JSON.stringify(clientData, null, 2));
-      console.log('[createClient] Assigned KAM:', assignedKAM, 'KAM ID from user:', req.user!.kamId, 'User ID:', req.user!.id);
-      console.log('[createClient] Full user object:', JSON.stringify(req.user, null, 2));
-      
+      console.log(
+        '[createClient] Assigned KAM:',
+        assignedKAM,
+        'KAM ID from user:',
+        req.user!.kamId,
+        'User ID:',
+        req.user!.id
+      );
+
       try {
         const clientResult = await n8nClient.postClient(clientData);
         console.log('[createClient] Client record created successfully:', clientResult);
-        
-        // Invalidate cache after successful creation (next GET will fetch fresh data)
-        // NO immediate GET webhook call - cache will be used until next actual request
-        n8nClient.invalidateCache('Clients');
-        n8nClient.invalidateCache('User Accounts');
-        
-        // Don't verify immediately - POST operation succeeded, cache invalidated
-        // Next GET request will fetch fresh data automatically
-        // This avoids 3 unnecessary webhook calls
       } catch (clientError: any) {
         console.error('[createClient] Failed to create client record:', clientError);
-        // Try to clean up user account if client creation fails
         console.warn('[createClient] Client creation failed, but user account may have been created');
         throw new Error(`Failed to create client record: ${clientError.message || 'Unknown error'}`);
       }
 
+      invalidateRbacRequestCache();
       console.log('[createClient] Client created successfully:', clientId);
-      
-      // Cache is already invalidated in postClient method, no need to invalidate again
 
       // Return success response immediately (include temp password only for new users)
       const responseData: Record<string, unknown> = {
@@ -662,20 +699,20 @@ export class KAMController {
         data: responseData,
       });
 
-      // Log admin activity asynchronously (non-blocking - don't fail if this fails)
-      n8nClient.postAdminActivityLog({
-        id: `ACT-${Date.now()}`,
-        'Activity ID': `ACT-${Date.now()}`,
-        Timestamp: new Date().toISOString(),
-        'Performed By': req.user!.email,
-        'Action Type': 'create_client',
-        'Description/Details': `Created new client: ${name} (${email})`,
-        'Target Entity': 'client',
-      }).then(() => {
-        console.log('[createClient] Admin activity logged successfully');
-      }).catch((logError: any) => {
-        console.warn('[createClient] Failed to log admin activity (non-critical):', logError);
-      });
+      n8nClient
+        .postAdminActivityLog({
+          id: `ACT-${Date.now()}`,
+          'Activity ID': `ACT-${Date.now()}`,
+          Timestamp: new Date().toISOString(),
+          'Performed By': req.user!.email,
+          'Action Type': 'create_client',
+          'Description/Details': `Created new client: ${name} (${email})`,
+          'Target Entity': 'client',
+        })
+        .then(() => console.log('[createClient] Admin activity logged successfully'))
+        .catch((logError: any) =>
+          console.warn('[createClient] Failed to log admin activity (non-critical):', logError)
+        );
     } catch (error: any) {
       console.error('[createClient] Error creating client:', error);
       res.status(500).json({
@@ -718,6 +755,7 @@ export class KAMController {
       }
 
       await n8nClient.postClient(updateData);
+      invalidateRbacRequestCache();
 
       await n8nClient.postAdminActivityLog({
         id: `ACT-${Date.now()}`,
@@ -800,6 +838,7 @@ export class KAMController {
       const assignedProducts = ids.join(', ');
       const updateData = { ...client, 'Assigned Products': assignedProducts };
       await n8nClient.postClient(updateData);
+      invalidateRbacRequestCache();
       await n8nClient.postAdminActivityLog({
         id: `ACT-${Date.now()}`,
         'Activity ID': `ACT-${Date.now()}`,

@@ -627,6 +627,14 @@ export class RBACFilterService {
   }
 }
 
+/**
+ * Clears in-memory RBAC caches (e.g. getKAMManagedClientIds, NBFC map).
+ * Call after client create/update so the next request recomputes managed-client lists.
+ */
+export function invalidateRbacRequestCache(): void {
+  requestCache.clear();
+}
+
 // Export singleton instance
 export const rbacFilterService = new RBACFilterService();
 
