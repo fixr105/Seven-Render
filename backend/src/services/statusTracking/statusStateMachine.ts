@@ -245,22 +245,28 @@ export function validateTransition(
 /**
  * Get status display name
  */
+const RAW_LABEL_STATUSES = new Set<LoanStatus>([
+  LoanStatus.DRAFT,
+  LoanStatus.APPROVED,
+  LoanStatus.REJECTED,
+  LoanStatus.DISBURSED,
+]);
+
 export function getStatusDisplayName(status: LoanStatus): string {
-  const displayNames: Record<LoanStatus, string> = {
-    [LoanStatus.DRAFT]: 'Draft',
+  if (RAW_LABEL_STATUSES.has(status)) {
+    return status;
+  }
+  const displayNames: Partial<Record<LoanStatus, string>> = {
     [LoanStatus.UNDER_KAM_REVIEW]: 'Under KAM Review',
     [LoanStatus.QUERY_WITH_CLIENT]: 'Query with Client',
     [LoanStatus.PENDING_CREDIT_REVIEW]: 'Pending Credit Review',
     [LoanStatus.CREDIT_QUERY_WITH_KAM]: 'Credit Query with KAM',
     [LoanStatus.IN_NEGOTIATION]: 'In Negotiation',
     [LoanStatus.SENT_TO_NBFC]: 'Sent to NBFC',
-    [LoanStatus.APPROVED]: 'Approved',
-    [LoanStatus.REJECTED]: 'Rejected',
-    [LoanStatus.DISBURSED]: 'Disbursed',
     [LoanStatus.WITHDRAWN]: 'Withdrawn',
     [LoanStatus.CLOSED]: 'Closed',
   };
-  return displayNames[status] || status;
+  return displayNames[status] ?? status;
 }
 
 /**
@@ -275,9 +281,9 @@ export function getStatusColor(status: LoanStatus): string {
     [LoanStatus.CREDIT_QUERY_WITH_KAM]: 'warning',
     [LoanStatus.IN_NEGOTIATION]: 'info',
     [LoanStatus.SENT_TO_NBFC]: 'info',
-    [LoanStatus.APPROVED]: 'success',
-    [LoanStatus.REJECTED]: 'error',
-    [LoanStatus.DISBURSED]: 'success',
+    [LoanStatus.APPROVED]: 'neutral',
+    [LoanStatus.REJECTED]: 'neutral',
+    [LoanStatus.DISBURSED]: 'neutral',
     [LoanStatus.WITHDRAWN]: 'neutral',
     [LoanStatus.CLOSED]: 'neutral',
   };

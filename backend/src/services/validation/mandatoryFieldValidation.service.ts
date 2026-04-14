@@ -8,6 +8,11 @@
  */
 
 import { getSimpleFormConfig } from '../formConfig/simpleFormConfig.service.js';
+import {
+  isValidEmailFormat,
+  isValidTypeOfPurchase,
+  parseIndianMobile,
+} from '../../utils/basicApplicationFields.validation.js';
 
 /** Indian PAN format: 5 letters + 4 digits + 1 letter. Normalize by stripping spaces/dashes before validation. */
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
@@ -78,9 +83,6 @@ function isFileOptionValue(value: unknown): boolean {
   return s.length > 0 && FILE_OPTION_VALUES.has(s);
 }
 
-const DOCUMENTS_OR_LINK_ERROR_MESSAGE =
-  'Please provide the document folder link and update the document checklist before submitting the application.';
-
 /** True if value looks like a Google Drive or OneDrive/SharePoint URL. */
 function isValidDocumentsFolderLink(value: unknown): boolean {
   if (!value || typeof value !== 'string') return false;
@@ -104,6 +106,11 @@ function hasDocumentsOrFolderLink(
   _documentLinks?: Record<string, string>
 ): boolean {
   return isValidDocumentsFolderLink(formData._documentsFolderLink);
+}
+
+/** User confirmed they shared the folder with team addresses (mirrors New Application UI). */
+function isDocumentsFolderShareAcknowledged(value: unknown): boolean {
+  return value === true || value === 'true' || value === 'yes';
 }
 
 /**
@@ -306,6 +313,57 @@ export async function validateMandatoryFields(
     }
   });
 
+  // Basic Application fields (mirror client NewApplication Basic Information)
+  const mobileParsed = parseIndianMobile(formData._mobileNumber);
+  if (mobileParsed.ok === false) {
+    if (mobileParsed.reason === 'empty') {
+      missingFields.push({
+        fieldId: '_mobileNumber',
+        label: 'Mobile Number',
+        type: 'tel',
+        displayKey: '_mobileNumber',
+      });
+    } else {
+      formatErrors.push({
+        fieldId: '_mobileNumber',
+        label: 'Mobile Number',
+        message: 'Please enter a valid 10-digit Indian mobile number',
+      });
+    }
+  }
+
+  const emailVal = formData._email;
+  if (emailVal == null || (typeof emailVal === 'string' && emailVal.trim().length === 0)) {
+    missingFields.push({
+      fieldId: '_email',
+      label: 'Email ID',
+      type: 'email',
+      displayKey: '_email',
+    });
+  } else if (!isValidEmailFormat(emailVal)) {
+    formatErrors.push({
+      fieldId: '_email',
+      label: 'Email ID',
+      message: 'Please enter a valid email address',
+    });
+  }
+
+  const topVal = formData._typeOfPurchase;
+  if (topVal == null || (typeof topVal === 'string' && topVal.trim().length === 0)) {
+    missingFields.push({
+      fieldId: '_typeOfPurchase',
+      label: 'Type of Purchase',
+      type: 'select',
+      displayKey: '_typeOfPurchase',
+    });
+  } else if (!isValidTypeOfPurchase(topVal)) {
+    formatErrors.push({
+      fieldId: '_typeOfPurchase',
+      label: 'Type of Purchase',
+      message: 'Type of Purchase must be Rental or EMI',
+    });
+  }
+
   // Global rule: require at least one of (documents or folder link) for submission
   if (!hasDocumentsOrFolderLink(formData, documentLinks)) {
     missingFields.push({
@@ -313,6 +371,13 @@ export async function validateMandatoryFields(
       label: 'Documents Folder Link',
       type: 'text',
       displayKey: '_documentsFolderLink',
+    });
+  } else if (!isDocumentsFolderShareAcknowledged(formData._documentsFolderShareAcknowledged)) {
+    missingFields.push({
+      fieldId: '_documentsFolderShareAcknowledged',
+      label: 'Documents folder sharing confirmation',
+      type: 'checkbox',
+      displayKey: '_documentsFolderShareAcknowledged',
     });
   }
 
@@ -329,12 +394,13 @@ export async function validateMandatoryFields(
   }
 
   const hasFolderLinkMissing = missingFields.some((f) => f.fieldId === '_documentsFolderLink');
+  const hasShareAckMissing = missingFields.some((f) => f.fieldId === '_documentsFolderShareAcknowledged');
   const hasChecklistMissing = missingFields.some((f) => f.type === 'file');
   const COMBINED_DOCUMENTS_ERROR_MESSAGE =
-    'Please provide the document folder link and update the document checklist before submitting the application.';
+    'Please confirm you shared your documents folder with our team, provide a valid folder link (Google Drive or OneDrive), and update the document checklist before submitting the application.';
 
   const errorMessageForMissing =
-    hasFolderLinkMissing || hasChecklistMissing
+    hasFolderLinkMissing || hasShareAckMissing || hasChecklistMissing
       ? COMBINED_DOCUMENTS_ERROR_MESSAGE
       : missingFields.length > 0
         ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`

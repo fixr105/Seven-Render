@@ -12,6 +12,10 @@ export interface FormTestData {
     applicant_name: string;
     loan_product_id: string;
     requested_loan_amount: string;
+    /** Basic Information: stored in form_data on submit */
+    _mobileNumber?: string;
+    _email?: string;
+    _typeOfPurchase?: 'Rental' | 'EMI';
     form_data: Record<string, any>;
   };
   fileUploads: Array<{
@@ -42,6 +46,9 @@ export class NewApplicationPage {
   readonly applicantNameInput: Locator;
   readonly loanProductSelect: Locator;
   readonly requestedAmountInput: Locator;
+  readonly basicMobileInput: Locator;
+  readonly basicEmailInput: Locator;
+  readonly basicTypeOfPurchaseSelect: Locator;
   readonly submitButton: Locator;
   readonly saveDraftButton: Locator;
 
@@ -54,6 +61,9 @@ export class NewApplicationPage {
   // Copy share-email buttons below videos
   readonly copyGoogleDriveEmailButton: Locator;
   readonly copyOneDriveEmailButton: Locator;
+  /** Required: user confirms folder shared with team addresses */
+  readonly documentsFolderShareCheckbox: Locator;
+  readonly documentsFolderLinkInput: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -62,6 +72,9 @@ export class NewApplicationPage {
     this.applicantNameInput = page.locator('[data-testid="applicant-name-input"], input[id="applicant_name"], input[name="applicant_name"], input[placeholder*="Applicant"]').first();
     this.loanProductSelect = page.locator('[data-testid="loan-product-select"], select[id="loan_product_id"], select[name="loan_product_id"]').first();
     this.requestedAmountInput = page.locator('input[id="requested_loan_amount"], input[name="requested_loan_amount"]').first();
+    this.basicMobileInput = page.getByTestId('basic-mobile');
+    this.basicEmailInput = page.getByTestId('basic-email');
+    this.basicTypeOfPurchaseSelect = page.getByTestId('basic-type-of-purchase');
     this.submitButton = page.locator('button:has-text("Submit"), button:has-text("Create Application"), button[type="submit"]:not(:has-text("Draft"))').first();
     this.saveDraftButton = page.locator('button:has-text("Save Draft"), button:has-text("Draft")').first();
     
@@ -74,6 +87,8 @@ export class NewApplicationPage {
     // Copy share-email buttons below videos
     this.copyGoogleDriveEmailButton = page.getByTestId('copy-google-drive-email');
     this.copyOneDriveEmailButton = page.getByTestId('copy-onedrive-email');
+    this.documentsFolderShareCheckbox = page.getByTestId('documents-folder-share-ack').locator('input[type="checkbox"]');
+    this.documentsFolderLinkInput = page.locator('#_documentsFolderLink');
   }
 
   /**
@@ -156,6 +171,26 @@ export class NewApplicationPage {
     
     // Fill requested amount
     await this.requestedAmountInput.fill(data.requested_loan_amount);
+
+    const mobile = data._mobileNumber ?? data.form_data?._mobileNumber ?? '9876543210';
+    const email = data._email ?? data.form_data?._email ?? 'e2e.client@example.com';
+    const top = data._typeOfPurchase ?? data.form_data?._typeOfPurchase ?? 'Rental';
+
+    await this.basicMobileInput.waitFor({ state: 'visible', timeout: 5000 });
+    await this.basicMobileInput.fill(mobile);
+    await this.basicEmailInput.fill(email);
+    await this.basicTypeOfPurchaseSelect.selectOption({ value: top });
+  }
+
+  /**
+   * Documents folder acknowledgment + valid folder URL (required for final submit, not for draft).
+   */
+  async fillDocumentsFolderForSubmit(
+    folderUrl = 'https://drive.google.com/drive/folders/e2e-test-folder'
+  ): Promise<void> {
+    await this.documentsFolderShareCheckbox.waitFor({ state: 'visible', timeout: 15000 });
+    await this.documentsFolderShareCheckbox.check();
+    await this.documentsFolderLinkInput.fill(folderUrl);
   }
 
   /**

@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
+import { parseApplicableStatusesFromProduct } from '../services/products/loanProductStatuses.service.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 
 export class ProductsController {
@@ -76,6 +77,10 @@ export class ProductsController {
             : [];
           const assignedKamIds = kamIds;
           const assignedKamNames = kamIds.map((kid) => resolveKAMName(kid, kamNameMap)).filter(Boolean);
+          const applicableStatuses = parseApplicableStatusesFromProduct(
+            product as Record<string, unknown>,
+            String(productId)
+          );
           return {
             ...product,
             id: product.id,
@@ -86,6 +91,7 @@ export class ProductsController {
             requiredDocumentsFields: product['Required Documents/Fields'],
             assignedKamIds,
             assignedKamNames,
+            applicableStatuses,
           };
         }),
       });
@@ -142,6 +148,10 @@ export class ProductsController {
       const kamIds = productToKamIds.get(productId.toLowerCase()) ? Array.from(productToKamIds.get(productId.toLowerCase())!) : [];
       const kamNameMap = buildKAMNameMap(kamUsers as any[]);
       const assignedKamNames = kamIds.map((kid) => resolveKAMName(kid, kamNameMap)).filter(Boolean);
+      const applicableStatuses = parseApplicableStatusesFromProduct(
+        product as Record<string, unknown>,
+        String(productId)
+      );
 
       res.json({
         success: true,
@@ -155,6 +165,7 @@ export class ProductsController {
           requiredDocumentsFields: product['Required Documents/Fields'],
           assignedKamIds: kamIds,
           assignedKamNames,
+          applicableStatuses,
         },
       });
     } catch (error: any) {

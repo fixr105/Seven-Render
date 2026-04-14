@@ -12,6 +12,7 @@ import { nbfcToolsStorage } from '../services/nbfcToolsStorage.service.js';
 import { generateRaadPdf, type RaadResult } from '../services/raadPdfGenerator.service.js';
 
 const N8N_NBFC_TOOLS_BASE_URL = 'https://n8n-h9n3.srv1314414.hstgr.cloud';
+const DEFAULT_RAAD_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/big-brain-bro-1';
 
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -23,7 +24,7 @@ function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
   const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
   const baseClean = base.replace(/\/$/, '');
   if (tool === 'raad') {
-    return process.env.N8N_RAAD_WEBHOOK_URL || `${baseClean}/webhook/big-brain-bro-1`;
+    return process.env.N8N_RAAD_WEBHOOK_URL || DEFAULT_RAAD_WEBHOOK_URL;
   }
   if (process.env.N8N_PAGER_WEBHOOK_URL) {
     return process.env.N8N_PAGER_WEBHOOK_URL;
@@ -35,19 +36,13 @@ export class NBFCToolsController {
   /**
    * POST /nbfc/tools/raad
    * Accepts multipart: gstFile, bankFile, auditedFile, itrFile (all required), loanApplicationId (required)
+   * When DATABASE_URL is not set: forwards to n8n, returns 202 with loanApplicationId only (no jobId).
+   * Frontend should poll requestRAADData(loanApplicationId) in that case.
    */
   async startRaad(req: Request, res: Response): Promise<void> {
     try {
       const { defaultLogger } = await import('../utils/logger.js');
       defaultLogger.info('RAAD submit received', { userId: req.user?.id, role: req.user?.role });
-      const prisma = getPrisma();
-      if (!prisma) {
-        res.status(503).json({
-          success: false,
-          error: 'Database is not configured. Set DATABASE_URL in your environment.',
-        });
-        return;
-      }
 
       const userId = req.user?.id;
       if (!userId || req.user?.role !== 'nbfc') {
@@ -74,6 +69,39 @@ export class NBFCToolsController {
         return;
       }
 
+      const prisma = getPrisma();
+
+      if (!prisma) {
+        // No DB: forward to n8n only, return 202 with loanApplicationId. Frontend polls requestRAADData.
+        const webhookUrl = getN8nWebhookUrl('raad');
+        defaultLogger.info('RAAD submit (no DB)', { loanApplicationId, webhookHost: new URL(webhookUrl).hostname });
+
+        const runRaadWebhookNoDb = async () => {
+          const formData = new FormData();
+          formData.append('gstFile', new Blob([gstFile.buffer], { type: gstFile.mimetype || 'application/pdf' }), 'GST.pdf');
+          formData.append('bankFile', new Blob([bankFile.buffer], { type: bankFile.mimetype || 'application/pdf' }), 'BANK.pdf');
+          formData.append('auditedFile', new Blob([auditedFile.buffer], { type: auditedFile.mimetype || 'application/pdf' }), 'AUDITED.pdf');
+          formData.append('itrFile', new Blob([itrFile.buffer], { type: itrFile.mimetype || 'application/pdf' }), 'ITR.pdf');
+          formData.append('loanApplicationId', loanApplicationId);
+
+          try {
+            const n8nRes = await fetch(webhookUrl, { method: 'POST', body: formData });
+            defaultLogger.info('RAAD webhook (no DB) response', { loanApplicationId, status: n8nRes.status });
+            if (!n8nRes.ok) {
+              const errText = await n8nRes.text();
+              defaultLogger.error('RAAD webhook (no DB) failed', { loanApplicationId, status: n8nRes.status, errText });
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            defaultLogger.error('RAAD webhook (no DB) error', { loanApplicationId, error: message });
+          }
+        };
+
+        res.status(202).json({ success: true, data: { loanApplicationId } });
+        setImmediate(() => void runRaadWebhookNoDb());
+        return;
+      }
+
       const expiresAt = addDays(new Date(), 30);
       const job = await prisma.toolJob.create({
         data: {
@@ -86,10 +114,9 @@ export class NBFCToolsController {
         },
       });
 
-      res.status(202).json({ success: true, data: { jobId: job.id } });
+      res.status(202).json({ success: true, data: { jobId: job.id, loanApplicationId } });
 
       const runRaadWebhook = async () => {
-        const { defaultLogger } = await import('../utils/logger.js');
         const webhookUrl = getN8nWebhookUrl('raad');
         defaultLogger.info('RAAD webhook starting', {
           jobId: job.id,
@@ -421,7 +448,9 @@ export class NBFCToolsController {
 
   /**
    * POST /nbfc/tools/raad/request-data
-   * Proxies to n8n fetch webhook with loanApplicationId. Requires NBFC auth.
+   * Proxies to n8n get-raad webhook. Requires NBFC auth.
+   * - No loanApplicationId: list-all (returns array of IDs with status)
+   * - With loanApplicationId: single record (returns full report data)
    */
   async requestRaadData(req: Request, res: Response): Promise<void> {
     try {
@@ -432,10 +461,7 @@ export class NBFCToolsController {
       }
 
       const loanApplicationId = (req.body?.loanApplicationId as string)?.trim();
-      if (!loanApplicationId) {
-        res.status(400).json({ success: false, error: 'loanApplicationId is required' });
-        return;
-      }
+      const isListAll = !loanApplicationId;
 
       const webhookUrl = process.env.N8N_RAAD_FETCH_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -446,10 +472,11 @@ export class NBFCToolsController {
         return;
       }
 
+      const webhookBody = isListAll ? {} : { loanApplicationId };
       const webhookRes = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loanApplicationId }),
+        body: JSON.stringify(webhookBody),
       });
 
       const contentType = webhookRes.headers.get('content-type') || '';
@@ -464,11 +491,51 @@ export class NBFCToolsController {
         return;
       }
 
-      // n8n Respond to Webhook may return array; normalize to single object
-      let normalized = data;
+      // n8n may return array (list-all or Respond to Webhook format); normalize
+      let normalized: unknown = data;
       if (Array.isArray(data) && data.length > 0) {
         const first = data[0];
-        normalized = typeof first === 'object' && first !== null && 'json' in first ? first.json : first;
+        if (isListAll) {
+          // List-all: unwrap json if present, then map to expected shape { id, loanApplicationId, status }
+          const unwrapped = data.map((item: unknown) =>
+            typeof item === 'object' && item !== null && 'json' in (item as object)
+              ? (item as { json: unknown }).json
+              : item
+          );
+          normalized = unwrapped.map((item: unknown) => {
+            const obj = (typeof item === 'object' && item !== null ? item : {}) as Record<string, unknown>;
+            const loanId =
+              (obj.ID as string) || (obj.loanApplicationId as string) || (obj.id as string) || `row-${obj.row_number ?? '?'}`;
+            const hasContent = typeof obj.content === 'string' || Array.isArray(obj.content);
+            return {
+              id: loanId,
+              loanApplicationId: loanId,
+              status: obj.status === 'error' || obj.error ? 'error' : hasContent ? 'ready' : obj.status ?? 'processing',
+              error: obj.error,
+              html: obj.html,
+              pdfUrl: obj.pdfUrl,
+            };
+          });
+        } else {
+          normalized = typeof first === 'object' && first !== null && 'json' in first ? (first as { json: unknown }).json : first;
+          // For single record: extract html from content if present (Anthropic/n8n format)
+          if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+            const obj = normalized as Record<string, unknown>;
+            if (!obj.html && !obj.pdfUrl && typeof obj.content === 'string') {
+              try {
+                const parsed = JSON.parse(obj.content) as Array<{ type?: string; text?: string }>;
+                const textPart = Array.isArray(parsed)
+                  ? parsed.find((p) => p?.type === 'text' && typeof p.text === 'string')
+                  : null;
+                if (textPart?.text?.trim()) {
+                  obj.html = textPart.text.trim();
+                }
+              } catch {
+                // keep as is
+              }
+            }
+          }
+        }
       }
       res.json({ success: true, data: normalized });
     } catch (error: unknown) {

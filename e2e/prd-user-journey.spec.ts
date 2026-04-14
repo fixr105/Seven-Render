@@ -51,6 +51,13 @@ test.describe('PRD User Journey: End-to-End', () => {
       .first();
     await amountInput.fill(amount);
 
+    const mobileInput = page.getByTestId('basic-mobile');
+    if (await mobileInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await mobileInput.fill('9876543210');
+      await page.getByTestId('basic-email').fill('journey.client@example.com');
+      await page.getByTestId('basic-type-of-purchase').selectOption({ value: 'Rental' });
+    }
+
     await page.waitForTimeout(1500);
 
     const mandatoryFields = page.locator('input[required], select[required]');

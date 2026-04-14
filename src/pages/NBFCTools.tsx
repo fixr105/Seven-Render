@@ -11,10 +11,10 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
+import { hasDirectRaadWebhook, fetchRaadFromWebhook } from '../services/raadWebhook';
+import { hasDirectPagerWebhook, fetchPagerFromWebhook, fetchPagerListFromWebhook } from '../services/pagerWebhook';
 import {
   BarChart3,
-  ChevronLeft,
-  ChevronRight,
   Download,
   FileText,
   Loader2,
@@ -28,7 +28,6 @@ import {
 import type { LucideIcon } from 'lucide-react';
 
 const JOB_ID_KEY = 'nbfc_tool_job_id';
-const TOOLS_BAR_COLLAPSED_KEY = 'nbfc_tools_bar_collapsed';
 const RAAD_REQUEST_UNLOCK_PREFIX = 'nbfc_raad_request_unlock_';
 
 /** Resolve report URL for iframe src or fetch. Handles data:, http(s), and relative paths. */
@@ -46,6 +45,9 @@ function formatRaadError(error: string | null | undefined): string | null {
   }
   if (error.includes('N8N_RAAD_FETCH_WEBHOOK_URL')) {
     return 'Set N8N_RAAD_FETCH_WEBHOOK_URL on the backend for RAAD Report Viewer.';
+  }
+  if (error.includes('NBFC role required') || error.includes('403') || error.includes('Forbidden')) {
+    return "You must be logged in as an NBFC user to run RAAD analysis. Check that you're using the correct account.";
   }
   return error;
 }
@@ -110,22 +112,17 @@ export const NBFCTools: React.FC = () => {
   >([]);
   const [raadIdListLoading, setRaadIdListLoading] = useState(false);
   const [raadListError, setRaadListError] = useState<string | null>(null);
+
+  const [pagerIdList, setPagerIdList] = useState<
+    Array<{ id?: string; loanApplicationId?: string; status?: string; error?: string; pdfUrl?: string }>
+  >([]);
+  const [pagerIdListLoading, setPagerIdListLoading] = useState(false);
+  const [pagerListError, setPagerListError] = useState<string | null>(null);
   const [raadPdfDownloading, setRaadPdfDownloading] = useState(false);
   const [raadPdfUrlDownloading, setRaadPdfUrlDownloading] = useState(false);
   const raadReportContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [history, setHistory] = useState<HistoryJob[]>([]);
-  const [toolsBarCollapsed, setToolsBarCollapsed] = useState(() =>
-    localStorage.getItem(TOOLS_BAR_COLLAPSED_KEY) === 'true'
-  );
-
-  const toggleToolsBar = () => {
-    setToolsBarCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem(TOOLS_BAR_COLLAPSED_KEY, String(next));
-      return next;
-    });
-  };
 
   // RAAD
   const [raadGstFile, setRaadGstFile] = useState<File | null>(null);
@@ -198,6 +195,11 @@ export const NBFCTools: React.FC = () => {
     fetchHistory();
   }, [fetchHistory]);
 
+  /** Load Query list when Query tool is selected (from history). */
+  useEffect(() => {
+    if (selectedTool === 'query') fetchHistory();
+  }, [selectedTool, fetchHistory]);
+
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
       const res = await apiService.getNBFCToolsJobStatus(jobId);
@@ -223,7 +225,9 @@ export const NBFCTools: React.FC = () => {
 
   const refreshRaadList = useCallback(async () => {
     setRaadListError(null);
-    const res = await apiService.listRAADIds();
+    const res = hasDirectRaadWebhook()
+      ? await fetchRaadFromWebhook()
+      : await apiService.listRAADIds();
     if (res.success && Array.isArray(res.data)) {
       setRaadIdList(res.data as Array<{ id?: string; loanApplicationId?: string; status?: string; error?: string; html?: string; pdfUrl?: string }>);
     } else {
@@ -231,10 +235,59 @@ export const NBFCTools: React.FC = () => {
     }
   }, []);
 
+  const refreshPagerList = useCallback(async () => {
+    setPagerListError(null);
+    if (hasDirectPagerWebhook()) {
+      const res = await fetchPagerListFromWebhook();
+      if (res.success && Array.isArray(res.data)) {
+        setPagerIdList(res.data);
+      } else {
+        setPagerListError(res.error || 'Failed to load PAGER reports');
+      }
+    } else {
+      await fetchHistory();
+    }
+  }, [fetchHistory]);
+
+  /** Load PAGER list when PAGER tool is selected (from webhook or history). */
+  useEffect(() => {
+    if (selectedTool !== 'pager') return;
+    let cancelled = false;
+    setPagerIdListLoading(true);
+    setPagerListError(null);
+    setPagerIdList([]);
+    if (hasDirectPagerWebhook()) {
+      fetchPagerListFromWebhook()
+        .then((res) => {
+          if (cancelled) return;
+          if (res.success && Array.isArray(res.data)) {
+            setPagerIdList(res.data);
+            setPagerListError(null);
+          } else {
+            setPagerListError(res.error || 'Failed to load PAGER reports');
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setPagerListError(err instanceof Error ? err.message : 'Failed to load PAGER reports');
+        })
+        .finally(() => {
+          if (!cancelled) setPagerIdListLoading(false);
+        });
+    } else {
+      fetchHistory().finally(() => {
+        if (!cancelled) setPagerIdListLoading(false);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [selectedTool, fetchHistory]);
+
+
   /** Poll get-raad webhook when we have loanApplicationId but no jobId (DB-less RAAD submit) */
   const pollRaadByWebhook = useCallback(async (loanId: string) => {
     try {
-      const res = await apiService.requestRAADData(loanId);
+      const res = hasDirectRaadWebhook()
+        ? await fetchRaadFromWebhook(loanId)
+        : await apiService.requestRAADData(loanId);
       if (!res.success) return;
       const payload = res.data as { html?: string; pdfUrl?: string; status?: string; error?: string } | Array<{ html?: string; pdfUrl?: string; status?: string; error?: string }> | undefined;
       const item = payload && typeof payload === 'object' && !Array.isArray(payload)
@@ -259,20 +312,58 @@ export const NBFCTools: React.FC = () => {
     }
   }, [refreshRaadList]);
 
+  /** Poll get-pager webhook when we have loanApplicationId and direct webhook is enabled */
+  const pollPagerByWebhook = useCallback(async (loanId: string) => {
+    try {
+      const res = hasDirectPagerWebhook()
+        ? await fetchPagerFromWebhook(loanId)
+        : { success: false, error: 'PAGER webhook not configured' };
+      if (!res.success || !res.data) return;
+      const d = res.data;
+      if (d.status === 'failed' || d.error) {
+        setJobStatus('failed');
+        setJobError(d.error || 'PAGER processing failed');
+        return;
+      }
+      const url = d.pdfUrl ?? d.reportUrl;
+      if (url) {
+        setJobStatus('ready');
+        setReportUrl(url);
+        setJobError(null);
+        localStorage.removeItem(JOB_ID_KEY);
+        fetchHistory();
+      }
+    } catch {
+      // Keep polling
+    }
+  }, [fetchHistory]);
+
+  /** Poll job status (PAGER/Query only). RAAD always uses webhook via pollRaadByWebhook. */
   useEffect(() => {
     if (!currentJobId || jobStatus !== 'processing') return;
+    if (selectedTool === 'raad' && currentLoanId) return; // RAAD: use webhook, not DB
+    if (selectedTool === 'pager' && currentLoanId && hasDirectPagerWebhook()) return; // PAGER: use webhook when configured
     const t = setInterval(() => pollJobStatus(currentJobId), 5000);
     pollJobStatus(currentJobId);
     return () => clearInterval(t);
-  }, [currentJobId, jobStatus, pollJobStatus]);
+  }, [currentJobId, jobStatus, selectedTool, currentLoanId, pollJobStatus]);
 
-  /** Poll get-raad webhook when processing without jobId (DB-less RAAD) */
+  /** Poll get-raad webhook for RAAD (always use webhook, even when jobId exists) */
   useEffect(() => {
-    if (!currentLoanId || jobStatus !== 'processing' || currentJobId) return;
+    if (!currentLoanId || jobStatus !== 'processing' || selectedTool !== 'raad') return;
     const t = setInterval(() => pollRaadByWebhook(currentLoanId), 5000);
     pollRaadByWebhook(currentLoanId);
     return () => clearInterval(t);
-  }, [currentLoanId, jobStatus, currentJobId, pollRaadByWebhook]);
+  }, [currentLoanId, jobStatus, selectedTool, pollRaadByWebhook]);
+
+  /** Poll get-pager webhook for PAGER when direct webhook is enabled */
+  useEffect(() => {
+    if (!currentLoanId || jobStatus !== 'processing' || selectedTool !== 'pager') return;
+    if (!hasDirectPagerWebhook()) return;
+    const t = setInterval(() => pollPagerByWebhook(currentLoanId), 5000);
+    pollPagerByWebhook(currentLoanId);
+    return () => clearInterval(t);
+  }, [currentLoanId, jobStatus, selectedTool, pollPagerByWebhook]);
 
   useEffect(() => {
     if (currentJobId && jobStatus === 'idle') {
@@ -312,8 +403,8 @@ export const NBFCTools: React.FC = () => {
     setRaadIdListLoading(true);
     setRaadListError(null);
     setRaadIdList([]);
-    apiService
-      .listRAADIds()
+    const fetchList = hasDirectRaadWebhook() ? fetchRaadFromWebhook() : apiService.listRAADIds();
+    fetchList
       .then((res: { success: boolean; data?: unknown; error?: string }) => {
         if (cancelled) return;
         if (res.success && Array.isArray(res.data)) {
@@ -340,7 +431,9 @@ export const NBFCTools: React.FC = () => {
     setRaadFetchedHtml(null);
     setReportUrl(null);
     try {
-      const res = await apiService.requestRAADData(id);
+      const res = hasDirectRaadWebhook()
+        ? await fetchRaadFromWebhook(id)
+        : await apiService.requestRAADData(id);
       if (!res.success) {
         setRaadRequestError(res.error || 'Request failed');
         return;
@@ -490,6 +583,33 @@ export const NBFCTools: React.FC = () => {
     }
   };
 
+  const handlePagerTileClick = useCallback(
+    async (item: { id?: string; loanApplicationId?: string; status?: string; error?: string; pdfUrl?: string }) => {
+      const loanId = item.id || item.loanApplicationId;
+      if (!loanId || item.status === 'error' || item.error) return;
+      setCurrentLoanId(loanId);
+      setCurrentJobId(null);
+      setRaadFetchedHtml(null);
+      setJobError(null);
+      if (item.pdfUrl) {
+        setReportUrl(item.pdfUrl);
+        setJobStatus('ready');
+        return;
+      }
+      setJobStatus('processing');
+      setReportUrl(null);
+      const res = hasDirectPagerWebhook() ? await fetchPagerFromWebhook(loanId) : { success: false };
+      if (res.success && res.data?.pdfUrl) {
+        setReportUrl(res.data.pdfUrl);
+        setJobStatus('ready');
+      } else {
+        setJobStatus('failed');
+        setJobError(res.error || 'Failed to load PAGER report');
+      }
+    },
+    []
+  );
+
   const handleSelectJob = (job: HistoryJob) => {
     setRaadFetchedHtml(null);
     const loanId = job.loanApplicationId || job.id;
@@ -498,6 +618,15 @@ export const NBFCTools: React.FC = () => {
       setCurrentLoanId(loanId);
       setJobError(null);
       fetchRaadDataById(loanId);
+      return;
+    }
+    if (job.tool === 'pager' && hasDirectPagerWebhook()) {
+      handlePagerTileClick({
+        id: loanId,
+        loanApplicationId: loanId,
+        status: job.status,
+        pdfUrl: job.reportUrl,
+      });
       return;
     }
     setCurrentJobId(job.id);
@@ -525,10 +654,10 @@ export const NBFCTools: React.FC = () => {
     setJobError(null);
     try {
       const fd = new FormData();
-      fd.append('gstFile', raadGstFile);
-      fd.append('bankFile', raadBankFile);
-      fd.append('auditedFile', raadAuditedFile);
-      fd.append('itrFile', raadItrFile);
+      fd.append('gstFile', raadGstFile, 'GST.pdf');
+      fd.append('bankFile', raadBankFile, 'BANK.pdf');
+      fd.append('auditedFile', raadAuditedFile, 'AUDITED.pdf');
+      fd.append('itrFile', raadItrFile, 'ITR.pdf');
       fd.append('loanApplicationId', raadLoanId.trim());
       const res = await apiService.submitRAADJob(fd);
       const loanId = raadLoanId.trim();
@@ -576,6 +705,7 @@ export const NBFCTools: React.FC = () => {
       if (res.success && res.data?.jobId) {
         setCurrentJobId(res.data.jobId);
         localStorage.setItem(JOB_ID_KEY, res.data.jobId);
+        if (pagerLoanId.trim()) setCurrentLoanId(pagerLoanId.trim());
         setJobStatus('processing');
         setCurrentStage('uploading');
         setReportUrl(null);
@@ -672,7 +802,10 @@ export const NBFCTools: React.FC = () => {
     );
   };
 
-  const showRaadFullScreen = raadFetchedHtml || (reportUrl && jobStatus === 'ready');
+  const showRaadFullScreen =
+    raadFetchedHtml ||
+    (reportUrl && jobStatus === 'ready') ||
+    (selectedTool === 'raad' && currentLoanId && raadRequestLoading);
 
   return (
     <MainLayout
@@ -689,133 +822,36 @@ export const NBFCTools: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
       fullBleed
     >
-      <>
-      <div
-        className="grid h-full min-h-0 transition-[grid-template-columns] duration-300 ease-in-out"
-        style={{
-          gridTemplateColumns: toolsBarCollapsed ? '64px 1fr 380px' : '220px 1fr 380px',
-        }}
-      >
-        {/* LEFT COLUMN - Retractable AI Tools bar */}
-        <div className="bg-[#1a1a2e] flex flex-col overflow-hidden">
-          {/* Header with toggle */}
-          <div className="flex items-center justify-between px-4 pt-6 pb-4 flex-shrink-0">
-            {toolsBarCollapsed ? (
+      <div className="flex flex-col min-h-0 flex-1">
+      {/* Horizontal tool tabs */}
+      <div className="bg-[#1a1a2e] shrink-0 border-b border-white/10">
+        <nav className="flex gap-0">
+          {TOOL_ITEMS.map((t) => {
+            const Icon = t.icon;
+            return (
               <button
-                onClick={toggleToolsBar}
-                className="w-full flex justify-center p-2 text-neutral-400 hover:text-white transition-colors"
-                aria-label="Expand tools bar"
+                key={t.id}
+                onClick={() => setSelectedTool(t.id)}
+                title={t.label}
+                className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${
+                  selectedTool === t.id
+                    ? 'border-[#332f78] bg-white/5 text-white'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
+                }`}
               >
-                <ChevronRight className="w-5 h-5" />
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span>{t.id === 'raad' ? 'RAAD' : t.id === 'pager' ? 'PAGER' : 'Query Drafter'}</span>
               </button>
-            ) : (
-              <>
-                <h2 className="text-white text-sm font-medium uppercase tracking-wider truncate flex-1">
-                  AI Tools
-                </h2>
-                <button
-                  onClick={toggleToolsBar}
-                  className="p-1 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-                  aria-label="Collapse tools bar"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              </>
-            )}
-          </div>
-          <nav className="flex flex-col flex-1 min-h-0">
-            {TOOL_ITEMS.map((t) => {
-              const Icon = t.icon;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setSelectedTool(t.id)}
-                  title={t.label}
-                  className={`flex items-center gap-3 border-l-4 transition-colors ${
-                    toolsBarCollapsed ? 'justify-center px-0 py-3' : 'text-left px-4 py-3 text-sm'
-                  } ${
-                    selectedTool === t.id
-                      ? 'border-[#332f78] bg-white/5 text-white'
-                      : 'border-transparent text-neutral-500 hover:text-neutral-300'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {!toolsBarCollapsed && <span className="truncate">{t.label}</span>}
-                </button>
-              );
-            })}
-          </nav>
-          {!toolsBarCollapsed && (
-            <div className="mt-auto border-t border-white/10 px-4 py-4">
-              <h3 className="text-white text-xs font-medium uppercase tracking-wider mb-3">
-                Recent Reports
-              </h3>
-              {(() => {
-                const getRaadId = (r: Record<string, unknown>) =>
-                  r.loanApplicationId || r.id || r.ID || `row-${r.row_number ?? '?'}`;
-                const raadItems: HistoryJob[] = raadIdList.map((r) => {
-                  const rec = r as Record<string, unknown>;
-                  const loanId = String(getRaadId(rec));
-                  return {
-                    id: loanId,
-                    tool: 'raad',
-                    date: '',
-                    status: rec.status === 'error' || rec.error ? 'failed' : rec.html || rec.pdfUrl || rec.content ? 'ready' : 'processing',
-                    reportUrl: rec.pdfUrl as string | undefined,
-                    loanApplicationId: loanId,
-                    source: 'webhook' as const,
-                  };
-                });
-                const pagerQueryItems: HistoryJob[] = history
-                  .filter((j) => j.tool !== 'raad')
-                  .map((j) => ({ ...j, source: 'history' as const }));
-                const recentReports = [...raadItems, ...pagerQueryItems];
-                if (recentReports.length === 0) {
-                  return <p className="text-neutral-500 text-xs">No reports yet</p>;
-                }
-                return (
-                  <ul className="space-y-2">
-                    {recentReports.map((j) => (
-                      <li key={`${j.source}-${j.id}`}>
-                        <button
-                          onClick={() => handleSelectJob(j)}
-                          className="text-left w-full text-xs text-neutral-400 hover:text-white transition-colors"
-                        >
-                          <span className="block truncate font-medium text-white/90">
-                            {j.tool === 'raad' ? 'RAAD' : j.tool === 'pager' ? 'PAGER' : j.tool}
-                          </span>
-                          <span className="block truncate">
-                            {j.date ? new Date(j.date).toLocaleDateString() + ' · ' : ''}
-                            <span
-                              className={
-                                j.status === 'ready'
-                                  ? 'text-green-400'
-                                  : j.status === 'failed'
-                                    ? 'text-red-400'
-                                    : 'text-amber-400'
-                              }
-                            >
-                              {j.status === 'ready'
-                                ? 'Ready'
-                                : j.status === 'failed'
-                                  ? 'Failed'
-                                  : 'Processing'}
-                            </span>
-                          </span>
-                          {j.status === 'ready' && (j.reportUrl || j.source === 'webhook') && (
-                            <Download className="inline w-3 h-3 ml-1" />
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()}
-            </div>
-          )}
-        </div>
+            );
+          })}
+        </nav>
+      </div>
 
-        {/* CENTER COLUMN */}
+      <div
+        className="grid h-full min-h-0 flex-1"
+        style={{ gridTemplateColumns: '1fr 380px' }}
+      >
+        {/* Form column */}
         <div className="bg-white overflow-y-auto p-6">
           {selectedTool === 'raad' && (
             <>
@@ -862,6 +898,15 @@ export const NBFCTools: React.FC = () => {
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
                 />
               </div>
+              {jobError && selectedTool === 'raad' && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800">Submission failed</p>
+                    <p className="text-sm text-red-600">{formatRaadError(jobError)}</p>
+                  </div>
+                </div>
+              )}
               <button
                 onClick={handleRaadSubmit}
                 disabled={
@@ -871,6 +916,16 @@ export const NBFCTools: React.FC = () => {
                   !raadItrFile ||
                   !raadLoanId.trim() ||
                   raadSubmitting
+                }
+                title={
+                  !raadGstFile ||
+                  !raadBankFile ||
+                  !raadAuditedFile ||
+                  !raadItrFile ||
+                  !raadLoanId.trim() ||
+                  raadSubmitting
+                    ? 'Upload all 4 PDFs (GST, Bank, Audited, ITR) and enter Loan Application ID'
+                    : undefined
                 }
                 className="px-6 py-3 bg-[#332f78] text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors"
               >
@@ -882,7 +937,16 @@ export const NBFCTools: React.FC = () => {
                   'Run RAAD Analysis'
                 )}
               </button>
-              {jobStatus === 'processing' && currentJobId && (
+              {(!raadGstFile ||
+                !raadBankFile ||
+                !raadAuditedFile ||
+                !raadItrFile ||
+                !raadLoanId.trim()) && (
+                <p className="mt-2 text-xs text-neutral-500">
+                  Upload all 4 PDFs and enter Loan ID to enable
+                </p>
+              )}
+              {jobStatus === 'processing' && (currentJobId || (selectedTool === 'raad' && currentLoanId)) && (
                 <div className="mt-6">
                   <div className="flex gap-2 flex-wrap mb-2">
                     {PROGRESS_STAGES.map((s, i) => {
@@ -1111,33 +1175,32 @@ export const NBFCTools: React.FC = () => {
                     <p className="text-sm">{formatRaadError(raadListError) ?? raadListError}</p>
                   </div>
                 ) : raadIdList.length > 0 ? (
-                  <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2">
+                  <div className="flex gap-1 overflow-x-auto pb-2 flex-shrink-0" style={{ scrollbarWidth: 'thin' }}>
                     {raadIdList.map((item, idx) => {
                       const id = item.id || item.loanApplicationId || `item-${idx}`;
                       const label = String(id);
                       const isError = item.status === 'error' || !!item.error;
-                      const hasDownload = item.status === 'ready' || !!item.pdfUrl || !!item.html;
+                      const isActive = (currentLoanId || '').trim() === label && (raadFetchedHtml || reportUrl || raadRequestLoading);
                       return (
                         <button
                           key={label + idx}
                           type="button"
                           onClick={() => handleRaadTileClick(item)}
                           disabled={isError}
-                          className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-lg border text-left transition-colors ${
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
                             isError
-                              ? 'border-red-200 bg-red-50 cursor-default'
-                              : 'border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff]'
+                              ? 'border-red-200 bg-red-50 cursor-default text-red-600'
+                              : isActive
+                                ? 'border-[#332f78] bg-[#332f78] text-white'
+                                : 'border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff] text-neutral-800'
                           }`}
                         >
                           {isError ? (
-                            <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
-                          ) : hasDownload ? (
-                            <Download className="w-5 h-5 flex-shrink-0 text-[#332f78]" />
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                           ) : (
-                            <FileText className="w-5 h-5 flex-shrink-0 text-neutral-400" />
+                            <FileText className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
                           )}
-                          <span className="flex-1 truncate text-sm font-medium text-neutral-900">{label}</span>
-                          {item.error && <span className="text-xs text-red-500 truncate max-w-[120px]">{formatRaadError(item.error) ?? item.error}</span>}
+                          <span className="truncate max-w-[100px]">{label}</span>
                         </button>
                       );
                     })}
@@ -1150,12 +1213,117 @@ export const NBFCTools: React.FC = () => {
                 )}
               </div>
             )}
-            {jobStatus === 'idle' && !reportUrl && selectedTool !== 'raad' && (
-              <div className="flex flex-col items-center justify-center flex-1 text-center text-neutral-500">
-                <FileText className="w-16 h-16 mb-4 opacity-40" />
-                <p>Run a tool to see results here</p>
+            {jobStatus === 'idle' && !reportUrl && selectedTool === 'pager' && (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-neutral-700">PAGER Reports</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPagerIdListLoading(true);
+                      refreshPagerList().finally(() => setPagerIdListLoading(false));
+                    }}
+                    disabled={pagerIdListLoading}
+                    className="p-1.5 rounded text-neutral-500 hover:text-[#332f78] hover:bg-neutral-100 disabled:opacity-50"
+                    title="Refresh list"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${pagerIdListLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+                {pagerIdListLoading ? (
+                  <div className="flex flex-col items-center justify-center flex-1 text-neutral-500">
+                    <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                    <p className="text-sm">Loading reports...</p>
+                  </div>
+                ) : pagerListError ? (
+                  <div className="flex flex-col items-center justify-center flex-1 text-center text-red-600">
+                    <AlertCircle className="w-12 h-12 mb-3" />
+                    <p className="text-sm">{pagerListError}</p>
+                  </div>
+                ) : (hasDirectPagerWebhook() ? pagerIdList : history.filter((j) => j.tool === 'pager')).length > 0 ? (
+                  <div className="flex gap-1 overflow-x-auto pb-2 flex-shrink-0" style={{ scrollbarWidth: 'thin' }}>
+                    {(hasDirectPagerWebhook() ? pagerIdList : history.filter((j) => j.tool === 'pager')).map((item, idx) => {
+                      const fromWebhook = hasDirectPagerWebhook();
+                      const id = fromWebhook
+                        ? ((item as { id?: string; loanApplicationId?: string }).id || (item as { loanApplicationId?: string }).loanApplicationId || `item-${idx}`)
+                        : (item as HistoryJob).loanApplicationId || (item as HistoryJob).id;
+                      const isError = fromWebhook
+                        ? ((item as { status?: string; error?: string }).status === 'error' || !!(item as { error?: string }).error)
+                        : (item as HistoryJob).status === 'failed';
+                      const isActive = (currentLoanId || '').trim() === id && !!reportUrl;
+                      return (
+                        <button
+                          key={fromWebhook ? id + idx : (item as HistoryJob).id}
+                          type="button"
+                          onClick={() =>
+                            fromWebhook
+                              ? handlePagerTileClick(item as { id?: string; loanApplicationId?: string; status?: string; error?: string; pdfUrl?: string })
+                              : handleSelectJob(item as HistoryJob)
+                          }
+                          disabled={isError}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
+                            isError
+                              ? 'border-red-200 bg-red-50 cursor-default text-red-600'
+                              : isActive
+                                ? 'border-[#332f78] bg-[#332f78] text-white'
+                                : 'border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff] text-neutral-800'
+                          }`}
+                        >
+                          {isError ? (
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          ) : (
+                            <FileText className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
+                          )}
+                          <span className="truncate max-w-[100px]">{id}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center flex-1 text-center text-neutral-500">
+                    <FileText className="w-16 h-16 mb-4 opacity-40" />
+                    <p className="text-sm">No PAGER reports yet. Run a tool to see results here.</p>
+                  </div>
+                )}
+                {pagerIdList.length > 0 && !reportUrl && jobStatus === 'idle' && (
+                  <div className="flex-1 flex flex-col items-center justify-center text-neutral-500 text-sm mt-2">
+                    <p>Click a report to view</p>
+                  </div>
+                )}
               </div>
             )}
+            {jobStatus === 'idle' && !reportUrl && selectedTool === 'query' && (() => {
+              const queryItems = history.filter((j) => j.tool === 'query');
+              if (queryItems.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center flex-1 text-center text-neutral-500">
+                    <FileText className="w-16 h-16 mb-4 opacity-40" />
+                    <p className="text-sm">No Query reports yet. Run a tool to see results here.</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  <h4 className="text-sm font-medium text-neutral-700 mb-3">Query Reports</h4>
+                  <div className="flex gap-1 overflow-x-auto pb-2 flex-shrink-0" style={{ scrollbarWidth: 'thin' }}>
+                    {queryItems.map((j) => (
+                      <button
+                        key={j.id}
+                        type="button"
+                        onClick={() => handleSelectJob(j)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm whitespace-nowrap transition-colors flex-shrink-0 border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff] text-neutral-800"
+                      >
+                        <FileText className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
+                        <span className="truncate max-w-[100px]">Query · {j.loanApplicationId || j.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex-1 flex flex-col items-center justify-center text-neutral-500 text-sm mt-2">
+                    <p>Click a report to view</p>
+                  </div>
+                </div>
+              );
+            })()}
             {jobStatus === 'processing' && !raadFetchedHtml && (
               <div className="flex flex-col items-center justify-center flex-1 text-center">
                 <Loader2 className="w-12 h-12 text-[#332f78] animate-pulse mb-4" />
@@ -1338,11 +1506,30 @@ export const NBFCTools: React.FC = () => {
                 title="Report PDF"
                 className="flex-1 min-h-0 w-full border-0"
               />
+            ) : raadRequestLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-neutral-600">
+                <Loader2 className="w-12 h-12 text-[#332f78] animate-spin" />
+                <p className="font-medium">Loading report...</p>
+                <p className="text-sm text-neutral-500">Fetching from webhook</p>
+              </div>
+            ) : raadRequestError ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-red-600 p-6">
+                <AlertCircle className="w-12 h-12" />
+                <p className="font-medium">Failed to load report</p>
+                <p className="text-sm text-center">{formatRaadError(raadRequestError) ?? raadRequestError}</p>
+                <button
+                  type="button"
+                  onClick={closeRaadFullScreenViewer}
+                  className="px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
             ) : null}
           </div>
         </div>
       )}
-      </>
+      </div>
     </MainLayout>
   );
 };

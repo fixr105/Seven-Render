@@ -2,347 +2,134 @@
 
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/fixr105/Seven-Render?utm_source=oss&utm_medium=github&utm_campaign=fixr105%2FSeven-Render&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
-A comprehensive multi-role fintech dashboard for loan management, built with React, TypeScript, and Tailwind CSS following the Boltt design system specification.
+Multi-role loan operations dashboard: DSA clients, KAMs, Credit team (including admin), and NBFC partners. The UI is a **Vite + React + TypeScript** SPA; the **Express + TypeScript** API lives in `backend/` and integrates with **Airtable through n8n webhooks**.
 
-## Overview
+## Architecture at a glance
 
-This application provides a sophisticated loan management system designed for multiple user roles:
-- **DSA Clients (Partners)** - Submit and track loan applications
-- **Key Account Managers (KAM)** - Review applications, manage clients, configure dashboards
-- **Credit Team** - Review files, negotiate with NBFCs, approve payouts
-- **NBFC Partners** - Review and approve/reject loan applications
-
-## Design System
-
-The application follows a comprehensive design system built on the Boltt framework:
-
-### Color Palette
-- **Brand Primary**: `#2A5DB0` (FinCorp Blue) - Used for primary actions and highlights
-- **Brand Secondary**: `#20A070` (Accent Green) - Used for success states and positive indicators
-- **Semantic Colors**:
-  - Success: `#28A745`
-  - Warning: `#FFC107`
-  - Error: `#DC3545`
-  - Info: `#17A2B8`
-
-### Typography
-- **Font Family**: Inter (sans-serif)
-- **Font Sizes**: 0.75rem to 2rem (12px to 32px)
-- **Font Weights**: 400 (regular), 500 (medium), 600 (semibold), 700 (bold)
-
-### Spacing
-- Based on 4px grid system
-- Spacing scale: 4px, 8px, 12px, 16px, 24px, 32px, 48px, 64px
-
-### Components
-All components are built with accessibility in mind, featuring:
-- WCAG AA compliant color contrast
-- Keyboard navigation support
-- Screen reader friendly markup
-- Focus indicators
-- Responsive behavior across all breakpoints
-
-## Features
-
-### Core UI Components
-
-#### Buttons
-- **Variants**: Primary, Secondary, Tertiary, Danger
-- **Sizes**: Small, Medium, Large
-- **States**: Default, Hover, Active, Disabled, Loading
-- **Icon Support**: Left or right icon positioning
-
-#### Form Components
-- **Input**: Text fields with label, error states, helper text, and icon support
-- **Select**: Dropdown with custom styling
-- **TextArea**: Multi-line text input
-- **FileUpload**: Drag-and-drop file upload with validation and progress indicators
-
-#### Data Display
-- **DataTable**: Sortable, responsive table that converts to cards on mobile
-- **Card**: Container for grouped content
-- **Badge**: Status indicators with color variants
-- **SearchBar**: Search input with clear functionality
-
-#### Navigation
-- **Sidebar**: Collapsible navigation with role-based menu items
-- **TopBar**: Header with notifications and user profile
-- **MainLayout**: Complete layout wrapper combining sidebar, topbar, and content area
-
-#### Feedback
-- **Modal**: Dialog system with header, body, and footer
-- **Toast**: Temporary notifications (success, error, info, warning)
-
-### Pages
-
-#### Dashboard
-- Key metrics cards (applications count, pending reviews, commission balance; commission is calculated as percentage from Client record, not ratio format)
-- Quick actions panel
-- Recent applications table
-- Real-time statistics
-
-#### Applications
-- Comprehensive application list with search and filters
-- Status-based filtering
-- Sortable columns
-- Quick action buttons (View, Query)
-- Query modal for raising questions
-
-#### Login
-- Email/password authentication
-- Password visibility toggle
-- Remember me option
-- Responsive layout
-- **Password reset**: Admin-only. Users who forget their password must contact their administrator.
-
-## Technology Stack
-
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Utility-first styling
-- **Vite** - Build tool and dev server
-- **Lucide React** - Icon library
-- **Airtable** - Database (via n8n webhooks)
-- **n8n Webhooks** - Individual table webhooks for data synchronization
-- **Express.js Backend** - TypeScript API server
-
-## Project Structure
-
-```
-src/
-├── components/
-│   ├── layout/
-│   │   ├── MainLayout.tsx    # Main application layout
-│   │   ├── Sidebar.tsx        # Navigation sidebar
-│   │   └── TopBar.tsx         # Header with notifications
-│   └── ui/
-│       ├── Button.tsx         # Button component
-│       ├── Input.tsx          # Text input
-│       ├── Select.tsx         # Dropdown select
-│       ├── TextArea.tsx       # Multi-line input
-│       ├── Badge.tsx          # Status badges
-│       ├── Card.tsx           # Content cards
-│       ├── Modal.tsx          # Dialog modals
-│       ├── DataTable.tsx      # Data table with sorting
-│       ├── SearchBar.tsx      # Search input
-│       ├── Toast.tsx          # Notifications
-│       └── FileUpload.tsx     # File upload component
-├── hooks/
-│   ├── useApplications.ts     # Applications data hook
-│   ├── useWebhookData.ts      # Webhook data fetching hooks
-│   ├── useUnifiedApplications.ts # Unified webhook + DB data
-│   ├── useAuthSafe.ts         # Safe authentication hook
-│   ├── useLedger.ts           # Commission ledger hook
-│   └── useNotifications.ts    # Notifications hook
-├── lib/
-│   ├── webhookConfig.ts       # Individual webhook URLs & field mappings
-│   ├── webhookFetcher.ts      # Core webhook fetching logic
-│   ├── webhookImporter.ts     # Webhook data importer
-│   └── storage.ts             # Storage utilities
-├── pages/
-│   ├── Dashboard.tsx          # Main dashboard page
-│   ├── Applications.tsx       # Applications list page
-│   ├── Login.tsx             # Login page
-│   └── dashboards/           # Role-specific dashboards
-├── contexts/
-│   ├── AuthContext.tsx        # Supabase auth context
-│   └── ApiAuthContext.tsx    # API auth context
-├── App.tsx                   # Root component
-├── main.tsx                  # Application entry point
-└── index.css                 # Global styles
+```text
+Browser (Vite/React)
+    → API base URL (`VITE_API_BASE_URL`, origin without `/api`; client code in `src/services/api.ts` appends `/api`)
+        → Express under `/api` (backend/) — auth, RBAC, validation, state machine
+            → n8n GET/POST webhooks → Airtable
+Optional: PostgreSQL via Prisma (`DATABASE_URL`) for audit/logging when configured; core business data remains in Airtable.
 ```
 
-## Getting Started
+**Typical deployment:** frontend on **Vercel**, API on **Fly.io** (`fly.toml` builds `backend/Dockerfile`). See [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) and [RENDER_DEPLOYMENT_GUIDE.md](./RENDER_DEPLOYMENT_GUIDE.md) for env and hosting notes.
 
-### Installation
-```bash
-npm install
+## User roles
+
+| Role | Purpose |
+|------|---------|
+| `client` | Create/submit applications, ledger (when M1 enabled), queries |
+| `kam` | Assigned clients, form-related workflows, forward to credit |
+| `credit_team` | Full pipeline, NBFC assignment, disbursement, admin pages (with `admin`) |
+| `admin` | Same app surface as credit with elevated operations (e.g. Credit dashboard) |
+| `nbfc` | Assigned files, lender decision, **NBFC Tools** (`/nbfc/tools`) |
+
+Role-specific home views: `src/pages/dashboards/ClientDashboard.tsx`, `KAMDashboard.tsx`, `CreditDashboard.tsx`, `NBFCDashboard.tsx`. Sidebar items are centralized in `src/config/sidebar.ts` (`useSidebarItems`).
+
+## Frontend routes (high level)
+
+Defined in `src/App.tsx` (all authenticated areas use `ProtectedRoute` + `ErrorBoundary` where wrapped):
+
+| Path | Roles | Notes |
+|------|--------|------|
+| `/dashboard` | all | Role-specific dashboard |
+| `/applications`, `/applications/:id` | all | List and detail |
+| `/applications/new` | client | New application |
+| `/ledger` | client, kam, credit_team, admin | Commission ledger |
+| `/clients` | kam, credit_team, admin | Client management |
+| `/form-configuration` | credit_team, admin | Dynamic form configuration |
+| `/admin/activity-log`, `/admin/user-accounts`, `/admin/nbfc-partners` | credit_team, admin | Admin |
+| `/nbfc/tools` | nbfc | NBFC utilities |
+| `/reports`, `/profile`, `/settings` | varies | Reports and account |
+| `/privacy`, `/terms` | public | Legal |
+| `/login`, `/forgot-password`, `/reset-password` | public | Auth |
+
+Authentication is **JWT via the backend** (`src/auth/AuthContext.tsx` → `src/services/api.ts`), not Supabase.
+
+## Repository layout
+
+```text
+Seven-Render/
+├── src/                          # Vite React app
+│   ├── App.tsx                   # Routes
+│   ├── auth/                     # Login, AuthContext, types
+│   ├── components/               # Layout, UI, dashboards, guards
+│   ├── config/                   # sidebar.ts, appRoutes.ts
+│   ├── hooks/                    # useApplications, useNotifications, useLedger, …
+│   ├── lib/                      # statusUtils, applicationsStatusCatalog
+│   ├── pages/                    # Screens + dashboards/
+│   ├── services/                 # api.ts (API client), webhooks helpers
+│   └── utils/                    # Validation, transforms, errors
+├── backend/
+│   ├── src/
+│   │   ├── routes/               # Express routers (auth, loan, nbfc, ledger, …)
+│   │   ├── controllers/
+│   │   ├── services/             # n8n/Airtable, status, commission, forms, AI, …
+│   │   ├── auth/
+│   │   ├── middleware/           # RBAC, rate limits
+│   │   └── server.ts
+│   └── prisma/                   # Optional Postgres schema (Prisma)
+├── e2e/                          # Playwright specs
+└── docs/                         # Deeper docs (e.g. system-overview, PRD, deployment)
 ```
 
-### Development
-```bash
-npm run dev
-```
+## Backend API surface
 
-### Build
-```bash
-npm run build
-```
+Mounted under `/api` from `backend/src/server.ts`; `backend/src/routes/index.ts` aggregates modules. Illustrative groups:
 
-### Preview Production Build
-```bash
-npm run preview
-```
+- **Auth:** `/auth` — login, refresh, me, logout  
+- **Loans:** `/loan-applications`, queries, audit, AI summary attachments  
+- **Domain:** `/client`, `/kam`, `/credit`, `/nbfc`, `/nbfc/tools` (NBFC-only tools)  
+- **Ledger / reports:** `/clients` (ledger), `/reports`  
+- **Catalog / admin data:** `/form-categories`, products and partners under `/`, `/credit-team-users`, `/users` routes  
+- **Health:** `/health`, `/metrics` (for probes and ops)
 
-### Type Checking
-```bash
-npm run typecheck
-```
+RBAC is enforced in middleware (`authenticate`, role-specific `require*` helpers). Loan status changes go through **`statusStateMachine.ts`** (canonical statuses include `DRAFT`, `UNDER_KAM_REVIEW`, `QUERY_WITH_CLIENT`, `PENDING_CREDIT_REVIEW`, `CREDIT_QUERY_WITH_KAM`, **`IN_NEGOTIATION`**, `SENT_TO_NBFC`, `APPROVED`, `REJECTED`, `DISBURSED`, `WITHDRAWN`, `CLOSED`).
 
-## Responsive Design
+Data access to Airtable is **via n8n** (`backend/src/services/airtable/n8nClient.ts`, `webhookConfig.ts`): GET webhooks for reads (with in-memory cache invalidated after writes), POST webhooks for creates/updates. See [docs/system-overview.md](./docs/system-overview.md) for module M1–M7 narrative and webhook-oriented field notes.
 
-The application is fully responsive with breakpoints:
-- **xs**: 480px
-- **sm**: 576px
-- **md**: 768px (tablet)
-- **lg**: 992px (desktop)
-- **xl**: 1200px
-- **2xl**: 1400px
+## Technology stack
 
-### Mobile Optimizations
-- Sidebar collapses to hamburger menu
-- Tables convert to card layouts
-- Touch-friendly button sizes (minimum 40px)
-- Full-screen modals on small devices
+| Layer | Stack |
+|-------|--------|
+| UI | React 18, TypeScript, Tailwind CSS, Vite, Lucide React, React Router |
+| API | Express 4, TypeScript, Helmet, CORS, cookie-parser, rate limiting |
+| Data | Airtable (via n8n); optional Prisma/Postgres for supporting features |
+| Validation | Zod (frontend/backend where used) |
+| Tests | Vitest (frontend unit), Jest (backend), Playwright (e2e) |
 
-## Accessibility Features
+## Scripts
 
-- Semantic HTML with proper heading hierarchy
-- ARIA labels and roles throughout
-- Keyboard navigation with visible focus states
-- Screen reader friendly components
-- Color contrast meeting WCAG AA standards
-- No information conveyed by color alone
+**Root (`package.json`):**
 
-## Database Integration
+- `npm run dev` — Vite dev server  
+- `npm run build` — typecheck + production build  
+- `npm run test` — Vitest  
+- `npm run test:e2e` — Playwright  
 
-The application works with Airtable via n8n webhooks:
-- Data is fetched from Airtable through n8n webhook endpoints
-- Backend API handles all data operations
-- No direct database connection needed in frontend
+**Backend (`backend/package.json`):**
 
-### Environment Variables
-```
-VITE_API_BASE_URL=http://localhost:3001
-```
+- `npm run dev` — `tsx watch src/server.ts`  
+- `npm run build` / `npm start` — compile and run  
+- `npm test` — Jest  
+- Various `test:*` runners for RBAC, state machine, validation, etc.
 
-## Webhook Integration
+## Design system (summary)
 
-The application uses **individual table webhooks** from n8n for efficient data synchronization. Each table has its own dedicated GET webhook, reducing unnecessary data fetching.
+Boltt-oriented fintech UI: primary `#2A5DB0`, secondary `#20A070`, responsive breakpoints, shared layout in `src/components/layout/` (`MainLayout`, `Sidebar`, `TopBar`). Components under `src/components/ui/`.
 
-### Webhook Architecture
+## Configuration
 
-- **Individual Table Webhooks**: Each of the 15 tables has its own webhook URL
-- **Selective Fetching**: Functions only fetch the tables they need
-- **Caching**: Per-table caching (5 minutes) prevents duplicate calls
-- **No Auto-Execution**: Webhooks only execute on page reload or explicit refresh
+- **Frontend:** set `VITE_API_BASE_URL` to the **backend origin only** (for example `https://seven-render.fly.dev`). The app adds `/api` automatically in `src/services/api.ts`.  
+- **Backend:** `N8N_BASE_URL`, `JWT_SECRET`, `CORS_ORIGIN`, optional `DATABASE_URL`, etc. Full lists: [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md).
 
-### Available Tables
+## Further documentation
 
-1. **Loan Application** - `/webhook/loanapplication`
-2. **Clients** - `/webhook/client`
-3. **Commission Ledger** - `/webhook/commisionledger`
-4. **Loan Products** - `/webhook/loanproducts`
-5. **User Accounts** - `/webhook/useraccount`
-6. **Notifications** - `/webhook/notifications`
-7. **KAM Users** - `/webhook/kamusers`
-8. **Credit Team Users** - `/webhook/creditteamuser`
-9. **NBFC Partners** - `/webhook/nbfcpartners`
-10. **Form Categories** - `/webhook/formcategories`
-11. **Form Fields** - `/webhook/formfields`
-12. **Client Form Mapping** - `/webhook/clientformmapping`
-13. **File Auditing Log** - `/webhook/fileauditinglog`
-14. **Admin Activity Log** - `/webhook/Adminactivity`
-15. **Daily Summary Report** - `/webhook/dailysummaryreport`
-
-### Usage
-
-```typescript
-// Fetch specific tables
-import { useWebhookTables } from '../hooks/useWebhookData';
-
-const { data, loading, error, refetch } = useWebhookTables([
-  'Loan Application',
-  'Clients',
-  'Loan Products'
-]);
-
-// Access data by table name
-const applications = data['Loan Application'] || [];
-const clients = data['Clients'] || [];
-```
-
-### Documentation
-
-- `WEBHOOK_TABLE_MAPPING.md` - Function-to-table mapping
-- `WEBHOOK_EXECUTION_GUIDE.md` - When and how webhooks execute
-- `INDIVIDUAL_WEBHOOKS_IMPLEMENTATION.md` - Implementation details
-
-## Next Steps
-
-### Backend Integration
-1. Create data fetching hooks (useApplications, useClients, etc.)
-2. Implement authentication with Supabase Auth
-3. Add real-time subscriptions for notifications
-4. Connect forms to database APIs
-
-### Additional Pages
-1. Client management pages
-2. Commission ledger page
-3. Reports and analytics
-4. User profile and settings
-5. File detail view with document viewer
-6. Form builder interface
-
-### Features to Implement
-1. Role-based routing and access control
-2. Real-time notification system
-3. Document upload to Supabase Storage
-4. Audit log and conversation threads
-5. Commission calculation and payout workflow
-6. Master form builder for dynamic forms
-
-## Design Principles
-
-1. **Trust and Clarity** - Professional fintech aesthetic with clear information hierarchy
-2. **Consistency** - Unified color palette and component patterns throughout
-3. **Accessibility** - WCAG compliant with keyboard and screen reader support
-4. **Responsiveness** - Seamless experience across all device sizes
-5. **Feedback** - Clear user feedback for all actions (loading states, success/error messages)
-6. **Security** - No sensitive data in frontend, prepared for row-level security
-
-## Component Usage Examples
-
-### Button
-```tsx
-<Button variant="primary" icon={Plus} loading={false}>
-  New Application
-</Button>
-```
-
-### Input
-```tsx
-<Input
-  label="Email Address"
-  type="email"
-  icon={Mail}
-  error="Invalid email"
-  required
-/>
-```
-
-### DataTable
-```tsx
-<DataTable
-  columns={columns}
-  data={data}
-  keyExtractor={(row) => row.id}
-  onRowClick={(row) => handleRowClick(row)}
-  sortable
-/>
-```
-
-### Modal
-```tsx
-<Modal isOpen={isOpen} onClose={handleClose} size="md">
-  <ModalHeader onClose={handleClose}>Title</ModalHeader>
-  <ModalBody>Content</ModalBody>
-  <ModalFooter>
-    <Button onClick={handleClose}>Cancel</Button>
-    <Button variant="primary">Confirm</Button>
-  </ModalFooter>
-</Modal>
-```
+- [docs/system-overview.md](./docs/system-overview.md) — modules M1–M7, roles, Airtable/n8n tables and webhook naming  
+- [backend/API_SPECIFICATION.md](./backend/API_SPECIFICATION.md) / [backend/API_ENDPOINTS_WEBHOOK_MAPPING.md](./backend/API_ENDPOINTS_WEBHOOK_MAPPING.md) — API and webhook mapping (when maintained)  
+- [e2e/README.md](./e2e/README.md) — end-to-end testing  
 
 ## License
 

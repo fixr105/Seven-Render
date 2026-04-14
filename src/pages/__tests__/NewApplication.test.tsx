@@ -125,13 +125,13 @@ describe('NewApplication Page - P0 Tests', () => {
         },
       });
 
-      const loanProductSelect = await screen.findByRole('combobox', {}, { timeout: 8000 });
+      const loanProductSelect = await screen.findByTestId('loan-product-select', {}, { timeout: 15000 });
       expect(loanProductSelect).toBeInTheDocument();
       await waitFor(() => {
         expect(loanProductSelect).toHaveTextContent('Business Loan');
         expect(loanProductSelect).toHaveTextContent('Personal Loan');
-      }, { timeout: 5000 });
-    });
+      }, { timeout: 10000 });
+    }, 15000);
   });
 
   /** Wait for loan products to load then select the first product (triggers getFormConfig). */

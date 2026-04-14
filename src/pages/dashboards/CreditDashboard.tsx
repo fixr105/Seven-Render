@@ -69,7 +69,6 @@ export const CreditDashboard: React.FC = () => {
   ).length;
   const inNegotiation = applications.filter(a => a.status === 'in_negotiation').length;
   const sentToNBFC = applications.filter(a => a.status === 'sent_to_nbfc').length;
-  const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
   const pendingPayouts = payoutRequests.filter((p: any) => p.status === 'pending').length;
   const assignableToNbfc = applications.filter(a => a.status === 'pending_credit_review' || a.status === 'in_negotiation').length;
 
@@ -295,7 +294,7 @@ export const CreditDashboard: React.FC = () => {
           <CardTitle>Pipeline Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="text-center p-4 border border-neutral-200 rounded-lg">
               <p className="text-2xl font-bold text-neutral-900">{pendingReview}</p>
               <p className="text-sm text-neutral-500 mt-1">Pending Review</p>
@@ -307,10 +306,6 @@ export const CreditDashboard: React.FC = () => {
             <div className="text-center p-4 border border-neutral-200 rounded-lg">
               <p className="text-2xl font-bold text-neutral-900">{sentToNBFC}</p>
               <p className="text-sm text-neutral-500 mt-1">With Lenders</p>
-            </div>
-            <div className="text-center p-4 border border-neutral-200 rounded-lg">
-              <p className="text-2xl font-bold text-success">{approved}</p>
-              <p className="text-sm text-neutral-500 mt-1">Approved</p>
             </div>
           </div>
         </CardContent>

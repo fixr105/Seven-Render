@@ -211,6 +211,7 @@ test.describe('E2E: Dynamic Form Workflow', () => {
     }
 
     await test.step('Step 3.1: Submit the finalized form', async () => {
+      await newApplicationPage.fillDocumentsFolderForSubmit();
       await newApplicationPage.submitForm(true);
       
       // Assert: Form submission was successful

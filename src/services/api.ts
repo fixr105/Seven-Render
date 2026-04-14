@@ -6,17 +6,18 @@
 import { defaultLogger } from '../utils/logger.js';
 import { errorTracker } from '../utils/errorTracker.js';
 
-// Ensure API_BASE_URL includes /api prefix for Vercel deployment
-const getApiBaseUrl = () => {
-  let baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+// Ensure API_BASE_URL includes /api prefix for Vercel deployment.
+// When VITE_API_BASE_URL is unset in production, use explicit backend (avoids Vercel rewrite issues).
+function getApiBaseUrl(): string {
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
   // In development (including E2E), use /api so Vite proxy works when VITE_API_BASE_URL is unset
   if (!baseUrl) {
     if (import.meta.env.DEV) {
       return '/api';
     }
-    // Production fallback: default to Fly.io backend (avoids 404 when env var missing)
-    baseUrl = 'https://seven-render.fly.dev';
+    // Production: use explicit backend so we don't depend on Vercel rewrites
+    return 'https://seven-render.fly.dev/api';
   }
 
   // Ensure /api is appended if not present
@@ -24,9 +25,7 @@ const getApiBaseUrl = () => {
     return baseUrl.endsWith('/') ? `${baseUrl}api` : `${baseUrl}/api`;
   }
   return baseUrl;
-};
-
-const API_BASE_URL = getApiBaseUrl();
+}
 
 const AUTH_TOKEN_STORAGE_KEY = 'seven_auth_token';
 
@@ -280,12 +279,10 @@ export interface AuditLogEntry {
 }
 
 class ApiService {
-  private baseUrl: string;
   /** Per-tab Bearer token (sessionStorage). Backend prefers Bearer over cookie so each tab keeps its own user after refresh. Set on login, restored on load, cleared on logout/401. */
   private bearerToken: string | null = null;
 
-  constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+  constructor() {
     this.restoreTokenFromStorage();
   }
 
@@ -326,7 +323,8 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const base = getApiBaseUrl();
+    const url = `${base}${endpoint}`;
     const isFormData = options.body instanceof FormData;
     const headers: HeadersInit = {
       ...(!isFormData && { 'Content-Type': 'application/json' }),
@@ -351,13 +349,16 @@ class ApiService {
       // Validate endpoint: 50s timeout (Fly.io backend has no 30s limit, n8n webhook can be slow)
       // Login, validate: 120s (cold start + multiple n8n webhooks: User Accounts, Clients, KAM Users, etc.)
       // Application creation: 60s
+      // NBFC file uploads: 120s (large PDFs on slow networks)
       // GET requests (incl /auth/me): 90s for n8n-backed endpoints
       // Other requests: 30s timeout
       const isAuthRequest = endpoint.includes('/auth/login') || endpoint.includes('/auth/validate');
       const isAuthMe = endpoint.includes('/auth/me');
+      const isNBFCUpload = endpoint.includes('/nbfc/tools/raad') || endpoint.includes('/nbfc/tools/pager');
       const timeoutMs = isAuthRequest ? 120000
         : isAuthMe ? 90000
         : isApplicationRequest ? 60000
+        : isNBFCUpload ? 120000
         : isGetRequest ? 55000
         : 30000;
       
@@ -448,10 +449,18 @@ class ApiService {
             error: data.error || `Authentication failed (${response.status}).`,
           };
         }
-        return {
+        // Pass through validation payload (missingFields, formatErrors) for 400 responses
+        const errorPayload: ApiResponse<T> = {
           success: false,
           error: data.error || `HTTP ${response.status}: ${response.statusText}`,
         };
+        if (data.missingFields !== undefined || data.formatErrors !== undefined) {
+          (errorPayload as any).data = {
+            ...(data.missingFields !== undefined && { missingFields: data.missingFields }),
+            ...(data.formatErrors !== undefined && { formatErrors: data.formatErrors }),
+          };
+        }
+        return errorPayload;
       }
 
       const result: ApiResponse<T> & { _debug?: unknown } = {
@@ -461,10 +470,11 @@ class ApiService {
       if (data._debug !== undefined) (result as any)._debug = data._debug;
       return result;
     } catch (error: any) {
+      const currentBase = getApiBaseUrl();
       defaultLogger.error('API request error', {
         endpoint,
         url,
-        baseUrl: this.baseUrl,
+        baseUrl: currentBase,
         error: error.message,
         stack: error.stack,
       });
@@ -475,7 +485,7 @@ class ApiService {
           url: window.location.href,
           metadata: {
             endpoint,
-            baseUrl: this.baseUrl,
+            baseUrl: currentBase,
           },
         });
       }
@@ -484,16 +494,20 @@ class ApiService {
       let errorMessage = 'Network error';
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        const isRelativeUrl = this.baseUrl.startsWith('/') || !this.baseUrl.includes('://');
-        
+        const isRelativeUrl = currentBase.startsWith('/') || !currentBase.includes('://');
+        const isNBFCUploadFailure = endpoint.includes('/nbfc/tools/raad') || endpoint.includes('/nbfc/tools/pager');
+
         if (isRelativeUrl) {
-          errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-render.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${this.baseUrl}`;
+          errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-render.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${currentBase}`;
         } else {
           const origin = typeof window !== 'undefined' ? window.location.origin : '';
           const corsHint = endpoint.includes('/auth/login')
             ? `\n\nFor login at ${origin || 'this site'}: the backend CORS_ORIGIN (Fly.io) must include your frontend URL. Run:\n  fly secrets set CORS_ORIGIN="${origin || 'https://lms.sevenfincorp.com'}" --app seven-render\nThen Fly will redeploy automatically.`
             : '';
-          errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration (backend must allow your frontend origin)\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.${corsHint}`;
+          const uploadHint = isNBFCUploadFailure
+            ? `\n\nFor PDF uploads: try smaller file sizes, check your internet connection, and ensure your origin (${origin || 'this site'}) is allowed in backend CORS_ORIGIN.`
+            : '';
+          errorMessage = `Cannot connect to backend API at ${url}. This could be due to:\n- Network connectivity issues\n- CORS configuration (backend must allow your frontend origin)\n- Server is down or unreachable\n- Missing VITE_API_BASE_URL environment variable\n\nPlease check your network connection and try again.${corsHint}${uploadHint}`;
         }
       } else if (error.message?.includes('JSON.parse')) {
         errorMessage = `Invalid response from server. The API may not be responding correctly.`;
@@ -725,6 +739,18 @@ class ApiService {
   }
 
   /**
+   * Generate documents folder URL via n8n createfolder webhook (client only).
+   */
+  async generateDocumentsFolderLink(
+    applicationId?: string
+  ): Promise<ApiResponse<{ folderUrl: string; nid: string }>> {
+    return this.request<{ folderUrl: string; nid: string }>('/client/documents-folder-link', {
+      method: 'POST',
+      body: JSON.stringify(applicationId ? { applicationId } : {}),
+    });
+  }
+
+  /**
    * Create a new query (client only - client raises query to KAM)
    */
   async createClientQuery(applicationId: string, message: string): Promise<ApiResponse> {
@@ -815,6 +841,9 @@ class ApiService {
    */
   async listApplications(params?: {
     status?: string;
+    /** Comma-separated canonical LoanStatus keys */
+    statusIn?: string;
+    loanProductId?: string;
     dateFrom?: string;
     dateTo?: string;
     search?: string;
@@ -822,6 +851,8 @@ class ApiService {
   }): Promise<ApiResponse<LoanApplication[]>> {
     const queryParams = new URLSearchParams();
     if (params?.status) queryParams.append('status', params.status);
+    if (params?.statusIn) queryParams.append('statusIn', params.statusIn);
+    if (params?.loanProductId) queryParams.append('loanProductId', params.loanProductId);
     if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
     if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
     if (params?.search) queryParams.append('search', params.search);
@@ -1844,6 +1875,7 @@ class ApiService {
     requiredDocumentsFields?: string;
     assignedKamIds?: string[];
     assignedKamNames?: string[];
+    applicableStatuses?: Array<{ key: string; label: string; order: number }>;
   }>>> {
     const query = activeOnly ? '?activeOnly=true' : '';
     return this.request(`/loan-products${query}`);
@@ -1861,6 +1893,7 @@ class ApiService {
     requiredDocumentsFields?: string;
     assignedKamIds?: string[];
     assignedKamNames?: string[];
+    applicableStatuses?: Array<{ key: string; label: string; order: number }>;
   }>> {
     return this.request(`/loan-products/${productId}`);
   }

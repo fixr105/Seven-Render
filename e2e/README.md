@@ -62,6 +62,12 @@ npm run test:e2e:headed
 npx playwright test e2e/1-application-workflow.spec.ts
 ```
 
+### Run Report Viewer Tests (NBFC AI Tools)
+```bash
+npm run test:e2e:report-viewer
+```
+Requires an NBFC-role user. Set `E2E_NBFC_USERNAME` and `E2E_NBFC_PASSWORD` (default: sagar@sevenfincorp.email/pass@123). Tests skip if the logged-in user lacks NBFC role.
+
 ### Run Tests in Specific Browser
 ```bash
 npx playwright test --project=chromium
@@ -118,6 +124,9 @@ npx playwright show-trace trace.zip
 ```
 
 ## Troubleshooting
+
+### Settings Save Returns 404
+When using `E2E_USE_MOCK_USER_ACCOUNTS=1` or mock user IDs (e.g. `recE2ECredit01`), Settings save (`PATCH /user-accounts/:id/settings`) may return 404 because the mock ID does not exist in n8n/User Accounts. This is expected. E2E tests should not assert on Settings save success when using mock users.
 
 ### Tests Fail with "User not found"
 - Ensure test users are created in the database

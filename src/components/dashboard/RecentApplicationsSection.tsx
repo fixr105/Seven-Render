@@ -30,10 +30,10 @@ export interface RecentApplicationsSectionProps {
 }
 
 function getStatusVariant(status: string): 'success' | 'error' | 'warning' | 'info' | 'neutral' {
-  if (status.toLowerCase().includes('approved') || status.toLowerCase().includes('disbursed')) return 'success';
-  if (status === 'Action required' || status.toLowerCase().includes('query') || status.toLowerCase().includes('pending')) return 'warning';
-  if (status.toLowerCase().includes('rejected')) return 'error';
-  if (status.toLowerCase().includes('forwarded') || status.toLowerCase().includes('negotiation') || status.toLowerCase().includes('sent')) return 'info';
+  const s = status.toLowerCase();
+  if (s === 'draft' || s === 'approved' || s === 'rejected' || s === 'disbursed') return 'neutral';
+  if (s.includes('query') || s.includes('pending')) return 'warning';
+  if (s.includes('forwarded') || s.includes('negotiation') || s.includes('sent')) return 'info';
   return 'neutral';
 }
 
@@ -41,7 +41,7 @@ function formatStatus(app: LoanApplication, role: RecentApplicationsRole): strin
   if (role === 'client') {
     return getStatusDisplayNameForViewer(app.status, 'client');
   }
-  return app.status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  return app.status;
 }
 
 function mapToTableData(applications: LoanApplication[], role: RecentApplicationsRole): ApplicationRow[] {

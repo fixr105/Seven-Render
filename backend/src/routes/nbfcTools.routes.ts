@@ -4,6 +4,7 @@
  * Protected by authenticate + requireNBFC (applied in main index)
  */
 
+import express from 'express';
 import { Router } from 'express';
 import multer from 'multer';
 import { nbfcToolsController } from '../controllers/nbfcTools.controller.js';
@@ -31,6 +32,7 @@ const pagerUpload = upload.fields([
 const queryDrafterUpload = upload.fields([{ name: 'loanDocument', maxCount: 1 }]);
 
 router.post('/raad', raadUpload, nbfcToolsController.startRaad.bind(nbfcToolsController));
+router.post('/raad/request-data', express.json(), nbfcToolsController.requestRaadData.bind(nbfcToolsController));
 router.post('/pager', pagerUpload, nbfcToolsController.startPager.bind(nbfcToolsController));
 router.post('/query-drafter', queryDrafterUpload, nbfcToolsController.draftQuery.bind(nbfcToolsController));
 

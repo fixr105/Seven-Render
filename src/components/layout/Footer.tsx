@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 interface FooterProps {
   className?: string;
@@ -21,6 +22,18 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
             >
               Support
             </a>
+            <Link
+              to="/privacy"
+              className="hover:text-brand-primary transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 rounded"
+            >
+              Privacy
+            </Link>
+            <Link
+              to="/terms"
+              className="hover:text-brand-primary transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 rounded"
+            >
+              Terms
+            </Link>
           </div>
         </div>
       </div>

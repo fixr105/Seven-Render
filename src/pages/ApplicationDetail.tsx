@@ -21,9 +21,8 @@ import { getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUti
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
   const statusLower = status.toLowerCase();
-  if (['approved', 'disbursed'].includes(statusLower)) return 'success';
-  if (['action required', 'kam_query_raised', 'pending_kam_review', 'credit_query_raised'].includes(statusLower)) return 'warning';
-  if (statusLower === 'rejected') return 'error';
+  if (['approved', 'disbursed', 'draft', 'rejected'].includes(statusLower)) return 'neutral';
+  if (['kam_query_raised', 'pending_kam_review', 'credit_query_raised'].includes(statusLower)) return 'warning';
   if (['forwarded_to_credit', 'in_negotiation', 'sent_to_nbfc'].includes(statusLower)) return 'info';
   return 'neutral';
 };
@@ -587,16 +586,16 @@ export const ApplicationDetail: React.FC = () => {
   // Role and status-aware options. Filter by allowedNextStatuses from backend (state machine); for Credit, exclude sent_to_nbfc (use Assign to NBFC section only).
   const statusOptions = (() => {
     const allOptions = [
-      { value: 'draft', label: 'Draft' },
+      { value: 'draft', label: 'draft' },
       { value: 'under_kam_review', label: 'Submitted / Pending KAM Review' },
       { value: 'query_with_client', label: 'KAM Query Raised' },
-      { value: 'pending_credit_review', label: 'Approved by KAM / Forwarded to Credit' },
+      { value: 'pending_credit_review', label: 'Forwarded to Credit' },
       { value: 'credit_query_with_kam', label: 'Credit Query Raised' },
       { value: 'in_negotiation', label: 'In Negotiation' },
       { value: 'sent_to_nbfc', label: 'Sent to NBFC' },
-      { value: 'approved', label: 'NBFC Approved' },
-      { value: 'rejected', label: 'NBFC Rejected' },
-      { value: 'disbursed', label: 'Disbursed' },
+      { value: 'approved', label: 'approved' },
+      { value: 'rejected', label: 'rejected' },
+      { value: 'disbursed', label: 'disbursed' },
       { value: 'withdrawn', label: 'Withdrawn' },
       { value: 'closed', label: 'Closed/Archived' },
     ];
@@ -1177,28 +1176,46 @@ export const ApplicationDetail: React.FC = () => {
                 }
                 const getDisplayKey = (k: string) => {
                   if (k === '_documentsFolderLink') return 'Documents Folder Link';
+                  if (k === '_documentsFolderShareAcknowledged') return 'Folder sharing confirmed';
                   if (/^field-/.test(k) && fieldIdToLabel[k]) return fieldIdToLabel[k];
                   return k.replace(/_/g, ' ');
                 };
-                const entries = Object.entries(formDataToShow).filter(([k]) => k !== '_documentsFolderLink');
+                const entries = Object.entries(formDataToShow).filter(
+                  ([k]) => k !== '_documentsFolderLink' && k !== '_documentsFolderShareAcknowledged'
+                );
                 const folderLink = formDataToShow._documentsFolderLink;
+                const folderShareAck = formDataToShow._documentsFolderShareAcknowledged;
+                const folderShareAckYes =
+                  folderShareAck === true ||
+                  folderShareAck === 'true' ||
+                  folderShareAck === 'yes';
                 return !formDataToShow || Object.keys(formDataToShow).length === 0 ? (
                   <p className="text-center text-neutral-500 py-6">No form data recorded</p>
                 ) : (
                   <div className="space-y-3">
                     {folderLink != null && String(folderLink).trim() !== '' && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-3 border-b border-neutral-200">
-                        <p className="text-sm text-neutral-500">Documents Folder Link</p>
-                        <p className="sm:col-span-2 text-sm text-neutral-900 break-all">
-                          <a
-                            href={String(folderLink).startsWith('http') ? String(folderLink) : `https://${String(folderLink)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-brand-primary hover:underline"
-                          >
-                            {String(folderLink)}
-                          </a>
-                        </p>
+                      <div className="space-y-2 pb-3 border-b border-neutral-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <p className="text-sm text-neutral-500">Documents Folder Link</p>
+                          <p className="sm:col-span-2 text-sm text-neutral-900 break-all">
+                            <a
+                              href={String(folderLink).startsWith('http') ? String(folderLink) : `https://${String(folderLink)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand-primary hover:underline"
+                            >
+                              {String(folderLink)}
+                            </a>
+                          </p>
+                        </div>
+                        {folderShareAck !== undefined && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <p className="text-sm text-neutral-500">Folder sharing confirmed</p>
+                            <p className="sm:col-span-2 text-sm text-neutral-900">
+                              {folderShareAckYes ? 'Yes' : 'No'}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                     {entries.map(([key, value]) => (

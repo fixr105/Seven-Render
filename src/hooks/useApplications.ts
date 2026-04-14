@@ -109,6 +109,13 @@ export function transformApplicationFromApi(app: Record<string, unknown>): LoanA
 export interface UseApplicationsOptions {
   /** When true, fetch only applications not mapped to a client (or for KAM, not matching any managed client). */
   unmapped?: boolean;
+  /** Filter by business loan product id (e.g. LP008). */
+  loanProductId?: string;
+  /** Comma-separated canonical status keys (LoanStatus). */
+  statusIn?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
 }
 
 export const useApplications = (options?: UseApplicationsOptions) => {
@@ -116,11 +123,25 @@ export const useApplications = (options?: UseApplicationsOptions) => {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const unmapped = options?.unmapped ?? false;
+  const loanProductId = options?.loanProductId;
+  const statusIn = options?.statusIn;
+  const dateFrom = options?.dateFrom;
+  const dateTo = options?.dateTo;
+  const search = options?.search;
 
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await apiService.listApplications(unmapped ? { unmapped: true } : undefined);
+      const listParams: Parameters<typeof apiService.listApplications>[0] = {};
+      if (unmapped) listParams.unmapped = true;
+      if (loanProductId) listParams.loanProductId = loanProductId;
+      if (statusIn) listParams.statusIn = statusIn;
+      if (dateFrom) listParams.dateFrom = dateFrom;
+      if (dateTo) listParams.dateTo = dateTo;
+      if (search) listParams.search = search;
+      const response = await apiService.listApplications(
+        Object.keys(listParams).length ? listParams : undefined
+      );
       
       if (response.success && response.data) {
         // Transform API response to match expected format
@@ -143,7 +164,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
     } finally {
       setLoading(false);
     }
-  }, [unmapped, refreshUser]);
+  }, [unmapped, loanProductId, statusIn, dateFrom, dateTo, search, refreshUser]);
 
   // Fetch on mount and when unmapped toggle changes
   useEffect(() => {

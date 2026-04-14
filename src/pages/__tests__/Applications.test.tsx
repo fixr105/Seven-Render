@@ -12,6 +12,20 @@ import { renderWithProviders, mockClientUser, mockKAMUser, mockCreditUser } from
 vi.mock('../../services/api', () => {
   const mockApiService = {
     listApplications: vi.fn(),
+    listLoanProducts: vi.fn().mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'recLP1',
+          productId: 'LP001',
+          productName: 'Test Product',
+          applicableStatuses: [
+            { key: 'under_kam_review', label: 'Pending KAM Review', order: 10 },
+            { key: 'pending_credit_review', label: 'Forwarded to Credit', order: 20 },
+          ],
+        },
+      ],
+    }),
     getQueries: vi.fn().mockResolvedValue({ success: true, data: [] }),
   };
   return {
@@ -66,7 +80,7 @@ describe('Applications Listing Page - P0 Tests', () => {
       applicant_name: 'John Doe',
       loan_product_id: 'LP001',
       requested_loan_amount: 500000,
-      status: 'Pending KAM Review',
+      status: 'under_kam_review',
       created_at: '2024-01-15T10:00:00Z',
       updated_at: '2024-01-15T10:00:00Z',
       client: { company_name: 'Test Company' },
@@ -79,7 +93,7 @@ describe('Applications Listing Page - P0 Tests', () => {
       applicant_name: 'Jane Smith',
       loan_product_id: 'LP002',
       requested_loan_amount: 300000,
-      status: 'Forwarded to Credit',
+      status: 'pending_credit_review',
       created_at: '2024-01-16T10:00:00Z',
       updated_at: '2024-01-16T10:00:00Z',
       client: { company_name: 'Test Company' },
@@ -309,7 +323,7 @@ describe('Applications Listing Page - P0 Tests', () => {
           applicant_name: 'Other Client App',
           loan_product_id: 'LP001',
           requested_loan_amount: 400000,
-          status: 'Draft',
+          status: 'draft',
           created_at: '2024-01-17T10:00:00Z',
           updated_at: '2024-01-17T10:00:00Z',
           client: { company_name: 'Other Company' },
@@ -416,9 +430,19 @@ describe('Applications Listing Page - P0 Tests', () => {
         refetch: vi.fn(),
       });
 
+      (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+        user: mockKAMUser,
+        loading: false,
+        login: vi.fn(),
+        logout: vi.fn(),
+        refreshUser: vi.fn(),
+        hasRole: vi.fn(() => true),
+        signInAsTestUser: vi.fn(),
+      });
+
       renderWithProviders(<Applications />, {
         authContext: {
-          user: mockClientUser,
+          user: mockKAMUser,
           loading: false,
           login: vi.fn(),
           logout: vi.fn(),

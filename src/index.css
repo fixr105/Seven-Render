@@ -5,6 +5,11 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    /* Prevent iOS from inflating font size; use 'auto' for broad compatibility */
+    -webkit-text-size-adjust: auto;
+  }
+
   body {
     @apply font-sans text-neutral-900 bg-neutral-100 leading-relaxed;
   }

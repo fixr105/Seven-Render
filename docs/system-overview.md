@@ -1,8 +1,8 @@
 # Seven Fincorp Loan Management & Credit Dashboard - System Overview
 
-**Version:** 1.0.0  
-**Last Updated:** 2025-01-27  
-**Source:** PRD + SEVEN-DASHBOARD-2.json
+**Version:** 1.1.0  
+**Last Updated:** 2026-04-14  
+**Source:** PRD + SEVEN-DASHBOARD-2.json + current codebase (`statusStateMachine.ts`, `App.tsx`, `backend/src/routes`)
 
 ---
 
@@ -68,9 +68,9 @@ The system is organized into 7 core modules, each handling specific business fun
 - Status history tracking
 - Visual status timeline in UI
 - Role-based status change permissions
-- Status transitions:
-  - `DRAFT` → `UNDER_KAM_REVIEW` → `PENDING_CREDIT_REVIEW` → `SENT_TO_NBFC` → `APPROVED` → `DISBURSED` → `CLOSED`
-  - Alternative paths: `QUERY_WITH_CLIENT`, `CREDIT_QUERY_WITH_KAM`, `REJECTED`, `WITHDRAWN`
+- Status transitions (see `backend/src/services/statusTracking/statusStateMachine.ts` for the full map):
+  - Main line: `DRAFT` → `UNDER_KAM_REVIEW` → `PENDING_CREDIT_REVIEW` → (`IN_NEGOTIATION` optional) → `SENT_TO_NBFC` → `APPROVED` → `DISBURSED` → `CLOSED`
+  - Branches: `QUERY_WITH_CLIENT`, `CREDIT_QUERY_WITH_KAM`, `IN_NEGOTIATION` ↔ `SENT_TO_NBFC`, `REJECTED`, `WITHDRAWN`
 
 **Key Entities:**
 - Loan Applications table with Status field
@@ -233,15 +233,15 @@ The system supports 4 primary user roles:
      │ KAM responds
      ↓
 ┌──────────────────────┐
-│PENDING_CREDIT_REVIEW │ (Credit assigns NBFC)
+│PENDING_CREDIT_REVIEW │ (Credit continues)
 └────┬─────────────────┘
-     │ Credit assigns
+     │ Optional: → IN_NEGOTIATION → SENT_TO_NBFC; or → SENT_TO_NBFC directly
      ↓
-┌──────────────┐
-│SENT_TO_NBFC  │ (NBFC reviews)
-└────┬─────────┘
-     │ NBFC approves
-     ↓
+┌─────────────────┐       ┌──────────────┐
+│ IN_NEGOTIATION │ ───→ │ SENT_TO_NBFC │ (NBFC reviews; may loop back to IN_NEGOTIATION)
+└─────────────────┘       └──────┬───────┘
+                               │ NBFC approves
+                               ↓
 ┌──────────┐
 │ APPROVED │ (Credit marks disbursed)
 └────┬─────┘
@@ -435,7 +435,7 @@ Airtable Base (appzbyi8q7pJRl1cd)
 - All database operations go through n8n webhooks
 - Backend never directly calls Airtable API
 - n8n workflows handle Airtable authentication and API rate limiting
-- Webhook responses are cached (30 minutes) for GET requests
+- GET responses are cached in memory in the API (`cache.service.ts`) and invalidated when relevant POST paths update data (not a fixed TTL for all reads)
 - POST operations are synchronous and return updated records
 
 ---

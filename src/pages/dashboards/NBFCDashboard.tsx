@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { FileText, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { FileText, Clock, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { apiService } from '../../services/api';
 import { useState, useEffect, useCallback } from 'react';
@@ -76,8 +76,6 @@ export const NBFCDashboard: React.FC = () => {
 
   // Calculate stats
   const pendingDecision = assignedApplications.filter(a => a.status === 'sent_to_nbfc').length;
-  const approved = assignedApplications.filter(a => a.status === 'approved').length;
-  const rejected = assignedApplications.filter(a => a.status === 'rejected').length;
 
   // Format table data
   const tableData: ApplicationRow[] = assignedApplications.map(app => ({
@@ -88,13 +86,13 @@ export const NBFCDashboard: React.FC = () => {
     clientName: app.client?.company_name || '',
     loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
-    status: app.status.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+    status: app.status,
     sentDate: new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
   }));
 
   const getStatusVariant = (status: string) => {
-    if (status.toLowerCase().includes('approved')) return 'success';
-    if (status.toLowerCase().includes('rejected')) return 'error';
+    const s = status.toLowerCase();
+    if (s.includes('approved') || s.includes('rejected') || s.includes('disbursed')) return 'neutral';
     return 'warning';
   };
 
@@ -132,7 +130,7 @@ export const NBFCDashboard: React.FC = () => {
   return (
     <>
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
@@ -158,35 +156,6 @@ export const NBFCDashboard: React.FC = () => {
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
               <Clock className="w-6 h-6 text-warning" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">Approved</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{approved}</p>
-              <p className="text-xs text-success mt-1 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                Sanctioned
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-success" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">Rejected</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{rejected}</p>
-              <p className="text-xs text-neutral-500 mt-1">Declined</p>
-            </div>
-            <div className="w-12 h-12 bg-error/10 rounded-full flex items-center justify-center">
-              <XCircle className="w-6 h-6 text-error" />
             </div>
           </CardContent>
         </Card>

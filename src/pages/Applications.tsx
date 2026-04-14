@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
@@ -16,32 +16,12 @@ import { Plus, Eye, MessageSquare, RefreshCw, FileText, X } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
-import { getStatusDisplayNameForViewer, getStatusColor } from '../lib/statusUtils';
-
-// Placeholder data removed - now using real data from database via useApplications hook
-
-/** Map filter value to tag variant for colourful subtle filter tags */
-const getFilterTagVariant = (filterValue: string): 'neutral' | 'success' | 'warning' | 'error' | 'info' => {
-  switch (filterValue) {
-    case 'approved':
-    case 'disbursed':
-      return 'success';
-    case 'pending':
-    case 'query':
-    case 'awaiting_kam_response':
-      return 'warning';
-    case 'rejected':
-      return 'error';
-    case 'credit':
-    case 'negotiation':
-    case 'nbfc':
-      return 'info';
-    case 'all':
-    case 'draft':
-    default:
-      return 'neutral';
-  }
-};
+import { getStatusDisplayNameForViewer, getStatusColor, normalizeStatus } from '../lib/statusUtils';
+import {
+  buildStatusCatalogForApplications,
+  statusOrderMapFromCatalog,
+  type LoanProductWithStatuses,
+} from '../lib/applicationsStatusCatalog';
 
 const FILTER_TAG_STYLES: Record<string, { base: string; active: string }> = {
   neutral: { base: 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-neutral-200', active: 'bg-neutral-200 text-neutral-900 border-neutral-300 ring-1 ring-neutral-300' },
@@ -51,94 +31,9 @@ const FILTER_TAG_STYLES: Record<string, { base: string; active: string }> = {
   info: { base: 'bg-info/10 text-info border-info/30 hover:bg-info/20', active: 'bg-info/20 text-info border-info/50 ring-1 ring-info/40' },
 };
 
-const URL_STATUS_TO_FILTER: Record<string, string> = {
-  draft: 'draft',
-  pending_kam_review: 'pending',
-  under_kam_review: 'pending',
-  forwarded_to_credit: 'credit',
-  pending_credit_review: 'credit',
-  kam_query_raised: 'query',
-  query_with_client: 'query',
-  credit_query_raised: 'query',
-  credit_query_with_kam: 'query',
-  in_negotiation: 'negotiation',
-  sent_to_nbfc: 'nbfc',
-  approved: 'approved',
-  rejected: 'rejected',
-  disbursed: 'disbursed',
-};
-
-/** Map filter value to URL param (for shareable links and back/forward). Keep in sync with FILTER_TO_RAW_STATUSES and URL_STATUS_TO_FILTER when adding statuses. */
-const FILTER_TO_URL_PARAM: Record<string, string> = {
-  all: '',
-  draft: 'draft',
-  pending: 'pending_kam_review',
-  query: 'kam_query_raised',
-  credit: 'forwarded_to_credit',
-  negotiation: 'in_negotiation',
-  nbfc: 'sent_to_nbfc',
-  approved: 'approved',
-  rejected: 'rejected',
-  disbursed: 'disbursed',
-  awaiting_kam_response: 'credit_query_with_kam',
-};
-
-/** Map filter tag value to raw backend status(es). "Pending KAM Review" = under_kam_review only; "Forwarded to Credit" = pending_credit_review. Align with statusUtils and backend statusStateMachine when adding statuses. */
-const FILTER_TO_RAW_STATUSES: Record<string, string[]> = {
-  draft: ['draft'],
-  pending: ['under_kam_review'],
-  query: ['kam_query_raised', 'query_with_client', 'credit_query_with_kam', 'credit_query_raised'],
-  credit: ['pending_credit_review'],
-  negotiation: ['in_negotiation'],
-  nbfc: ['sent_to_nbfc'],
-  approved: ['approved'],
-  rejected: ['rejected'],
-  disbursed: ['disbursed'],
-};
-
-type StatusOption = { value: string; label: string };
-
-const STATUS_OPTIONS_CLIENT: StatusOption[] = [
-  { value: 'all', label: 'All Status' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'query', label: 'Action required' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'disbursed', label: 'Disbursed' },
-];
-
-const STATUS_OPTIONS_KAM: StatusOption[] = [
-  { value: 'all', label: 'All Status' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending KAM Review' },
-  { value: 'query', label: 'KAM Query Raised' },
-  { value: 'credit', label: 'Forwarded to Credit' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'disbursed', label: 'Disbursed' },
-];
-
-const STATUS_OPTIONS_CREDIT: StatusOption[] = [
-  { value: 'all', label: 'All Status' },
-  { value: 'credit', label: 'Forwarded to Credit' },
-  { value: 'awaiting_kam_response', label: 'Awaiting KAM Response' },
-  { value: 'negotiation', label: 'In Negotiation' },
-  { value: 'nbfc', label: 'Sent to NBFC' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'disbursed', label: 'Disbursed' },
-];
-
-function getStatusOptionsForRole(role: string | null): StatusOption[] {
-  if (role === 'client') return STATUS_OPTIONS_CLIENT;
-  if (role === 'kam') return STATUS_OPTIONS_KAM;
-  if (role === 'credit_team' || role === 'admin') return STATUS_OPTIONS_CREDIT;
-  return STATUS_OPTIONS_KAM;
-}
-
-function getValidFilterValuesForRole(role: string | null): Set<string> {
-  const options = getStatusOptionsForRole(role);
-  return new Set(options.map((o) => o.value));
+function getStatusChipVariant(_key: string, index: number): keyof typeof FILTER_TAG_STYLES {
+  const cycle: (keyof typeof FILTER_TAG_STYLES)[] = ['neutral', 'info', 'warning'];
+  return cycle[index % cycle.length];
 }
 
 export const Applications: React.FC = () => {
@@ -156,9 +51,23 @@ export const Applications: React.FC = () => {
   const showUnmappedTab = userRole === 'credit_team' || userRole === 'admin' || userRole === 'kam';
   const [viewTab, setViewTab] = useState<'all' | 'unmapped'>('all');
   const unmappedView = showUnmappedTab && viewTab === 'unmapped';
-  const { applications, loading, refetch } = useApplications({ unmapped: unmappedView });
+  const [loanProducts, setLoanProducts] = useState<LoanProductWithStatuses[]>([]);
+  const [loadingLoanProducts, setLoadingLoanProducts] = useState(true);
+  const [productFilterId, setProductFilterId] = useState('');
+  const [selectedStatusKeys, setSelectedStatusKeys] = useState<string[]>([]);
+
+  const statusInQuery = useMemo(
+    () => (selectedStatusKeys.length > 0 ? [...selectedStatusKeys].sort().join(',') : undefined),
+    [selectedStatusKeys]
+  );
+
+  const { applications, loading, refetch } = useApplications({
+    unmapped: unmappedView,
+    loanProductId: productFilterId || undefined,
+    statusIn: statusInQuery,
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [sortColumn, setSortColumn] = useState('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [showQueryModal, setShowQueryModal] = useState(false);
@@ -204,22 +113,56 @@ export const Applications: React.FC = () => {
   }, [clientIdFromUrl, userRole]);
 
   useEffect(() => {
-    const param = searchParams.get('status');
-    const resolved = param && URL_STATUS_TO_FILTER[param] ? URL_STATUS_TO_FILTER[param] : 'all';
-    const validValues = getValidFilterValuesForRole(userRole);
-    if (validValues.has(resolved)) {
-      setStatusFilter(resolved);
-    } else {
-      setStatusFilter('all');
-      if (param) {
-        setSearchParams((prev) => {
-          const next = new URLSearchParams(prev);
-          next.delete('status');
-          return next;
-        }, { replace: true });
+    let cancelled = false;
+    (async () => {
+      setLoadingLoanProducts(true);
+      try {
+        const res = await apiService.listLoanProducts(true);
+        if (cancelled) return;
+        if (res.success && Array.isArray(res.data)) {
+          setLoanProducts(res.data as LoanProductWithStatuses[]);
+        } else {
+          setLoanProducts([]);
+        }
+      } catch {
+        if (!cancelled) setLoanProducts([]);
+      } finally {
+        if (!cancelled) setLoadingLoanProducts(false);
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.has('productId')) {
+      setProductFilterId(searchParams.get('productId') ?? '');
     }
-  }, [searchParams, userRole, setSearchParams]);
+    if (searchParams.has('statuses')) {
+      const st = searchParams.get('statuses');
+      setSelectedStatusKeys(
+        st ? st.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) : []
+      );
+    }
+  }, [searchParams]);
+
+  const updateFilterUrl = useCallback(
+    (nextProductId: string, nextStatuses: string[]) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (nextProductId) next.set('productId', nextProductId);
+          else next.delete('productId');
+          if (nextStatuses.length > 0) next.set('statuses', nextStatuses.join(','));
+          else next.delete('statuses');
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   // Fetch query counts for applications (only for credit_team)
   useEffect(() => {
@@ -291,86 +234,133 @@ export const Applications: React.FC = () => {
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const statusOptions = getStatusOptionsForRole(userRole);
+  const statusCatalog = useMemo(
+    () => buildStatusCatalogForApplications(loanProducts, productFilterId || null, userRole),
+    [loanProducts, productFilterId, userRole]
+  );
 
-  // Convert database applications to display format
-  const displayApplications = applications.map(app => {
-    // Handle webhook data that might have different field structures
-    const clientName = app.client?.company_name || 
-                      (app as any).client || 
-                      (app as any).client_name || 
-                      (app as any).form_data?.client_identifier ||
-                      'Unknown';
-    
-    const applicantName = app.applicant_name || 
-                         (app as any).performed_by || 
-                         (app as any).applicant || 
-                         'N/A';
-    
-    const loanType = app.loan_product?.name || 
-                    (app as any).loan_product || 
-                    (app as any).loan_type || 
-                    (app as any).category || 
-                    (app as any).form_data?.category ||
-                    'N/A';
-    
-    const amount = app.requested_loan_amount 
-      ? `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`
-      : (app as any).requested_loan_amount 
-        ? `₹${((app as any).requested_loan_amount / 100000).toFixed(2)}L`
-        : 'N/A';
-    
-    const queryData = queryCounts[app.id] || { unresolved: 0, lastActivity: null };
-    
-    return {
-      id: app.id || (app as any).id, // Use Airtable record ID for navigation (e.g., recCHVlPoZQYfeKlG)
-      fileNumber: app.file_number || (app as any).file_number || (app as any).fileId || app.id, // For display
-      clientName: String(clientName),
-      applicantName: String(applicantName),
-      loanType: String(loanType),
-      amount: String(amount),
-      status: getStatusDisplayNameForViewer(app.status, userRole || ''),
-      lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      rawData: app, // Keep raw data for debugging
-      hasUnresolvedQueries: queryData.unresolved > 0,
-      unresolvedQueryCount: queryData.unresolved,
-      lastQueryTimestamp: queryData.lastActivity,
-      rawStatus: app.status, // Keep raw status for filtering
-    };
-  });
+  const statusOrderMap = useMemo(() => statusOrderMapFromCatalog(statusCatalog), [statusCatalog]);
 
-  const filteredData = displayApplications.filter(app => {
-    if (clientIdFromUrl) {
-      const appClientId = app.rawData?.client_id ?? (app.rawData as any)?.Client ?? (app.rawData as any)?.client;
-      const idStr = appClientId != null ? String(appClientId) : '';
-      if (idStr !== clientIdFromUrl) return false;
-    }
+  const statusLabelByKey = useMemo(
+    () => new Map(statusCatalog.map((e) => [e.key, e.label])),
+    [statusCatalog]
+  );
 
-    const matchesSearch = searchQuery === '' ||
-      app.fileNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.loanType.toLowerCase().includes(searchQuery.toLowerCase());
+  const displayApplications = useMemo(() => {
+    return applications.map((app) => {
+      const clientName =
+        app.client?.company_name ||
+        (app as any).client ||
+        (app as any).client_name ||
+        (app as any).form_data?.client_identifier ||
+        'Unknown';
 
-    let matchesStatus = true;
-    if (statusFilter === 'all') {
-      matchesStatus = true;
-    } else if (statusFilter === 'awaiting_kam_response') {
-      matchesStatus = app.rawStatus === 'credit_query_with_kam' ||
-                     (app.hasUnresolvedQueries && app.rawStatus !== 'closed');
-    } else {
-      const rawStatuses = FILTER_TO_RAW_STATUSES[statusFilter];
-      const raw = (app.rawStatus || '').toLowerCase();
-      if (rawStatuses) {
-        matchesStatus = rawStatuses.some(s => s.toLowerCase() === raw);
-      } else {
-        matchesStatus = app.status.toLowerCase().includes(statusFilter);
+      const applicantName =
+        app.applicant_name || (app as any).performed_by || (app as any).applicant || 'N/A';
+
+      const loanType =
+        app.loan_product?.name ||
+        (app as any).loan_product ||
+        (app as any).loan_type ||
+        (app as any).category ||
+        (app as any).form_data?.category ||
+        'N/A';
+
+      const amount = app.requested_loan_amount
+        ? `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`
+        : (app as any).requested_loan_amount
+          ? `₹${((app as any).requested_loan_amount / 100000).toFixed(2)}L`
+          : 'N/A';
+
+      const queryData = queryCounts[app.id] || { unresolved: 0, lastActivity: null };
+      const nk = normalizeStatus(app.status);
+
+      return {
+        id: app.id || (app as any).id,
+        fileNumber: app.file_number || (app as any).file_number || (app as any).fileId || app.id,
+        clientName: String(clientName),
+        applicantName: String(applicantName),
+        loanType: String(loanType),
+        amount: String(amount),
+        status:
+          statusLabelByKey.get(nk) ?? getStatusDisplayNameForViewer(app.status, userRole || ''),
+        lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }),
+        rawData: app,
+        hasUnresolvedQueries: queryData.unresolved > 0,
+        unresolvedQueryCount: queryData.unresolved,
+        lastQueryTimestamp: queryData.lastActivity,
+        rawStatus: app.status,
+      };
+    });
+  }, [applications, queryCounts, statusLabelByKey, userRole]);
+
+  const filteredData = useMemo(() => {
+    return displayApplications.filter((app) => {
+      if (clientIdFromUrl) {
+        const appClientId =
+          app.rawData?.client_id ?? (app.rawData as any)?.Client ?? (app.rawData as any)?.client;
+        const idStr = appClientId != null ? String(appClientId) : '';
+        if (idStr !== clientIdFromUrl) return false;
       }
-    }
 
-    return matchesSearch && matchesStatus;
-  });
+      const matchesSearch =
+        searchQuery === '' ||
+        app.fileNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.loanType.toLowerCase().includes(searchQuery.toLowerCase());
+
+      return matchesSearch;
+    });
+  }, [displayApplications, clientIdFromUrl, searchQuery]);
+
+  const sortedData = useMemo(() => {
+    if (!sortColumn) return filteredData;
+    const mult = sortDirection === 'asc' ? 1 : -1;
+    const rows = [...filteredData];
+    rows.sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case 'fileNumber':
+          cmp = String(a.fileNumber).localeCompare(String(b.fileNumber));
+          break;
+        case 'clientName':
+          cmp = String(a.clientName).localeCompare(String(b.clientName));
+          break;
+        case 'applicantName':
+          cmp = String(a.applicantName).localeCompare(String(b.applicantName));
+          break;
+        case 'loanType':
+          cmp = String(a.loanType).localeCompare(String(b.loanType));
+          break;
+        case 'amount':
+          cmp = String(a.amount).localeCompare(String(b.amount), undefined, { numeric: true });
+          break;
+        case 'status': {
+          const oa = statusOrderMap.get(normalizeStatus(a.rawStatus ?? '')) ?? 99999;
+          const ob = statusOrderMap.get(normalizeStatus(b.rawStatus ?? '')) ?? 99999;
+          cmp = oa - ob;
+          if (cmp === 0) cmp = String(a.status).localeCompare(String(b.status));
+          break;
+        }
+        case 'lastUpdate': {
+          const ta = new Date((a.rawData as { updated_at?: string; created_at?: string })?.updated_at ?? 0).getTime();
+          const tb = new Date((b.rawData as { updated_at?: string; created_at?: string })?.updated_at ?? 0).getTime();
+          cmp = ta - tb;
+          break;
+        }
+        default:
+          return 0;
+      }
+      return cmp * mult;
+    });
+    return rows;
+  }, [filteredData, sortColumn, sortDirection, statusOrderMap]);
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -576,32 +566,83 @@ export const Applications: React.FC = () => {
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 pt-3 mt-1 border-t border-neutral-200">
-            <span className="text-sm font-medium text-neutral-600 mr-1">Status:</span>
-            {statusOptions.map((opt) => {
-              const variant = getFilterTagVariant(opt.value);
-              const styles = FILTER_TAG_STYLES[variant];
-              const isActive = statusFilter === opt.value;
-              return (
+          <div className="flex flex-col gap-3 pt-3 mt-1 border-t border-neutral-200">
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="applications-product-filter" className="text-sm font-medium text-neutral-600">
+                Loan product:
+              </label>
+              <select
+                id="applications-product-filter"
+                className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 min-w-[12rem]"
+                value={productFilterId}
+                disabled={loadingLoanProducts}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setProductFilterId(v);
+                  updateFilterUrl(v, selectedStatusKeys);
+                }}
+              >
+                <option value="">All products</option>
+                {loanProducts.map((p) => {
+                  const id = String(p.productId ?? p.id ?? '');
+                  const label = String(p.productName ?? p['Product Name'] ?? p.name ?? id);
+                  return (
+                    <option key={p.id ?? id} value={id}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+              {loadingLoanProducts && (
+                <span className="text-xs text-neutral-500">Loading products…</span>
+              )}
+            </div>
+            {statusCatalog.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-neutral-600 mr-1">Status:</span>
                 <button
-                  key={opt.value}
                   type="button"
                   onClick={() => {
-                    setStatusFilter(opt.value);
-                    const urlParam = FILTER_TO_URL_PARAM[opt.value];
-                    const next = new URLSearchParams(searchParams);
-                    if (urlParam) next.set('status', urlParam);
-                    else next.delete('status');
-                    setSearchParams(next, { replace: true });
+                    setSelectedStatusKeys([]);
+                    updateFilterUrl(productFilterId, []);
                   }}
-                  aria-pressed={isActive}
-                  aria-label={`Filter by ${opt.label}`}
-                  className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${isActive ? styles.active : styles.base}`}
+                  aria-pressed={selectedStatusKeys.length === 0}
+                  aria-label="Show all statuses"
+                  className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    selectedStatusKeys.length === 0
+                      ? FILTER_TAG_STYLES.neutral.active
+                      : FILTER_TAG_STYLES.neutral.base
+                  }`}
                 >
-                  {opt.label}
+                  All
                 </button>
-              );
-            })}
+                {statusCatalog.map((opt, idx) => {
+                  const variant = getStatusChipVariant(opt.key, idx);
+                  const styles = FILTER_TAG_STYLES[variant];
+                  const isActive = selectedStatusKeys.includes(opt.key);
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setSelectedStatusKeys((prev) => {
+                          const next = prev.includes(opt.key)
+                            ? prev.filter((k) => k !== opt.key)
+                            : [...prev, opt.key];
+                          updateFilterUrl(productFilterId, next);
+                          return next;
+                        });
+                      }}
+                      aria-pressed={isActive}
+                      aria-label={`Filter by ${opt.label}`}
+                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${isActive ? styles.active : styles.base}`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -611,8 +652,8 @@ export const Applications: React.FC = () => {
         <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
           <span className="text-sm text-neutral-600">
             Client: <strong className="text-neutral-900">
-              {filteredData.length > 0
-                ? filteredData[0].clientName
+              {sortedData.length > 0
+                ? sortedData[0].clientName
                 : (clientFilterDisplayName || clientIdFromUrl || 'Client filter active')}
             </strong>
           </span>
@@ -629,7 +670,7 @@ export const Applications: React.FC = () => {
       )}
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 gap-4 mb-6">
         <Card>
           <CardContent>
             <p className="text-sm text-neutral-500">Total</p>
@@ -644,35 +685,19 @@ export const Applications: React.FC = () => {
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent>
-            <p className="text-sm text-neutral-500">Approved</p>
-            <p className="text-2xl font-bold text-success mt-1">
-              {applications.filter(a => a.status === 'approved').length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <p className="text-sm text-neutral-500">Disbursed</p>
-            <p className="text-2xl font-bold text-brand-secondary mt-1">
-              {applications.filter(a => a.status === 'disbursed').length}
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Applications Table */}
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle>
-            {unmappedView ? `Unmapped Applications (${filteredData.length})` : `All Applications (${filteredData.length})`}
+            {unmappedView ? `Unmapped Applications (${sortedData.length})` : `All Applications (${sortedData.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-neutral-500">Loading applications...</div>
-          ) : filteredData.length === 0 ? (
+          ) : sortedData.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                 {applications.length > 0 ? (
@@ -684,8 +709,14 @@ export const Applications: React.FC = () => {
                       size="sm"
                       onClick={() => {
                         setSearchQuery('');
-                        setStatusFilter('all');
-                        navigate('/applications', { replace: true });
+                        setProductFilterId('');
+                        setSelectedStatusKeys([]);
+                        setSearchParams((prev) => {
+                          const n = new URLSearchParams(prev);
+                          n.delete('productId');
+                          n.delete('statuses');
+                          return n;
+                        }, { replace: true });
                       }}
                     >
                       Clear filters
@@ -713,7 +744,7 @@ export const Applications: React.FC = () => {
           ) : (
           <DataTable
             columns={columns}
-            data={filteredData}
+            data={sortedData}
             keyExtractor={(row) => row.id}
             sortColumn={sortColumn}
             sortDirection={sortDirection}

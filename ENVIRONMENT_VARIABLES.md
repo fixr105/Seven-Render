@@ -46,6 +46,36 @@ CORS_ORIGIN=https://lms.sevenfincorp.com
 NODE_ENV=production
 ```
 
+### Database (Required for RAAD, PAGER, Query Drafter)
+
+RAAD analysis, PAGER, and Query Drafter need a PostgreSQL database to store job records.
+
+**Option A: Fly Postgres (recommended)**
+```bash
+# 1. Create Postgres
+fly postgres create --name seven-render-db --region sin
+
+# 2. Attach to app (sets DATABASE_URL secret automatically)
+fly postgres attach seven-render-db -a seven-render
+
+# 3. Create tables - use one of:
+#    a) Release command in fly.toml runs prisma db push during deploy (may fail with MPG/pgbouncer)
+#    b) Manual: run proxy in one terminal, then prisma db push locally:
+#       Terminal 1: fly mpg proxy <cluster-id>
+#       Terminal 2: Get connection string from Fly Dashboard → MPG → Connect; then:
+#         cd backend && DATABASE_URL="postgresql://user:pass@127.0.0.1:16380/fly-db?sslmode=disable" npx prisma db push
+
+# 4. Redeploy backend so it picks up DATABASE_URL
+fly deploy -a seven-render
+```
+
+**Option B: External Postgres (Neon, Supabase, Render)**
+```bash
+fly secrets set DATABASE_URL="postgresql://user:pass@host:5432/dbname?sslmode=require" -a seven-render
+cd backend && DATABASE_URL="postgresql://user:pass@host:5432/dbname?sslmode=require" npx prisma db push
+fly deploy -a seven-render
+```
+
 ### NBFC AI Tools (RAAD, PAGER) - Production n8n
 
 All NBFC tools use the production n8n instance. Set `N8N_NBFC_TOOLS_BASE_URL`; the backend constructs URLs as `{base}/webhook/{path}`:
@@ -60,6 +90,22 @@ N8N_NBFC_TOOLS_BASE_URL=https://n8n-h9n3.srv1314414.hstgr.cloud
 ```
 
 Optional: override with full URLs per tool: `N8N_RAAD_WEBHOOK_URL`, `N8N_PAGER_WEBHOOK_URL`.
+
+### RAAD Report Viewer (get-raad webhook)
+
+The RAAD Report Viewer loads reports from the get-raad webhook. This allows RAAD to work **without** `DATABASE_URL` when configured:
+
+```bash
+# Required for RAAD Report Viewer to list and fetch reports
+N8N_RAAD_FETCH_WEBHOOK_URL=https://your-n8n.app/webhook/get-raad
+```
+
+**Frontend direct webhook** (bypasses backend, avoids 404): Set `VITE_N8N_RAAD_FETCH_WEBHOOK_URL` in Vercel to the same URL. When unset in production, the app uses `https://fixrrahul.app.n8n.cloud/webhook/get-raad` by default.
+
+**PAGER direct webhook** (fetch results): Set `VITE_N8N_PAGER_FETCH_WEBHOOK_URL` in Vercel for PAGER result fetch. When unset in production, uses `https://fixrrahul.app.n8n.cloud/webhook/get-pager`. Provide `loanApplicationId` when submitting PAGER to enable webhook polling.
+
+- When `DATABASE_URL` is set: RAAD submit creates DB jobs; Report Viewer can use either DB or webhook.
+- When `DATABASE_URL` is not set: RAAD submit forwards to n8n and returns `loanApplicationId` only; Report Viewer fetches via webhook.
 
 ### Optional Backend Variables
 
@@ -86,7 +132,10 @@ fly secrets set NODE_ENV=production --app seven-render
 fly secrets set N8N_NBFC_TOOLS_BASE_URL=https://n8n-h9n3.srv1314414.hstgr.cloud --app seven-render
 
 # RAAD: Override to use your n8n instance
-fly secrets set N8N_RAAD_WEBHOOK_URL="https://fixrrahul.app.n8n.cloud/webhook/upload-bankstatement-1" --app seven-render
+fly secrets set N8N_RAAD_WEBHOOK_URL="https://fixrrahul.app.n8n.cloud/webhook/big-brain-bro-1" --app seven-render
+
+# RAAD Report Viewer: get-raad webhook (required for listing/fetching RAAD reports; enables RAAD without DATABASE_URL)
+fly secrets set N8N_RAAD_FETCH_WEBHOOK_URL="https://fixrrahul.app.n8n.cloud/webhook/get-raad" --app seven-render
 
 # Optional: Set cron schedule
 fly secrets set CRON_SCHEDULE="0 0 * * *" --app seven-render

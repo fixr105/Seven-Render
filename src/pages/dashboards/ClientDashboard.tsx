@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Plus, FileText, Clock, CheckCircle, DollarSign, Package, RefreshCw, Sparkles, Wallet, FileEdit, AlertCircle, XCircle } from 'lucide-react';
+import { Plus, FileText, Clock, DollarSign, Package, RefreshCw, Sparkles, Wallet, FileEdit } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
@@ -14,6 +14,10 @@ export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const { applications, loading, refetch: refetchApplications } = useApplications();
+  const draftCount = useMemo(
+    () => applications.filter((a) => a.status === 'draft').length,
+    [applications]
+  );
   const { balance, loading: ledgerLoading, refetch: refetchLedger } = useLedger();
   useNotifications();
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string; description?: string }>>([]);
@@ -83,11 +87,7 @@ export const ClientDashboard: React.FC = () => {
 
   // Calculate stats
   const totalApplications = applications.length;
-  const drafts = applications.filter(a => a.status === 'draft').length;
   const pendingReview = applications.filter(a => a.status === 'pending_kam_review' || a.status === 'kam_query_raised').length;
-  const actionRequired = applications.filter(a => a.status === 'kam_query_raised').length;
-  const rejected = applications.filter(a => a.status === 'rejected').length;
-  const approved = applications.filter(a => a.status === 'approved' || a.status === 'disbursed').length;
 
   const displayProducts = loanProducts.filter((p) => configuredProductIds.has(p.id));
 
@@ -108,7 +108,7 @@ export const ClientDashboard: React.FC = () => {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
@@ -124,64 +124,11 @@ export const ClientDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">Drafts</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{drafts}</p>
-              <p className="text-xs text-neutral-500 mt-1">saved</p>
-            </div>
-            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
-              <FileEdit className="w-6 h-6 text-warning" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
               <p className="text-sm text-neutral-500">Pending Review</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingReview}</p>
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
               <Clock className="w-6 h-6 text-warning" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">Action required</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{actionRequired}</p>
-              <p className="text-xs text-warning mt-1">Pending your response</p>
-            </div>
-            <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
-              <AlertCircle className="w-6 h-6 text-warning" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">Approved</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{approved}</p>
-              <p className="text-xs text-neutral-500 mt-1">
-                {totalApplications > 0 ? Math.round((approved / totalApplications) * 100) : 0}% approval rate
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-success" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">Rejected</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{rejected}</p>
-            </div>
-            <div className="w-12 h-12 bg-error/10 rounded-full flex items-center justify-center">
-              <XCircle className="w-6 h-6 text-error" />
             </div>
           </CardContent>
         </Card>
@@ -265,7 +212,7 @@ export const ClientDashboard: React.FC = () => {
             >
               View Ledger
             </Button>
-            {drafts > 0 && (
+            {draftCount > 0 && (
               <Button
                 variant="secondary"
                 icon={FileEdit}

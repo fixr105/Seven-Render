@@ -8,7 +8,13 @@ When NBFC tools (RAAD, history, etc.) return 404, the frontend is likely calling
 - **Correct backend**: `https://seven-render.fly.dev` (NBFC routes exist here)
 - **Missing env var**: `VITE_API_BASE_URL` must be set in Vercel and a **new deploy** run so it’s included in the build
 
-## Fix: Set VITE_API_BASE_URL in Vercel and Redeploy
+## Fix Options
+
+### Option A: Leave VITE_API_BASE_URL Unset (Default)
+
+When `VITE_API_BASE_URL` is unset in production, the frontend uses `https://seven-render.fly.dev` directly. No Vercel env var or redeploy needed. Fly.io CORS must include your frontend origin (see fly.toml).
+
+### Option B: Set VITE_API_BASE_URL in Vercel and Redeploy
 
 1. **Vercel Dashboard** → [Environment Variables](https://vercel.com/dashboard) → Your project → **Settings** → **Environment Variables**
 2. Add or edit `VITE_API_BASE_URL`:
@@ -19,6 +25,13 @@ When NBFC tools (RAAD, history, etc.) return 404, the frontend is likely calling
 4. **Redeploy** so the env var is baked in:
    - Deployments tab → ⋮ on latest → **Redeploy**
    - Or push a commit to trigger a new build
+
+### Option C: Direct RAAD Webhook (Bypass Backend)
+
+When the backend 404 persists, RAAD reports can load directly from the n8n get-raad webhook:
+
+1. **Production default**: In production, when `VITE_N8N_RAAD_FETCH_WEBHOOK_URL` is unset, the app uses `https://fixrrahul.app.n8n.cloud/webhook/get-raad` by default. Redeploy and RAAD Report Viewer should load.
+2. **Custom n8n**: Set `VITE_N8N_RAAD_FETCH_WEBHOOK_URL` in Vercel to your get-raad webhook URL, then redeploy.
 
 ## Verification
 

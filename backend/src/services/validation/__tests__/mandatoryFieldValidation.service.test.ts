@@ -23,6 +23,15 @@ jest.mock('../../formConfig/simpleFormConfig.service.js', () => ({
   getSimpleFormConfig: jest.fn(),
 }));
 
+/** Minimal Basic Information fields so validation focuses on scenario under test */
+const basicInfoOk = {
+  _mobileNumber: '9876543210',
+  _email: 'client@example.com',
+  _typeOfPurchase: 'Rental' as const,
+};
+
+const folderShareAck = { _documentsFolderShareAcknowledged: true as const };
+
 describe('mandatoryFieldValidation.service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,6 +43,8 @@ describe('mandatoryFieldValidation.service', () => {
     const formData = {
       'PAN - Documents': 'Yes, Added to Folder',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...basicInfoOk,
+      ...folderShareAck,
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(true);
@@ -45,6 +56,8 @@ describe('mandatoryFieldValidation.service', () => {
     const formData = {
       'PAN - Documents': 'Not Available',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...basicInfoOk,
+      ...folderShareAck,
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     // Not Available satisfies required file field (user has made a selection); no PAN format error
@@ -56,10 +69,87 @@ describe('mandatoryFieldValidation.service', () => {
     const formData = {
       'PAN - Documents': 'Awaiting, Will Update Folder',
       _documentsFolderLink: 'https://onedrive.live.com/embed?cid=xyz',
+      ...basicInfoOk,
+      ...folderShareAck,
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(true);
     expect(result.formatErrors).toBeUndefined();
     expect(result.missingFields).toHaveLength(0);
+  });
+
+  it('reports missing Basic Information fields when absent', async () => {
+    const formData = {
+      'PAN - Documents': 'Yes, Added to Folder',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...folderShareAck,
+    };
+    const result = await validateMandatoryFields(formData, 'test-client-id');
+    expect(result.isValid).toBe(false);
+    expect(result.missingFields?.map((f) => f.fieldId).sort()).toEqual(
+      ['_email', '_mobileNumber', '_typeOfPurchase'].sort()
+    );
+  });
+
+  it('reports invalid mobile format', async () => {
+    const formData = {
+      'PAN - Documents': 'Yes, Added to Folder',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...basicInfoOk,
+      ...folderShareAck,
+      _mobileNumber: '123',
+    };
+    const result = await validateMandatoryFields(formData, 'test-client-id');
+    expect(result.isValid).toBe(false);
+    expect(result.formatErrors?.some((e) => e.fieldId === '_mobileNumber')).toBe(true);
+  });
+
+  it('reports invalid email format', async () => {
+    const formData = {
+      'PAN - Documents': 'Yes, Added to Folder',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...basicInfoOk,
+      ...folderShareAck,
+      _email: 'not-an-email',
+    };
+    const result = await validateMandatoryFields(formData, 'test-client-id');
+    expect(result.isValid).toBe(false);
+    expect(result.formatErrors?.some((e) => e.fieldId === '_email')).toBe(true);
+  });
+
+  it('reports invalid type of purchase', async () => {
+    const formData = {
+      'PAN - Documents': 'Yes, Added to Folder',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...basicInfoOk,
+      ...folderShareAck,
+      _typeOfPurchase: 'Lease',
+    };
+    const result = await validateMandatoryFields(formData, 'test-client-id');
+    expect(result.isValid).toBe(false);
+    expect(result.formatErrors?.some((e) => e.fieldId === '_typeOfPurchase')).toBe(true);
+  });
+
+  it('reports missing folder sharing confirmation when folder link is valid', async () => {
+    const formData = {
+      'PAN - Documents': 'Yes, Added to Folder',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...basicInfoOk,
+    };
+    const result = await validateMandatoryFields(formData, 'test-client-id');
+    expect(result.isValid).toBe(false);
+    expect(result.missingFields?.some((f) => f.fieldId === '_documentsFolderShareAcknowledged')).toBe(true);
+  });
+
+  it('accepts string "yes" as folder sharing confirmation', async () => {
+    const formData = {
+      'PAN - Documents': 'Yes, Added to Folder',
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      ...basicInfoOk,
+      _documentsFolderShareAcknowledged: 'yes',
+    };
+    const result = await validateMandatoryFields(formData, 'test-client-id');
+    expect(result.isValid).toBe(true);
+    expect(result.missingFields?.some((f) => f.fieldId === '_documentsFolderShareAcknowledged')).toBe(false);
   });
 });

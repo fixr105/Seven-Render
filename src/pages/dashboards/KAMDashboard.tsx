@@ -385,7 +385,7 @@ export const KAMDashboard: React.FC = () => {
                           <span className="font-medium">{client.forwarded}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-neutral-500">Approved / Rejected</span>
+                          <span className="text-neutral-500">Closed outcomes</span>
                           <span className="font-medium">
                             {client.approved} / {client.rejected}
                             {client.approvalRate !== null ? ` (${client.approvalRate}%)` : ''}

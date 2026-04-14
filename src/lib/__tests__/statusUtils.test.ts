@@ -84,20 +84,20 @@ describe('normalizeStatus', () => {
 });
 
 describe('getStatusDisplayName', () => {
-  it('returns display name for draft', () => {
-    expect(getStatusDisplayName('draft')).toBe('Draft');
+  it('returns raw id for draft', () => {
+    expect(getStatusDisplayName('draft')).toBe('draft');
   });
   it('returns display name for under_kam_review', () => {
     expect(getStatusDisplayName('under_kam_review')).toBe('Under KAM Review');
   });
-  it('returns display name for approved', () => {
-    expect(getStatusDisplayName('approved')).toBe('Approved');
+  it('returns raw id for approved', () => {
+    expect(getStatusDisplayName('approved')).toBe('approved');
   });
-  it('returns display name for rejected', () => {
-    expect(getStatusDisplayName('rejected')).toBe('Rejected');
+  it('returns raw id for rejected', () => {
+    expect(getStatusDisplayName('rejected')).toBe('rejected');
   });
-  it('returns display name for disbursed', () => {
-    expect(getStatusDisplayName('disbursed')).toBe('Disbursed');
+  it('returns raw id for disbursed', () => {
+    expect(getStatusDisplayName('disbursed')).toBe('disbursed');
   });
   it('returns raw status for unknown', () => {
     expect(getStatusDisplayName('unknown_status')).toBe('unknown_status');
@@ -108,12 +108,10 @@ describe('getStatusColor', () => {
   it('returns neutral for draft', () => {
     expect(getStatusColor('draft')).toBe('neutral');
   });
-  it('returns success for approved and disbursed', () => {
-    expect(getStatusColor('approved')).toBe('success');
-    expect(getStatusColor('disbursed')).toBe('success');
-  });
-  it('returns error for rejected', () => {
-    expect(getStatusColor('rejected')).toBe('error');
+  it('returns neutral for approved, disbursed, rejected', () => {
+    expect(getStatusColor('approved')).toBe('neutral');
+    expect(getStatusColor('disbursed')).toBe('neutral');
+    expect(getStatusColor('rejected')).toBe('neutral');
   });
   it('returns warning for query_with_client and credit_query_with_kam', () => {
     expect(getStatusColor('query_with_client')).toBe('warning');

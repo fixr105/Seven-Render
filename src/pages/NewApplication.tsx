@@ -5,8 +5,20 @@ import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Checkbox } from '../components/ui/Checkbox';
 import { Select } from '../components/ui/Select';
-import { Save, Send, AlertTriangle, RefreshCw, Copy } from 'lucide-react';
+import {
+  Save,
+  Send,
+  AlertTriangle,
+  RefreshCw,
+  Copy,
+  FolderOpen,
+  FolderPlus,
+  Share2,
+  Link2,
+  CheckSquare,
+} from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
@@ -14,9 +26,18 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { Stepper } from '../components/ui/Stepper';
 import { getPanValidationError, isPanField } from '../utils/panValidation';
+import {
+  isValidEmailFormat,
+  isValidTypeOfPurchase,
+  parseIndianMobile,
+} from '../utils/basicApplicationFieldsValidation';
 
 const GOOGLE_DRIVE_SHARE_EMAIL = 'automation.sevenfincorp@gmail.com';
 const ONEDRIVE_SHARE_EMAIL = 'automation@sevenfincorp.email';
+
+function isDocumentsFolderShareAcknowledged(value: unknown): boolean {
+  return value === true || value === 'true' || value === 'yes';
+}
 
 /** Business KYC section IDs (one of these is shown based on business type). */
 const BUSINESS_KYC_SECTION_IDS = ['section-2a', 'section-2b', 'section-2c', 'section-2d'] as const;
@@ -83,9 +104,16 @@ export const NewApplication: React.FC = () => {
     applicant_name: '',
     loan_product_id: '',
     requested_loan_amount: '',
-    form_data: {},
+    form_data: {
+      _mobileNumber: '',
+      _email: '',
+      _typeOfPurchase: '',
+    },
   });
   const [copiedWhich, setCopiedWhich] = useState<'google' | 'onedrive' | null>(null);
+  const [folderLinkGenerating, setFolderLinkGenerating] = useState(false);
+  const [folderLinkError, setFolderLinkError] = useState<string | null>(null);
+  const [copiedFolderUrl, setCopiedFolderUrl] = useState(false);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -270,6 +298,38 @@ export const NewApplication: React.FC = () => {
     }));
   };
 
+  const handleGenerateFolderLink = async () => {
+    if (userRole !== 'client') return;
+    setFolderLinkError(null);
+    setFolderLinkGenerating(true);
+    try {
+      const response = await apiService.generateDocumentsFolderLink();
+      if (!response.success || !response.data?.folderUrl) {
+        throw new Error(response.error || 'Failed to generate folder link');
+      }
+      const url = response.data.folderUrl;
+      handleFieldChange('_documentsFolderLink', url);
+      setFieldErrors((prev) => {
+        if (!prev._documentsFolderLink) return prev;
+        const next = { ...prev };
+        delete next._documentsFolderLink;
+        return next;
+      });
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedFolderUrl(true);
+        setTimeout(() => setCopiedFolderUrl(false), 2500);
+      } catch {
+        /* clipboard optional */
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to generate folder link';
+      setFolderLinkError(message);
+    } finally {
+      setFolderLinkGenerating(false);
+    }
+  };
+
   const displayCategories = useMemo(
     () => getDisplayCategories(formConfig, formData.form_data._businessType),
     [formConfig, formData.form_data._businessType]
@@ -318,6 +378,27 @@ export const NewApplication: React.FC = () => {
     }
     if (businessKycCategories.length > 1 && !formData.form_data._businessType) {
       errors._businessType = 'Please select your business type.';
+    }
+
+    const mobileParsed = parseIndianMobile(formData.form_data._mobileNumber);
+    if (mobileParsed.ok === false) {
+      errors._mobileNumber =
+        mobileParsed.reason === 'empty'
+          ? 'Mobile Number is required'
+          : 'Please enter a valid 10-digit Indian mobile number';
+    }
+    const emailRaw = formData.form_data._email;
+    if (emailRaw == null || (typeof emailRaw === 'string' && emailRaw.trim().length === 0)) {
+      errors._email = 'Email ID is required';
+    } else if (!isValidEmailFormat(emailRaw)) {
+      errors._email = 'Please enter a valid email address';
+    }
+    const topType = formData.form_data._typeOfPurchase;
+    if (!isValidTypeOfPurchase(topType)) {
+      errors._typeOfPurchase =
+        !topType || (typeof topType === 'string' && topType.trim().length === 0)
+          ? 'Type of Purchase is required'
+          : 'Type of Purchase must be Rental or EMI';
     }
 
     // Validate mandatory form fields from configuration (required + PAN format)
@@ -386,6 +467,9 @@ export const NewApplication: React.FC = () => {
     if (!isValidFolderLink) {
       errors._documentsFolderLink =
         'Please provide the document folder link and update the document checklist before submitting the application.';
+    } else if (!isDocumentsFolderShareAcknowledged(fd._documentsFolderShareAcknowledged)) {
+      errors._documentsFolderShareAcknowledged =
+        'Confirm that you invited our team addresses to your folder (see steps above).';
     }
 
     return { isValid: Object.keys(errors).length === 0, errors };
@@ -417,8 +501,19 @@ export const NewApplication: React.FC = () => {
         if (errorElement) {
           errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        const hasDocumentErrors = '_documentsFolderLink' in validation.errors ||
-          Object.keys(validation.errors).some((k) => k !== 'applicant_name' && k !== 'loan_product_id' && k !== 'requested_loan_amount' && k !== '_businessType');
+        const basicApplicationErrorKeys = new Set([
+          'applicant_name',
+          'loan_product_id',
+          'requested_loan_amount',
+          '_businessType',
+          '_mobileNumber',
+          '_email',
+          '_typeOfPurchase',
+        ]);
+        const hasDocumentErrors =
+          '_documentsFolderLink' in validation.errors ||
+          '_documentsFolderShareAcknowledged' in validation.errors ||
+          Object.keys(validation.errors).some((k) => !basicApplicationErrorKeys.has(k));
         const message = hasDocumentErrors
           ? 'Please provide the document folder link and update the document checklist before submitting the application.'
           : `Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`;
@@ -563,107 +658,284 @@ export const NewApplication: React.FC = () => {
     >
       <PageHero title="New Loan Application" />
       <form onSubmit={(e) => handleSubmit(e, false)}>
-        {/* How to share your documents - videos embedded in form */}
-        <Card id="how-to-share-documents" className="mb-6">
-          <CardHeader>
-            <CardTitle>How to share your documents</CardTitle>
-            <p className="text-sm text-neutral-500 mt-0.5">Create a shared folder (Google Drive or OneDrive), share it with the email below, then paste the folder link in the next section.</p>
+        {/* Documents folder: steps, visible emails, confirmation, optional tutorial videos */}
+        <Card id="documents-folder-link" className="mb-6">
+          <CardHeader className="border-l-4 border-l-brand-primary bg-brand-primary/[0.06]">
+            <div className="flex items-start gap-3">
+              <FolderOpen className="h-6 w-6 shrink-0 text-brand-primary mt-0.5" aria-hidden />
+              <div className="min-w-0">
+                <CardTitle>Documents folder (required)</CardTitle>
+                <p className="text-sm text-neutral-500 mt-0.5">
+                  We can only process your application if we can open your documents folder. Use Google Drive or OneDrive
+                  and follow the steps below.
+                </p>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-full">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-full max-w-[280px] text-center">
-                  <h3 className="text-base font-semibold text-neutral-800">Google Drive</h3>
-                  <p className="text-sm text-neutral-500 mt-0.5">Create a shared folder in Google Drive</p>
+          <CardContent className="space-y-6">
+            <ol className="space-y-5 list-none p-0 m-0">
+              <li className="flex gap-3 text-sm text-neutral-800">
+                <div className="flex flex-col items-center shrink-0 gap-1">
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
+                    aria-hidden
+                  >
+                    1
+                  </span>
+                  <FolderPlus className="h-4 w-4 text-brand-primary" aria-hidden />
                 </div>
+                <div className="min-w-0 pt-0.5">
+                  <span className="font-medium text-neutral-900">Create a folder</span> in Google Drive or Microsoft
+                  OneDrive and add your documents to it.
+                </div>
+              </li>
+              <li className="flex gap-3 text-sm text-neutral-800">
+                <div className="flex flex-col items-center shrink-0 gap-1">
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
+                    aria-hidden
+                  >
+                    2
+                  </span>
+                  <Share2 className="h-4 w-4 text-brand-primary" aria-hidden />
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <span className="font-medium text-neutral-900">Share the folder with our team.</span> Invite the correct
+                  address for the product you use (Viewer or Editor access is fine—do not rely on &quot;anyone with the
+                  link&quot; unless you have been told to).
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 not-prose">
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2 transition-all duration-200 hover:border-brand-primary/50 hover:shadow-sm hover:bg-white focus-within:ring-2 focus-within:ring-brand-primary/30 focus-within:border-brand-primary/40">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Google Drive</p>
+                      <p className="font-mono text-sm text-neutral-900 break-all">{GOOGLE_DRIVE_SHARE_EMAIL}</p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        icon={Copy}
+                        onClick={() => handleCopyShareEmail('google')}
+                        aria-label="Copy Google Drive share email to clipboard"
+                        title="Copies this address—paste it into the Share dialog in Google Drive."
+                        data-testid="copy-google-drive-email"
+                      >
+                        Copy Google Drive share email
+                      </Button>
+                      {copiedWhich === 'google' && <span className="text-sm text-success">Copied!</span>}
+                    </div>
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2 transition-all duration-200 hover:border-brand-primary/50 hover:shadow-sm hover:bg-white focus-within:ring-2 focus-within:ring-brand-primary/30 focus-within:border-brand-primary/40">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">OneDrive</p>
+                      <p className="font-mono text-sm text-neutral-900 break-all">{ONEDRIVE_SHARE_EMAIL}</p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        icon={Copy}
+                        onClick={() => handleCopyShareEmail('onedrive')}
+                        aria-label="Copy OneDrive share email to clipboard"
+                        title="Copies this address—paste it into the Share dialog in OneDrive."
+                        data-testid="copy-onedrive-email"
+                      >
+                        Copy OneDrive share email
+                      </Button>
+                      {copiedWhich === 'onedrive' && <span className="text-sm text-success">Copied!</span>}
+                    </div>
+                  </div>
+                </div>
+              </li>
+              <li className="flex gap-3 text-sm text-neutral-800">
+                <div className="flex flex-col items-center shrink-0 gap-1">
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
+                    aria-hidden
+                  >
+                    3
+                  </span>
+                  <Link2 className="h-4 w-4 text-brand-primary" aria-hidden />
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <span className="font-medium text-neutral-900">Copy the folder link</span> from Drive or OneDrive (the
+                  link should open the folder, not a single file).
+                </div>
+              </li>
+              <li className="flex gap-3 text-sm text-neutral-800">
+                <div className="flex flex-col items-center shrink-0 gap-1">
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
+                    aria-hidden
+                  >
+                    4
+                  </span>
+                  <CheckSquare className="h-4 w-4 text-brand-primary" aria-hidden />
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <span className="font-medium text-neutral-900">Paste that link</span> in the field below and confirm the
+                  checkbox.
+                </div>
+              </li>
+            </ol>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <details className="group rounded-lg border border-neutral-200 bg-white open:shadow-sm">
+                <summary className="cursor-pointer list-none px-3 py-2 rounded-md text-sm font-medium text-brand-primary outline-none transition-colors hover:bg-neutral-50 hover:underline [&::-webkit-details-marker]:hidden flex items-center justify-between focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2">
+                  Watch: Google Drive tutorial
+                  <span className="text-neutral-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
                 <div
                   data-video-slot="google-drive"
-                  className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
+                  className="aspect-[9/16] max-h-[50vh] w-full max-w-[280px] mx-auto bg-neutral-100 border-t border-neutral-200 overflow-hidden"
                 >
                   <video
                     controls
                     playsInline
                     muted
                     loop
-                    className="w-full h-full object-contain rounded-lg"
+                    className="w-full h-full object-contain"
                     title="How to create a shared folder in Google Drive"
                   >
                     <source src="/videos/drive.mp4" type="video/mp4" />
                     <p className="text-sm text-neutral-500 p-4">Video not available</p>
                   </video>
                 </div>
-                <div className="flex flex-col items-center gap-1 w-full max-w-[280px]">
-                  <p className="text-sm font-medium text-neutral-700 w-full text-center">Share folder with this email:</p>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    icon={Copy}
-                    onClick={() => handleCopyShareEmail('google')}
-                    aria-label="Copy Google Drive share email to clipboard"
-                    data-testid="copy-google-drive-email"
-                  >
-                    Copy Google Drive share email
-                  </Button>
-                  {copiedWhich === 'google' && <span className="text-sm text-success">Copied!</span>}
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-full max-w-[280px] text-center">
-                  <h3 className="text-base font-semibold text-neutral-800">OneDrive</h3>
-                  <p className="text-sm text-neutral-500 mt-0.5">Create a shared folder in OneDrive</p>
-                </div>
+              </details>
+              <details className="group rounded-lg border border-neutral-200 bg-white open:shadow-sm">
+                <summary className="cursor-pointer list-none px-3 py-2 rounded-md text-sm font-medium text-brand-primary outline-none transition-colors hover:bg-neutral-50 hover:underline [&::-webkit-details-marker]:hidden flex items-center justify-between focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2">
+                  Watch: OneDrive tutorial
+                  <span className="text-neutral-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
                 <div
                   data-video-slot="onedrive"
-                  className="aspect-[9/16] max-h-[60vh] w-full max-w-[280px] mx-auto bg-neutral-100 rounded-lg border border-neutral-200 overflow-hidden"
+                  className="aspect-[9/16] max-h-[50vh] w-full max-w-[280px] mx-auto bg-neutral-100 border-t border-neutral-200 overflow-hidden"
                 >
                   <video
                     controls
                     playsInline
                     muted
                     loop
-                    className="w-full h-full object-contain rounded-lg"
+                    className="w-full h-full object-contain"
                     title="How to create a shared folder in OneDrive"
                   >
                     <source src="/videos/onedrive.mp4" type="video/mp4" />
                     <p className="text-sm text-neutral-500 p-4">Video not available</p>
                   </video>
                 </div>
-                <div className="flex flex-col items-center gap-1 w-full max-w-[280px]">
-                  <p className="text-sm font-medium text-neutral-700 w-full text-center">Share folder with this email:</p>
+              </details>
+            </div>
+
+            {userRole === 'client' && (
+              <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-3">
+                <p className="text-sm text-neutral-700">
+                  <span className="font-medium text-neutral-900">Optional:</span> click Send to request a folder link from
+                  automation (POST to the createfolder webhook). You must still invite the Google Drive and/or OneDrive
+                  addresses above and confirm the checkbox—the link will fill in below when the response returns.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
                   <Button
                     type="button"
                     variant="secondary"
-                    size="sm"
-                    icon={Copy}
-                    onClick={() => handleCopyShareEmail('onedrive')}
-                    aria-label="Copy OneDrive share email to clipboard"
-                    data-testid="copy-onedrive-email"
+                    icon={Send}
+                    onClick={handleGenerateFolderLink}
+                    disabled={folderLinkGenerating}
+                    loading={folderLinkGenerating}
+                    aria-label="Send POST to create folder webhook and fill folder link"
+                    data-testid="send-createfolder-webhook"
                   >
-                    Copy OneDrive share email
+                    Send
                   </Button>
-                  {copiedWhich === 'onedrive' && <span className="text-sm text-success">Copied!</span>}
+                  {copiedFolderUrl && <span className="text-sm text-success">Copied!</span>}
                 </div>
+                {folderLinkError && <p className="text-sm text-error">{folderLinkError}</p>}
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            )}
 
-        {/* Documents folder link - paste Google Drive or OneDrive link */}
-        <Card id="documents-folder-link" className="mb-6">
-          <CardHeader>
-            <CardTitle>Documents Folder</CardTitle>
-            <p className="text-sm text-neutral-500 mt-0.5">Paste the link to your shared folder (Google Drive or OneDrive)</p>
-          </CardHeader>
-          <CardContent>
+            <div
+              id="_documentsFolderShareAcknowledged"
+              data-field-id="_documentsFolderShareAcknowledged"
+              data-testid="documents-folder-share-ack"
+              className={`rounded-lg border p-3 transition-colors ${fieldErrors._documentsFolderShareAcknowledged ? 'border-error bg-red-50/50' : 'border-neutral-200 bg-neutral-50/80 hover:bg-neutral-50/90'}`}
+            >
+              <Checkbox
+                checked={isDocumentsFolderShareAcknowledged(formData.form_data._documentsFolderShareAcknowledged)}
+                onChange={(checked) => {
+                  handleFieldChange('_documentsFolderShareAcknowledged', checked);
+                  if (fieldErrors._documentsFolderShareAcknowledged) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next._documentsFolderShareAcknowledged;
+                      return next;
+                    });
+                  }
+                }}
+                label="I have shared this folder with the Google Drive and/or OneDrive addresses above so Seven Fincorp can access my documents."
+                className="items-start"
+              />
+              {fieldErrors._documentsFolderShareAcknowledged && (
+                <p className="mt-2 text-sm text-error pl-6">{fieldErrors._documentsFolderShareAcknowledged}</p>
+              )}
+            </div>
+
             <Input
               id="_documentsFolderLink"
-              label="Folder Link"
+              label="Folder link"
               type="url"
+              required
               placeholder="https://drive.google.com/... or https://onedrive.live.com/..."
               value={formData.form_data._documentsFolderLink || ''}
-              onChange={(e) => handleFieldChange('_documentsFolderLink', e.target.value)}
+              onChange={(e) => {
+                handleFieldChange('_documentsFolderLink', e.target.value);
+                if (fieldErrors._documentsFolderLink) {
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    delete next._documentsFolderLink;
+                    return next;
+                  });
+                }
+              }}
+              error={fieldErrors._documentsFolderLink}
+              helperText={
+                fieldErrors._documentsFolderLink
+                  ? undefined
+                  : 'Must be a folder URL (…/folders/… or your OneDrive folder), not a link to a single file.'
+              }
+              title="Paste the shareable folder link. It should open the folder view, not one document."
             />
+
+            <details className="rounded-lg border border-amber-100 bg-amber-50/80">
+              <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm font-medium text-neutral-800 outline-none transition-colors hover:bg-amber-100/80 focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                Having trouble?
+              </summary>
+              <ul className="list-disc list-inside px-3 pb-3 pt-0 text-sm text-neutral-700 space-y-1">
+                <li>
+                  Wrong link: use the <strong>folder</strong> URL, not a link to one PDF or image.
+                </li>
+                <li>
+                  Still locked: open Sharing and ensure our addresses above are listed with access (not only a public
+                  link).
+                </li>
+                <li>
+                  Need help? Email{' '}
+                  <a href="mailto:support@sevenfincorp.com" className="text-brand-primary hover:underline">
+                    support@sevenfincorp.com
+                  </a>
+                  .
+                </li>
+              </ul>
+            </details>
+
+            <details className="rounded-lg border border-neutral-200">
+              <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm font-medium text-neutral-800 outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                Full troubleshooting (applicants)
+              </summary>
+              <div className="px-3 pb-3 pt-0 text-sm text-neutral-700 space-y-2">
+                <p>
+                  If we cannot open your folder, we cannot verify your documents. Double-check that you used a folder
+                  link from the address bar while viewing the folder, and that you invited the correct share email for
+                  Drive or OneDrive.
+                </p>
+                <p className="text-xs text-neutral-500">
+                  Internal staff: see <code className="rounded bg-neutral-100 px-1">docs/SUPPORT_DOCUMENTS_FOLDER_SHARING.md</code>{' '}
+                  in the repository for the full runbook.
+                </p>
+              </div>
+            </details>
           </CardContent>
         </Card>
 
@@ -804,6 +1076,69 @@ export const NewApplication: React.FC = () => {
                 required
                 helperText="Enter amount in Indian Rupees"
                 error={fieldErrors.requested_loan_amount}
+              />
+              <Input
+                id="_mobileNumber"
+                data-testid="basic-mobile"
+                label="Mobile Number *"
+                type="tel"
+                placeholder="10-digit mobile number"
+                value={formData.form_data._mobileNumber ?? ''}
+                onChange={(e) => {
+                  handleFieldChange('_mobileNumber', e.target.value);
+                  if (fieldErrors._mobileNumber) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next._mobileNumber;
+                      return next;
+                    });
+                  }
+                }}
+                required
+                error={fieldErrors._mobileNumber}
+              />
+              <Input
+                id="_email"
+                data-testid="basic-email"
+                label="Email ID *"
+                type="email"
+                placeholder="name@example.com"
+                value={formData.form_data._email ?? ''}
+                onChange={(e) => {
+                  handleFieldChange('_email', e.target.value);
+                  if (fieldErrors._email) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next._email;
+                      return next;
+                    });
+                  }
+                }}
+                required
+                error={fieldErrors._email}
+              />
+              <Select
+                id="_typeOfPurchase"
+                data-testid="basic-type-of-purchase"
+                label="Type of Purchase *"
+                options={[
+                  { value: '', label: 'Select type' },
+                  { value: 'Rental', label: 'Rental' },
+                  { value: 'EMI', label: 'EMI' },
+                ]}
+                value={formData.form_data._typeOfPurchase ?? ''}
+                onChange={(e) => {
+                  handleFieldChange('_typeOfPurchase', e.target.value);
+                  if (fieldErrors._typeOfPurchase) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next._typeOfPurchase;
+                      return next;
+                    });
+                  }
+                }}
+                required
+                error={fieldErrors._typeOfPurchase}
               />
             </div>
           </CardContent>

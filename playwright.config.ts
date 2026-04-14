@@ -71,7 +71,7 @@ export default defineConfig({
           command: 'cd backend && npm run dev',
           url: 'http://localhost:3001/health',
           reuseExistingServer: !process.env.CI,
-          timeout: 180 * 1000,
+          timeout: 240 * 1000, // 4 min for backend cold start (n8n, DB connections)
           env: {
             N8N_BASE_URL: process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud',
             NODE_ENV: 'development',

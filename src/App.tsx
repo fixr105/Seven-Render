@@ -15,6 +15,8 @@ import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
+import { PrivacyPage } from './pages/Privacy';
+import { TermsPage } from './pages/Terms';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminActivityLog } from './pages/AdminActivityLog';
 import { AdminUserAccounts } from './pages/AdminUserAccounts';
@@ -39,6 +41,8 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/LOGIN" element={<Navigate to="/login" replace />} />
       <Route path="/Login" element={<Navigate to="/login" replace />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
 
       <Route
         path="/dashboard"

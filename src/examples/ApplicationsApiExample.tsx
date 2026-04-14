@@ -72,10 +72,8 @@ export const ApplicationsApiExample: React.FC = () => {
         className="border rounded px-3 py-2"
       >
         <option value="">All Statuses</option>
-        <option value="draft">Draft</option>
         <option value="pending_kam_review">Pending KAM Review</option>
         <option value="forwarded_to_credit">Forwarded to Credit</option>
-        <option value="approved">Approved</option>
       </select>
 
       {/* Applications Table */}

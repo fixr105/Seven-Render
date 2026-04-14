@@ -16,6 +16,28 @@
 | `Active` | True/False |
 | `Description` | Product description |
 | `createdTime` | Record creation timestamp |
+| **`Applicable Statuses`** | **Long text.** JSON array defining which workflow statuses apply to this product and how they appear in the Applications UI. See [Applicable Statuses JSON](#applicable-statuses-json). |
+
+### Applicable Statuses JSON
+
+Add a **Long text** column named **`Applicable Statuses`** on Loan Products. The backend reads this field and exposes `applicableStatuses` on `GET /loan-products` and `GET /loan-products/:id`.
+
+**Format:** JSON array of objects:
+
+```json
+[
+  { "key": "under_kam_review", "label": "Pending KAM Review", "order": 10 },
+  { "key": "pending_credit_review", "label": "Forwarded to Credit", "order": 20 }
+]
+```
+
+- **`key`** (required): Must match a canonical `LoanStatus` value (`draft`, `under_kam_review`, `query_with_client`, `pending_credit_review`, `credit_query_with_kam`, `in_negotiation`, `sent_to_nbfc`, `approved`, `rejected`, `disbursed`, `withdrawn`, `closed`). Invalid keys are ignored.
+- **`label`** (required): Display label for filters and sorting on the Applications page.
+- **`order`** (optional): Sort order for status chips and status column sort (ascending). If omitted, array index × 10 is used.
+
+If the field is **empty or missing**, the API falls back to **all** canonical loan statuses with default labels (see `loanProductStatuses.service.ts`).
+
+**n8n:** The GET workflow for Loan Products must return the `Applicable Statuses` field so it appears in webhook payloads unchanged.
 
 ### Section Keys (Y/N – include in form or not)
 Each section is a column. Value `Y` = show in form, `N` = hide.

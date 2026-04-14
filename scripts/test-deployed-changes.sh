@@ -9,7 +9,7 @@
 # Test locally: ./scripts/test-deployed-changes.sh http://localhost:3000
 
 set -e
-BASE_URL="${1:-https://seven-dashboard-fwan6atmi-rajas-projects-e7f1e274.vercel.app}"
+BASE_URL="${1:-https://lms.sevenfincorp.com}"
 API_URL="${BASE_URL}/api"
 # Local backend (3001): health at /health (root); Vercel/frontend: health at /api/health
 if [[ "$BASE_URL" == *"localhost:3001"* ]]; then

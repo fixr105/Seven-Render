@@ -102,8 +102,8 @@ test('validateTransition - throws on invalid transition', () => {
 
 test('getStatusDisplayName - returns display name', () => {
   assert(
-    getStatusDisplayName(LoanStatus.DRAFT) === 'Draft',
-    'getStatusDisplayName returns correct display name'
+    getStatusDisplayName(LoanStatus.DRAFT) === LoanStatus.DRAFT,
+    'getStatusDisplayName returns raw id for draft'
   );
   assert(
     getStatusDisplayName(LoanStatus.UNDER_KAM_REVIEW) === 'Under KAM Review',
@@ -113,12 +113,12 @@ test('getStatusDisplayName - returns display name', () => {
 
 test('getStatusColor - returns correct color', () => {
   assert(
-    getStatusColor(LoanStatus.APPROVED) === 'success',
-    'APPROVED status returns success color'
+    getStatusColor(LoanStatus.APPROVED) === 'neutral',
+    'APPROVED status returns neutral color'
   );
   assert(
-    getStatusColor(LoanStatus.REJECTED) === 'error',
-    'REJECTED status returns error color'
+    getStatusColor(LoanStatus.REJECTED) === 'neutral',
+    'REJECTED status returns neutral color'
   );
   assert(
     getStatusColor(LoanStatus.QUERY_WITH_CLIENT) === 'warning',

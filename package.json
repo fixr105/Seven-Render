@@ -21,6 +21,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:deployed": "PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL:-https://seven-dashboard-seven.vercel.app} npx playwright test e2e/money-multiplier-form-load.spec.ts",
+    "test:e2e:report-viewer": "CI= E2E_NBFC_USERNAME=${E2E_NBFC_USERNAME:-sagar@sevenfincorp.email} E2E_NBFC_PASSWORD=${E2E_NBFC_PASSWORD:-pass@123} npm run test:e2e -- e2e/report-viewer.spec.ts --project=chromium",
     "test:deployed": "./scripts/test-deployed-changes.sh",
     "debug:client-form-mapping": "cd backend && npm run debug:client-form-mapping",
     "debug:client-form-for-email": "cd backend && npx tsx scripts/debug-client-form-for-email.ts"
@@ -32,6 +33,7 @@
     "dotenv": "^16.3.1",
     "esbuild": "^0.27.1",
     "express": "^4.18.2",
+    "html2pdf.js": "^0.14.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.344.0",
     "multer": "^2.0.2",

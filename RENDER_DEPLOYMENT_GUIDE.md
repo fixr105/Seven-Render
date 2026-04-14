@@ -60,7 +60,7 @@ CORS_ORIGIN=https://your-frontend.vercel.app
 CRON_SCHEDULE=0 0 * * *  # Daily at midnight UTC (default)
 
 # NBFC Tools - RAAD (bank statement analysis). Required for RAAD to work.
-N8N_RAAD_WEBHOOK_URL=https://fixrrahul.app.n8n.cloud/webhook/upload-bankstatement-1
+N8N_RAAD_WEBHOOK_URL=https://fixrrahul.app.n8n.cloud/webhook/big-brain-bro-1
 ```
 
 **Important Notes:**

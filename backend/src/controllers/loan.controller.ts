@@ -319,7 +319,7 @@ export class LoanController {
     console.log(`🚨 [listApplications] Request method: ${req.method}`);
     console.log(`🚨 [listApplications] User: ${req.user ? JSON.stringify(req.user) : 'NO USER'}`);
     try {
-      const { status, dateFrom, dateTo, search, unmapped } = req.query;
+      const { status, statusIn, loanProductId, dateFrom, dateTo, search, unmapped } = req.query;
       const user = req.user!;
       const unmappedOnly = unmapped === 'true' || unmapped === '1';
       
@@ -392,8 +392,31 @@ export class LoanController {
         }
       }
 
-      // Apply status filter
-      if (status) {
+      // Apply loan product filter (business Product ID, e.g. LP008)
+      if (loanProductId && String(loanProductId).trim()) {
+        const want = String(loanProductId).trim().toLowerCase();
+        filteredApplications = filteredApplications.filter((app: any) => {
+          const raw = app['Loan Product'] ?? app.productId ?? app['Product ID'] ?? '';
+          const appProduct = String(raw).trim().toLowerCase();
+          return appProduct === want || appProduct.endsWith(want) || want.endsWith(appProduct);
+        });
+      }
+
+      // Apply status filter: multi-value statusIn (comma-separated) takes precedence over single status
+      if (statusIn && String(statusIn).trim()) {
+        const allowed = new Set(
+          String(statusIn)
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+        );
+        filteredApplications = filteredApplications.filter((app: any) => {
+          const st = String(app.Status ?? app.status ?? '')
+            .trim()
+            .toLowerCase();
+          return allowed.has(st);
+        });
+      } else if (status) {
         filteredApplications = filteredApplications.filter(
           (app: any) => (app.Status === status || app.status === status)
         );
