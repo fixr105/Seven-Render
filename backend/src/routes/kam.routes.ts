@@ -24,6 +24,7 @@ router.get('/clients/:id/form-mappings', kamController.getFormMappings.bind(kamC
 router.post('/clients/:id/form-mappings', kamController.createFormMapping.bind(kamController));
 router.get('/loan-applications', kamController.listApplications.bind(kamController));
 router.post('/loan-applications/:id/edit', kamController.editApplication.bind(kamController));
+router.post('/loan-applications/:id/status', kamController.updateStatus.bind(kamController));
 router.post('/loan-applications/:id/queries', kamController.raiseQuery.bind(kamController));
 router.post('/loan-applications/:id/forward-to-credit', kamController.forwardToCredit.bind(kamController));
 router.get('/ledger', ledgerController.getKAMLedger.bind(ledgerController));

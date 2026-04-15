@@ -34,6 +34,7 @@ import {
 
 const GOOGLE_DRIVE_SHARE_EMAIL = 'automation.sevenfincorp@gmail.com';
 const ONEDRIVE_SHARE_EMAIL = 'automation@sevenfincorp.email';
+const USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY = 'seven_used_client_webhook_links';
 
 function isDocumentsFolderShareAcknowledged(value: unknown): boolean {
   return value === true || value === 'true' || value === 'yes';
@@ -112,8 +113,12 @@ export const NewApplication: React.FC = () => {
   });
   const [copiedWhich, setCopiedWhich] = useState<'google' | 'onedrive' | null>(null);
   const [folderLinkGenerating, setFolderLinkGenerating] = useState(false);
-  const [folderLinkError, setFolderLinkError] = useState<string | null>(null);
   const [copiedFolderUrl, setCopiedFolderUrl] = useState(false);
+  const [usedWebhookLinks, setUsedWebhookLinks] = useState<Set<string>>(new Set());
+  const [folderLinkStatus, setFolderLinkStatus] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -125,11 +130,27 @@ export const NewApplication: React.FC = () => {
       setCopiedWhich(which);
       setTimeout(() => setCopiedWhich(null), 2500);
     } catch {
-      alert(`Copy failed. Please copy manually: ${email}`);
+      setFolderLinkStatus({
+        type: 'error',
+        message: `Could not copy ${which === 'google' ? 'Google Drive' : 'OneDrive'} address. Please copy it manually.`,
+      });
     }
   };
 
   // Fetch on mount (including SPA navigation). Form config loads only when user selects a loan product.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setUsedWebhookLinks(new Set(parsed.filter((item) => typeof item === 'string' && item.trim() !== '')));
+      }
+    } catch {
+      // ignore parse/storage errors
+    }
+  }, []);
+
   useEffect(() => {
     if (userRole === 'client') {
       fetchClientId();
@@ -300,33 +321,80 @@ export const NewApplication: React.FC = () => {
 
   const handleGenerateFolderLink = async () => {
     if (userRole !== 'client') return;
-    setFolderLinkError(null);
+    setFolderLinkStatus(null);
     setFolderLinkGenerating(true);
     try {
-      const response = await apiService.generateDocumentsFolderLink();
-      if (!response.success || !response.data?.folderUrl) {
-        throw new Error(response.error || 'Failed to generate folder link');
+      const poolResponse = await apiService.getClientLinkPool();
+      if (!poolResponse.success || !Array.isArray(poolResponse.data)) {
+        throw new Error(poolResponse.error || 'Failed to fetch link pool');
       }
-      const url = response.data.folderUrl;
-      handleFieldChange('_documentsFolderLink', url);
+
+      const candidates = poolResponse.data
+        .map((link) => String(link).trim())
+        .filter((link) => link !== '');
+      const selectedLink = candidates.find((link) => !usedWebhookLinks.has(link));
+      if (!selectedLink) {
+        setFolderLinkStatus({
+          type: 'info',
+          message: 'No unused links are available right now. Please try again shortly.',
+        });
+        return;
+      }
+
+      const consumeResponse = await apiService.consumeClientLink(selectedLink);
+      if (!consumeResponse.success) {
+        throw new Error(consumeResponse.error || 'Failed to mark link as used');
+      }
+
+      handleFieldChange('_documentsFolderLink', selectedLink);
       setFieldErrors((prev) => {
         if (!prev._documentsFolderLink) return prev;
         const next = { ...prev };
         delete next._documentsFolderLink;
         return next;
       });
+
+      const nextUsedLinks = new Set(usedWebhookLinks);
+      nextUsedLinks.add(selectedLink);
+      setUsedWebhookLinks(nextUsedLinks);
       try {
-        await navigator.clipboard.writeText(url);
+        sessionStorage.setItem(
+          USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY,
+          JSON.stringify(Array.from(nextUsedLinks))
+        );
+      } catch {
+        // ignore storage write errors
+      }
+
+      try {
+        await navigator.clipboard.writeText(selectedLink);
         setCopiedFolderUrl(true);
         setTimeout(() => setCopiedFolderUrl(false), 2500);
       } catch {
         /* clipboard optional */
       }
+      setFolderLinkStatus({ type: 'success', message: 'Link generated and added to the folder link field.' });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to generate folder link';
-      setFolderLinkError(message);
+      setFolderLinkStatus({ type: 'error', message });
     } finally {
       setFolderLinkGenerating(false);
+    }
+  };
+
+  const handleCopyFolderLink = async () => {
+    const link = String(formData.form_data._documentsFolderLink || '').trim();
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedFolderUrl(true);
+      setTimeout(() => setCopiedFolderUrl(false), 2500);
+      setFolderLinkStatus({ type: 'success', message: 'Link copied to clipboard.' });
+    } catch {
+      setFolderLinkStatus({
+        type: 'error',
+        message: 'Could not copy the folder link. Please copy it manually from the input.',
+      });
     }
   };
 
@@ -823,9 +891,9 @@ export const NewApplication: React.FC = () => {
             {userRole === 'client' && (
               <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-3">
                 <p className="text-sm text-neutral-700">
-                  <span className="font-medium text-neutral-900">Optional:</span> click Send to request a folder link from
-                  automation (POST to the createfolder webhook). You must still invite the Google Drive and/or OneDrive
-                  addresses above and confirm the checkbox—the link will fill in below when the response returns.
+                  <span className="font-medium text-neutral-900">Optional:</span> click Generate Link to fetch the next
+                  available folder link. You must still invite the Google Drive and/or OneDrive addresses above and
+                  confirm the checkbox before submission.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
@@ -835,14 +903,26 @@ export const NewApplication: React.FC = () => {
                     onClick={handleGenerateFolderLink}
                     disabled={folderLinkGenerating}
                     loading={folderLinkGenerating}
-                    aria-label="Send POST to create folder webhook and fill folder link"
-                    data-testid="send-createfolder-webhook"
+                    aria-label="Generate and fill next available folder link"
+                    data-testid="generate-link-button"
                   >
-                    Send
+                    Generate Link
                   </Button>
                   {copiedFolderUrl && <span className="text-sm text-success">Copied!</span>}
                 </div>
-                {folderLinkError && <p className="text-sm text-error">{folderLinkError}</p>}
+                {folderLinkStatus && (
+                  <p
+                    className={`text-sm ${
+                      folderLinkStatus.type === 'error'
+                        ? 'text-error'
+                        : folderLinkStatus.type === 'success'
+                        ? 'text-success'
+                        : 'text-neutral-700'
+                    }`}
+                  >
+                    {folderLinkStatus.message}
+                  </p>
+                )}
               </div>
             )}
 
@@ -897,6 +977,19 @@ export const NewApplication: React.FC = () => {
               }
               title="Paste the shareable folder link. It should open the folder view, not one document."
             />
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                icon={Copy}
+                onClick={handleCopyFolderLink}
+                disabled={!String(formData.form_data._documentsFolderLink || '').trim()}
+                data-testid="copy-folder-link"
+              >
+                Copy Link
+              </Button>
+              {copiedFolderUrl && <span className="text-sm text-success">Copied!</span>}
+            </div>
 
             <details className="rounded-lg border border-amber-100 bg-amber-50/80">
               <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm font-medium text-neutral-800 outline-none transition-colors hover:bg-amber-100/80 focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">

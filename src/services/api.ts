@@ -481,8 +481,9 @@ class ApiService {
 
       // Track error for monitoring
       if (error instanceof Error) {
+        const currentUrl = typeof window !== 'undefined' ? window.location.href : 'non-browser-context';
         errorTracker.captureException(error, {
-          url: window.location.href,
+          url: currentUrl,
           metadata: {
             endpoint,
             baseUrl: currentBase,
@@ -739,14 +740,19 @@ class ApiService {
   }
 
   /**
-   * Generate documents folder URL via n8n createfolder webhook (client only).
+   * Fetch webhook-provided link pool (client scoped endpoint).
    */
-  async generateDocumentsFolderLink(
-    applicationId?: string
-  ): Promise<ApiResponse<{ folderUrl: string; nid: string }>> {
-    return this.request<{ folderUrl: string; nid: string }>('/client/documents-folder-link', {
+  async getClientLinkPool(): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>('/client/link-pool');
+  }
+
+  /**
+   * Mark selected webhook link as consumed for client flow.
+   */
+  async consumeClientLink(link: string): Promise<ApiResponse<{ link: string; marked: boolean }>> {
+    return this.request<{ link: string; marked: boolean }>('/client/link-pool/consume', {
       method: 'POST',
-      body: JSON.stringify(applicationId ? { applicationId } : {}),
+      body: JSON.stringify({ link }),
     });
   }
 
@@ -1232,6 +1238,20 @@ class ApiService {
   async forwardToCredit(applicationId: string): Promise<ApiResponse> {
     return this.request(`/kam/loan-applications/${applicationId}/forward-to-credit`, {
       method: 'POST',
+    });
+  }
+
+  /**
+   * Update application status (KAM)
+   */
+  async updateKAMApplicationStatus(
+    applicationId: string,
+    status: string,
+    notes?: string
+  ): Promise<ApiResponse> {
+    return this.request(`/kam/loan-applications/${applicationId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, notes }),
     });
   }
 

@@ -69,11 +69,14 @@ export const TopBar: React.FC<TopBarProps> = ({
 
     if (notification.actionLink && typeof notification.actionLink === 'string') {
       const link = notification.actionLink.trim();
-      if (link && !link.startsWith('http://') && !link.startsWith('https://')) {
-        const trimmed = link.replace(/\/$/, '');
-        if (trimmed !== '/applications' && !trimmed.endsWith('/applications/')) {
-          target = link;
-        }
+      const lower = link.toLowerCase();
+      const isExternal = lower.startsWith('http://') || lower.startsWith('https://');
+      const isJavaScriptScheme = lower.startsWith('javascript:');
+      const isInternalRoute = link.startsWith('/') && !link.startsWith('//');
+
+      // Allow only internal app routes from notifications.
+      if (link && !isExternal && !isJavaScriptScheme && isInternalRoute) {
+        target = link;
       }
     } else if (notification.relatedFile) {
       const fileId = String(notification.relatedFile).trim();

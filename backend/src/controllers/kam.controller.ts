@@ -5,7 +5,7 @@
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { invalidateRbacRequestCache } from '../services/rbac/rbacFilter.service.js';
-import { LoanStatus, LenderDecisionStatus } from '../config/constants.js';
+import { LoanStatus, LenderDecisionStatus, UserRole } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
@@ -1391,6 +1391,119 @@ export class KAMController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to forward application',
+      });
+    }
+  }
+
+  /**
+   * POST /kam/loan-applications/:id/status
+   * Update application status (KAM only, state-machine validated)
+   */
+  async updateStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { status: newStatusRaw, notes } = req.body;
+
+      if (!newStatusRaw || typeof newStatusRaw !== 'string') {
+        res.status(400).json({ success: false, error: 'Status is required' });
+        return;
+      }
+
+      // Bypass cache so validation checks against the latest status
+      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const application = applications.find((app: any) => app.id === id);
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      // Enforce RBAC: KAM can only update managed-client applications
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const filtered = await rbacFilterService.filterLoanApplications([application as any], req.user!);
+      if (filtered.length === 0) {
+        res.status(403).json({ success: false, error: 'Access denied' });
+        return;
+      }
+
+      const { validateTransition, normalizeToCanonicalStatus, toUserRole } = await import('../services/statusTracking/statusStateMachine.js');
+      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+
+      let previousStatus: LoanStatus;
+      let newStatus: LoanStatus;
+      try {
+        previousStatus = normalizeToCanonicalStatus((application.Status ?? '').toString());
+        newStatus = normalizeToCanonicalStatus(newStatusRaw);
+      } catch (normErr: any) {
+        res.status(400).json({
+          success: false,
+          error: normErr.message || 'Invalid status',
+        });
+        return;
+      }
+
+      const role = toUserRole(req.user!.role);
+      if (role !== UserRole.KAM) {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      try {
+        validateTransition(previousStatus, newStatus, role);
+      } catch (transitionError: any) {
+        res.status(400).json({
+          success: false,
+          error: transitionError.message || 'Invalid status transition',
+        });
+        return;
+      }
+
+      await n8nClient.postLoanApplication({
+        ...application,
+        Status: newStatus,
+        'Last Updated': new Date().toISOString(),
+      });
+
+      await recordStatusChange(
+        req.user!,
+        application['File ID'],
+        previousStatus,
+        newStatus,
+        notes || `Status updated to ${newStatus}`
+      );
+
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: application['File ID'],
+        Timestamp: new Date().toISOString(),
+        Actor: req.user!.email,
+        'Action/Event Type': 'status_change',
+        'Details/Message': notes || `Status changed from ${previousStatus} to ${newStatus}`,
+        'Target User/Role': 'credit_team',
+        Resolved: 'False',
+      });
+
+      await logAdminActivity(req.user!, {
+        actionType: AdminActionType.UPDATE_APPLICATION,
+        description: notes || `Updated application status from ${previousStatus} to ${newStatus}`,
+        targetEntity: 'loan_application',
+        relatedFileId: application['File ID'],
+        metadata: {
+          previousStatus,
+          newStatus,
+        },
+      }).catch((err) => {
+        console.error('[kam.updateStatus] Failed to log admin activity:', err);
+      });
+
+      res.json({
+        success: true,
+        message: 'Status updated successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to update status',
       });
     }
   }

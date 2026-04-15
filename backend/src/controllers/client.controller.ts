@@ -6,7 +6,145 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus } from '../config/constants.js';
 
+const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink';
+const WEBHOOK_MAX_ATTEMPTS = 3;
+const WEBHOOK_INITIAL_BACKOFF_MS = 300;
+
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+type RetryResult =
+  | { response: globalThis.Response; error?: never }
+  | { response?: never; error: Error };
+
+async function callWebhookWithRetry(
+  factory: () => Promise<globalThis.Response>,
+  options?: { retryOn4xx?: boolean }
+): Promise<RetryResult> {
+  let backoffMs = WEBHOOK_INITIAL_BACKOFF_MS;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= WEBHOOK_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await factory();
+      const shouldRetryStatus =
+        response.status >= 500 || ((options?.retryOn4xx ?? false) && response.status >= 400);
+
+      if (response.ok || !shouldRetryStatus || attempt === WEBHOOK_MAX_ATTEMPTS) {
+        return { response };
+      }
+    } catch (error: any) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt === WEBHOOK_MAX_ATTEMPTS) {
+        return { error: lastError };
+      }
+    }
+
+    await sleep(backoffMs);
+    backoffMs *= 2;
+  }
+
+  return { error: lastError ?? new Error('Webhook request failed') };
+}
+
 export class ClientController {
+  /**
+   * GET /client/link-pool
+   * Fetch candidate links from webhook and normalize to string[].
+   */
+  async getLinkPool(_req: Request, res: Response): Promise<void> {
+    try {
+      const attemptResult = await callWebhookWithRetry(
+        () => fetch(GETLINK_WEBHOOK_URL, { method: 'GET' }),
+        { retryOn4xx: false }
+      );
+      if (attemptResult.error) {
+        throw attemptResult.error;
+      }
+      const response = attemptResult.response;
+      if (!response.ok) {
+        res.status(502).json({
+          success: false,
+          error: `Failed to fetch link pool (${response.status})`,
+        });
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      const links = Array.isArray(payload)
+        ? payload
+            .map((item) => (typeof item === 'string' ? item.trim() : ''))
+            .filter((item) => item !== '')
+        : [];
+
+      res.json({
+        success: true,
+        data: links,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch link pool',
+      });
+    }
+  }
+
+  /**
+   * POST /client/link-pool/consume
+   * Mark selected link as consumed in webhook.
+   */
+  async consumeLink(req: Request, res: Response): Promise<void> {
+    try {
+      const { link } = req.body ?? {};
+      if (!link || typeof link !== 'string' || !link.trim()) {
+        res.status(400).json({
+          success: false,
+          error: 'link is required',
+        });
+        return;
+      }
+
+      const webhookAttempt = await callWebhookWithRetry(
+        () =>
+          fetch(GETLINK_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'YES',
+              link: link.trim(),
+            }),
+          }),
+        { retryOn4xx: false }
+      );
+      if (webhookAttempt.error) {
+        throw webhookAttempt.error;
+      }
+      const webhookResponse = webhookAttempt.response;
+
+      if (!webhookResponse.ok) {
+        const responseText = await webhookResponse.text().catch(() => '');
+        res.status(502).json({
+          success: false,
+          error: responseText || `Failed to mark link used (${webhookResponse.status})`,
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          link: link.trim(),
+          marked: true,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to mark link used',
+      });
+    }
+  }
+
   /**
    * GET /client/dashboard
    */

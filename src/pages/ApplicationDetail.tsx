@@ -17,6 +17,7 @@ import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
 import { getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
+import { useLoanProductApplicableStatuses } from '../hooks/useLoanProductApplicableStatuses';
 
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
@@ -100,7 +101,6 @@ export const ApplicationDetail: React.FC = () => {
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [submittingReplyForId, setSubmittingReplyForId] = useState<string | null>(null);
   const [fieldIdToLabel, setFieldIdToLabel] = useState<Record<string, string>>({});
-
   const QUERY_EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
   /** Map old file values to human-readable for display */
@@ -176,6 +176,10 @@ export const ApplicationDetail: React.FC = () => {
         return null;
       })()
     : null;
+  const {
+    statuses: productApplicableStatuses,
+    loading: productStatusesLoading,
+  } = useLoanProductApplicableStatuses(productIdForConfig);
 
   useEffect(() => {
     if (!application || !productIdForConfig) return;
@@ -544,6 +548,8 @@ export const ApplicationDetail: React.FC = () => {
         response = await apiService.withdrawApplication(id);
       } else if (userRole === 'kam' && (newStatus === 'forwarded_to_credit' || newStatus === 'pending_credit_review')) {
         response = await apiService.forwardToCredit(id);
+      } else if (userRole === 'kam') {
+        response = await apiService.updateKAMApplicationStatus(id, newStatus, statusNotes);
       } else if (userRole === 'credit_team') {
         if (newStatus === 'in_negotiation') {
           response = await apiService.markInNegotiation(id);
@@ -585,20 +591,10 @@ export const ApplicationDetail: React.FC = () => {
 
   // Role and status-aware options. Filter by allowedNextStatuses from backend (state machine); for Credit, exclude sent_to_nbfc (use Assign to NBFC section only).
   const statusOptions = (() => {
-    const allOptions = [
-      { value: 'draft', label: 'draft' },
-      { value: 'under_kam_review', label: 'Submitted / Pending KAM Review' },
-      { value: 'query_with_client', label: 'KAM Query Raised' },
-      { value: 'pending_credit_review', label: 'Forwarded to Credit' },
-      { value: 'credit_query_with_kam', label: 'Credit Query Raised' },
-      { value: 'in_negotiation', label: 'In Negotiation' },
-      { value: 'sent_to_nbfc', label: 'Sent to NBFC' },
-      { value: 'approved', label: 'approved' },
-      { value: 'rejected', label: 'rejected' },
-      { value: 'disbursed', label: 'disbursed' },
-      { value: 'withdrawn', label: 'Withdrawn' },
-      { value: 'closed', label: 'Closed/Archived' },
-    ];
+    const allOptions = productApplicableStatuses.map((statusEntry) => ({
+      value: statusEntry.key,
+      label: statusEntry.label || getStatusDisplayNameForViewer(statusEntry.key, userRole || ''),
+    }));
     const currentStatus = (application?.status || application?.Status || '').toString().toLowerCase();
     if (userRole === 'client' && currentStatus === 'draft') {
       return [
@@ -621,6 +617,7 @@ export const ApplicationDetail: React.FC = () => {
     }
     return options;
   })();
+  const statusDropdownDisabled = !productStatusesLoading && statusOptions.length === 0;
 
   if (loading) {
     return (
@@ -1189,7 +1186,7 @@ export const ApplicationDetail: React.FC = () => {
                   folderShareAck === true ||
                   folderShareAck === 'true' ||
                   folderShareAck === 'yes';
-                return !formDataToShow || Object.keys(formDataToShow).length === 0 ? (
+                return (!formDataToShow || Object.keys(formDataToShow).length === 0) ? (
                   <p className="text-center text-neutral-500 py-6">No form data recorded</p>
                 ) : (
                   <div className="space-y-3">
@@ -1986,6 +1983,12 @@ export const ApplicationDetail: React.FC = () => {
               options={statusOptions}
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value)}
+              disabled={statusDropdownDisabled}
+              helperText={
+                statusDropdownDisabled
+                  ? 'No statuses configured for this loan product. Please add Applicable Statuses in Loan Products.'
+                  : undefined
+              }
               required
             />
             <TextArea
@@ -2004,7 +2007,7 @@ export const ApplicationDetail: React.FC = () => {
           <Button
             variant="primary"
             onClick={handleUpdateStatus}
-            disabled={!newStatus || submitting}
+            disabled={!newStatus || submitting || statusDropdownDisabled}
             loading={submitting}
           >
             Update Status

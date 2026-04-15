@@ -22,8 +22,6 @@
     "create:users": "node scripts/create-production-users.js",
     "create:nbfc": "node scripts/create-nbfc-partners.js",
     "create:nbfc-user": "node scripts/create-nbfc-user.js",
-    "create:nbfc-user": "node scripts/create-nbfc-user.js",
-    "create:nbfc-user": "node scripts/create-nbfc-user.js",
     "generate:mapping": "node scripts/generate-loan-product-field-mapping.js",
     "create:products": "node scripts/create-loan-products.js",
     "seed:lp008-docs": "node scripts/seed-product-documents-lp008.js",
