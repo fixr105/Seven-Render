@@ -6,7 +6,7 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus } from '../config/constants.js';
 
-const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink';
+const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink0';
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_INITIAL_BACKOFF_MS = 300;
 
@@ -47,6 +47,40 @@ async function callWebhookWithRetry(
   return { error: lastError ?? new Error('Webhook request failed') };
 }
 
+/**
+ * n8n "Respond to Webhook" for Google Sheets rows returns an array of objects
+ * (e.g. Used, Links). Plain string[] is still accepted for backwards compatibility.
+ */
+function normalizeLinkPoolPayload(payload: unknown): string[] {
+  const raw = (() => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
+      return (payload as { data: unknown[] }).data;
+    }
+    return null;
+  })();
+  if (!raw) return [];
+
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      const t = item.trim();
+      if (t) out.push(t);
+      continue;
+    }
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const used = String(row.Used ?? row.used ?? '').trim().toUpperCase();
+    if (used === 'YES') continue;
+    const linkVal = row.Links ?? row.links ?? row.Link ?? row.link;
+    if (typeof linkVal === 'string') {
+      const t = linkVal.trim();
+      if (t) out.push(t);
+    }
+  }
+  return out;
+}
+
 export class ClientController {
   /**
    * GET /client/link-pool
@@ -71,11 +105,7 @@ export class ClientController {
       }
 
       const payload = await response.json().catch(() => null);
-      const links = Array.isArray(payload)
-        ? payload
-            .map((item) => (typeof item === 'string' ? item.trim() : ''))
-            .filter((item) => item !== '')
-        : [];
+      const links = normalizeLinkPoolPayload(payload);
 
       res.json({
         success: true,
