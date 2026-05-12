@@ -95,6 +95,21 @@ async function fetchVehicleRows(): Promise<Array<Record<string, unknown>>> {
   return [];
 }
 
+async function resolveProductMatchValues(productId: string): Promise<Set<string>> {
+  const values = new Set<string>([normalizeLower(productId)]);
+  const products = (await n8nClient.fetchTable('Loan Products')) as Array<Record<string, unknown>>;
+  const matchingProduct = products.find((product) =>
+    normalizeLower(pickFirst(product, ['Product ID', 'productId', 'id'])) === normalizeLower(productId)
+  );
+  if (!matchingProduct) return values;
+
+  for (const value of pickAll(matchingProduct, ['Product Name', 'productName', 'Name', 'name'])) {
+    const normalized = normalizeLower(value);
+    if (normalized) values.add(normalized);
+  }
+  return values;
+}
+
 function parseVehicleRecord(record: Record<string, unknown>): VehicleOption | null {
   const vehicleId = pickFirst(record, ['Vehicle ID', 'vehicleId', 'id']);
   const make = pickFirst(record, ['Make', 'make', 'Maker', 'maker', 'Brand', 'brand']);
@@ -116,23 +131,23 @@ function parseVehicleRecord(record: Record<string, unknown>): VehicleOption | nu
   return { vehicleId, make, model, requestedLoanAmount };
 }
 
-function isProductAllowed(record: Record<string, unknown>, productId: string): boolean {
-  const normalizedProductId = normalizeLower(productId);
+function isProductAllowed(record: Record<string, unknown>, productMatches: Set<string>): boolean {
   const directProducts = pickAll(record, ['Product ID', 'productId', 'Loan Product', 'loanProduct'])
     .flatMap((value) => splitMultiValue(value))
     .map((item) => normalizeLower(item));
-  if (directProducts.includes(normalizedProductId)) return true;
+  if (directProducts.some((product) => productMatches.has(product))) return true;
 
-  const allowedProducts = splitMultiValue(
-    pickFirst(record, ['Allowed Products', 'allowedProducts', 'Products', 'products'])
-  ).map((item) => normalizeLower(item));
+  const allowedProducts = pickAll(record, ['Allowed Products', 'allowedProducts', 'Products', 'products'])
+    .flatMap((value) => splitMultiValue(value))
+    .map((item) => normalizeLower(item));
   if (allowedProducts.length === 0) return directProducts.length === 0;
-  return allowedProducts.includes(normalizedProductId);
+  return allowedProducts.some((product) => productMatches.has(product));
 }
 
 function isClientAllowed(record: Record<string, unknown>, clientId: string): boolean {
-  const allowedClients = splitMultiValue(
-    pickFirst(record, [
+  const allowedClients = pickAll(
+    record,
+    [
       'Allowed Clients',
       'allowedClients',
       'Client IDs',
@@ -140,8 +155,10 @@ function isClientAllowed(record: Record<string, unknown>, clientId: string): boo
       'Client ID',
       'clientId',
       'Clients',
-    ])
-  ).map((item) => normalizeLower(item));
+    ]
+  )
+    .flatMap((value) => splitMultiValue(value))
+    .map((item) => normalizeLower(item));
   if (allowedClients.length === 0) return true;
   return allowedClients.includes(normalizeLower(clientId));
 }
@@ -152,11 +169,12 @@ export async function getClientVehicleOptions(
 ): Promise<VehicleOption[]> {
   await assertClientProductAssigned(user, productId);
   const { clientId } = await resolveClientAssignedProducts(user);
+  const productMatches = await resolveProductMatchValues(productId);
   const rows = await fetchVehicleRows();
 
   const result: VehicleOption[] = [];
   for (const row of rows as Array<Record<string, unknown>>) {
-    if (!isProductAllowed(row, productId)) continue;
+    if (!isProductAllowed(row, productMatches)) continue;
     if (!isClientAllowed(row, clientId)) continue;
     const parsed = parseVehicleRecord(row);
     if (parsed) result.push(parsed);

@@ -247,6 +247,116 @@ describe('ClientController.getVehicles', () => {
     });
   });
 
+  it('matches vehicles when Allowed Products is returned as a linked-record array', async () => {
+    mockRequest = {
+      user: {
+        role: 'client',
+        email: 'client@example.com',
+        clientId: 'CL001',
+      } as any,
+      query: { productId: 'LP015' },
+    };
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      if (tableName === 'Clients') {
+        return [
+          {
+            id: 'recClient',
+            'Client ID': 'CL001',
+            'Assigned Products': 'LP014,LP015',
+            'Contact Email/Phone': 'client@example.com',
+          },
+        ];
+      }
+      if (tableName === 'Vehicles') {
+        return [
+          {
+            id: 'veh-1',
+            'Vehicle ID': 'VEH015',
+            Make: 'Ashok Leyland',
+            Model: 'Dost',
+            'Requested Loan Amount': '650000',
+            'Allowed Products': ['LP014', 'LP015'],
+            'Allowed Clients': ['CL999', 'CL001'],
+          },
+        ];
+      }
+      return [];
+    });
+
+    await controller.getVehicles(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: [
+        {
+          vehicleId: 'VEH015',
+          make: 'Ashok Leyland',
+          model: 'Dost',
+          requestedLoanAmount: '650000',
+        },
+      ],
+    });
+  });
+
+  it('matches vehicle Products names to the selected product ID via Loan Products', async () => {
+    mockRequest = {
+      user: {
+        role: 'client',
+        email: 'client@example.com',
+        clientId: 'CL001',
+      } as any,
+      query: { productId: 'LP015' },
+    };
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      if (tableName === 'Clients') {
+        return [
+          {
+            id: 'recClient',
+            'Client ID': 'CL001',
+            'Assigned Products': 'LP015',
+            'Contact Email/Phone': 'client@example.com',
+          },
+        ];
+      }
+      if (tableName === 'Loan Products') {
+        return [
+          {
+            id: 'recProduct',
+            'Product ID': 'LP015',
+            'Product Name': 'B2C EV',
+          },
+        ];
+      }
+      if (tableName === 'Vehicles') {
+        return [
+          {
+            id: 'recVehicle',
+            'Vehicle ID': 'VH001',
+            Make: 'Quantum Energy',
+            Model: 'Go',
+            'Funding Amount': 58450,
+            Products: ['B2C EV', 'B2B EV', 'RBF (EV)', 'Flipkart B2B', 'Flipkart B2C'],
+          },
+        ];
+      }
+      return [];
+    });
+
+    await controller.getVehicles(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: [
+        {
+          vehicleId: 'VH001',
+          make: 'Quantum Energy',
+          model: 'Go',
+          requestedLoanAmount: '58450',
+        },
+      ],
+    });
+  });
+
   it('returns an empty JSON vehicle list when no mapped vehicles exist', async () => {
     mockRequest = {
       user: {
