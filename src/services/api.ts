@@ -38,6 +38,11 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+export interface ClientLinkPoolItem {
+  link: string;
+  status?: string;
+}
+
 export interface PrioritizedNBFCAssignment {
   nbfcId: string;
   priority: number;
@@ -773,8 +778,8 @@ class ApiService {
   /**
    * Fetch webhook-provided link pool (client scoped endpoint).
    */
-  async getClientLinkPool(): Promise<ApiResponse<string[]>> {
-    return this.request<string[]>('/client/link-pool');
+  async getClientLinkPool(): Promise<ApiResponse<Array<string | ClientLinkPoolItem>>> {
+    return this.request<Array<string | ClientLinkPoolItem>>('/client/link-pool');
   }
 
   /**

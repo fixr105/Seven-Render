@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { Request, Response } from 'express';
 import { ClientController } from '../client.controller.js';
 import { n8nClient } from '../../services/airtable/n8nClient.js';
@@ -9,6 +9,45 @@ jest.mock('../../services/airtable/n8nClient.js', () => ({
   },
 }));
 const mockN8nClientInstance = n8nClient as any;
+
+describe('ClientController.getLinkPool', () => {
+  let controller: ClientController;
+  let mockResponse: any;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    controller = new ClientController();
+    jest.clearAllMocks();
+    mockResponse = {} as any;
+    mockResponse.status = jest.fn().mockReturnValue(mockResponse);
+    mockResponse.json = jest.fn().mockReturnValue(mockResponse);
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('returns link pool rows with status metadata', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      text: async () =>
+        JSON.stringify([
+          { Links: 'https://drive.google.com/drive/folders/used-1', Status: 'YES' },
+          { Links: 'https://drive.google.com/drive/folders/available-1', Status: '' },
+        ]),
+    } as unknown as globalThis.Response)) as unknown as typeof fetch;
+
+    await controller.getLinkPool({} as Request, mockResponse as Response);
+
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: [
+        { link: 'https://drive.google.com/drive/folders/used-1', status: 'YES' },
+        { link: 'https://drive.google.com/drive/folders/available-1', status: '' },
+      ],
+    });
+  });
+});
 
 describe('ClientController.getConfiguredProducts', () => {
   let controller: ClientController;

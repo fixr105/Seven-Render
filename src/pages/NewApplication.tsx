@@ -16,7 +16,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { apiService } from '../services/api';
+import { apiService, type ClientLinkPoolItem } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
@@ -29,6 +29,22 @@ import {
 } from '../utils/basicApplicationFieldsValidation';
 
 const USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY = 'seven_used_client_webhook_links';
+
+type NormalizedLinkPoolItem = {
+  link: string;
+  status: string;
+};
+
+const normalizeLinkPoolItem = (item: string | ClientLinkPoolItem): NormalizedLinkPoolItem => {
+  if (typeof item === 'string') {
+    return { link: item.trim(), status: '' };
+  }
+
+  return {
+    link: String(item.link || '').trim(),
+    status: String(item.status || '').trim(),
+  };
+};
 
 /** Business KYC section IDs (one of these is shown based on business type). */
 const BUSINESS_KYC_SECTION_IDS = ['section-2a', 'section-2b', 'section-2c', 'section-2d'] as const;
@@ -411,20 +427,15 @@ export const NewApplication: React.FC = () => {
       }
 
       const candidates = poolResponse.data
-        .map((link) => String(link).trim())
-        .filter((link) => link !== '');
-      const selectedLink = candidates.find((link) => !usedWebhookLinks.has(link));
+        .map(normalizeLinkPoolItem)
+        .filter((item) => item.link !== '' && item.status.toUpperCase() !== 'YES');
+      const selectedLink = candidates.find((item) => !usedWebhookLinks.has(item.link))?.link;
       if (!selectedLink) {
         setFolderLinkStatus({
           type: 'info',
           message: 'No unused links are available right now. Please try again shortly.',
         });
         return;
-      }
-
-      const consumeResponse = await apiService.consumeClientLink(selectedLink);
-      if (!consumeResponse.success) {
-        throw new Error(consumeResponse.error || 'Failed to mark link as used');
       }
 
       handleFieldChange('_documentsFolderLink', selectedLink);
@@ -434,26 +445,7 @@ export const NewApplication: React.FC = () => {
         delete next._documentsFolderLink;
         return next;
       });
-
-      const nextUsedLinks = new Set(usedWebhookLinks);
-      nextUsedLinks.add(selectedLink);
-      setUsedWebhookLinks(nextUsedLinks);
-      try {
-        sessionStorage.setItem(
-          USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY,
-          JSON.stringify(Array.from(nextUsedLinks))
-        );
-      } catch {
-        // ignore storage write errors
-      }
-
-      try {
-        await navigator.clipboard.writeText(selectedLink);
-        setCopiedFolderUrl(true);
-        setTimeout(() => setCopiedFolderUrl(false), 2500);
-      } catch {
-        /* clipboard optional */
-      }
+      setCopiedFolderUrl(false);
       setFolderLinkStatus({ type: 'success', message: 'Link generated and added to the folder link field.' });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to generate folder link';
@@ -463,28 +455,55 @@ export const NewApplication: React.FC = () => {
     }
   };
 
+  const markFolderLinkUsed = async (link: string) => {
+    if (usedWebhookLinks.has(link)) return;
+
+    const consumeResponse = await apiService.consumeClientLink(link);
+    if (!consumeResponse.success) {
+      throw new Error(consumeResponse.error || 'Failed to mark link as used');
+    }
+
+    const nextUsedLinks = new Set(usedWebhookLinks);
+    nextUsedLinks.add(link);
+    setUsedWebhookLinks(nextUsedLinks);
+    try {
+      sessionStorage.setItem(
+        USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY,
+        JSON.stringify(Array.from(nextUsedLinks))
+      );
+    } catch {
+      // ignore storage write errors
+    }
+  };
+
   const handleCopyFolderLink = async () => {
     const link = String(formData.form_data._documentsFolderLink || '').trim();
     if (!link) return;
     try {
+      await markFolderLinkUsed(link);
       await navigator.clipboard.writeText(link);
       setCopiedFolderUrl(true);
       setTimeout(() => setCopiedFolderUrl(false), 2500);
       setFolderLinkStatus({ type: 'success', message: 'Link copied to clipboard.' });
-    } catch {
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Could not copy the folder link. Please copy it manually from the input.';
       setFolderLinkStatus({
         type: 'error',
-        message: 'Could not copy the folder link. Please copy it manually from the input.',
+        message,
       });
     }
   };
 
-  const handleOpenFolderLink = () => {
+  const handleOpenFolderLink = async () => {
     const link = String(formData.form_data._documentsFolderLink || '').trim();
     if (!link) return;
 
     try {
       const parsedUrl = new URL(link);
+      await markFolderLinkUsed(link);
       const opened = window.open(parsedUrl.toString(), '_blank', 'noopener,noreferrer');
       if (!opened) {
         setFolderLinkStatus({

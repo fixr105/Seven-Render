@@ -17,6 +17,8 @@ vi.mock('../../services/api', () => {
     listLoanProducts: vi.fn(),
     getConfiguredProducts: vi.fn(),
     getClientVehicles: vi.fn(),
+    getClientLinkPool: vi.fn(),
+    consumeClientLink: vi.fn(),
     validateApplicationSubmission: vi.fn(),
     createApplication: vi.fn(),
   };
@@ -115,6 +117,14 @@ describe('NewApplication Page - P0 Tests', () => {
     (apiService.getClientVehicles as any).mockResolvedValue({
       success: true,
       data: mockVehicles,
+    });
+    (apiService.getClientLinkPool as any).mockResolvedValue({
+      success: true,
+      data: [],
+    });
+    (apiService.consumeClientLink as any).mockResolvedValue({
+      success: true,
+      data: { link: 'https://drive.google.com/drive/folders/unused', marked: true },
     });
 
     (apiService.validateApplicationSubmission as any).mockResolvedValue({
@@ -240,6 +250,131 @@ describe('NewApplication Page - P0 Tests', () => {
         expect(screen.getByText('Endpoint not found: /client/vehicles?productId=LP001')).toBeInTheDocument();
       });
     }, 15000);
+  });
+
+  describe('Documents folder link generation', () => {
+    beforeEach(() => {
+      sessionStorage.clear();
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: vi.fn().mockResolvedValue(undefined) },
+        configurable: true,
+      });
+      vi.spyOn(window, 'open').mockReturnValue({ closed: false } as Window);
+    });
+
+    it('selects the first link after rows marked YES without consuming it on generate', async () => {
+      const user = userEvent.setup();
+      (apiService.getClientLinkPool as any).mockResolvedValue({
+        success: true,
+        data: [
+          { link: 'https://drive.google.com/drive/folders/used-1', status: 'YES' },
+          { link: 'https://drive.google.com/drive/folders/used-2', status: ' yes ' },
+          { link: 'https://drive.google.com/drive/folders/available-1', status: '' },
+          { link: 'https://drive.google.com/drive/folders/available-2', status: 'NO' },
+        ],
+      });
+
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await user.click(screen.getByTestId('generate-link-button'));
+
+      await waitFor(() => {
+        expect(document.getElementById('_documentsFolderLink')).toHaveValue(
+          'https://drive.google.com/drive/folders/available-1'
+        );
+      });
+      expect(apiService.consumeClientLink).not.toHaveBeenCalled();
+    });
+
+    it('marks the generated link used when Copy Link is clicked', async () => {
+      const user = userEvent.setup();
+      (apiService.getClientLinkPool as any).mockResolvedValue({
+        success: true,
+        data: [
+          { link: 'https://drive.google.com/drive/folders/used-1', status: 'YES' },
+          { link: 'https://drive.google.com/drive/folders/available-1', status: '' },
+        ],
+      });
+
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await user.click(screen.getByTestId('generate-link-button'));
+      await waitFor(() => {
+        expect(document.getElementById('_documentsFolderLink')).toHaveValue(
+          'https://drive.google.com/drive/folders/available-1'
+        );
+      });
+      await user.click(screen.getByTestId('copy-folder-link'));
+
+      await waitFor(() => {
+        expect(apiService.consumeClientLink).toHaveBeenCalledWith(
+          'https://drive.google.com/drive/folders/available-1'
+        );
+      });
+      expect(screen.queryAllByText('Link copied to clipboard.').length).toBeGreaterThan(0);
+    });
+
+    it('marks the generated link used when Open Link is clicked', async () => {
+      const user = userEvent.setup();
+      (apiService.getClientLinkPool as any).mockResolvedValue({
+        success: true,
+        data: [
+          { link: 'https://drive.google.com/drive/folders/used-1', status: 'YES' },
+          { link: 'https://drive.google.com/drive/folders/available-1', status: '' },
+        ],
+      });
+
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await user.click(screen.getByTestId('generate-link-button'));
+      await waitFor(() => {
+        expect(document.getElementById('_documentsFolderLink')).toHaveValue(
+          'https://drive.google.com/drive/folders/available-1'
+        );
+      });
+      await user.click(screen.getByTestId('open-folder-link'));
+
+      await waitFor(() => {
+        expect(apiService.consumeClientLink).toHaveBeenCalledWith(
+          'https://drive.google.com/drive/folders/available-1'
+        );
+      });
+      expect(window.open).toHaveBeenCalledWith(
+        'https://drive.google.com/drive/folders/available-1',
+        '_blank',
+        'noopener,noreferrer'
+      );
+    });
   });
 
   describe('M2-FE-001: Dynamic Form Field Rendering', () => {

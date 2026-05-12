@@ -19,18 +19,33 @@ const WEBHOOK_INITIAL_BACKOFF_MS = 300;
 const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+interface ClientLinkPoolItem {
+  link: string;
+  status: string;
+}
+
 type RetryResult =
   | { response: globalThis.Response; error?: never }
   | { response?: never; error: Error };
 
-function extractLinksFromPayload(payload: unknown): string[] {
-  const links = new Set<string>();
+function readFirstString(obj: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return '';
+}
 
-  const pushLink = (value: unknown): void => {
+function extractLinkItemsFromPayload(payload: unknown): ClientLinkPoolItem[] {
+  const items: ClientLinkPoolItem[] = [];
+
+  const pushLink = (value: unknown, status = ''): void => {
     if (typeof value !== 'string') return;
     const trimmed = value.trim();
     if (!trimmed) return;
-    links.add(trimmed);
+    items.push({ link: trimmed, status });
   };
 
   const visit = (value: unknown): void => {
@@ -46,11 +61,14 @@ function extractLinksFromPayload(payload: unknown): string[] {
     if (typeof value === 'object') {
       const obj = value as Record<string, unknown>;
       // Common n8n/google sheet field names.
-      pushLink(obj.Links);
-      pushLink(obj.links);
-      pushLink(obj.link);
-      pushLink(obj.url);
-      pushLink(obj.URL);
+      const link = readFirstString(obj, ['Links', 'links', 'link', 'url', 'URL']);
+      if (link) {
+        items.push({
+          link,
+          status: readFirstString(obj, ['Status', 'status', 'Used', 'used']),
+        });
+        return;
+      }
       // Common n8n wrappers.
       visit(obj.fields);
       visit(obj.json);
@@ -63,7 +81,7 @@ function extractLinksFromPayload(payload: unknown): string[] {
   };
 
   visit(payload);
-  return Array.from(links);
+  return items;
 }
 
 async function callWebhookWithRetry(
@@ -150,7 +168,7 @@ export class ClientController {
 
       const responseText = await response.text();
       const payload = responseText ? JSON.parse(responseText) : null;
-      let links = extractLinksFromPayload(payload);
+      let links = extractLinkItemsFromPayload(payload);
 
       // Some n8n webhook responses acknowledge async execution but do not return rows.
       if (
@@ -171,7 +189,7 @@ export class ClientController {
             if (pollAttempt.error || !pollAttempt.response.ok) continue;
             const pollText = await pollAttempt.response.text();
             const pollPayload = pollText ? JSON.parse(pollText) : null;
-            links = extractLinksFromPayload(pollPayload);
+            links = extractLinkItemsFromPayload(pollPayload);
             if (links.length > 0) break;
           }
 
