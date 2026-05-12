@@ -94,6 +94,10 @@ export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
     url: n8nEndpoints.get.userAccount,
     tableName: AIRTABLE_TABLE_NAMES.USER_ACCOUNTS,
   },
+  [AIRTABLE_TABLE_NAMES.VEHICLES]: {
+    url: n8nEndpoints.get.vehicles,
+    tableName: AIRTABLE_TABLE_NAMES.VEHICLES,
+  },
 };
 
 /**

@@ -4,7 +4,7 @@ import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Mail, Calendar, Clock, RefreshCw, AlertCircle, BarChart3, DollarSign, FileText, Users, CalendarRange } from 'lucide-react';
+import { Mail, Calendar, Clock, RefreshCw, AlertCircle, BarChart3, IndianRupee, FileText, Users, CalendarRange } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -246,7 +246,7 @@ export const Reports: React.FC = () => {
 
   const allTabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
     { id: 'daily', label: 'Daily Summary', icon: <BarChart3 className="w-4 h-4" /> as React.ReactNode },
-    { id: 'commission', label: 'Commission', icon: <DollarSign className="w-4 h-4" /> as React.ReactNode },
+    { id: 'commission', label: 'Commission', icon: <IndianRupee className="w-4 h-4" /> as React.ReactNode },
     { id: 'ledger', label: 'Ledger', icon: <FileText className="w-4 h-4" /> as React.ReactNode },
     { id: 'client-wise', label: 'Client-wise', icon: <Users className="w-4 h-4" /> as React.ReactNode },
     { id: 'date-range', label: 'Date range', icon: <CalendarRange className="w-4 h-4" /> as React.ReactNode },

@@ -11,6 +11,16 @@ import { defaultLogger } from '../utils/logger.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
+import {
+  getApplicationProductStatuses,
+  getAllowedStatusesFromProduct,
+  normalizeDynamicStatus,
+} from '../services/statusTracking/dynamicStatus.service.js';
+import {
+  ClientProductEntitlementError,
+  assertClientProductAssigned,
+} from '../services/entitlements/clientProducts.service.js';
+import { resolveRequestedLoanAmountFromVehicleSelection } from '../services/vehicles/vehicleCatalog.service.js';
 
 export class LoanController {
   /**
@@ -48,13 +58,37 @@ export class LoanController {
         applicantName, 
         requestedLoanAmount, 
         formData,
-        saveAsDraft = true 
+        saveAsDraft = true,
+        validateOnly = false,
+        clientSubmissionId,
       } = req.body;
+      await assertClientProductAssigned(req.user, productId);
 
       // Support both new format (applicantName, requestedLoanAmount, formData) and legacy format (borrowerIdentifiers)
       const finalApplicantName = applicantName || borrowerIdentifiers?.name || '';
-      const finalRequestedAmount = requestedLoanAmount || '';
       const finalFormData = formData || {};
+      let finalRequestedAmount = requestedLoanAmount ?? '';
+      const selectedVehicle = await resolveRequestedLoanAmountFromVehicleSelection(req.user, productId, {
+        vehicleId:
+          finalFormData._vehicleId ??
+          finalFormData.vehicleId ??
+          finalFormData['Vehicle ID'],
+        make:
+          finalFormData._vehicleMake ??
+          finalFormData.make ??
+          finalFormData.Make,
+        model:
+          finalFormData._vehicleModel ??
+          finalFormData.model ??
+          finalFormData.Model,
+      });
+      if (selectedVehicle) {
+        finalRequestedAmount = selectedVehicle.requestedLoanAmount;
+        finalFormData._vehicleId = selectedVehicle.vehicleId;
+        finalFormData._vehicleMake = selectedVehicle.make;
+        finalFormData._vehicleModel = selectedVehicle.model;
+        finalFormData._vehicleRequestedLoanAmount = selectedVehicle.requestedLoanAmount;
+      }
 
       // Module 2: Duplicate detection (PAN) - warn but allow
       const { checkDuplicateByPAN } = await import('../services/validation/duplicateDetection.service.js');
@@ -124,6 +158,20 @@ export class LoanController {
         }
       }
 
+      if (validateOnly) {
+        res.json({
+          success: true,
+          data: {
+            warnings: validationWarnings,
+            duplicateFound: duplicateCheck ? {
+              fileId: duplicateCheck.fileId,
+              status: duplicateCheck.status,
+            } : null,
+          },
+        });
+        return;
+      }
+
       // Build full form data to store (all fields row-wise). Include core fields so Form Data is a complete snapshot.
       const fullFormDataToStore: Record<string, unknown> = {
         applicantName: finalApplicantName,
@@ -132,14 +180,32 @@ export class LoanController {
         ...finalFormData,
       };
 
-      // Generate File ID
-      const timestamp = Date.now().toString(36).toUpperCase();
-      const fileId = `SF${timestamp.slice(-8)}`;
-      const applicationId = `APP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
       // Use loan workflow service for creating application
       // This ensures proper status setting and notifications
       const { loanWorkflowService } = await import('../services/workflow/loanWorkflow.service.js');
+
+      if (clientSubmissionId) {
+        const existing = await loanWorkflowService.findApplicationBySubmissionId(
+          req.user!.clientId!,
+          clientSubmissionId
+        );
+        if (existing) {
+          res.json({
+            success: true,
+            data: {
+              loanApplicationId: existing.id,
+              fileId: existing['File ID'] || existing.fileId,
+              status: existing.Status || existing.status,
+              warnings: validationWarnings,
+              duplicateFound: duplicateCheck ? {
+                fileId: duplicateCheck.fileId,
+                status: duplicateCheck.status,
+              } : null,
+            },
+          });
+          return;
+        }
+      }
       
       try {
         const result = await loanWorkflowService.createLoanApplication(req.user!, {
@@ -150,6 +216,11 @@ export class LoanController {
           formData: fullFormDataToStore,
           documents: '',
           saveAsDraft,
+          clientSubmissionId,
+          metadata: {
+            needsAttention: !saveAsDraft && validationWarnings.length > 0,
+            validationWarnings,
+          },
         });
 
         // Return success response
@@ -175,6 +246,9 @@ export class LoanController {
       // Fallback: Original implementation
       // Determine status - if saveAsDraft is false, set to UNDER_KAM_REVIEW, otherwise DRAFT
       const status = saveAsDraft ? LoanStatus.DRAFT : LoanStatus.UNDER_KAM_REVIEW;
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const fileId = `SF${timestamp.slice(-8)}`;
+      const applicationId = `APP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       // Module 1: Get current form config version for this client (for versioning)
       const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
@@ -194,7 +268,10 @@ export class LoanController {
         Client: req.user.clientId!,
         'Applicant Name': finalApplicantName,
         'Loan Product': productId,
-        'Requested Loan Amount': finalRequestedAmount ? String(finalRequestedAmount) : '',
+        'Requested Loan Amount':
+          finalRequestedAmount !== '' && finalRequestedAmount !== null && finalRequestedAmount !== undefined
+            ? String(finalRequestedAmount)
+            : '',
         Status: status,
         'Creation Date': new Date().toISOString().split('T')[0],
         'Last Updated': new Date().toISOString(),
@@ -205,6 +282,7 @@ export class LoanController {
         'Validation Warnings': validationWarnings.length > 0 
           ? JSON.stringify(validationWarnings) 
           : '', // Module 2: Store validation warnings
+        'Client Submission ID': clientSubmissionId || '',
       };
 
       // Add submitted date if not a draft
@@ -212,7 +290,10 @@ export class LoanController {
         applicationData['Submitted Date'] = new Date().toISOString().split('T')[0];
       }
 
-      const result = await n8nClient.postLoanApplication(applicationData);
+      await n8nClient.postLoanApplication(applicationData, {
+        strictWriteAck: true,
+        operationName: 'loan application create fallback',
+      });
 
       // Asana Integration: Create Asana task if not a draft (non-blocking)
       if (!saveAsDraft) {
@@ -289,6 +370,13 @@ export class LoanController {
         }
       }
     } catch (error: any) {
+      if (error instanceof ClientProductEntitlementError) {
+        res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+        });
+        return;
+      }
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to create application',
@@ -320,7 +408,11 @@ export class LoanController {
     console.log(`🚨 [listApplications] User: ${req.user ? JSON.stringify(req.user) : 'NO USER'}`);
     try {
       const { status, statusIn, loanProductId, dateFrom, dateTo, search, unmapped } = req.query;
-      const user = req.user!;
+      if (!req.user) {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const user = req.user;
       const unmappedOnly = unmapped === 'true' || unmapped === '1';
       
       console.log(`[listApplications] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
@@ -411,14 +503,14 @@ export class LoanController {
             .filter(Boolean)
         );
         filteredApplications = filteredApplications.filter((app: any) => {
-          const st = String(app.Status ?? app.status ?? '')
+          const st = String(app.Status ?? '')
             .trim()
             .toLowerCase();
           return allowed.has(st);
         });
       } else if (status) {
         filteredApplications = filteredApplications.filter(
-          (app: any) => (app.Status === status || app.status === status)
+          (app: any) => app.Status === status
         );
       }
 
@@ -487,7 +579,8 @@ export class LoanController {
           product: product?.['Product Name'] ?? app['Loan Product'] ?? app.loanProduct,
           productId: app['Loan Product'] || app.loanProduct,
           requestedAmount: app['Requested Loan Amount'] || app.requestedLoanAmount,
-          status: app.Status || app.status,
+          status: normalizeDynamicStatus(app.Status ?? app.status ?? ''),
+          Status: normalizeDynamicStatus(app.Status ?? app.status ?? ''),
           creationDate: app['Creation Date'] || app['Created At'] || app.creationDate,
           submittedDate: app['Submitted Date'] || app.submittedDate,
           lastUpdated: app['Last Updated'] || app.updatedAt || app.lastUpdated,
@@ -927,8 +1020,8 @@ export class LoanController {
     try {
       const { id } = req.params;
       
-      // Step 1: Fetch only applications first (cached, so minimal cost)
-      const applications = await n8nClient.fetchTable('Loan Application');
+      // Step 1: Fetch latest application snapshot for detail/status actions
+      const applications = await n8nClient.fetchTable('Loan Application', false);
 
       const application = findLoanApplicationByParamId(applications, id);
 
@@ -1048,23 +1141,12 @@ export class LoanController {
         console.log(`[getApplication] No form data for application ${application.id} (File ID: ${application['File ID']}) source: ${formDataSource}`);
       }
 
-      // Normalize status for frontend (Submit/Withdraw visibility for draft)
-      const rawStatus = application.Status || application.status || 'draft';
-      const normalizedStatus = String(rawStatus).toLowerCase().trim();
-
-      // Allowed next statuses for status dropdown (state machine; single source of truth)
-      let allowedNextStatuses: string[] = [];
-      if (req.user?.role) {
-        try {
-          const { getAllowedNextStatuses, normalizeToCanonicalStatus, toUserRole } = await import('../services/statusTracking/statusStateMachine.js');
-          const currentStatus = normalizeToCanonicalStatus(normalizedStatus);
-          const userRole = toUserRole(req.user.role);
-          const allowed = getAllowedNextStatuses(currentStatus, userRole);
-          allowedNextStatuses = allowed as string[];
-        } catch {
-          // Leave empty on error so frontend can fall back to full list or hide dropdown
-        }
-      }
+      const normalizedStatus = normalizeDynamicStatus(application.Status ?? '');
+      const productStatuses = await getApplicationProductStatuses(application as Record<string, any>);
+      const allowedNextStatuses = getAllowedStatusesFromProduct(
+        application as Record<string, any>,
+        productStatuses
+      );
 
       // Enrich with client name and Assigned KAM (resolve KAM ID to name)
       const clientId = application.Client || application['Client'];
@@ -1245,6 +1327,7 @@ export class LoanController {
       }
 
       const { id } = req.params;
+      const { clientSubmissionId } = req.body ?? {};
       // Fetch only Loan Application table
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
@@ -1323,46 +1406,11 @@ export class LoanController {
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
 
-      // Module 3: Validate status transition using state machine
-      const { validateTransition, toUserRole } = await import('../services/statusTracking/statusStateMachine.js');
-      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
-      
-      const previousStatus = application.Status as LoanStatus;
-      const newStatus = LoanStatus.UNDER_KAM_REVIEW;
-      
-      validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
-
-      // Update status - Module 1: Freeze form config version on submission
-      await n8nClient.postLoanApplication({
-        ...application,
-        Status: newStatus,
-        'Submitted Date': new Date().toISOString().split('T')[0],
-        'Last Updated': new Date().toISOString(),
-        'Form Config Version': formConfigVersion, // Module 1: Freeze version on submission
+      const { loanWorkflowService } = await import('../services/workflow/loanWorkflow.service.js');
+      const result = await loanWorkflowService.submitExistingLoanApplication(req.user!, application, {
+        formConfigVersion,
+        clientSubmissionId,
       });
-
-      // Asana Integration: Create Asana task for submitted loan (non-blocking)
-      (async () => {
-        try {
-          const { createAsanaTaskForLoan } = await import('../services/asana/asana.service.js');
-          await createAsanaTaskForLoan({
-            ...application,
-            Status: newStatus,
-            'Submitted By': req.user!.email,
-          });
-        } catch (error: any) {
-          console.error('[submitApplication] Failed to create Asana task (non-blocking):', error.message);
-        }
-      })();
-
-      // Module 3: Record status change in history
-      await recordStatusChange(
-        req.user!,
-        application['File ID'],
-        previousStatus,
-        newStatus,
-        'Application submitted by client'
-      );
 
       // Module 0: Use admin logger helper
       await logApplicationAction(
@@ -1370,12 +1418,16 @@ export class LoanController {
         AdminActionType.SUBMIT_APPLICATION,
         application['File ID'],
         'Submitted loan application',
-        { formConfigVersion, statusChange: `${previousStatus} → ${newStatus}` }
+        { formConfigVersion, statusChange: `${application.Status} → ${result.status}` }
       );
 
       res.json({
         success: true,
         message: 'Application submitted successfully',
+        data: {
+          fileId: result.fileId,
+          status: result.status,
+        },
       });
     } catch (error: any) {
       res.status(500).json({
@@ -1407,14 +1459,9 @@ export class LoanController {
         return;
       }
 
-      // Allowed statuses for withdrawal
-      const allowedStatuses = [
-        LoanStatus.DRAFT,
-        LoanStatus.UNDER_KAM_REVIEW,
-        LoanStatus.QUERY_WITH_CLIENT,
-      ];
-
-      if (!allowedStatuses.includes(application.Status as LoanStatus)) {
+      const productStatuses = await getApplicationProductStatuses(application as Record<string, any>);
+      const allowedNext = getAllowedStatusesFromProduct(application as Record<string, any>, productStatuses);
+      if (!allowedNext.includes(LoanStatus.WITHDRAWN)) {
         res.status(400).json({
           success: false,
           error: 'Application cannot be withdrawn in current status',

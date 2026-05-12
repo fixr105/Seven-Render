@@ -27,6 +27,10 @@ export interface RecentApplicationsSectionProps {
   onViewAll: () => void;
   onRowClick: (row: ApplicationRow) => void;
   onEmptyAction?: () => void;
+  /** When "brand", status pills use navy/neutral tones instead of semantic colors. */
+  statusPalette?: 'default' | 'brand';
+  /** Extra classes on the outer card (e.g. grid column span). */
+  className?: string;
 }
 
 function getStatusVariant(status: string): 'success' | 'error' | 'warning' | 'info' | 'neutral' {
@@ -35,6 +39,14 @@ function getStatusVariant(status: string): 'success' | 'error' | 'warning' | 'in
   if (s.includes('query') || s.includes('pending')) return 'warning';
   if (s.includes('forwarded') || s.includes('negotiation') || s.includes('sent')) return 'info';
   return 'neutral';
+}
+
+/** Navy-forward palette: drafts stay muted; active pipeline uses brand primary. */
+function getStatusVariantBrand(status: string): 'neutral' | 'primary' {
+  const s = status.toLowerCase();
+  if (s === 'draft') return 'neutral';
+  if (s === 'rejected' || s === 'declined') return 'neutral';
+  return 'primary';
 }
 
 function formatStatus(app: LoanApplication, role: RecentApplicationsRole): string {
@@ -105,6 +117,8 @@ export function RecentApplicationsSection({
   onViewAll,
   onRowClick,
   onEmptyAction,
+  statusPalette = 'default',
+  className = '',
 }: RecentApplicationsSectionProps) {
   const tableData = mapToTableData(applications, role);
   const emptyConfig = EMPTY_STATE_CONFIG[role];
@@ -118,13 +132,21 @@ export function RecentApplicationsSection({
     {
       key: 'status',
       label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
+      render: (value) => (
+        <Badge
+          variant={
+            statusPalette === 'brand' ? getStatusVariantBrand(String(value)) : getStatusVariant(String(value))
+          }
+        >
+          {String(value)}
+        </Badge>
+      ),
     },
     { key: 'lastUpdate', label: 'Last Update', sortable: true },
   ];
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader className="flex items-center justify-between">
         <CardTitle>Recent Applications</CardTitle>
         <Button variant="tertiary" size="sm" onClick={onViewAll}>

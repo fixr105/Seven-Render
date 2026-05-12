@@ -38,6 +38,11 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+export interface PrioritizedNBFCAssignment {
+  nbfcId: string;
+  priority: number;
+}
+
 export interface UserContext {
   id: string;
   email: string;
@@ -463,6 +468,21 @@ class ApiService {
         return errorPayload;
       }
 
+      // Respect explicit API contract even on 2xx: do not treat logical failures as success.
+      if (data && typeof data === 'object' && 'success' in data && data.success === false) {
+        const errorPayload: ApiResponse<T> = {
+          success: false,
+          error: data.error || `Request failed for ${endpoint}`,
+        };
+        if (data.missingFields !== undefined || data.formatErrors !== undefined) {
+          (errorPayload as any).data = {
+            ...(data.missingFields !== undefined && { missingFields: data.missingFields }),
+            ...(data.formatErrors !== undefined && { formatErrors: data.formatErrors }),
+          };
+        }
+        return errorPayload;
+      }
+
       const result: ApiResponse<T> & { _debug?: unknown } = {
         success: true,
         data: data.data || data,
@@ -740,6 +760,17 @@ class ApiService {
   }
 
   /**
+   * Get vehicle make/model options for a selected product (client-scoped RBAC).
+   */
+  async getClientVehicles(productId: string): Promise<
+    ApiResponse<Array<{ vehicleId: string; make: string; model: string; requestedLoanAmount: string }>>
+  > {
+    return this.request<Array<{ vehicleId: string; make: string; model: string; requestedLoanAmount: string }>>(
+      `/client/vehicles?productId=${encodeURIComponent(productId)}`
+    );
+  }
+
+  /**
    * Fetch webhook-provided link pool (client scoped endpoint).
    */
   async getClientLinkPool(): Promise<ApiResponse<string[]>> {
@@ -791,6 +822,7 @@ class ApiService {
     requestedLoanAmount?: number;
     formData?: Record<string, any>;
     saveAsDraft?: boolean;
+    clientSubmissionId?: string;
     // Legacy format support
     borrowerIdentifiers?: {
       pan?: string;
@@ -811,6 +843,32 @@ class ApiService {
     });
   }
 
+  async validateApplicationSubmission(data: {
+    productId: string;
+    applicantName?: string;
+    requestedLoanAmount?: number;
+    formData?: Record<string, any>;
+    clientSubmissionId?: string;
+    borrowerIdentifiers?: {
+      pan?: string;
+      name?: string;
+    };
+  }): Promise<ApiResponse<{
+    warnings?: string[];
+    duplicateFound?: { fileId: string; status: string } | null;
+    missingFields?: Array<{ fieldId: string; label: string }>;
+    formatErrors?: Array<{ fieldId: string; message: string }>;
+  }>> {
+    return this.request('/loan-applications', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...data,
+        saveAsDraft: false,
+        validateOnly: true,
+      }),
+    });
+  }
+
   /**
    * Update application form data
    */
@@ -827,9 +885,13 @@ class ApiService {
   /**
    * Submit application for review
    */
-  async submitApplication(applicationId: string): Promise<ApiResponse> {
+  async submitApplication(
+    applicationId: string,
+    payload?: { clientSubmissionId?: string }
+  ): Promise<ApiResponse> {
     return this.request(`/loan-applications/${applicationId}/submit`, {
       method: 'POST',
+      body: JSON.stringify(payload ?? {}),
     });
   }
 
@@ -965,26 +1027,6 @@ class ApiService {
     return this.request(`/kam/clients/${clientId}/modules`, {
       method: 'PATCH',
       body: JSON.stringify({ modules }),
-    });
-  }
-
-  /**
-   * Get product IDs assigned to a client (KAM only)
-   */
-  async getAssignedProducts(clientId: string): Promise<ApiResponse<string[]>> {
-    return this.request<string[]>(`/kam/clients/${clientId}/assigned-products`);
-  }
-
-  /**
-   * Assign products to a client (KAM only)
-   */
-  async assignProductsToClient(
-    clientId: string,
-    productIds: string[]
-  ): Promise<ApiResponse<string[]>> {
-    return this.request<string[]>(`/kam/clients/${clientId}/assigned-products`, {
-      method: 'PUT',
-      body: JSON.stringify({ productIds }),
     });
   }
 
@@ -1355,11 +1397,22 @@ class ApiService {
    */
   async assignNBFCs(
     applicationId: string,
-    nbfcIds: string[]
+    nbfcIdsOrAssignments: string[] | PrioritizedNBFCAssignment[]
   ): Promise<ApiResponse> {
+    const hasStructuredAssignments =
+      Array.isArray(nbfcIdsOrAssignments) &&
+      nbfcIdsOrAssignments.length > 0 &&
+      typeof nbfcIdsOrAssignments[0] === 'object' &&
+      nbfcIdsOrAssignments[0] !== null &&
+      'priority' in nbfcIdsOrAssignments[0];
+
+    const body = hasStructuredAssignments
+      ? { assignments: nbfcIdsOrAssignments }
+      : { nbfcIds: nbfcIdsOrAssignments };
+
     return this.request(`/credit/loan-applications/${applicationId}/assign-nbfcs`, {
       method: 'POST',
-      body: JSON.stringify({ nbfcIds }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -1891,11 +1944,13 @@ class ApiService {
     productId: string;
     productName: string;
     description?: string;
+    ICONS?: unknown;
+    iconUrl?: string;
     active: boolean;
     requiredDocumentsFields?: string;
+    applicableStatuses?: Array<{ key: string; label: string; order: number }>;
     assignedKamIds?: string[];
     assignedKamNames?: string[];
-    applicableStatuses?: Array<{ key: string; label: string; order: number }>;
   }>>> {
     const query = activeOnly ? '?activeOnly=true' : '';
     return this.request(`/loan-products${query}`);
@@ -1909,11 +1964,13 @@ class ApiService {
     productId: string;
     productName: string;
     description?: string;
+    ICONS?: unknown;
+    iconUrl?: string;
     active: boolean;
     requiredDocumentsFields?: string;
+    applicableStatuses?: Array<{ key: string; label: string; order: number }>;
     assignedKamIds?: string[];
     assignedKamNames?: string[];
-    applicableStatuses?: Array<{ key: string; label: string; order: number }>;
   }>> {
     return this.request(`/loan-products/${productId}`);
   }

@@ -11,10 +11,14 @@
 
 import { n8nClient } from '../airtable/n8nClient.js';
 import { LoanStatus, UserRole } from '../../config/constants.js';
-import { validateTransition, toUserRole } from '../statusTracking/statusStateMachine.js';
 import { recordStatusChange } from '../statusTracking/statusHistory.service.js';
 import { centralizedLogger } from '../logging/centralizedLogger.service.js';
 import { AuthUser } from '../../types/auth.js';
+import {
+  getApplicationProductStatuses,
+  getAllowedStatusesFromProduct,
+  normalizeDynamicStatus,
+} from '../statusTracking/dynamicStatus.service.js';
 
 /**
  * Options for creating a new loan application
@@ -27,6 +31,12 @@ export interface CreateLoanApplicationOptions {
   formData?: Record<string, any>;
   documents?: string; // Comma-separated document URLs
   saveAsDraft?: boolean;
+  clientSubmissionId?: string;
+  metadata?: {
+    formConfigVersion?: string | null;
+    needsAttention?: boolean;
+    validationWarnings?: string[];
+  };
 }
 
 /**
@@ -42,6 +52,69 @@ export interface ForwardToCreditOptions {
  * Loan Workflow Service
  */
 export class LoanWorkflowService {
+  private async verifyLoanApplicationPersisted(options: {
+    fileId?: string;
+    clientSubmissionId?: string;
+    expectedStatus?: string;
+  }): Promise<any> {
+    let lastReadError: Error | null = null;
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        const applications = await n8nClient.fetchTable('Loan Application', false);
+        const found = applications.find((app: any) => {
+          const appFileId = String(app['File ID'] || app.fileId || '').trim();
+          const appSubmissionId = String(app['Client Submission ID'] || app.clientSubmissionId || '').trim();
+          const fileIdMatches = options.fileId ? appFileId === options.fileId : false;
+          const submissionMatches = options.clientSubmissionId
+            ? appSubmissionId === options.clientSubmissionId
+            : false;
+          return fileIdMatches || submissionMatches;
+        });
+
+        if (found) {
+          if (options.expectedStatus) {
+            const status = String(found.Status || found.status || '').trim();
+            if (status !== options.expectedStatus) {
+              if (attempt < 5) {
+                await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+                continue;
+              }
+              throw new Error(
+                `Loan application persisted with unexpected status ${status || '(empty)'}; expected ${options.expectedStatus}`
+              );
+            }
+          }
+          return found;
+        }
+      } catch (error) {
+        lastReadError = error as Error;
+      }
+
+      if (attempt < 5) {
+        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+      }
+    }
+
+    if (lastReadError) {
+      throw new Error(`Loan application persistence could not be confirmed: ${lastReadError.message}`);
+    }
+
+    throw new Error(
+      `Loan application persistence could not be confirmed for ${options.fileId || options.clientSubmissionId || 'unknown identifier'}`
+    );
+  }
+
+  async findApplicationBySubmissionId(clientId: string, clientSubmissionId?: string): Promise<any | null> {
+    if (!clientSubmissionId) return null;
+    const applications = await n8nClient.fetchTable('Loan Application', false);
+    return applications.find((app: any) => {
+      const appClient = String(app.Client || app['Client'] || '').trim();
+      const appSubmissionId = String(app['Client Submission ID'] || app.clientSubmissionId || '').trim();
+      return appClient === clientId && appSubmissionId === clientSubmissionId;
+    }) || null;
+  }
+
   /**
    * Create new loan application
    * 
@@ -59,6 +132,18 @@ export class LoanWorkflowService {
     user: AuthUser,
     options: CreateLoanApplicationOptions
   ): Promise<{ applicationId: string; fileId: string; status: LoanStatus }> {
+    const existingApplication = await this.findApplicationBySubmissionId(
+      options.clientId,
+      options.clientSubmissionId
+    );
+    if (existingApplication) {
+      return {
+        applicationId: String(existingApplication.id),
+        fileId: String(existingApplication['File ID'] || existingApplication.fileId || ''),
+        status: String(existingApplication.Status || existingApplication.status || LoanStatus.DRAFT) as LoanStatus,
+      };
+    }
+
     // Verify user is a client
     if (user.role !== UserRole.CLIENT) {
       throw new Error('Only clients can create loan applications');
@@ -74,7 +159,9 @@ export class LoanWorkflowService {
 
     // Get form config version for versioning
     const { getLatestFormConfigVersion } = await import('../formConfigVersioning.js');
-    const formConfigVersion = await getLatestFormConfigVersion(options.clientId).catch(() => null);
+    const formConfigVersion =
+      options.metadata?.formConfigVersion ??
+      await getLatestFormConfigVersion(options.clientId).catch(() => null);
 
     // Create application data
     const applicationData: any = {
@@ -83,7 +170,12 @@ export class LoanWorkflowService {
       Client: options.clientId,
       'Applicant Name': options.applicantName || '',
       'Loan Product': options.productId || '',
-      'Requested Loan Amount': options.requestedLoanAmount ? String(options.requestedLoanAmount) : '',
+      'Requested Loan Amount':
+        options.requestedLoanAmount !== undefined &&
+        options.requestedLoanAmount !== null &&
+        String(options.requestedLoanAmount).trim() !== ''
+          ? String(options.requestedLoanAmount)
+          : '',
       Status: status,
       'Creation Date': new Date().toISOString().split('T')[0],
       'Last Updated': new Date().toISOString(),
@@ -91,6 +183,11 @@ export class LoanWorkflowService {
       'Form Data': options.formData ? JSON.stringify(options.formData) : '',
       'Form Config Version': formConfigVersion || '',
       Documents: options.documents || '',
+      'Client Submission ID': options.clientSubmissionId || '',
+      'Needs Attention': options.metadata?.needsAttention ? 'True' : 'False',
+      'Validation Warnings': options.metadata?.validationWarnings?.length
+        ? JSON.stringify(options.metadata.validationWarnings)
+        : '',
     };
 
     // Add submitted date if not a draft
@@ -99,7 +196,15 @@ export class LoanWorkflowService {
     }
 
     // Create application via Loan Files webhook
-    await n8nClient.postLoanApplication(applicationData);
+    await n8nClient.postLoanApplication(applicationData, {
+      strictWriteAck: true,
+      operationName: 'loan application create',
+    });
+    await this.verifyLoanApplicationPersisted({
+      fileId,
+      clientSubmissionId: options.clientSubmissionId,
+      expectedStatus: status,
+    });
 
     // Log application creation
     await centralizedLogger.logApplicationCreated(
@@ -149,6 +254,62 @@ export class LoanWorkflowService {
     };
   }
 
+  async submitExistingLoanApplication(
+    user: AuthUser,
+    application: Record<string, any>,
+    options: {
+      formConfigVersion?: string;
+      clientSubmissionId?: string;
+    } = {}
+  ): Promise<{ fileId: string; status: LoanStatus }> {
+    const previousStatus = application.Status as LoanStatus;
+    const newStatus = LoanStatus.UNDER_KAM_REVIEW;
+
+    const statusKeys = (await getApplicationProductStatuses(application)).map((s) => s.key);
+    if (statusKeys.length > 0 && !statusKeys.includes(normalizeDynamicStatus(newStatus))) {
+      throw new Error('Target status is not configured in Loan Products Applicable Statuses');
+    }
+
+    await n8nClient.postLoanApplication({
+      ...application,
+      Status: newStatus,
+      'Submitted Date': new Date().toISOString().split('T')[0],
+      'Last Updated': new Date().toISOString(),
+      'Form Config Version': options.formConfigVersion || application['Form Config Version'] || '',
+      'Client Submission ID': options.clientSubmissionId || application['Client Submission ID'] || '',
+    }, {
+      strictWriteAck: true,
+      operationName: 'loan application submit',
+    });
+
+    await this.verifyLoanApplicationPersisted({
+      fileId: String(application['File ID'] || application.fileId || ''),
+      clientSubmissionId: options.clientSubmissionId || application['Client Submission ID'] || '',
+      expectedStatus: newStatus,
+    });
+
+    await recordStatusChange(
+      user,
+      application['File ID'],
+      previousStatus,
+      newStatus,
+      'Application submitted by client'
+    );
+
+    await centralizedLogger.logStatusChange(
+      user,
+      application['File ID'],
+      previousStatus,
+      newStatus,
+      'Application submitted by client'
+    );
+
+    return {
+      fileId: String(application['File ID'] || application.fileId || ''),
+      status: newStatus,
+    };
+  }
+
   /**
    * Forward application to Credit Team
    * 
@@ -185,8 +346,10 @@ export class LoanWorkflowService {
     const previousStatus = application.Status as LoanStatus;
     const newStatus = LoanStatus.PENDING_CREDIT_REVIEW;
 
-    // Validate status transition
-    validateTransition(previousStatus, newStatus, toUserRole(user.role));
+    const statusKeys = (await getApplicationProductStatuses(application)).map((s) => s.key);
+    if (statusKeys.length > 0 && !statusKeys.includes(normalizeDynamicStatus(newStatus))) {
+      throw new Error('Target status is not configured in Loan Products Applicable Statuses');
+    }
 
     // Update application status
     const updateData: any = {
@@ -311,7 +474,7 @@ export class LoanWorkflowService {
     userRole: UserRole
   ): Promise<{
     currentStatus: LoanStatus;
-    allowedNextStatuses: LoanStatus[];
+    allowedNextStatuses: string[];
     statusDisplayName: string;
   }> {
     const applications = await n8nClient.fetchTable('Loan Application');
@@ -325,12 +488,13 @@ export class LoanWorkflowService {
     }
 
     const currentStatus = application.Status as LoanStatus;
-    const { getAllowedNextStatuses, getStatusDisplayName } = await import('../statusTracking/statusStateMachine.js');
+    const productStatuses = await getApplicationProductStatuses(application);
+    const allowedNextStatuses = getAllowedStatusesFromProduct(application, productStatuses);
     
     return {
       currentStatus,
-      allowedNextStatuses: getAllowedNextStatuses(currentStatus, userRole),
-      statusDisplayName: getStatusDisplayName(currentStatus),
+      allowedNextStatuses,
+      statusDisplayName: String(currentStatus ?? ''),
     };
   }
 }

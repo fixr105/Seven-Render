@@ -34,6 +34,9 @@ vi.mock('../../services/api', () => {
     resolveQuery: vi.fn(),
     getFormConfig: vi.fn().mockResolvedValue({ success: false }),
     getPublicFormConfig: vi.fn().mockResolvedValue({ success: false }),
+    listApplications: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getLoanProduct: vi.fn().mockResolvedValue({ success: true, data: { applicableStatuses: [] } }),
+    submitApplication: vi.fn(),
   };
   return {
     apiService: mockApiService,
@@ -160,6 +163,11 @@ describe('ApplicationDetail Page - P0 Tests', () => {
     (apiService.generateAISummary as any).mockResolvedValue({
       success: true,
       data: { summary: 'Generated AI summary' },
+    });
+
+    (apiService.submitApplication as any).mockResolvedValue({
+      success: true,
+      data: { fileId: 'SF001', status: 'under_kam_review' },
     });
   });
 
@@ -386,7 +394,7 @@ describe('ApplicationDetail Page - P0 Tests', () => {
     it('should render AI summary when available', async () => {
       renderWithProviders(<ApplicationDetail />, {
         authContext: {
-          user: mockKAMUser,
+          user: mockClientUser,
           loading: false,
           login: vi.fn(),
           logout: vi.fn(),
@@ -551,5 +559,95 @@ describe('ApplicationDetail Page - P0 Tests', () => {
       });
     });
   });
+
+  describe('Status dropdown source of truth', () => {
+    it('uses Loan Product applicable statuses (not listApplications history) to source statuses', async () => {
+      (apiService.getApplication as any).mockResolvedValue({
+        success: true,
+        data: {
+          ...mockApplication,
+          status: 'under_kam_review',
+          Status: 'under_kam_review',
+          allowedNextStatuses: ['pending_credit_review'],
+          loan_product_id: 'BL001',
+          loan_product: { name: 'Business Loan', code: 'BL001' },
+          productId: 'BL001',
+        },
+      });
+      (apiService.getLoanProduct as any).mockResolvedValue({
+        success: true,
+        data: {
+          id: 'rec-prod',
+          productId: 'BL001',
+          productName: 'Business Loan',
+          active: true,
+          applicableStatuses: [
+            { key: 'pending_credit_review', label: 'Ready for Credit', order: 20 },
+          ],
+        },
+      });
+
+      renderWithProviders(<ApplicationDetail />, {
+        authContext: {
+          user: mockKAMUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await waitFor(() => {
+        expect(apiService.getLoanProduct).toHaveBeenCalledWith('BL001');
+      });
+      expect(apiService.listApplications).not.toHaveBeenCalled();
+    });
+
+    it('still uses product endpoint when applicable statuses are empty', async () => {
+      (apiService.getApplication as any).mockResolvedValue({
+        success: true,
+        data: {
+          ...mockApplication,
+          status: 'draft',
+          Status: 'draft',
+          allowedNextStatuses: ['under_kam_review'],
+          loan_product_id: 'BL001',
+          loan_product: { name: 'Business Loan', code: 'BL001' },
+          productId: 'BL001',
+        },
+      });
+      (apiService.getLoanProduct as any).mockResolvedValue({
+        success: true,
+        data: {
+          id: 'rec-prod',
+          productId: 'BL001',
+          productName: 'Business Loan',
+          active: true,
+          applicableStatuses: [],
+        },
+      });
+
+      renderWithProviders(<ApplicationDetail />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await waitFor(() => {
+        expect(apiService.getLoanProduct).toHaveBeenCalledWith('BL001');
+      });
+      expect(apiService.listApplications).not.toHaveBeenCalled();
+    });
+
+  });
+
 });
 

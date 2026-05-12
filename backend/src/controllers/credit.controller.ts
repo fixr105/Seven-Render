@@ -8,8 +8,12 @@ import { LoanStatus, UserRole, LenderDecisionStatus, DisputeStatus, SLA_SENT_TO_
 import { getStatusHistory } from '../services/statusTracking/statusHistory.service.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 import { parseFormData } from '../utils/parseFormData.js';
-import { toUserRole } from '../services/statusTracking/statusStateMachine.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
+import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
+import {
+  isStatusConfiguredForApplication,
+  normalizeDynamicStatus,
+} from '../services/statusTracking/dynamicStatus.service.js';
 
 export class CreditController {
   /**
@@ -249,9 +253,9 @@ export class CreditController {
     try {
       const { id } = req.params;
       
-      // Step 1: Fetch applications first and find the specific one
-      const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      // Step 1: Fetch latest applications snapshot and find the specific one
+      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -327,7 +331,7 @@ export class CreditController {
       }
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -382,26 +386,25 @@ export class CreditController {
       const { id } = req.params;
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
 
-      // Module 3: Validate status transition using state machine
-      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
       
-      const previousStatus = application.Status as LoanStatus;
+      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
       const newStatus = LoanStatus.IN_NEGOTIATION;
-      
-      try {
-        validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
-      } catch (transitionError: any) {
+      const isConfiguredStatus = await isStatusConfiguredForApplication(
+        application as Record<string, any>,
+        newStatus
+      );
+      if (!isConfiguredStatus) {
         res.status(400).json({
           success: false,
-          error: transitionError.message || 'Invalid status transition',
+          error: 'Status is not configured in Loan Products Applicable Statuses',
         });
         return;
       }
@@ -471,32 +474,22 @@ export class CreditController {
       }
       // Bypass cache so we validate against current application status
       const applications = await n8nClient.fetchTable('Loan Application', false);
-      const application = applications.find((app: any) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
-      const { validateTransition, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
-      let previousStatus: LoanStatus;
-      let newStatus: LoanStatus;
-      try {
-        previousStatus = normalizeToCanonicalStatus((application.Status ?? '').toString());
-        newStatus = normalizeToCanonicalStatus(newStatusRaw as string);
-      } catch (normErr: any) {
+      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
+      const newStatus = normalizeDynamicStatus(newStatusRaw as string);
+      const isConfiguredStatus = await isStatusConfiguredForApplication(
+        application as Record<string, any>,
+        newStatus
+      );
+      if (!isConfiguredStatus) {
         res.status(400).json({
           success: false,
-          error: normErr.message || 'Invalid status',
-        });
-        return;
-      }
-      const role = toUserRole(req.user!.role);
-      try {
-        validateTransition(previousStatus, newStatus, role);
-      } catch (transitionError: any) {
-        res.status(400).json({
-          success: false,
-          error: transitionError.message || 'Invalid status transition',
+          error: 'Status is not configured in Loan Products Applicable Statuses',
         });
         return;
       }
@@ -513,46 +506,15 @@ export class CreditController {
         notes || `Status updated to ${newStatus}`
       );
 
-      const targetRoleByStatus: Record<string, string> = {
-        draft: 'client',
-        under_kam_review: 'kam',
-        query_with_client: 'client',
-        pending_credit_review: 'credit_team',
-        credit_query_with_kam: 'kam',
-        in_negotiation: 'credit_team',
-        sent_to_nbfc: 'nbfc',
-        approved: 'credit_team',
-        rejected: 'client',
-        disbursed: 'client',
-        withdrawn: 'kam',
-        closed: 'credit_team',
-      };
-      const recipientRole = targetRoleByStatus[newStatus] || 'credit_team';
+      const recipientRole = 'credit_team';
       try {
         const { notificationService } = await import('../services/notifications/notification.service.js');
         let recipientEmail = '';
-        if (recipientRole === 'client') {
-          const clients = await n8nClient.fetchTable('Clients');
-          const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
-          recipientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
-        } else if (recipientRole === 'kam') {
-          const clients = await n8nClient.fetchTable('Clients');
-          const client = clients.find((c: any) => c.id === application.Client || c['Client ID'] === application.Client);
-          const kamId = client?.['Assigned KAM'] || '';
-          if (kamId) {
-            const kamUsers = await n8nClient.fetchTable('KAM Users');
-            const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
-            recipientEmail = kamUser?.Email || '';
-          }
-        } else if (recipientRole === 'credit_team') {
-          const creditUsers = await n8nClient.fetchTable('Credit Team Users');
-          const active = creditUsers.find((u: any) => (u.Status || u.status || '').toLowerCase() === 'active' && (u.Email || u.email));
-          recipientEmail = active?.Email || active?.email || '';
-        } else if (recipientRole === 'nbfc') {
-          const nbfcs = await n8nClient.fetchTable('NBFC Partners');
-          const first = nbfcs.find((n: any) => n.Email || n.email);
-          recipientEmail = first?.Email || first?.email || '';
-        }
+        const creditUsers = await n8nClient.fetchTable('Credit Team Users');
+        const active = creditUsers.find(
+          (u: any) => (u.Status || u.status || '').toLowerCase() === 'active' && (u.Email || u.email)
+        );
+        recipientEmail = active?.Email || active?.email || '';
         if (recipientEmail) {
           await notificationService.notifyStatusChange(
             application['File ID'],
@@ -581,12 +543,68 @@ export class CreditController {
   async assignNBFCs(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { nbfcIds } = req.body;
+      const body = req.body as {
+        nbfcIds?: unknown;
+        assignments?: Array<{ nbfcId?: unknown; priority?: unknown }>;
+      };
 
-      if (nbfcIds == null || (Array.isArray(nbfcIds) && nbfcIds.length === 0)) {
+      const normalizedAssignmentsFromPayload = Array.isArray(body.assignments)
+        ? body.assignments
+            .map((item) => {
+              const nbfcId = typeof item?.nbfcId === 'string' ? item.nbfcId.trim() : '';
+              const priority = Number(item?.priority);
+              if (!nbfcId || !Number.isInteger(priority) || priority < 1) {
+                return null;
+              }
+              return { nbfcId, priority };
+            })
+            .filter((item): item is { nbfcId: string; priority: number } => item !== null)
+        : [];
+
+      const assignments =
+        normalizedAssignmentsFromPayload.length > 0
+          ? normalizedAssignmentsFromPayload
+          : Array.isArray(body.nbfcIds)
+            ? body.nbfcIds
+                .map((nbfcId) => (typeof nbfcId === 'string' ? nbfcId.trim() : ''))
+                .filter(Boolean)
+                .map((nbfcId, index) => ({ nbfcId, priority: index + 1 }))
+            : [];
+
+      if (assignments.length === 0) {
         res.status(400).json({
           success: false,
-          error: 'nbfcIds is required and must contain at least one NBFC id',
+          error: 'assignments (or nbfcIds) is required and must contain at least one NBFC id',
+        });
+        return;
+      }
+
+      const uniqueNbfcIds = new Set(assignments.map((a) => a.nbfcId));
+      if (uniqueNbfcIds.size !== assignments.length) {
+        res.status(400).json({
+          success: false,
+          error: 'Duplicate NBFC IDs are not allowed in assignments',
+        });
+        return;
+      }
+
+      const sortedAssignments = [...assignments].sort((a, b) => a.priority - b.priority);
+      const priorities = sortedAssignments.map((a) => a.priority);
+      const expectedPriorities = Array.from({ length: priorities.length }, (_, index) => index + 1);
+      const hasSequentialPriorities = priorities.every((p, index) => p === expectedPriorities[index]);
+
+      if (!hasSequentialPriorities) {
+        res.status(400).json({
+          success: false,
+          error: 'Priorities must be unique and sequential starting at 1 (e.g., 1, 2, 3)',
+        });
+        return;
+      }
+
+      if (sortedAssignments.length > 3) {
+        res.status(400).json({
+          success: false,
+          error: 'A maximum of 3 prioritized NBFC assignments is allowed',
         });
         return;
       }
@@ -612,29 +630,23 @@ export class CreditController {
         return;
       }
 
-      // Module 3: Validate status transition using state machine
-      const { validateTransition, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
 
-      let previousStatus: LoanStatus;
-      try {
-        previousStatus = normalizeToCanonicalStatus(application.Status ?? '');
-      } catch (normalizeError: any) {
-        res.status(400).json({
-          success: false,
-          error: normalizeError?.message || 'Unable to determine current status for transition',
-        });
-        return;
-      }
+      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
 
       const newStatus = LoanStatus.SENT_TO_NBFC;
-
-      try {
-        validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
-      } catch (transitionError: any) {
+      const orderedNbfcIds = sortedAssignments.map((assignment) => assignment.nbfcId);
+      const assignmentSummary = sortedAssignments
+        .map((assignment) => `P${assignment.priority}:${assignment.nbfcId}`)
+        .join(', ');
+      const isConfiguredStatus = await isStatusConfiguredForApplication(
+        application as Record<string, any>,
+        newStatus
+      );
+      if (!isConfiguredStatus) {
         res.status(400).json({
           success: false,
-          error: transitionError.message || 'Invalid status transition',
+          error: 'Status is not configured in Loan Products Applicable Statuses',
         });
         return;
       }
@@ -642,7 +654,7 @@ export class CreditController {
       // Update with assigned NBFCs (comma-separated if multiple)
       await n8nClient.postLoanApplication({
         ...application,
-        'Assigned NBFC': Array.isArray(nbfcIds) ? nbfcIds.join(', ') : nbfcIds,
+        'Assigned NBFC': orderedNbfcIds.join(', '),
         Status: newStatus,
         'Last Updated': new Date().toISOString(),
       });
@@ -653,7 +665,7 @@ export class CreditController {
         application['File ID'],
         previousStatus,
         newStatus,
-        `Assigned NBFCs: ${Array.isArray(nbfcIds) ? nbfcIds.join(', ') : nbfcIds}`
+        `Assigned NBFCs by priority: ${assignmentSummary}`
       );
 
       // Module 0: Use admin logger helper
@@ -663,11 +675,15 @@ export class CreditController {
         AdminActionType.ASSIGN_NBFC,
         application['File ID'],
         `Assigned NBFCs to application`,
-        { nbfcIds: Array.isArray(nbfcIds) ? nbfcIds : [nbfcIds], statusChange: `${previousStatus} → ${newStatus}` }
+        {
+          nbfcIds: orderedNbfcIds,
+          assignments: sortedAssignments,
+          statusChange: `${previousStatus} → ${newStatus}`,
+        }
       );
 
       // Email assigned NBFC(s) with application link (non-blocking)
-      const ids = Array.isArray(nbfcIds) ? nbfcIds : [nbfcIds];
+      const ids = orderedNbfcIds;
       if (ids.length > 0) {
         (async () => {
           try {
@@ -675,7 +691,8 @@ export class CreditController {
             const baseUrl = process.env.FRONTEND_URL || 'https://lms.sevenfincorp.com';
             const appLink = `${baseUrl}/applications/${id}`;
             const emails: string[] = [];
-            for (const nbfcId of ids) {
+            for (const assignment of sortedAssignments) {
+              const nbfcId = assignment.nbfcId;
               const partner = partners.find(
                 (p: any) => p.id === nbfcId || p['Lender ID'] === nbfcId || String(p.id) === String(nbfcId)
               );
@@ -687,7 +704,7 @@ export class CreditController {
               await n8nClient.postEmail({
                 to: emails,
                 subject: `New application assigned – Seven Fincorp LMS`,
-                body: `<p>An application has been assigned to you.</p><p><a href="${appLink}">View application</a></p><p>Application ID: ${id}</p>`,
+                body: `<p>An application has been assigned to you.</p><p><a href="${appLink}">View application</a></p><p>Application ID: ${id}</p><p>Priority order: ${assignmentSummary}</p>`,
               });
             }
           } catch (emailErr: any) {
@@ -699,6 +716,9 @@ export class CreditController {
       res.json({
         success: true,
         message: 'NBFCs assigned successfully',
+        data: {
+          assignments: sortedAssignments,
+        },
       });
     } catch (error: any) {
       res.status(500).json({
@@ -718,7 +738,7 @@ export class CreditController {
       const { nbfcId, decision, approvedAmount, terms, rejectionReason, clarificationMessage } = req.body;
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -735,27 +755,35 @@ export class CreditController {
       if (decision === LenderDecisionStatus.APPROVED) {
         updateData['Approved Loan Amount'] = approvedAmount?.toString() || '';
         updateData['Lender Decision Remarks'] = terms || '';
-        // Module 3: If any NBFC approves, status can move to approved (validate transition)
+        // If any NBFC approves, status must exist in product config.
         if (application.Status === LoanStatus.SENT_TO_NBFC) {
-          const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
-          try {
-            validateTransition(application.Status as LoanStatus, LoanStatus.APPROVED, toUserRole(req.user!.role));
-            updateData.Status = LoanStatus.APPROVED;
-          } catch (transitionError) {
-            // If transition invalid, keep current status but record decision
-            console.warn('[captureNBFCDecision] Invalid transition, keeping current status');
+          const isConfiguredApprovedStatus = await isStatusConfiguredForApplication(
+            application as Record<string, any>,
+            LoanStatus.APPROVED
+          );
+          if (!isConfiguredApprovedStatus) {
+            res.status(400).json({
+              success: false,
+              error: 'Status is not configured in Loan Products Applicable Statuses',
+            });
+            return;
           }
+          updateData.Status = LoanStatus.APPROVED;
         }
       } else if (decision === LenderDecisionStatus.REJECTED) {
         updateData['Lender Decision Remarks'] = rejectionReason || '';
-        // Module 3: Validate rejection transition
-        const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
-        try {
-          validateTransition(application.Status as LoanStatus, LoanStatus.REJECTED, toUserRole(req.user!.role));
-          updateData.Status = LoanStatus.REJECTED;
-        } catch (transitionError) {
-          console.warn('[captureNBFCDecision] Invalid rejection transition, keeping current status');
+        const isConfiguredRejectedStatus = await isStatusConfiguredForApplication(
+          application as Record<string, any>,
+          LoanStatus.REJECTED
+        );
+        if (!isConfiguredRejectedStatus) {
+          res.status(400).json({
+            success: false,
+            error: 'Status is not configured in Loan Products Applicable Statuses',
+          });
+          return;
         }
+        updateData.Status = LoanStatus.REJECTED;
       } else if (decision === LenderDecisionStatus.NEEDS_CLARIFICATION) {
         updateData['Lender Decision Remarks'] = clarificationMessage || '';
       }
@@ -803,7 +831,7 @@ export class CreditController {
       const { disbursedAmount, disbursedDate } = req.body;
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -828,19 +856,18 @@ export class CreditController {
       // Use commission service to calculate commission
       const { commissionService } = await import('../services/commission/commission.service.js');
 
-      // Module 3: Validate status transition using state machine
-      const { validateTransition } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
       
-      const previousStatus = application.Status as LoanStatus;
+      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
       const newStatus = LoanStatus.DISBURSED;
-      
-      try {
-        validateTransition(previousStatus, newStatus, toUserRole(req.user!.role));
-      } catch (transitionError: any) {
+      const isConfiguredDisbursedStatus = await isStatusConfiguredForApplication(
+        application as Record<string, any>,
+        newStatus
+      );
+      if (!isConfiguredDisbursedStatus) {
         res.status(400).json({
           success: false,
-          error: transitionError.message || 'Invalid status transition',
+          error: 'Status is not configured in Loan Products Applicable Statuses',
         });
         return;
       }
@@ -967,31 +994,22 @@ export class CreditController {
       const { id } = req.params;
       // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
 
-      const previousStatusRaw = application.Status;
-      const { validateTransition, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
-      let previousStatus: LoanStatus;
-      try {
-        previousStatus = normalizeToCanonicalStatus((previousStatusRaw ?? '').toString());
-      } catch (normErr: any) {
+      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
+      const isConfiguredClosedStatus = await isStatusConfiguredForApplication(
+        application as Record<string, any>,
+        LoanStatus.CLOSED
+      );
+      if (!isConfiguredClosedStatus) {
         res.status(400).json({
           success: false,
-          error: normErr.message || 'Invalid current status',
-        });
-        return;
-      }
-      try {
-        validateTransition(previousStatus, LoanStatus.CLOSED, toUserRole(req.user!.role));
-      } catch (transitionError: any) {
-        res.status(400).json({
-          success: false,
-          error: transitionError.message || 'Invalid status transition',
+          error: 'Status is not configured in Loan Products Applicable Statuses',
         });
         return;
       }
@@ -1011,7 +1029,7 @@ export class CreditController {
         Timestamp: new Date().toISOString(),
         Actor: req.user.email,
         'Action/Event Type': 'credit_closed_file',
-        'Details/Message': `Application closed by credit team. Previous status: ${previousStatusRaw}`,
+        'Details/Message': `Application closed by credit team. Previous status: ${previousStatus}`,
         'Target User/Role': 'client',
         Resolved: 'False',
       });
@@ -1023,7 +1041,7 @@ export class CreditController {
         Timestamp: new Date().toISOString(),
         'Performed By': req.user.email,
         'Action Type': 'close_application',
-        'Description/Details': `Credit team closed loan application ${application['File ID']}. Previous status: ${previousStatusRaw}`,
+        'Description/Details': `Credit team closed loan application ${application['File ID']}. Previous status: ${previousStatus}`,
         'Target Entity': 'loan_application',
       });
 
@@ -1052,7 +1070,7 @@ export class CreditController {
         data: {
           applicationId: application.id,
           fileId: application['File ID'],
-          previousStatus: previousStatusRaw,
+          previousStatus,
           newStatus: LoanStatus.CLOSED,
         },
       });
@@ -1475,6 +1493,7 @@ export class CreditController {
           enabledModules: client['Enabled Modules'] || client.enabledModules,
           commissionRate: client['Commission Rate'] || client.commissionRate,
           status: client['Status'] || client.status || 'Active',
+          createdAt: client['Created At'] || client.createdAt || client.createdTime || '',
         };
       });
 

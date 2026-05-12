@@ -9,17 +9,19 @@ import { LoanController } from '../loan.controller.js';
 import { UserRole, LoanStatus } from '../../config/constants.js';
 import { AuthUser } from '../../types/auth.js';
 import { createMockN8nClient, mockLoanApplications, mockFormFields, mockProductDocuments, mockClientFormMapping, mockFormCategories } from '../../__tests__/helpers/mockN8nClient.js';
-import * as n8nClientModule from '../../services/airtable/n8nClient.js';
 
-// Mock the n8nClient module
-const mockN8nClientInstance = createMockN8nClient();
-jest.mock('../../services/airtable/n8nClient.js', () => ({
-  n8nClient: mockN8nClientInstance,
-}));
+var mockN8nClientInstance!: ReturnType<typeof createMockN8nClient>;
+
+jest.mock('../../services/airtable/n8nClient.js', () => {
+  const { createMockN8nClient: createMock } = require('../../__tests__/helpers/mockN8nClient.js');
+  const inst = createMock();
+  mockN8nClientInstance = inst;
+  return { n8nClient: inst };
+});
 
 // Mock admin logger
 jest.mock('../../utils/adminLogger.js', () => ({
-  logApplicationAction: jest.fn().mockResolvedValue(undefined),
+  logApplicationAction: jest.fn(async () => {}),
   AdminActionType: {
     SUBMIT_APPLICATION: 'submit_application',
     SAVE_DRAFT: 'save_draft',
@@ -27,19 +29,43 @@ jest.mock('../../utils/adminLogger.js', () => ({
 }));
 
 // Mock status tracking
-jest.mock('../../services/statusTracking/statusStateMachine.js', () => ({
-  validateTransition: jest.fn(),
-}));
+jest.mock('../../services/statusTracking/statusStateMachine.js', () => {
+  const actual = jest.requireActual<typeof import('../../services/statusTracking/statusStateMachine.js')>(
+    '../../services/statusTracking/statusStateMachine.js'
+  );
+  return {
+    ...actual,
+    validateTransition: jest.fn(),
+  };
+});
 
 jest.mock('../../services/statusTracking/statusHistory.service.js', () => ({
-  recordStatusChange: jest.fn().mockResolvedValue(undefined),
+  recordStatusChange: jest.fn(async () => {}),
+}));
+
+jest.mock('../../services/workflow/loanWorkflow.service.js', () => ({
+  loanWorkflowService: {
+    submitExistingLoanApplication: jest.fn(async () => ({
+      fileId: 'SF20250101001',
+      status: 'under_kam_review',
+    })),
+  },
+}));
+
+jest.mock('../../utils/logger.js', () => ({
+  defaultLogger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  },
 }));
 
 
 describe('LoanController - P0 Tests', () => {
   let controller: LoanController;
   let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
+  let mockResponse: Response;
 
   beforeEach(() => {
     controller = new LoanController();
@@ -48,11 +74,11 @@ describe('LoanController - P0 Tests', () => {
     // Reset mocks
     jest.clearAllMocks();
 
-    // Setup mock response
+    // Setup mock response (cast: Partial<Response> rejects jest.fn() for status/json under strict types)
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
-    };
+    } as unknown as Response;
   });
 
   describe('M3-BE-001: Role-Based Application Listings', () => {
@@ -79,18 +105,20 @@ describe('LoanController - P0 Tests', () => {
 
       await controller.listApplications(mockRequest as Request, mockResponse as Response);
 
-      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application');
-      expect(mockResponse.status).toHaveBeenCalledWith(200);
-      expect(mockResponse.json).toHaveBeenCalled();
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', false);
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
 
-      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
+        success: boolean;
+        data: Array<{ Client?: string }>;
+      };
       expect(responseCall.success).toBe(true);
       expect(responseCall.data).toBeDefined();
       
       // Verify only CLIENT001 applications are returned
       const applications = responseCall.data;
       applications.forEach((app: any) => {
-        expect(app.Client).toBe('CLIENT001');
+        expect(app.clientId).toBe('CLIENT001');
       });
     });
 
@@ -115,10 +143,13 @@ describe('LoanController - P0 Tests', () => {
 
       await controller.listApplications(mockRequest as Request, mockResponse as Response);
 
-      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application');
-      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', false);
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       
-      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
+        success: boolean;
+        data: unknown[];
+      };
       expect(responseCall.success).toBe(true);
       
       // CREDIT should see all applications
@@ -181,11 +212,15 @@ describe('LoanController - P0 Tests', () => {
       await controller.submitApplication(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(400);
-      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
+        success: boolean;
+        error?: string;
+        missingFields?: unknown[];
+      };
       expect(responseCall.success).toBe(false);
-      expect(responseCall.error).toContain('Missing required fields');
+      expect(responseCall.error).toMatch(/Missing required field|documents folder link/i);
       expect(responseCall.missingFields).toBeDefined();
-      expect(responseCall.missingFields.length).toBeGreaterThan(0);
+      expect(responseCall.missingFields!.length).toBeGreaterThan(0);
     });
 
     it('should accept submission with all mandatory fields filled', async () => {
@@ -209,8 +244,12 @@ describe('LoanController - P0 Tests', () => {
             'Loan Product': 'PROD001', // Must match mockProductDocuments Product ID
             Status: LoanStatus.DRAFT,
             'Form Data': JSON.stringify({
-              rt1: 'added_to_link', // Product Document 1 (file, required)
-              rt2: 'to_be_shared',  // Product Document 2 (file, required)
+              _documentsFolderLink: 'https://drive.google.com/drive/folders/testfolder123',
+              _mobileNumber: '9876543210',
+              _email: 'applicant@example.com',
+              _typeOfPurchase: 'Rental',
+              rt1: 'Jane Applicant',
+              rt2: 'ABCDE1234F',
             }),
           }];
         }
@@ -225,9 +264,8 @@ describe('LoanController - P0 Tests', () => {
 
       await controller.submitApplication(mockRequest as Request, mockResponse as Response);
 
-      // Should succeed (200 or 201)
-      expect([200, 201]).toContain((mockResponse.status as jest.Mock).mock.calls[0][0]);
-      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as { success: boolean };
       expect(responseCall.success).toBe(true);
     });
 
@@ -266,9 +304,10 @@ describe('LoanController - P0 Tests', () => {
       await controller.submitApplication(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(400);
-      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as { missingFields?: unknown[] };
       expect(responseCall.missingFields).toBeDefined();
     });
   });
+
 });
 

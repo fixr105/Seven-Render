@@ -3,6 +3,7 @@
  * Provides realistic mock responses matching SEVEN-DASHBOARD-2.json structure
  */
 
+import { jest } from '@jest/globals';
 import { ParsedRecord } from '../../services/airtable/n8nClient.js';
 
 /**
@@ -312,7 +313,7 @@ export function createMockN8nClient() {
   const postData: Record<string, any[]> = {};
 
   return {
-    fetchTable: jest.fn(async (tableName: string): Promise<ParsedRecord[]> => {
+    fetchTable: jest.fn(async (tableName: string, _useCache?: boolean): Promise<ParsedRecord[]> => {
       return tableData[tableName] || [];
     }),
     postLoanApplication: jest.fn(async (data: any) => {
@@ -338,6 +339,12 @@ export function createMockN8nClient() {
       if (!postData[key]) postData[key] = [];
       postData[key].push(data);
       return { success: true, id: data.id || `notif-${Date.now()}` };
+    }),
+    postAdminActivityLog: jest.fn(async (data: any) => {
+      const key = 'Admin Activity Log';
+      if (!postData[key]) postData[key] = [];
+      postData[key].push(data);
+      return { success: true, id: data.id || `act-${Date.now()}` };
     }),
     getPostedData: (tableName: string) => postData[tableName] || [],
     clearPostedData: () => {

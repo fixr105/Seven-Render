@@ -10,6 +10,11 @@ import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adm
 import { matchIds } from '../utils/idMatcher.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
+import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
+import {
+  getApplicationProductStatuses,
+  normalizeDynamicStatus,
+} from '../services/statusTracking/dynamicStatus.service.js';
 
 /** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
 const FORWARDED_STATUSES: string[] = [
@@ -172,7 +177,7 @@ export class KAMController {
       const isWithinLast30Days = (d: Date | null) => d !== null && d.getTime() >= thirtyDaysAgo;
       const lenderStatus = (app: any) =>
         String(app['Lender Decision Status'] ?? app.lenderDecisionStatus ?? '').trim();
-      const status = (app: any) => String(app.Status ?? app.status ?? '').trim();
+      const status = (app: any) => String(app.Status ?? '').trim();
       const isApproved = (app: any) =>
         lenderStatus(app) === LenderDecisionStatus.APPROVED ||
         status(app) === LoanStatus.APPROVED ||
@@ -452,6 +457,7 @@ export class KAMController {
           enabledModules: client['Enabled Modules'] ? client['Enabled Modules'].split(',').map((m: string) => m.trim()) : [],
           commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
           status: client.Status,
+          createdAt: client['Created At'] || client.createdAt || client.createdTime || '',
         };
       });
 
@@ -1155,7 +1161,7 @@ export class KAMController {
       let applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
 
       if (status) {
-        applications = applications.filter((app: any) => app.Status === status || app.status === status);
+        applications = applications.filter((app: any) => app.Status === status);
       }
 
       if (clientId) {
@@ -1171,7 +1177,7 @@ export class KAMController {
           fileId: app['File ID'],
           client: app.Client,
           applicantName: app['Applicant Name'],
-          status: app.Status || app.status,
+          status: app.Status,
           creationDate: app['Creation Date'],
         })),
       });
@@ -1411,7 +1417,7 @@ export class KAMController {
 
       // Bypass cache so validation checks against the latest status
       const applications = await n8nClient.fetchTable('Loan Application', false);
-      const application = applications.find((app: any) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
@@ -1425,34 +1431,16 @@ export class KAMController {
         return;
       }
 
-      const { validateTransition, normalizeToCanonicalStatus, toUserRole } = await import('../services/statusTracking/statusStateMachine.js');
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
-
-      let previousStatus: LoanStatus;
-      let newStatus: LoanStatus;
-      try {
-        previousStatus = normalizeToCanonicalStatus((application.Status ?? '').toString());
-        newStatus = normalizeToCanonicalStatus(newStatusRaw);
-      } catch (normErr: any) {
+      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
+      const newStatus = normalizeDynamicStatus(newStatusRaw);
+      const applicableStatuses = (await getApplicationProductStatuses(application as Record<string, any>)).map(
+        (s) => s.key
+      );
+      if (applicableStatuses.length === 0 || !applicableStatuses.includes(newStatus)) {
         res.status(400).json({
           success: false,
-          error: normErr.message || 'Invalid status',
-        });
-        return;
-      }
-
-      const role = toUserRole(req.user!.role);
-      if (role !== UserRole.KAM) {
-        res.status(403).json({ success: false, error: 'Forbidden' });
-        return;
-      }
-
-      try {
-        validateTransition(previousStatus, newStatus, role);
-      } catch (transitionError: any) {
-        res.status(400).json({
-          success: false,
-          error: transitionError.message || 'Invalid status transition',
+          error: 'Status is not configured in Loan Products Applicable Statuses',
         });
         return;
       }

@@ -16,6 +16,8 @@ vi.mock('../../services/api', () => {
     getFormConfig: vi.fn(),
     listLoanProducts: vi.fn(),
     getConfiguredProducts: vi.fn(),
+    getClientVehicles: vi.fn(),
+    validateApplicationSubmission: vi.fn(),
     createApplication: vi.fn(),
   };
   return {
@@ -76,10 +78,16 @@ describe('NewApplication Page - P0 Tests', () => {
     { id: 'LP001', name: 'Business Loan' },
     { id: 'LP002', name: 'Personal Loan' },
   ];
+  const mockVehicles = [
+    { vehicleId: 'VEH001', make: 'Tata', model: 'Ace Gold', requestedLoanAmount: '550000' },
+    { vehicleId: 'VEH002', make: 'Mahindra', model: 'Jeeto', requestedLoanAmount: '400000' },
+  ];
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('alert', vi.fn());
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.stubGlobal('scrollIntoView', vi.fn());
     (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
       user: mockClientUser,
       loading: false,
@@ -102,17 +110,26 @@ describe('NewApplication Page - P0 Tests', () => {
 
     (apiService.getConfiguredProducts as any).mockResolvedValue({
       success: true,
-      data: [],
+      data: ['LP001', 'LP002'],
+    });
+    (apiService.getClientVehicles as any).mockResolvedValue({
+      success: true,
+      data: mockVehicles,
+    });
+
+    (apiService.validateApplicationSubmission as any).mockResolvedValue({
+      success: true,
+      data: { warnings: [], duplicateFound: null },
     });
     
     (apiService.createApplication as any).mockResolvedValue({
       success: true,
-      data: { id: 'app-123' },
+      data: { loanApplicationId: 'app-123', fileId: 'SF123456' },
     });
   });
 
   describe('M2-FE-004: Loan Product Visibility', () => {
-    it('should show all active products when no configured products exist', async () => {
+    it('should show assigned configured products for client', async () => {
       renderWithProviders(<NewApplication />, {
         authContext: {
           user: mockClientUser,
@@ -132,6 +149,29 @@ describe('NewApplication Page - P0 Tests', () => {
         expect(loanProductSelect).toHaveTextContent('Personal Loan');
       }, { timeout: 10000 });
     }, 15000);
+
+    it('should show backend configured-products error when no products are allocated', async () => {
+      (apiService.getConfiguredProducts as any).mockResolvedValue({
+        success: false,
+        error: 'No loan products are assigned to your account. Please contact your KAM to allocate products.',
+      });
+
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/No loan products are assigned to your account/i)).toBeInTheDocument();
+      }, { timeout: 10000 });
+    });
   });
 
   /** Wait for loan products to load then select the first product (triggers getFormConfig). */
@@ -174,6 +214,9 @@ describe('NewApplication Page - P0 Tests', () => {
       // Check that at least one of the expected labels is present (Full Name from config or Applicant Name from core form)
       const fullNameOrApplicant = screen.queryByText(/Full Name/i) ?? screen.queryByText(/Applicant Name/i);
       expect(fullNameOrApplicant).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Requested Loan Amount/i)).not.toBeInTheDocument();
+      expect(screen.getByTestId('vehicle-make-select')).toBeInTheDocument();
+      expect(screen.getByTestId('vehicle-model-select')).toBeInTheDocument();
       const panOrPurposeEls = screen.queryAllByText(/PAN Card|Loan Purpose/i);
       expect(panOrPurposeEls.length).toBeGreaterThanOrEqual(1);
       const emailEls = screen.queryAllByText(/Email/i);
@@ -219,6 +262,15 @@ describe('NewApplication Page - P0 Tests', () => {
   });
 
   describe('M2-FE-002: Mandatory Field Validation on Submit', () => {
+    async function fillRequiredSubmitFields(user: ReturnType<typeof userEvent.setup>) {
+      await selectFirstLoanProduct(user);
+      await user.type(screen.getByTestId('applicant-name-input'), 'John Doe');
+      await user.type(document.getElementById('_mobileNumber') as HTMLElement, '9876543210');
+      await user.type(document.getElementById('_email') as HTMLElement, 'john@example.com');
+      await user.selectOptions(screen.getByTestId('basic-type-of-purchase'), 'Rental');
+      await user.type(document.getElementById('_documentsFolderLink') as HTMLElement, 'https://drive.google.com/drive/folders/test-folder');
+    }
+
     it('should prevent submission when mandatory fields are empty', async () => {
       const user = userEvent.setup();
       renderWithProviders(<NewApplication />, {
@@ -290,11 +342,8 @@ describe('NewApplication Page - P0 Tests', () => {
       const loanProductSelect = screen.queryByRole('combobox', { name: /loan product/i }) ?? screen.getAllByRole('combobox')[0];
       if (loanProductSelect) await user.selectOptions(loanProductSelect, 'LP001');
 
-      const amountInput = document.querySelector('#requested_loan_amount') ?? screen.queryByPlaceholderText(/50,00,000|amount|loan/i) ?? screen.getAllByRole('textbox').find((el) => (el as HTMLInputElement).placeholder?.includes('50') || (el as HTMLInputElement).id === 'requested_loan_amount');
-      if (amountInput) await user.type(amountInput as HTMLElement, '500000');
-
       const textboxes = screen.getAllByRole('textbox');
-      const fullNameInput = textboxes.find((el) => (el as HTMLInputElement).value === '' && (el as HTMLInputElement).id !== 'requested_loan_amount') ?? textboxes[1];
+      const fullNameInput = textboxes.find((el) => (el as HTMLInputElement).value === '') ?? textboxes[1];
       if (fullNameInput) await user.type(fullNameInput, 'John Doe');
 
       const selects = document.querySelectorAll('select');
@@ -357,6 +406,46 @@ describe('NewApplication Page - P0 Tests', () => {
       const createCall = (apiService.createApplication as any).mock.calls[0][0];
       expect(createCall.saveAsDraft).toBe(true);
     });
+
+    it('should fail when create API returns success without IDs', async () => {
+      const user = userEvent.setup();
+      (apiService.getConfiguredProducts as any).mockResolvedValue({
+        success: true,
+        data: ['LP001'],
+      });
+      (apiService.createApplication as any).mockResolvedValue({
+        success: true,
+        data: { warnings: [] },
+      });
+
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await selectFirstLoanProduct(user);
+      await waitFor(() => {
+        expect(apiService.getFormConfig).toHaveBeenCalled();
+      });
+
+      const applicantNameInput = screen.queryByRole('textbox', { name: /applicant name/i }) ?? screen.getAllByRole('textbox')[0];
+      await user.type(applicantNameInput, 'John Doe');
+      const draftButton = screen.getByRole('button', { name: /draft|save as draft/i });
+      await user.click(draftButton);
+
+      await waitFor(() => {
+        expect(globalThis.alert).toHaveBeenCalledWith(
+          expect.stringContaining('Submission was not confirmed by the server')
+        );
+      });
+    }, 15000);
   });
 
   describe('M2-FE-003: Form Configuration Loading States', () => {

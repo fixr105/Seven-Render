@@ -17,14 +17,14 @@ import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
 import { getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
-import { useLoanProductApplicableStatuses } from '../hooks/useLoanProductApplicableStatuses';
 
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
-  const statusLower = status.toLowerCase();
-  if (['approved', 'disbursed', 'draft', 'rejected'].includes(statusLower)) return 'neutral';
-  if (['kam_query_raised', 'pending_kam_review', 'credit_query_raised'].includes(statusLower)) return 'warning';
-  if (['forwarded_to_credit', 'in_negotiation', 'sent_to_nbfc'].includes(statusLower)) return 'info';
+  const statusLower = status.toLowerCase().trim();
+  if (statusLower.includes('reject') || statusLower.includes('error')) return 'error';
+  if (statusLower.includes('approve') || statusLower.includes('success')) return 'success';
+  if (statusLower.includes('query') || statusLower.includes('pending') || statusLower.includes('review')) return 'warning';
+  if (statusLower.includes('sent') || statusLower.includes('progress') || statusLower.includes('negotiation')) return 'info';
   return 'neutral';
 };
 
@@ -33,6 +33,7 @@ const formatAmount = (amount: unknown): string => {
   if (Number.isNaN(num)) return '₹0';
   return `₹${num.toLocaleString('en-IN')}`;
 };
+
 
 interface Query {
   id: string;
@@ -95,12 +96,18 @@ export const ApplicationDetail: React.FC = () => {
   const [editMessage, setEditMessage] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [nbfcPartners, setNbfcPartners] = useState<Array<{ id: string; lenderName: string }>>([]);
-  const [selectedNbfcId, setSelectedNbfcId] = useState('');
+  const [priorityNbfcSelections, setPriorityNbfcSelections] = useState<{ priority: 1 | 2 | 3; nbfcId: string }[]>([
+    { priority: 1, nbfcId: '' },
+    { priority: 2, nbfcId: '' },
+    { priority: 3, nbfcId: '' },
+  ]);
   const [assignNbfcSubmitting, setAssignNbfcSubmitting] = useState(false);
   const [assignNbfcError, setAssignNbfcError] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [submittingReplyForId, setSubmittingReplyForId] = useState<string | null>(null);
   const [fieldIdToLabel, setFieldIdToLabel] = useState<Record<string, string>>({});
+  const [applicationStatuses, setApplicationStatuses] = useState<Array<{ key: string; label: string }>>([]);
+  const [loadingApplicationStatuses, setLoadingApplicationStatuses] = useState(false);
   const QUERY_EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
   /** Map old file values to human-readable for display */
@@ -145,10 +152,7 @@ export const ApplicationDetail: React.FC = () => {
     }
   }, [userRole]);
 
-  const showAssignNbfcSection = (userRole === 'credit_team' || userRole === 'admin') && application && (() => {
-    const raw = (application.status || application.Status || '').toString().toLowerCase().trim().replace(/\s+/g, '_');
-    return raw === 'pending_credit_review' || raw === 'in_negotiation' || raw === 'forwarded_to_credit';
-  })();
+  const showAssignNbfcSection = (userRole === 'credit_team' || userRole === 'admin') && Boolean(application);
 
   useEffect(() => {
     if (showAssignNbfcSection) {
@@ -159,7 +163,11 @@ export const ApplicationDetail: React.FC = () => {
       }).catch(() => setNbfcPartners([]));
     } else {
       setNbfcPartners([]);
-      setSelectedNbfcId('');
+      setPriorityNbfcSelections([
+        { priority: 1, nbfcId: '' },
+        { priority: 2, nbfcId: '' },
+        { priority: 3, nbfcId: '' },
+      ]);
       setAssignNbfcError(null);
     }
   }, [showAssignNbfcSection]);
@@ -176,10 +184,103 @@ export const ApplicationDetail: React.FC = () => {
         return null;
       })()
     : null;
-  const {
-    statuses: productApplicableStatuses,
-    loading: productStatusesLoading,
-  } = useLoanProductApplicableStatuses(productIdForConfig);
+  useEffect(() => {
+    let cancelled = false;
+
+    const normalizeLookup = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+
+    const collectProductCandidates = (): string[] => {
+      const rawCandidates: unknown[] = [
+        appRecord?.loan_product_id,
+        appRecord?.productId,
+        appRecord?.['Product ID'],
+        appRecord?.['Loan Product'],
+        appRecord?.product,
+        (application?.loan_product as { code?: string; name?: string } | undefined)?.code,
+        (application?.loan_product as { code?: string; name?: string } | undefined)?.name,
+      ];
+
+      const flattened = rawCandidates.flatMap((value) => {
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === 'object') {
+          const obj = value as Record<string, unknown>;
+          return [obj.id, obj['Product ID'], obj.productId, obj.name, obj['Product Name']];
+        }
+        return [value];
+      });
+
+      return flattened
+        .map(normalizeLookup)
+        .filter(Boolean)
+        .filter((value, idx, arr) => arr.indexOf(value) === idx);
+    };
+
+    const loadStatusesForProduct = async () => {
+      const productCandidates = collectProductCandidates();
+      if (productCandidates.length === 0) {
+        setApplicationStatuses([]);
+        return;
+      }
+      setLoadingApplicationStatuses(true);
+      try {
+        let entries: Array<{ key?: string; label?: string }> = [];
+
+        for (const candidate of productCandidates) {
+          const response = await apiService.getLoanProduct(candidate);
+          if (response.success && Array.isArray(response.data?.applicableStatuses)) {
+            entries = response.data.applicableStatuses;
+            if (entries.length > 0) break;
+          }
+        }
+
+        // Fallback: if direct get-by-id misses, scan list and match by any candidate field.
+        if (entries.length === 0) {
+          const listResp = await apiService.listLoanProducts();
+          if (listResp.success && Array.isArray(listResp.data)) {
+            const matched = listResp.data.find((product) => {
+              const candidates = [
+                product.id,
+                product.productId,
+                product.productName,
+                (product as Record<string, unknown>)['Product ID'] as string | undefined,
+                (product as Record<string, unknown>)['Product Name'] as string | undefined,
+              ]
+                .map(normalizeLookup)
+                .filter(Boolean);
+              return candidates.some((c) => productCandidates.includes(c));
+            });
+            if (matched && Array.isArray(matched.applicableStatuses)) {
+              entries = matched.applicableStatuses;
+            }
+          }
+        }
+
+        if (cancelled || entries.length === 0) {
+          if (!cancelled) setApplicationStatuses([]);
+          return;
+        }
+        const byKey = new Map<string, { key: string; label: string }>();
+        entries.forEach((row) => {
+          const key = normalizeStatus(String(row.key ?? ''));
+          if (!key || byKey.has(key)) return;
+          byKey.set(key, {
+            key,
+            label: String(row.label ?? '').trim() || getStatusDisplayNameForViewer(key, userRole || ''),
+          });
+        });
+        const next = Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label));
+        setApplicationStatuses(next);
+      } catch {
+        if (!cancelled) setApplicationStatuses([]);
+      } finally {
+        if (!cancelled) setLoadingApplicationStatuses(false);
+      }
+    };
+    loadStatusesForProduct();
+    return () => {
+      cancelled = true;
+    };
+  }, [userRole, appRecord?.loan_product_id, appRecord?.productId, appRecord?.['Product ID'], appRecord?.['Loan Product'], application?.loan_product]);
 
   useEffect(() => {
     if (!application || !productIdForConfig) return;
@@ -267,7 +368,7 @@ export const ApplicationDetail: React.FC = () => {
             : requestedAmount != null ? (typeof requestedAmount === 'string' ? parseFloat(String(requestedAmount)) : Number(requestedAmount)) : undefined;
         const normalized = {
           ...d,
-          status: normalizeStatus(String(d.status ?? d.Status ?? 'draft')),
+          status: normalizeStatus(String(d.status ?? d.Status ?? '')),
           file_number: d.file_number ?? d.fileId ?? d['File ID'],
           applicant_name: d.applicant_name ?? d.applicantName ?? d['Applicant Name'],
           form_data,
@@ -531,41 +632,11 @@ export const ApplicationDetail: React.FC = () => {
 
     setSubmitting(true);
     try {
-      // Use API service based on role and status
       let response;
-      const currentStatus = (application?.status || '').toLowerCase();
-
-      // Client with DRAFT: use submitApplication for Submit, withdrawApplication for Withdraw
-      if (userRole === 'client' && currentStatus === 'draft') {
-        if (newStatus === 'under_kam_review') {
-          response = await apiService.submitApplication(id);
-        } else if (newStatus === 'withdrawn') {
-          response = await apiService.withdrawApplication(id);
-        } else {
-          response = await apiService.editApplication(id, { status: newStatus });
-        }
-      } else if (userRole === 'client' && newStatus === 'withdrawn') {
-        response = await apiService.withdrawApplication(id);
-      } else if (userRole === 'kam' && (newStatus === 'forwarded_to_credit' || newStatus === 'pending_credit_review')) {
-        response = await apiService.forwardToCredit(id);
-      } else if (userRole === 'kam') {
+      if (userRole === 'kam') {
         response = await apiService.updateKAMApplicationStatus(id, newStatus, statusNotes);
       } else if (userRole === 'credit_team') {
-        if (newStatus === 'in_negotiation') {
-          response = await apiService.markInNegotiation(id);
-        } else if (newStatus === 'disbursed') {
-          response = await apiService.markDisbursed(id, {
-            disbursedAmount: application?.disbursedAmount || '0',
-            disbursedDate: new Date().toISOString(),
-          });
-        } else {
-          response = await apiService.updateCreditApplicationStatus(id, newStatus, statusNotes);
-        }
-      } else if (userRole === 'nbfc' && newStatus === 'disbursed') {
-        response = await apiService.markDisbursedNBFC(id, {
-          disbursedAmount: application?.disbursedAmount || '0',
-          disbursedDate: new Date().toISOString(),
-        });
+        response = await apiService.updateCreditApplicationStatus(id, newStatus, statusNotes);
       } else {
         response = await apiService.editApplication(id, { status: newStatus });
       }
@@ -589,35 +660,21 @@ export const ApplicationDetail: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Role and status-aware options. Filter by allowedNextStatuses from backend (state machine); for Credit, exclude sent_to_nbfc (use Assign to NBFC section only).
+  // Status options sourced from Loan Application table statuses; optionally constrained by backend transition permissions.
   const statusOptions = (() => {
-    const allOptions = productApplicableStatuses.map((statusEntry) => ({
+    const allOptions = applicationStatuses.map((statusEntry) => ({
       value: statusEntry.key,
       label: statusEntry.label || getStatusDisplayNameForViewer(statusEntry.key, userRole || ''),
     }));
-    const currentStatus = (application?.status || application?.Status || '').toString().toLowerCase();
-    if (userRole === 'client' && currentStatus === 'draft') {
-      return [
-        { value: 'under_kam_review', label: 'Submit' },
-        { value: 'withdrawn', label: 'Withdraw' },
-      ];
-    }
-    if (userRole === 'client' && (currentStatus === 'under_kam_review' || currentStatus === 'query_with_client' || currentStatus === 'pending_kam_review' || currentStatus === 'kam_query_raised')) {
-      return [{ value: 'withdrawn', label: 'Withdraw' }];
-    }
     let options = allOptions;
     const allowed = application?.allowedNextStatuses;
     if (allowed && Array.isArray(allowed) && allowed.length > 0) {
       const allowedSet = new Set(allowed.map((s: string) => String(s).toLowerCase().trim()));
       options = allOptions.filter((opt) => allowedSet.has(opt.value));
     }
-    // Credit must use Assign to NBFC section for sent_to_nbfc; do not show in status dropdown
-    if (userRole === 'credit_team' || userRole === 'admin') {
-      options = options.filter((opt) => opt.value !== 'sent_to_nbfc');
-    }
     return options;
   })();
-  const statusDropdownDisabled = !productStatusesLoading && statusOptions.length === 0;
+  const statusDropdownDisabled = !loadingApplicationStatuses && statusOptions.length === 0;
 
   if (loading) {
     return (
@@ -747,10 +804,16 @@ export const ApplicationDetail: React.FC = () => {
             <Button variant="tertiary" icon={RefreshCw} onClick={handleRefresh} disabled={refreshing} loading={refreshing}>
               Refresh
             </Button>
-            {((userRole === 'kam' || userRole === 'credit_team') ||
-              (userRole === 'client' && ['draft', 'under_kam_review', 'query_with_client', 'pending_kam_review', 'kam_query_raised'].includes((application?.status || application?.Status || '').toString().toLowerCase()))) && (
-              <Button variant="primary" icon={Edit} onClick={() => setShowStatusModal(true)}>
-                {userRole === 'client' && (application?.status || application?.Status || '').toString().toLowerCase() === 'draft' ? 'Submit / Withdraw' : 'Update Status'}
+            {((userRole === 'kam' || userRole === 'credit_team') || userRole === 'client') && (
+              <Button
+                variant="primary"
+                icon={Edit}
+                onClick={async () => {
+                  await fetchApplicationDetails();
+                  setShowStatusModal(true);
+                }}
+              >
+                Update Status
               </Button>
             )}
             {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && (
@@ -877,7 +940,7 @@ export const ApplicationDetail: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Assign to NBFC (Credit only when Pending Credit Review or In Negotiation) */}
+          {/* Assign to NBFC (Credit/Admin can assign from any stage) */}
           {showAssignNbfcSection && (
             <Card className="border-brand-primary/20 bg-brand-primary/5">
               <CardHeader>
@@ -885,36 +948,59 @@ export const ApplicationDetail: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-neutral-600 mb-3">
-                  Select an NBFC partner to send this application for lending decision. This will set status to Sent to NBFC and notify the NBFC.
+                  Select up to 3 NBFC partners in priority order. This will set status to Sent to NBFC and notify the assigned NBFCs.
                 </p>
                 <div className="flex flex-wrap items-end gap-3">
-                  <div className="min-w-[200px] flex-1">
-                    <Select
-                      label="NBFC Partner"
-                      options={[
-                        { value: '', label: 'Select NBFC...' },
-                        ...nbfcPartners.map((p) => ({ value: p.id, label: p.lenderName })),
-                      ]}
-                      value={selectedNbfcId}
-                      onChange={(e) => {
-                        setSelectedNbfcId(e.target.value);
-                        setAssignNbfcError(null);
-                      }}
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+                    {priorityNbfcSelections.map((selection) => (
+                      <Select
+                        key={selection.priority}
+                        label={`Priority ${selection.priority}`}
+                        options={[
+                          { value: '', label: 'Select NBFC...' },
+                          ...nbfcPartners
+                            .filter(
+                              (p) =>
+                                !priorityNbfcSelections.some(
+                                  (s) => s.priority !== selection.priority && s.nbfcId === p.id
+                                )
+                            )
+                            .map((p) => ({ value: p.id, label: p.lenderName })),
+                        ]}
+                        value={selection.nbfcId}
+                        onChange={(e) => {
+                          const nextValue = e.target.value;
+                          setPriorityNbfcSelections((current) =>
+                            current.map((item) =>
+                              item.priority === selection.priority ? { ...item, nbfcId: nextValue } : item
+                            )
+                          );
+                          setAssignNbfcError(null);
+                        }}
+                      />
+                    ))}
                   </div>
                   <Button
                     variant="primary"
                     onClick={async () => {
-                      if (!id || !selectedNbfcId) {
-                        setAssignNbfcError('Please select an NBFC.');
+                      const assignments = priorityNbfcSelections
+                        .filter((entry) => entry.nbfcId)
+                        .map((entry) => ({ nbfcId: entry.nbfcId, priority: entry.priority }));
+
+                      if (!id || assignments.length === 0) {
+                        setAssignNbfcError('Please select at least one NBFC.');
                         return;
                       }
                       setAssignNbfcSubmitting(true);
                       setAssignNbfcError(null);
                       try {
-                        const res = await apiService.assignNBFCs(application?.id ?? id, [selectedNbfcId]);
+                        const res = await apiService.assignNBFCs(application?.id ?? id, assignments);
                         if (res.success) {
-                          setSelectedNbfcId('');
+                          setPriorityNbfcSelections([
+                            { priority: 1, nbfcId: '' },
+                            { priority: 2, nbfcId: '' },
+                            { priority: 3, nbfcId: '' },
+                          ]);
                           fetchApplicationDetails();
                           fetchStatusHistory();
                         } else {
@@ -926,7 +1012,7 @@ export const ApplicationDetail: React.FC = () => {
                         setAssignNbfcSubmitting(false);
                       }
                     }}
-                    disabled={assignNbfcSubmitting || !selectedNbfcId}
+                    disabled={assignNbfcSubmitting || !priorityNbfcSelections.some((entry) => entry.nbfcId)}
                     loading={assignNbfcSubmitting}
                   >
                     Assign to NBFC
@@ -1986,7 +2072,7 @@ export const ApplicationDetail: React.FC = () => {
               disabled={statusDropdownDisabled}
               helperText={
                 statusDropdownDisabled
-                  ? 'No statuses configured for this loan product. Please add Applicable Statuses in Loan Products.'
+                  ? 'No statuses found in Loan Application records.'
                   : undefined
               }
               required

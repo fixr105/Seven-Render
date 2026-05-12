@@ -18,6 +18,12 @@ describe('normalizeRecords', () => {
     expect(result[0]['Product ID']).toBe('LP001');
   });
 
+  it('fills products from Products variant', () => {
+    const records = [{ id: 'rec1', Products: 'LP001 LP002' }];
+    const result = normalizeRecords(records, 'Clients');
+    expect(result[0].products).toBe('LP001 LP002');
+  });
+
   it('fills Record Title from recordTitle variant', () => {
     const records = [{ id: 'rec1', recordTitle: 'PAN Card' }];
     const result = normalizeRecords(records, 'Record Titles');

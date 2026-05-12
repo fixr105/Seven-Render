@@ -83,7 +83,11 @@ export const Dashboard: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title="Dashboard" />
+      {userRole === 'client' ? (
+        <PageHero title={`Welcome back, ${getUserDisplayName() || 'there'}!`} />
+      ) : (
+        <PageHero title="Dashboard" />
+      )}
       {renderDashboard()}
     </MainLayout>
   );

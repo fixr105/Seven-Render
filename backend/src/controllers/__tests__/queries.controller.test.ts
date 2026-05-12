@@ -11,32 +11,34 @@ import { ClientController } from '../client.controller.js';
 import { UserRole, LoanStatus } from '../../config/constants.js';
 import { AuthUser } from '../../types/auth.js';
 import { createMockN8nClient, mockFileAuditingLog, mockLoanApplications, mockNotifications, mockClients } from '../../__tests__/helpers/mockN8nClient.js';
-import * as n8nClientModule from '../../services/airtable/n8nClient.js';
 
-// Mock the n8nClient module
-const mockN8nClientInstance = createMockN8nClient();
-jest.mock('../../services/airtable/n8nClient.js', () => ({
-  n8nClient: mockN8nClientInstance,
-}));
+var mockN8nClientInstance!: ReturnType<typeof createMockN8nClient>;
+
+jest.mock('../../services/airtable/n8nClient.js', () => {
+  const { createMockN8nClient: createMock } = require('../../__tests__/helpers/mockN8nClient.js');
+  const inst = createMock();
+  mockN8nClientInstance = inst;
+  return { n8nClient: inst };
+});
 
 // Mock query service
 jest.mock('../../services/queries/query.service.js', () => ({
   queryService: {
-    createQuery: jest.fn().mockResolvedValue('QUERY-123'),
-    createQueryReply: jest.fn().mockResolvedValue('REPLY-123'),
+    createQuery: jest.fn(async () => 'QUERY-123'),
+    createQueryReply: jest.fn(async () => 'REPLY-123'),
   },
 }));
 
 // Mock notification service
 jest.mock('../../services/notifications/notification.service.js', () => ({
   notificationService: {
-    notifyQueryCreated: jest.fn().mockResolvedValue(undefined),
+    notifyQueryCreated: jest.fn(async () => {}),
   },
 }));
 
 // Mock admin logger
 jest.mock('../../utils/adminLogger.js', () => ({
-  logAdminActivity: jest.fn().mockResolvedValue(undefined),
+  logAdminActivity: jest.fn(async () => {}),
 }));
 
 describe('QueriesController - P0 Tests', () => {
@@ -44,7 +46,7 @@ describe('QueriesController - P0 Tests', () => {
   let kamController: KAMController;
   let clientController: ClientController;
   let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
+  let mockResponse: Response;
 
   beforeEach(() => {
     queriesController = new QueriesController();
@@ -56,7 +58,7 @@ describe('QueriesController - P0 Tests', () => {
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
-    };
+    } as unknown as Response;
   });
 
   describe('M4-E2E-001: Query Raise and Response (KAM → CLIENT)', () => {
@@ -74,7 +76,7 @@ describe('QueriesController - P0 Tests', () => {
         id: 'rec2',
       };
 
-      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      (mockN8nClientInstance.fetchTable as jest.MockedFunction<(tableName: string) => Promise<unknown[]>>).mockImplementation(async (tableName: string) => {
         if (tableName === 'Loan Application') {
           return [application];
         }
@@ -94,30 +96,25 @@ describe('QueriesController - P0 Tests', () => {
 
       await kamController.raiseQuery(mockRequest as Request, mockResponse as Response);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       
-      // Verify File Auditing Log entry created (via queryService)
+      // queryService is mocked here, so real createQuery (postFileAuditLog + notify) does not run.
       const { queryService } = await import('../../services/queries/query.service.js');
-      expect(queryService.createQuery).toHaveBeenCalled();
-      expect(postedAuditLogs.length).toBeGreaterThan(0);
-      
-      const queryEntry = postedAuditLogs.find((entry: any) => 
-        entry['Action/Event Type'] === 'Query Raised'
+      expect(queryService.createQuery).toHaveBeenCalledWith(
+        'SF20250102001',
+        'CLIENT001',
+        'Sagar@gmail.com',
+        'kam',
+        'Please provide additional documents for verification',
+        'client',
+        'query_raised'
       );
-      expect(queryEntry).toBeDefined();
-      expect(queryEntry['Target User/Role']).toBe('CLIENT');
-      expect(queryEntry['Resolved']).toBe('False');
-      expect(queryEntry['Details/Message']).toContain('Please provide additional documents');
       
       // Verify application status changed to QUERY_WITH_CLIENT
       expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalled();
       const postedApplications = mockN8nClientInstance.getPostedData('Loan Applications');
       const updatedApp = postedApplications.find((app: any) => app.id === 'rec2');
       expect(updatedApp.Status).toBe(LoanStatus.QUERY_WITH_CLIENT);
-      
-      // Verify notification created (via queryService)
-      const { notificationService } = await import('../../services/notifications/notification.service.js');
-      expect(notificationService.notifyQueryCreated).toHaveBeenCalled();
     });
 
     it('should allow CLIENT to respond to query', async () => {
@@ -128,10 +125,11 @@ describe('QueriesController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      // Mock query entry
+      // Mock query entry (File must match application File ID for respondToQuery lookup)
       const queryEntry = {
         ...mockFileAuditingLog[1], // Query Raised entry
         id: 'audit2',
+        'File': 'SF20250102001',
         'Action/Event Type': 'Query Raised',
         'Resolved': 'False',
       };
@@ -142,7 +140,7 @@ describe('QueriesController - P0 Tests', () => {
         Status: LoanStatus.QUERY_WITH_CLIENT,
       };
 
-      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      (mockN8nClientInstance.fetchTable as jest.MockedFunction<(tableName: string) => Promise<unknown[]>>).mockImplementation(async (tableName: string) => {
         if (tableName === 'Loan Application') {
           return [application];
         }
@@ -162,7 +160,7 @@ describe('QueriesController - P0 Tests', () => {
 
       await clientController.respondToQuery(mockRequest as Request, mockResponse as Response);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       
       // Verify query reply created (via queryService)
       const { queryService } = await import('../../services/queries/query.service.js');
@@ -185,7 +183,7 @@ describe('QueriesController - P0 Tests', () => {
         clientId: 'CLIENT001',
       };
 
-      (mockN8nClientInstance.fetchTable as jest.Mock).mockResolvedValue(mockLoanApplications);
+      (mockN8nClientInstance.fetchTable as jest.MockedFunction<(tableName: string) => Promise<unknown[]>>).mockResolvedValue(mockLoanApplications);
 
       // Simulate status change operation
       mockRequest = {
@@ -235,7 +233,7 @@ describe('QueriesController - P0 Tests', () => {
         id: 'rec2',
       };
 
-      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      (mockN8nClientInstance.fetchTable as jest.MockedFunction<(tableName: string) => Promise<unknown[]>>).mockImplementation(async (tableName: string) => {
         if (tableName === 'Loan Application') {
           return [application];
         }
@@ -255,9 +253,8 @@ describe('QueriesController - P0 Tests', () => {
 
       await kamController.raiseQuery(mockRequest as Request, mockResponse as Response);
 
-      // Verify notification created (via queryService)
-      const { notificationService } = await import('../../services/notifications/notification.service.js');
-      expect(notificationService.notifyQueryCreated).toHaveBeenCalled();
+      const { queryService } = await import('../../services/queries/query.service.js');
+      expect(queryService.createQuery).toHaveBeenCalled();
     });
   });
 
@@ -266,11 +263,12 @@ describe('QueriesController - P0 Tests', () => {
       const queryEntry = {
         ...mockFileAuditingLog[1],
         id: 'audit2',
+        'File': 'SF20250102001',
         'Action/Event Type': 'Query Raised',
         'Resolved': 'False',
       };
 
-      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      (mockN8nClientInstance.fetchTable as jest.MockedFunction<(tableName: string) => Promise<unknown[]>>).mockImplementation(async (tableName: string) => {
         if (tableName === 'File Auditing Log') {
           return [queryEntry];
         }

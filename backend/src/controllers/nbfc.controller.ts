@@ -10,7 +10,11 @@ import { parseFormData } from '../utils/parseFormData.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
-import { getAllowedNextStatuses, normalizeToCanonicalStatus } from '../services/statusTracking/statusStateMachine.js';
+import {
+  getApplicationProductStatuses,
+  getAllowedStatusesFromProduct,
+  normalizeDynamicStatus,
+} from '../services/statusTracking/dynamicStatus.service.js';
 
 export class NBFController {
   /**
@@ -32,7 +36,7 @@ export class NBFController {
       }
 
       // Fetch only Loan Application table
-      const allApplications = await n8nClient.fetchTable('Loan Application');
+      const allApplications = await n8nClient.fetchTable('Loan Application', false);
 
       // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
@@ -186,17 +190,11 @@ export class NBFController {
         });
       }
 
-      // Allowed next statuses for status dropdown (state machine; NBFC can e.g. mark Disbursed from Approved)
-      let allowedNextStatuses: string[] = [];
-      try {
-        const rawStatus = application.Status || application.status || 'draft';
-        const normalizedStatus = String(rawStatus).toLowerCase().trim();
-        const currentStatus = normalizeToCanonicalStatus(normalizedStatus);
-        const allowed = getAllowedNextStatuses(currentStatus, UserRole.NBFC);
-        allowedNextStatuses = allowed as string[];
-      } catch {
-        // Leave empty on error so frontend can fall back
-      }
+      const productStatuses = await getApplicationProductStatuses(application as Record<string, any>);
+      const allowedNextStatuses = getAllowedStatusesFromProduct(
+        application as Record<string, any>,
+        productStatuses
+      );
 
       // Return complete application info including lender decision fields
       res.json({
@@ -331,22 +329,23 @@ export class NBFController {
 
       // Auto-update application Status when NBFC records Approved or Rejected
       let previousStatus: string | undefined;
-      let newStatus: LoanStatus | undefined;
+      let newStatus: string | undefined;
       if (lenderDecisionStatus === LenderDecisionStatus.APPROVED || lenderDecisionStatus === LenderDecisionStatus.REJECTED) {
-        const { validateTransition, toUserRole, normalizeToCanonicalStatus } = await import('../services/statusTracking/statusStateMachine.js');
-        newStatus = lenderDecisionStatus === LenderDecisionStatus.APPROVED ? LoanStatus.APPROVED : LoanStatus.REJECTED;
-        try {
-          const currentStatus = normalizeToCanonicalStatus(application.Status ?? 'sent_to_nbfc');
-          validateTransition(currentStatus, newStatus, toUserRole(req.user!.role));
-          previousStatus = application.Status;
-          updateData.Status = newStatus;
-        } catch (transitionError: any) {
+        newStatus = normalizeDynamicStatus(
+          lenderDecisionStatus === LenderDecisionStatus.APPROVED ? LoanStatus.APPROVED : LoanStatus.REJECTED
+        );
+        const statusKeys = (await getApplicationProductStatuses(application as Record<string, any>)).map(
+          (s) => s.key
+        );
+        if (!statusKeys.includes(newStatus)) {
           res.status(400).json({
             success: false,
-            error: transitionError?.message || 'Invalid status transition',
+            error: 'Status is not configured in Loan Products Applicable Statuses',
           });
           return;
         }
+        previousStatus = application.Status;
+        updateData.Status = newStatus;
       }
 
       // Update application via loanapplications POST webhook

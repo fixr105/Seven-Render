@@ -17,11 +17,6 @@ import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 import { getStatusDisplayNameForViewer, getStatusColor, normalizeStatus } from '../lib/statusUtils';
-import {
-  buildStatusCatalogForApplications,
-  statusOrderMapFromCatalog,
-  type LoanProductWithStatuses,
-} from '../lib/applicationsStatusCatalog';
 
 const FILTER_TAG_STYLES: Record<string, { base: string; active: string }> = {
   neutral: { base: 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-neutral-200', active: 'bg-neutral-200 text-neutral-900 border-neutral-300 ring-1 ring-neutral-300' },
@@ -51,7 +46,7 @@ export const Applications: React.FC = () => {
   const showUnmappedTab = userRole === 'credit_team' || userRole === 'admin' || userRole === 'kam';
   const [viewTab, setViewTab] = useState<'all' | 'unmapped'>('all');
   const unmappedView = showUnmappedTab && viewTab === 'unmapped';
-  const [loanProducts, setLoanProducts] = useState<LoanProductWithStatuses[]>([]);
+  const [loanProducts, setLoanProducts] = useState<Array<{ id?: string; productId?: string; productName?: string; name?: string; ['Product Name']?: string }>>([]);
   const [loadingLoanProducts, setLoadingLoanProducts] = useState(true);
   const [productFilterId, setProductFilterId] = useState('');
   const [selectedStatusKeys, setSelectedStatusKeys] = useState<string[]>([]);
@@ -117,10 +112,26 @@ export const Applications: React.FC = () => {
     (async () => {
       setLoadingLoanProducts(true);
       try {
-        const res = await apiService.listLoanProducts(true);
+        const [productsResponse, configuredResponse] = await Promise.all([
+          apiService.listLoanProducts(true),
+          userRole === 'client' ? apiService.getConfiguredProducts() : Promise.resolve(null),
+        ]);
         if (cancelled) return;
-        if (res.success && Array.isArray(res.data)) {
-          setLoanProducts(res.data as LoanProductWithStatuses[]);
+        if (productsResponse.success && Array.isArray(productsResponse.data)) {
+          let nextProducts = productsResponse.data as Array<{ id?: string; productId?: string; productName?: string; name?: string; ['Product Name']?: string }>;
+          if (userRole === 'client') {
+            if (configuredResponse?.success && Array.isArray(configuredResponse.data)) {
+              const allowedIds = new Set(
+                configuredResponse.data.map((id) => String(id).trim().toLowerCase()).filter(Boolean)
+              );
+              nextProducts = nextProducts.filter((p) =>
+                allowedIds.has(String(p.productId ?? p.id ?? '').trim().toLowerCase())
+              );
+            } else {
+              nextProducts = [];
+            }
+          }
+          setLoanProducts(nextProducts);
         } else {
           setLoanProducts([]);
         }
@@ -133,7 +144,7 @@ export const Applications: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userRole]);
 
   useEffect(() => {
     if (searchParams.has('productId')) {
@@ -234,12 +245,23 @@ export const Applications: React.FC = () => {
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const statusCatalog = useMemo(
-    () => buildStatusCatalogForApplications(loanProducts, productFilterId || null, userRole),
-    [loanProducts, productFilterId, userRole]
-  );
+  const statusCatalog = useMemo(() => {
+    const byKey = new Map<string, { key: string; label: string }>();
+    applications.forEach((app) => {
+      const key = normalizeStatus(app.status ?? '');
+      if (!key || byKey.has(key)) return;
+      byKey.set(key, {
+        key,
+        label: getStatusDisplayNameForViewer(key, userRole || ''),
+      });
+    });
+    return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [applications, userRole]);
 
-  const statusOrderMap = useMemo(() => statusOrderMapFromCatalog(statusCatalog), [statusCatalog]);
+  const statusOrderMap = useMemo(
+    () => new Map(statusCatalog.map((entry, idx) => [entry.key, idx])),
+    [statusCatalog]
+  );
 
   const statusLabelByKey = useMemo(
     () => new Map(statusCatalog.map((e) => [e.key, e.label])),

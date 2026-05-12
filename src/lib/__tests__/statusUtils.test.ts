@@ -51,20 +51,20 @@ describe('normalizeStatus', () => {
   });
 
   describe('empty/null/whitespace', () => {
-    it('returns draft for empty string', () => {
-      expect(normalizeStatus('')).toBe('draft');
+    it('returns empty string for empty input', () => {
+      expect(normalizeStatus('')).toBe('');
     });
 
-    it('returns draft for null', () => {
-      expect(normalizeStatus(null as unknown as string)).toBe('draft');
+    it('returns empty string for null', () => {
+      expect(normalizeStatus(null as unknown as string)).toBe('');
     });
 
-    it('returns draft for undefined', () => {
-      expect(normalizeStatus(undefined as unknown as string)).toBe('draft');
+    it('returns empty string for undefined', () => {
+      expect(normalizeStatus(undefined as unknown as string)).toBe('');
     });
 
-    it('returns draft for whitespace-only', () => {
-      expect(normalizeStatus('   ')).toBe('draft');
+    it('returns empty string for whitespace-only', () => {
+      expect(normalizeStatus('   ')).toBe('');
     });
   });
 

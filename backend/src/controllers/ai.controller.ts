@@ -82,7 +82,7 @@ export class AIController {
         applicantName: application['Applicant Name'] || 'N/A',
         loanProduct: application['Loan Product'] || 'N/A',
         requestedAmount: parseFloat(application['Requested Loan Amount'] || '0'),
-        status: application.Status || 'draft',
+        status: application.Status,
         formData,
         documents,
         clientInfo: client ? {

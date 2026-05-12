@@ -85,7 +85,11 @@ export interface RaiseCreditQueryRequest {
 }
 
 export interface AssignNBFCsRequest {
-  nbfcIds: string[];
+  nbfcIds?: string[];
+  assignments?: Array<{
+    nbfcId: string;
+    priority: number;
+  }>;
 }
 
 export interface CaptureNBFCDecisionRequest {
