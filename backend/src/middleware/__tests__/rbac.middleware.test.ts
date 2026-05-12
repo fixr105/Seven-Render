@@ -117,9 +117,9 @@ describe('RBAC Guards', () => {
       expect(canAccessResource(undefined, 'client-1')).toBe(false);
     });
 
-    it('should handle string/number ID comparison', () => {
+    it('should handle string ID mismatch when comparing clientId', () => {
       expect(canAccessResource(clientUser, 'client-1', 'clientId')).toBe(true);
-      expect(canAccessResource(clientUser, 123, 'clientId')).toBe(false);
+      expect(canAccessResource(clientUser, '999', 'clientId')).toBe(false);
     });
   });
 });

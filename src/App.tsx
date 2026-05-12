@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './auth/LoginPage';
@@ -22,6 +23,11 @@ import { AdminActivityLog } from './pages/AdminActivityLog';
 import { AdminUserAccounts } from './pages/AdminUserAccounts';
 import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
 import { NBFCTools } from './pages/NBFCTools';
+import { useAuth } from './auth/AuthContext';
+import { getProfileCompletion } from './auth/profileCompletion';
+import { getIsPromptDismissedForSession, getProfilePromptDismissKey, shouldShowProfilePrompt } from './auth/profilePromptSession';
+import { BuildYourProfilePrompt } from './components/BuildYourProfilePrompt';
+import { apiService } from './services/api';
 
 function App() {
   return (
@@ -34,28 +40,67 @@ function App() {
 }
 
 function AppRoutes() {
+  const location = useLocation();
+  const { user, loading, refreshUser, authSessionId } = useAuth();
+  const [dismissedInUi, setDismissedInUi] = useState(false);
+
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/forgot-password' || location.pathname === '/reset-password';
+  const completion = useMemo(() => getProfileCompletion(user), [user]);
+
+  const dismissKey = getProfilePromptDismissKey(user?.id || null, authSessionId);
+  const isDismissedForSession = getIsPromptDismissedForSession(dismissKey);
+  const dismissedForSession = isDismissedForSession || dismissedInUi;
+
+  useEffect(() => {
+    setDismissedInUi(false);
+  }, [dismissKey]);
+
+  const shouldShowPrompt = shouldShowProfilePrompt({
+    hasUser: Boolean(user),
+    loading,
+    isAuthPage,
+    completion,
+    dismissedForSession,
+  });
+
+  const handleDismissPrompt = () => {
+    setDismissedInUi(true);
+    if (dismissKey) {
+      sessionStorage.setItem(dismissKey, 'true');
+    }
+  };
+
+  const handlePromptSave = async (payload: { name?: string; phone?: string; company?: string }) => {
+    const response = await apiService.updateProfile(payload);
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to update profile');
+    }
+    await refreshUser();
+  };
+
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/LOGIN" element={<Navigate to="/login" replace />} />
-      <Route path="/Login" element={<Navigate to="/login" replace />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/terms" element={<TermsPage />} />
+    <>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/LOGIN" element={<Navigate to="/login" replace />} />
+        <Route path="/Login" element={<Navigate to="/login" replace />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
 
-      <Route
-        path="/dashboard"
-        element={
-          <ErrorBoundary>
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          </ErrorBoundary>
-        }
-      />
+        <Route
+          path="/dashboard"
+          element={
+            <ErrorBoundary>
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            </ErrorBoundary>
+          }
+        />
 
-      <Route
+        <Route
         path="/applications"
         element={
           <ErrorBoundary>
@@ -66,7 +111,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/applications/:id"
         element={
           <ErrorBoundary>
@@ -77,7 +122,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/applications/new"
         element={
           <ErrorBoundary>
@@ -88,7 +133,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/ledger"
         element={
           <ErrorBoundary>
@@ -99,7 +144,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/clients"
         element={
           <ErrorBoundary>
@@ -110,7 +155,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/profile"
         element={
           <ErrorBoundary>
@@ -121,7 +166,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/settings"
         element={
           <ErrorBoundary>
@@ -132,7 +177,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/reports"
         element={
           <ErrorBoundary>
@@ -143,7 +188,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/admin/activity-log"
         element={
           <ErrorBoundary>
@@ -153,7 +198,7 @@ function AppRoutes() {
           </ErrorBoundary>
         }
       />
-      <Route
+        <Route
         path="/admin/user-accounts"
         element={
           <ErrorBoundary>
@@ -163,7 +208,7 @@ function AppRoutes() {
           </ErrorBoundary>
         }
       />
-      <Route
+        <Route
         path="/admin/nbfc-partners"
         element={
           <ErrorBoundary>
@@ -174,7 +219,7 @@ function AppRoutes() {
         }
       />
 
-      <Route
+        <Route
         path="/form-configuration"
         element={
           <ErrorBoundary>
@@ -196,9 +241,9 @@ function AppRoutes() {
         }
       />
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-      <Route
+        <Route
         path="/unauthorized"
         element={
           <div className="min-h-screen flex items-center justify-center bg-neutral-100">
@@ -211,8 +256,18 @@ function AppRoutes() {
       />
 
       {/* Catch-all route for 404 */}
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+      {user && (
+        <BuildYourProfilePrompt
+          isOpen={shouldShowPrompt}
+          user={user}
+          missingFields={completion.missingFields}
+          onDismiss={handleDismissPrompt}
+          onSave={handlePromptSave}
+        />
+      )}
+    </>
   );
 }
 

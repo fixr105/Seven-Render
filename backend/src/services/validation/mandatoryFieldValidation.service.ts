@@ -108,11 +108,6 @@ function hasDocumentsOrFolderLink(
   return isValidDocumentsFolderLink(formData._documentsFolderLink);
 }
 
-/** User confirmed they shared the folder with team addresses (mirrors New Application UI). */
-function isDocumentsFolderShareAcknowledged(value: unknown): boolean {
-  return value === true || value === 'true' || value === 'yes';
-}
-
 /**
  * Resolve value for a field from formData. For PAN fields, also check common aliases.
  */
@@ -363,7 +358,6 @@ export async function validateMandatoryFields(
       message: 'Type of Purchase must be Rental or EMI',
     });
   }
-
   // Global rule: require at least one of (documents or folder link) for submission
   if (!hasDocumentsOrFolderLink(formData, documentLinks)) {
     missingFields.push({
@@ -371,13 +365,6 @@ export async function validateMandatoryFields(
       label: 'Documents Folder Link',
       type: 'text',
       displayKey: '_documentsFolderLink',
-    });
-  } else if (!isDocumentsFolderShareAcknowledged(formData._documentsFolderShareAcknowledged)) {
-    missingFields.push({
-      fieldId: '_documentsFolderShareAcknowledged',
-      label: 'Documents folder sharing confirmation',
-      type: 'checkbox',
-      displayKey: '_documentsFolderShareAcknowledged',
     });
   }
 
@@ -394,13 +381,12 @@ export async function validateMandatoryFields(
   }
 
   const hasFolderLinkMissing = missingFields.some((f) => f.fieldId === '_documentsFolderLink');
-  const hasShareAckMissing = missingFields.some((f) => f.fieldId === '_documentsFolderShareAcknowledged');
   const hasChecklistMissing = missingFields.some((f) => f.type === 'file');
   const COMBINED_DOCUMENTS_ERROR_MESSAGE =
-    'Please confirm you shared your documents folder with our team, provide a valid folder link (Google Drive or OneDrive), and update the document checklist before submitting the application.';
+    'Please provide a valid documents folder link (Google Drive or OneDrive) and update the document checklist before submitting the application.';
 
   const errorMessageForMissing =
-    hasFolderLinkMissing || hasShareAckMissing || hasChecklistMissing
+    hasFolderLinkMissing || hasChecklistMissing
       ? COMBINED_DOCUMENTS_ERROR_MESSAGE
       : missingFields.length > 0
         ? `Missing ${missingFields.length} required field(s): ${missingFields.map((f) => f.label).join(', ')}`

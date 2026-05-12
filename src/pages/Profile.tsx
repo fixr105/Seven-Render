@@ -11,6 +11,7 @@ import { apiService } from '../services/api';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
+import { getRequiredProfileFields } from '../auth/profileCompletion';
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export const Profile: React.FC = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [phoneError, setPhoneError] = useState<string>('');
+  const [formError, setFormError] = useState<string>('');
   const [profileData, setProfileData] = useState({
     name: '',
     email: user?.email || '',
@@ -27,6 +29,7 @@ export const Profile: React.FC = () => {
   });
 
   const sidebarItems = useSidebarItems();
+  const requiredFields = getRequiredProfileFields(user);
 
   React.useEffect(() => {
     fetchProfileData();
@@ -54,6 +57,7 @@ export const Profile: React.FC = () => {
     value = value.replace(/[^0-9+\-\s()]/g, '');
     setProfileData({ ...profileData, phone: value });
     setPhoneError('');
+    setFormError('');
   };
 
   const validatePhone = (phone: string): boolean => {
@@ -73,6 +77,19 @@ export const Profile: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (requiredFields.includes('name') && !profileData.name.trim()) {
+      setFormError('Full Name is required');
+      return;
+    }
+    if (requiredFields.includes('phone') && !profileData.phone.trim()) {
+      setPhoneError('Phone number is required');
+      return;
+    }
+    if (requiredFields.includes('company') && !profileData.company.trim()) {
+      setFormError('Company Name is required');
+      return;
+    }
+
     // Validate phone number before saving
     if (!validatePhone(profileData.phone)) {
       return;
@@ -135,13 +152,19 @@ export const Profile: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {formError && (
+                  <div className="md:col-span-2 text-sm text-red-600">{formError}</div>
+                )}
                 <Input
                   label="Full Name"
                   placeholder="Enter your full name"
                   icon={User}
                   iconPosition="left"
                   value={profileData.name}
-                  onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                  onChange={(e) => {
+                    setProfileData({ ...profileData, name: e.target.value });
+                    setFormError('');
+                  }}
                 />
                 <Input
                   type="email"
@@ -167,14 +190,17 @@ export const Profile: React.FC = () => {
                   error={phoneError}
                   helperText="Enter phone number with country code (e.g., +91 9876543210)"
                 />
-                {userRole === 'client' && (
+                {(userRole === 'client' || userRole === 'nbfc') && (
                   <Input
                     label="Company Name"
                     placeholder="Enter company name"
                     icon={Building}
                     iconPosition="left"
                     value={profileData.company}
-                    onChange={(e) => setProfileData({ ...profileData, company: e.target.value })}
+                    onChange={(e) => {
+                      setProfileData({ ...profileData, company: e.target.value });
+                      setFormError('');
+                    }}
                   />
                 )}
               </div>

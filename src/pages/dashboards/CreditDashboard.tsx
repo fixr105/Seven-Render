@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { FileText, Clock, DollarSign, AlertCircle, Send, Sparkles, AlertTriangle, BarChart3 } from 'lucide-react';
+import { FileText, Clock, IndianRupee, AlertCircle, Send, Sparkles, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
 import { apiService } from '../../services/api';
@@ -150,7 +150,7 @@ export const CreditDashboard: React.FC = () => {
               </p>
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-warning" />
+              <IndianRupee className="w-6 h-6 text-warning" />
             </div>
           </CardContent>
         </Card>

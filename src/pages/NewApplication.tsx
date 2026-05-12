@@ -5,7 +5,6 @@ import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Checkbox } from '../components/ui/Checkbox';
 import { Select } from '../components/ui/Select';
 import {
   Save,
@@ -14,10 +13,7 @@ import {
   RefreshCw,
   Copy,
   FolderOpen,
-  FolderPlus,
-  Share2,
-  Link2,
-  CheckSquare,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../services/api';
@@ -32,13 +28,7 @@ import {
   parseIndianMobile,
 } from '../utils/basicApplicationFieldsValidation';
 
-const GOOGLE_DRIVE_SHARE_EMAIL = 'automation.sevenfincorp@gmail.com';
-const ONEDRIVE_SHARE_EMAIL = 'automation@sevenfincorp.email';
 const USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY = 'seven_used_client_webhook_links';
-
-function isDocumentsFolderShareAcknowledged(value: unknown): boolean {
-  return value === true || value === 'true' || value === 'yes';
-}
 
 /** Business KYC section IDs (one of these is shown based on business type). */
 const BUSINESS_KYC_SECTION_IDS = ['section-2a', 'section-2b', 'section-2c', 'section-2d'] as const;
@@ -82,6 +72,20 @@ interface FormData {
   form_data: Record<string, any>;
 }
 
+interface VehicleOption {
+  vehicleId: string;
+  make: string;
+  model: string;
+  requestedLoanAmount: string;
+}
+
+const VEHICLE_FETCH_ATTEMPTS = 3;
+const VEHICLE_FETCH_RETRY_DELAY_MS = 300;
+
+const normalizeProductId = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+const createClientSubmissionId = (): string =>
+  `submit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
 export const NewApplication: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -89,13 +93,18 @@ export const NewApplication: React.FC = () => {
   const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [loading, setLoading] = useState(false);
+  const [clientSubmissionId, setClientSubmissionId] = useState<string>(() => createClientSubmissionId());
   const [formConfigLoading, setFormConfigLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
   const [loanProductsLoading, setLoanProductsLoading] = useState(true);
   const [loanProductsError, setLoanProductsError] = useState<string | null>(null);
+  const [configuredProductsError, setConfiguredProductsError] = useState<string | null>(null);
   const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
   const [configuredProductsFetched, setConfiguredProductsFetched] = useState(false);
+  const [vehicleOptions, setVehicleOptions] = useState<VehicleOption[]>([]);
+  const [vehicleOptionsLoading, setVehicleOptionsLoading] = useState(false);
+  const [vehicleOptionsError, setVehicleOptionsError] = useState<string | null>(null);
   const [formConfig, setFormConfig] = useState<any[]>([]); // Form configuration from backend
   const [currentStep, setCurrentStep] = useState(0); // Module 2: Stepper current step
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]); // Module 2: Soft validation warnings
@@ -104,14 +113,13 @@ export const NewApplication: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     applicant_name: '',
     loan_product_id: '',
-    requested_loan_amount: '',
+    requested_loan_amount: '0',
     form_data: {
       _mobileNumber: '',
       _email: '',
       _typeOfPurchase: '',
     },
   });
-  const [copiedWhich, setCopiedWhich] = useState<'google' | 'onedrive' | null>(null);
   const [folderLinkGenerating, setFolderLinkGenerating] = useState(false);
   const [copiedFolderUrl, setCopiedFolderUrl] = useState(false);
   const [usedWebhookLinks, setUsedWebhookLinks] = useState<Set<string>>(new Set());
@@ -122,20 +130,6 @@ export const NewApplication: React.FC = () => {
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
-
-  const handleCopyShareEmail = async (which: 'google' | 'onedrive') => {
-    const email = which === 'google' ? GOOGLE_DRIVE_SHARE_EMAIL : ONEDRIVE_SHARE_EMAIL;
-    try {
-      await navigator.clipboard.writeText(email);
-      setCopiedWhich(which);
-      setTimeout(() => setCopiedWhich(null), 2500);
-    } catch {
-      setFolderLinkStatus({
-        type: 'error',
-        message: `Could not copy ${which === 'google' ? 'Google Drive' : 'OneDrive'} address. Please copy it manually.`,
-      });
-    }
-  };
 
   // Fetch on mount (including SPA navigation). Form config loads only when user selects a loan product.
   useEffect(() => {
@@ -176,6 +170,56 @@ export const NewApplication: React.FC = () => {
       fetchFormConfig(formData.loan_product_id);
     }
   }, [formData.loan_product_id]);
+
+  useEffect(() => {
+    const productId = formData.loan_product_id;
+    if (userRole !== 'client' || !productId) {
+      setVehicleOptions([]);
+      setVehicleOptionsError(null);
+      return;
+    }
+    const fetchVehicles = async () => {
+      setVehicleOptionsLoading(true);
+      setVehicleOptionsError(null);
+      try {
+        let response: Awaited<ReturnType<typeof apiService.getClientVehicles>> | null = null;
+        let delayMs = VEHICLE_FETCH_RETRY_DELAY_MS;
+
+        for (let attempt = 1; attempt <= VEHICLE_FETCH_ATTEMPTS; attempt += 1) {
+          response = await apiService.getClientVehicles(productId);
+          const data = Array.isArray(response.data) ? response.data : [];
+          const isValidArray = !!response.success && Array.isArray(response.data);
+          const hasVehicles = isValidArray && data.length > 0;
+          const shouldRetry = !hasVehicles && !response.error && attempt < VEHICLE_FETCH_ATTEMPTS;
+          if (!shouldRetry) break;
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          delayMs *= 2;
+        }
+
+        if (!response || !response.success || !Array.isArray(response.data)) {
+          setVehicleOptions([]);
+          setVehicleOptionsError(response?.error || 'Failed to load vehicle options');
+          return;
+        }
+        setVehicleOptions(response.data);
+      } catch (error: any) {
+        setVehicleOptions([]);
+        setVehicleOptionsError(error.message || 'Failed to load vehicle options');
+      } finally {
+        setVehicleOptionsLoading(false);
+      }
+    };
+    fetchVehicles();
+    setFormData((prev) => ({
+      ...prev,
+      form_data: {
+        ...prev.form_data,
+        _vehicleId: '',
+        _vehicleMake: '',
+        _vehicleModel: '',
+      },
+    }));
+  }, [formData.loan_product_id, userRole]);
 
   const loadForm = () => {
     if (userRole !== 'client') return;
@@ -254,12 +298,19 @@ export const NewApplication: React.FC = () => {
           }
         });
         const allProducts = Array.from(productsMap.values());
-        
-        // Filter to only show configured products when explicit mappings exist
-        const hasConfiguredProducts = configuredProductIds.size > 0;
-        const visibleProducts = hasConfiguredProducts
-          ? allProducts.filter(product => configuredProductIds.has(product.id))
-          : allProducts;
+
+        // Enforce backend-provided configured IDs strictly for clients.
+        const configuredProductIdsNormalized = new Set(
+          Array.from(configuredProductIds).map((id) => normalizeProductId(id))
+        );
+        if (configuredProductsError) {
+          setLoanProducts([]);
+          setLoanProductsError(configuredProductsError);
+          return;
+        }
+        const visibleProducts = allProducts.filter((product) =>
+          configuredProductIdsNormalized.has(normalizeProductId(product.id))
+        );
         
         setLoanProducts(visibleProducts);
         
@@ -287,13 +338,23 @@ export const NewApplication: React.FC = () => {
       const response = await apiService.getConfiguredProducts();
       
       if (response.success && response.data) {
-        setConfiguredProductIds(new Set(response.data));
+        const normalizedProductIds = response.data
+          .map((productId: unknown) => String(productId ?? '').trim())
+          .filter(Boolean);
+        setConfiguredProductsError(null);
+        setConfiguredProductIds(new Set(normalizedProductIds));
         setConfiguredProductsFetched(true);
       } else if (response.error) {
-        setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
+        setConfiguredProductsError(response.error);
+        setLoanProductsError(response.error);
+        setConfiguredProductIds(new Set());
+        setConfiguredProductsFetched(true);
       }
     } catch (_error) {
-      setConfiguredProductsFetched(true); // Still mark as fetched to allow loan products to load
+      setConfiguredProductsError('No loan products are assigned to your account. Please contact your KAM to allocate products.');
+      setLoanProductsError('No loan products are assigned to your account. Please contact your KAM to allocate products.');
+      setConfiguredProductIds(new Set());
+      setConfiguredProductsFetched(true);
     }
   };
 
@@ -318,6 +379,26 @@ export const NewApplication: React.FC = () => {
       },
     }));
   };
+
+  const vehicleMakes = useMemo(
+    () =>
+      Array.from(new Set(vehicleOptions.map((option) => option.make))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    [vehicleOptions]
+  );
+
+  const selectedVehicleMake = String(formData.form_data._vehicleMake || '');
+  const selectedVehicleModel = String(formData.form_data._vehicleModel || '');
+  const modelsForSelectedMake = useMemo(
+    () =>
+      vehicleOptions
+        .filter((option) => option.make === selectedVehicleMake)
+        .map((option) => option.model)
+        .filter((value, index, arr) => arr.indexOf(value) === index)
+        .sort((a, b) => a.localeCompare(b)),
+    [vehicleOptions, selectedVehicleMake]
+  );
 
   const handleGenerateFolderLink = async () => {
     if (userRole !== 'client') return;
@@ -398,6 +479,27 @@ export const NewApplication: React.FC = () => {
     }
   };
 
+  const handleOpenFolderLink = () => {
+    const link = String(formData.form_data._documentsFolderLink || '').trim();
+    if (!link) return;
+
+    try {
+      const parsedUrl = new URL(link);
+      const opened = window.open(parsedUrl.toString(), '_blank', 'noopener,noreferrer');
+      if (!opened) {
+        setFolderLinkStatus({
+          type: 'error',
+          message: 'Popup blocked. Please allow popups for this site and try again.',
+        });
+      }
+    } catch {
+      setFolderLinkStatus({
+        type: 'error',
+        message: 'Please enter a valid folder link before opening.',
+      });
+    }
+  };
+
   const displayCategories = useMemo(
     () => getDisplayCategories(formConfig, formData.form_data._businessType),
     [formConfig, formData.form_data._businessType]
@@ -441,8 +543,11 @@ export const NewApplication: React.FC = () => {
     if (!formData.loan_product_id) {
       errors.loan_product_id = 'Loan Product is required';
     }
-    if (!formData.requested_loan_amount?.trim()) {
-      errors.requested_loan_amount = 'Requested Loan Amount is required';
+    if (!String(formData.form_data._vehicleMake || '').trim()) {
+      errors._vehicleMake = 'Vehicle make is required';
+    }
+    if (!String(formData.form_data._vehicleModel || '').trim()) {
+      errors._vehicleModel = 'Vehicle model is required';
     }
     if (businessKycCategories.length > 1 && !formData.form_data._businessType) {
       errors._businessType = 'Please select your business type.';
@@ -468,7 +573,6 @@ export const NewApplication: React.FC = () => {
           ? 'Type of Purchase is required'
           : 'Type of Purchase must be Rental or EMI';
     }
-
     // Validate mandatory form fields from configuration (required + PAN format)
     // Use displayCategories so only the selected Business KYC section is validated
     displayCategories.forEach((category: any) => {
@@ -535,9 +639,6 @@ export const NewApplication: React.FC = () => {
     if (!isValidFolderLink) {
       errors._documentsFolderLink =
         'Please provide the document folder link and update the document checklist before submitting the application.';
-    } else if (!isDocumentsFolderShareAcknowledged(fd._documentsFolderShareAcknowledged)) {
-      errors._documentsFolderShareAcknowledged =
-        'Confirm that you invited our team addresses to your folder (see steps above).';
     }
 
     return { isValid: Object.keys(errors).length === 0, errors };
@@ -572,15 +673,15 @@ export const NewApplication: React.FC = () => {
         const basicApplicationErrorKeys = new Set([
           'applicant_name',
           'loan_product_id',
-          'requested_loan_amount',
           '_businessType',
           '_mobileNumber',
           '_email',
           '_typeOfPurchase',
+          '_vehicleMake',
+          '_vehicleModel',
         ]);
         const hasDocumentErrors =
           '_documentsFolderLink' in validation.errors ||
-          '_documentsFolderShareAcknowledged' in validation.errors ||
           Object.keys(validation.errors).some((k) => !basicApplicationErrorKeys.has(k));
         const message = hasDocumentErrors
           ? 'Please provide the document folder link and update the document checklist before submitting the application.'
@@ -602,12 +703,64 @@ export const NewApplication: React.FC = () => {
     });
 
     try {
+      if (!saveAsDraft) {
+        const validationResponse = await apiService.validateApplicationSubmission({
+          productId: formData.loan_product_id,
+          applicantName: formData.applicant_name,
+          formData: formDataToSend,
+          clientSubmissionId,
+        });
+
+        if (!validationResponse.success) {
+          const missingFieldsErrors: Record<string, string> = {};
+          if (validationResponse.data?.missingFields && Array.isArray(validationResponse.data.missingFields)) {
+            validationResponse.data.missingFields.forEach((field: { fieldId: string; label: string; displayKey?: string }) => {
+              const msg = `${field.label} is required`;
+              missingFieldsErrors[field.fieldId] = msg;
+              if (field.displayKey) missingFieldsErrors[field.displayKey] = msg;
+            });
+          }
+          if (validationResponse.data?.formatErrors && Array.isArray(validationResponse.data.formatErrors)) {
+            validationResponse.data.formatErrors.forEach((err: { fieldId: string; message: string }) => {
+              missingFieldsErrors[err.fieldId] = err.message;
+            });
+          }
+          if (Object.keys(missingFieldsErrors).length > 0) {
+            setFieldErrors(missingFieldsErrors);
+          }
+          throw new Error(validationResponse.error || 'Submission validation failed');
+        }
+
+        const preflightWarnings = validationResponse.data?.warnings ?? [];
+        const preflightDuplicate = validationResponse.data?.duplicateFound ?? null;
+        if (preflightWarnings.length > 0) {
+          setValidationWarnings(preflightWarnings);
+        }
+        if (preflightDuplicate) {
+          setDuplicateWarning(preflightDuplicate);
+        }
+        if (preflightWarnings.length > 0 || preflightDuplicate) {
+          const warningMessages = [
+            ...preflightWarnings,
+            ...(preflightDuplicate
+              ? [`Duplicate application found: ${preflightDuplicate.fileId ?? ''}`]
+              : []),
+          ];
+          const proceed = window.confirm(
+            `Application will be submitted with the following warnings:\n\n${warningMessages.join('\n')}\n\nDo you want to proceed?`
+          );
+          if (!proceed) {
+            return;
+          }
+        }
+      }
+
       const response = await apiService.createApplication({
         productId: formData.loan_product_id,
         applicantName: formData.applicant_name,
-        requestedLoanAmount: parseFloat(formData.requested_loan_amount.replace(/[^0-9.]/g, '')) || 0,
         formData: formDataToSend,
         saveAsDraft: saveAsDraft,
+        clientSubmissionId,
       });
 
       if (!response.success) {
@@ -639,6 +792,14 @@ export const NewApplication: React.FC = () => {
         throw new Error(response.error || 'Failed to create application');
       }
 
+      const createdLoanApplicationId = response.data?.loanApplicationId;
+      const createdFileId = response.data?.fileId;
+      if (!createdLoanApplicationId || !createdFileId) {
+        throw new Error(
+          'Submission was not confirmed by the server (missing application ID). Please retry.'
+        );
+      }
+
       // Module 2: Handle warnings and duplicate detection
       const validationWarns = response.data?.warnings ?? [];
       if (validationWarns.length > 0) {
@@ -649,29 +810,6 @@ export const NewApplication: React.FC = () => {
         setDuplicateWarning(response.data.duplicateFound);
       }
 
-      const warnings = response.data?.warnings ?? [];
-      // Submit with warnings is by design: user must confirm in the dialog below; we do not block submission.
-      // Module 2: Soft validation - show warnings but allow submission after confirmation.
-      if (!saveAsDraft && (warnings.length > 0 || response.data?.duplicateFound)) {
-        // Show confirmation dialog with warnings
-        const data = response.data;
-        const warningMessages = [
-          ...(data?.warnings ?? []),
-          ...(data?.duplicateFound 
-            ? [`Duplicate application found: ${data.duplicateFound.fileId ?? ''}`]
-            : []),
-        ];
-        
-        const proceed = window.confirm(
-          `Application will be submitted with the following warnings:\n\n${warningMessages.join('\n')}\n\nDo you want to proceed?`
-        );
-        
-        if (!proceed) {
-          setLoading(false);
-          return;
-        }
-      }
-
       // Success - show message and navigate
       const successMessage = saveAsDraft 
         ? 'Application saved as draft successfully!'
@@ -680,6 +818,7 @@ export const NewApplication: React.FC = () => {
         : 'Application submitted successfully!';
       
       alert(successMessage);
+      setClientSubmissionId(createClientSubmissionId());
       navigate('/applications');
     } catch (error: any) {
       alert(`Failed to ${saveAsDraft ? 'save' : 'submit'} application: ${error.message}`);
@@ -726,309 +865,151 @@ export const NewApplication: React.FC = () => {
     >
       <PageHero title="New Loan Application" />
       <form onSubmit={(e) => handleSubmit(e, false)}>
-        {/* Documents folder: steps, visible emails, confirmation, optional tutorial videos */}
-        <Card id="documents-folder-link" className="mb-6">
-          <CardHeader className="border-l-4 border-l-brand-primary bg-brand-primary/[0.06]">
+        {/* Documents folder: backend-generated link with manual override */}
+        <Card id="documents-folder-link" className="mb-6 overflow-hidden">
+          <CardHeader className="border-b border-neutral-200 bg-gradient-to-r from-brand-primary/[0.10] via-brand-primary/[0.06] to-white">
             <div className="flex items-start gap-3">
-              <FolderOpen className="h-6 w-6 shrink-0 text-brand-primary mt-0.5" aria-hidden />
+              <div className="mt-0.5 rounded-lg bg-white p-2 shadow-sm ring-1 ring-brand-primary/20">
+                <FolderOpen className="h-5 w-5 text-brand-primary" aria-hidden />
+              </div>
               <div className="min-w-0">
-                <CardTitle>Documents folder (required)</CardTitle>
-                <p className="text-sm text-neutral-500 mt-0.5">
-                  We can only process your application if we can open your documents folder. Use Google Drive or OneDrive
-                  and follow the steps below.
+                <CardTitle className="text-base sm:text-lg">Documents Folder (Required)</CardTitle>
+                <p className="mt-1 text-sm text-neutral-600">
+                  Generate a shareable folder link and verify it before submitting.
                 </p>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <ol className="space-y-5 list-none p-0 m-0">
-              <li className="flex gap-3 text-sm text-neutral-800">
-                <div className="flex flex-col items-center shrink-0 gap-1">
-                  <span
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
-                    aria-hidden
-                  >
-                    1
-                  </span>
-                  <FolderPlus className="h-4 w-4 text-brand-primary" aria-hidden />
-                </div>
-                <div className="min-w-0 pt-0.5">
-                  <span className="font-medium text-neutral-900">Create a folder</span> in Google Drive or Microsoft
-                  OneDrive and add your documents to it.
-                </div>
-              </li>
-              <li className="flex gap-3 text-sm text-neutral-800">
-                <div className="flex flex-col items-center shrink-0 gap-1">
-                  <span
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
-                    aria-hidden
-                  >
-                    2
-                  </span>
-                  <Share2 className="h-4 w-4 text-brand-primary" aria-hidden />
-                </div>
-                <div className="min-w-0 pt-0.5">
-                  <span className="font-medium text-neutral-900">Share the folder with our team.</span> Invite the correct
-                  address for the product you use (Viewer or Editor access is fine—do not rely on &quot;anyone with the
-                  link&quot; unless you have been told to).
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 not-prose">
-                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2 transition-all duration-200 hover:border-brand-primary/50 hover:shadow-sm hover:bg-white focus-within:ring-2 focus-within:ring-brand-primary/30 focus-within:border-brand-primary/40">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Google Drive</p>
-                      <p className="font-mono text-sm text-neutral-900 break-all">{GOOGLE_DRIVE_SHARE_EMAIL}</p>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        icon={Copy}
-                        onClick={() => handleCopyShareEmail('google')}
-                        aria-label="Copy Google Drive share email to clipboard"
-                        title="Copies this address—paste it into the Share dialog in Google Drive."
-                        data-testid="copy-google-drive-email"
-                      >
-                        Copy Google Drive share email
-                      </Button>
-                      {copiedWhich === 'google' && <span className="text-sm text-success">Copied!</span>}
-                    </div>
-                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2 transition-all duration-200 hover:border-brand-primary/50 hover:shadow-sm hover:bg-white focus-within:ring-2 focus-within:ring-brand-primary/30 focus-within:border-brand-primary/40">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">OneDrive</p>
-                      <p className="font-mono text-sm text-neutral-900 break-all">{ONEDRIVE_SHARE_EMAIL}</p>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        icon={Copy}
-                        onClick={() => handleCopyShareEmail('onedrive')}
-                        aria-label="Copy OneDrive share email to clipboard"
-                        title="Copies this address—paste it into the Share dialog in OneDrive."
-                        data-testid="copy-onedrive-email"
-                      >
-                        Copy OneDrive share email
-                      </Button>
-                      {copiedWhich === 'onedrive' && <span className="text-sm text-success">Copied!</span>}
-                    </div>
-                  </div>
-                </div>
-              </li>
-              <li className="flex gap-3 text-sm text-neutral-800">
-                <div className="flex flex-col items-center shrink-0 gap-1">
-                  <span
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
-                    aria-hidden
-                  >
-                    3
-                  </span>
-                  <Link2 className="h-4 w-4 text-brand-primary" aria-hidden />
-                </div>
-                <div className="min-w-0 pt-0.5">
-                  <span className="font-medium text-neutral-900">Copy the folder link</span> from Drive or OneDrive (the
-                  link should open the folder, not a single file).
-                </div>
-              </li>
-              <li className="flex gap-3 text-sm text-neutral-800">
-                <div className="flex flex-col items-center shrink-0 gap-1">
-                  <span
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-white shadow-sm"
-                    aria-hidden
-                  >
-                    4
-                  </span>
-                  <CheckSquare className="h-4 w-4 text-brand-primary" aria-hidden />
-                </div>
-                <div className="min-w-0 pt-0.5">
-                  <span className="font-medium text-neutral-900">Paste that link</span> in the field below and confirm the
-                  checkbox.
-                </div>
-              </li>
-            </ol>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <details className="group rounded-lg border border-neutral-200 bg-white open:shadow-sm">
-                <summary className="cursor-pointer list-none px-3 py-2 rounded-md text-sm font-medium text-brand-primary outline-none transition-colors hover:bg-neutral-50 hover:underline [&::-webkit-details-marker]:hidden flex items-center justify-between focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2">
-                  Watch: Google Drive tutorial
-                  <span className="text-neutral-400 text-xs group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div
-                  data-video-slot="google-drive"
-                  className="aspect-[9/16] max-h-[50vh] w-full max-w-[280px] mx-auto bg-neutral-100 border-t border-neutral-200 overflow-hidden"
-                >
-                  <video
-                    controls
-                    playsInline
-                    muted
-                    loop
-                    className="w-full h-full object-contain"
-                    title="How to create a shared folder in Google Drive"
-                  >
-                    <source src="/videos/drive.mp4" type="video/mp4" />
-                    <p className="text-sm text-neutral-500 p-4">Video not available</p>
-                  </video>
-                </div>
-              </details>
-              <details className="group rounded-lg border border-neutral-200 bg-white open:shadow-sm">
-                <summary className="cursor-pointer list-none px-3 py-2 rounded-md text-sm font-medium text-brand-primary outline-none transition-colors hover:bg-neutral-50 hover:underline [&::-webkit-details-marker]:hidden flex items-center justify-between focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2">
-                  Watch: OneDrive tutorial
-                  <span className="text-neutral-400 text-xs group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div
-                  data-video-slot="onedrive"
-                  className="aspect-[9/16] max-h-[50vh] w-full max-w-[280px] mx-auto bg-neutral-100 border-t border-neutral-200 overflow-hidden"
-                >
-                  <video
-                    controls
-                    playsInline
-                    muted
-                    loop
-                    className="w-full h-full object-contain"
-                    title="How to create a shared folder in OneDrive"
-                  >
-                    <source src="/videos/onedrive.mp4" type="video/mp4" />
-                    <p className="text-sm text-neutral-500 p-4">Video not available</p>
-                  </video>
-                </div>
-              </details>
-            </div>
-
-            {userRole === 'client' && (
-              <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-3">
-                <p className="text-sm text-neutral-700">
-                  <span className="font-medium text-neutral-900">Optional:</span> click Generate Link to fetch the next
-                  available folder link. You must still invite the Google Drive and/or OneDrive addresses above and
-                  confirm the checkbox before submission.
+          <CardContent className="space-y-4 p-4 sm:p-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <section
+                role="button"
+                tabIndex={userRole === 'client' ? 0 : -1}
+                aria-label="Generate and fill folder link"
+                data-testid="generate-link-button"
+                onClick={() => {
+                  if (userRole === 'client' && !folderLinkGenerating) {
+                    void handleGenerateFolderLink();
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (userRole !== 'client' || folderLinkGenerating) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    void handleGenerateFolderLink();
+                  }
+                }}
+                className={`rounded-2xl border border-brand-primary/20 bg-brand-primary/[0.05] p-4 sm:p-5 transition-all duration-200 ${
+                  userRole === 'client'
+                    ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:bg-brand-primary/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2'
+                    : 'opacity-70'
+                }`}
+              >
+                <h3 className="text-base font-semibold text-neutral-900">Generate Link</h3>
+                <p className="mt-1 text-sm text-neutral-700">
+                  Fetch and auto-fill a shareable folder link.
                 </p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon={Send}
-                    onClick={handleGenerateFolderLink}
-                    disabled={folderLinkGenerating}
-                    loading={folderLinkGenerating}
-                    aria-label="Generate and fill next available folder link"
-                    data-testid="generate-link-button"
-                  >
-                    Generate Link
-                  </Button>
-                  {copiedFolderUrl && <span className="text-sm text-success">Copied!</span>}
+                <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-brand-primary ring-1 ring-brand-primary/20">
+                  {folderLinkGenerating ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Send className="h-4 w-4" aria-hidden />
+                  )}
+                  <span>{folderLinkGenerating ? 'Generating link...' : 'Generate Link'}</span>
                 </div>
+                {userRole !== 'client' && (
+                  <p className="mt-2 text-xs text-neutral-500">Only client users can generate links.</p>
+                )}
                 {folderLinkStatus && (
                   <p
-                    className={`text-sm ${
+                    className={`mt-3 text-sm ${
                       folderLinkStatus.type === 'error'
                         ? 'text-error'
                         : folderLinkStatus.type === 'success'
                         ? 'text-success'
                         : 'text-neutral-700'
                     }`}
+                    aria-live="polite"
                   >
                     {folderLinkStatus.message}
                   </p>
                 )}
-              </div>
-            )}
+                {copiedFolderUrl && (
+                  <p className="mt-2 text-sm text-success" aria-live="polite">
+                    Link copied to clipboard.
+                  </p>
+                )}
+              </section>
 
-            <div
-              id="_documentsFolderShareAcknowledged"
-              data-field-id="_documentsFolderShareAcknowledged"
-              data-testid="documents-folder-share-ack"
-              className={`rounded-lg border p-3 transition-colors ${fieldErrors._documentsFolderShareAcknowledged ? 'border-error bg-red-50/50' : 'border-neutral-200 bg-neutral-50/80 hover:bg-neutral-50/90'}`}
-            >
-              <Checkbox
-                checked={isDocumentsFolderShareAcknowledged(formData.form_data._documentsFolderShareAcknowledged)}
-                onChange={(checked) => {
-                  handleFieldChange('_documentsFolderShareAcknowledged', checked);
-                  if (fieldErrors._documentsFolderShareAcknowledged) {
+              <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
+                <h3 className="text-base font-semibold text-neutral-900">Folder Link</h3>
+                <p className="mt-1 text-sm text-neutral-600">You can edit this link before submission.</p>
+              <Input
+                id="_documentsFolderLink"
+                label="Folder Link"
+                type="url"
+                required
+                placeholder="https://drive.google.com/... or https://onedrive.live.com/..."
+                value={formData.form_data._documentsFolderLink || ''}
+                onChange={(e) => {
+                  handleFieldChange('_documentsFolderLink', e.target.value);
+                  if (fieldErrors._documentsFolderLink) {
                     setFieldErrors((prev) => {
                       const next = { ...prev };
-                      delete next._documentsFolderShareAcknowledged;
+                      delete next._documentsFolderLink;
                       return next;
                     });
                   }
                 }}
-                label="I have shared this folder with the Google Drive and/or OneDrive addresses above so Seven Fincorp can access my documents."
-                className="items-start"
-              />
-              {fieldErrors._documentsFolderShareAcknowledged && (
-                <p className="mt-2 text-sm text-error pl-6">{fieldErrors._documentsFolderShareAcknowledged}</p>
-              )}
-            </div>
-
-            <Input
-              id="_documentsFolderLink"
-              label="Folder link"
-              type="url"
-              required
-              placeholder="https://drive.google.com/... or https://onedrive.live.com/..."
-              value={formData.form_data._documentsFolderLink || ''}
-              onChange={(e) => {
-                handleFieldChange('_documentsFolderLink', e.target.value);
-                if (fieldErrors._documentsFolderLink) {
-                  setFieldErrors((prev) => {
-                    const next = { ...prev };
-                    delete next._documentsFolderLink;
-                    return next;
-                  });
+                error={fieldErrors._documentsFolderLink}
+                helperText={
+                  fieldErrors._documentsFolderLink
+                    ? undefined
+                    : 'Paste a folder URL (not a link to one file).'
                 }
-              }}
-              error={fieldErrors._documentsFolderLink}
-              helperText={
-                fieldErrors._documentsFolderLink
-                  ? undefined
-                  : 'Must be a folder URL (…/folders/… or your OneDrive folder), not a link to a single file.'
-              }
-              title="Paste the shareable folder link. It should open the folder view, not one document."
-            />
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                icon={Copy}
-                onClick={handleCopyFolderLink}
-                disabled={!String(formData.form_data._documentsFolderLink || '').trim()}
-                data-testid="copy-folder-link"
-              >
-                Copy Link
-              </Button>
-              {copiedFolderUrl && <span className="text-sm text-success">Copied!</span>}
-            </div>
-
-            <details className="rounded-lg border border-amber-100 bg-amber-50/80">
-              <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm font-medium text-neutral-800 outline-none transition-colors hover:bg-amber-100/80 focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                Having trouble?
-              </summary>
-              <ul className="list-disc list-inside px-3 pb-3 pt-0 text-sm text-neutral-700 space-y-1">
-                <li>
-                  Wrong link: use the <strong>folder</strong> URL, not a link to one PDF or image.
-                </li>
-                <li>
-                  Still locked: open Sharing and ensure our addresses above are listed with access (not only a public
-                  link).
-                </li>
-                <li>
-                  Need help? Email{' '}
-                  <a href="mailto:support@sevenfincorp.com" className="text-brand-primary hover:underline">
-                    support@sevenfincorp.com
-                  </a>
-                  .
-                </li>
-              </ul>
-            </details>
-
-            <details className="rounded-lg border border-neutral-200">
-              <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm font-medium text-neutral-800 outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                Full troubleshooting (applicants)
-              </summary>
-              <div className="px-3 pb-3 pt-0 text-sm text-neutral-700 space-y-2">
-                <p>
-                  If we cannot open your folder, we cannot verify your documents. Double-check that you used a folder
-                  link from the address bar while viewing the folder, and that you invited the correct share email for
-                  Drive or OneDrive.
-                </p>
-                <p className="text-xs text-neutral-500">
-                  Internal staff: see <code className="rounded bg-neutral-100 px-1">docs/SUPPORT_DOCUMENTS_FOLDER_SHARING.md</code>{' '}
-                  in the repository for the full runbook.
+                title="Paste the shareable folder link. It should open the folder view, not one document."
+                className="mt-3"
+              />
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:min-w-[320px]">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={Copy}
+                    onClick={handleCopyFolderLink}
+                    disabled={!String(formData.form_data._documentsFolderLink || '').trim()}
+                    data-testid="copy-folder-link"
+                    className="w-full justify-center whitespace-nowrap rounded-xl border-neutral-300 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-neutral-50"
+                  >
+                    Copy Link
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={ExternalLink}
+                    onClick={handleOpenFolderLink}
+                    disabled={!String(formData.form_data._documentsFolderLink || '').trim()}
+                    aria-label="Open folder link in new tab"
+                    title="Open folder link in a new tab"
+                    data-testid="open-folder-link"
+                    className="w-full justify-center whitespace-nowrap rounded-xl border-neutral-300 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-neutral-50"
+                  >
+                    Open Link
+                  </Button>
+                </div>
+                <p className="text-xs text-neutral-500 sm:text-sm">
+                  Make sure the link opens the entire folder for reviewers.
                 </p>
               </div>
-            </details>
+              </section>
+            </div>
+            <p className="text-xs text-neutral-500">
+              Need help? Email{' '}
+              <a href="mailto:contact@sevenfincorp.com" className="text-brand-primary hover:underline">
+                contact@sevenfincorp.com
+              </a>
+              .
+            </p>
           </CardContent>
         </Card>
 
@@ -1150,27 +1131,6 @@ export const NewApplication: React.FC = () => {
                 </div>
               </div>
               <Input
-                id="requested_loan_amount"
-                label="Requested Loan Amount *"
-                type="text"
-                placeholder="₹ 50,00,000"
-                value={formData.requested_loan_amount}
-                onChange={(e) => {
-                  setFormData({ ...formData, requested_loan_amount: e.target.value });
-                  // Clear error when field is changed
-                  if (fieldErrors.requested_loan_amount) {
-                    setFieldErrors(prev => {
-                      const next = { ...prev };
-                      delete next.requested_loan_amount;
-                      return next;
-                    });
-                  }
-                }}
-                required
-                helperText="Enter amount in Indian Rupees"
-                error={fieldErrors.requested_loan_amount}
-              />
-              <Input
                 id="_mobileNumber"
                 data-testid="basic-mobile"
                 label="Mobile Number *"
@@ -1232,6 +1192,96 @@ export const NewApplication: React.FC = () => {
                 }}
                 required
                 error={fieldErrors._typeOfPurchase}
+              />
+              <Select
+                id="_vehicleMake"
+                data-testid="vehicle-make-select"
+                label="Vehicle Make *"
+                options={[
+                  {
+                    value: '',
+                    label: vehicleOptionsLoading
+                      ? 'Loading makes...'
+                      : vehicleMakes.length === 0
+                        ? 'No makes available'
+                        : 'Select make',
+                  },
+                  ...vehicleMakes.map((make) => ({ value: make, label: make })),
+                ]}
+                value={selectedVehicleMake}
+                onChange={(e) => {
+                  const nextMake = e.target.value;
+                  const resetModel = nextMake !== selectedVehicleMake;
+                  if (fieldErrors._vehicleMake || fieldErrors._vehicleModel) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next._vehicleMake;
+                      delete next._vehicleModel;
+                      return next;
+                    });
+                  }
+                  setFormData((prev) => ({
+                    ...prev,
+                    form_data: {
+                      ...prev.form_data,
+                      _vehicleMake: nextMake,
+                      _vehicleModel: resetModel ? '' : prev.form_data._vehicleModel,
+                      _vehicleId: '',
+                    },
+                  }));
+                }}
+                required
+                disabled={vehicleOptionsLoading}
+                error={fieldErrors._vehicleMake || vehicleOptionsError || undefined}
+                helperText={
+                  vehicleOptionsError ||
+                  (formData.loan_product_id && vehicleMakes.length === 0
+                    ? 'No mapped vehicles found for this product. Please contact your KAM.'
+                    : undefined)
+                }
+              />
+              <Select
+                id="_vehicleModel"
+                data-testid="vehicle-model-select"
+                label="Vehicle Model *"
+                options={[
+                  {
+                    value: '',
+                    label:
+                      !selectedVehicleMake
+                        ? 'Select make first'
+                        : modelsForSelectedMake.length === 0
+                          ? 'No models available'
+                          : 'Select model',
+                  },
+                  ...modelsForSelectedMake.map((model) => ({ value: model, label: model })),
+                ]}
+                value={selectedVehicleModel}
+                onChange={(e) => {
+                  const nextModel = e.target.value;
+                  const selectedOption = vehicleOptions.find(
+                    (option) =>
+                      option.make === selectedVehicleMake && option.model === nextModel
+                  );
+                  if (fieldErrors._vehicleModel) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next._vehicleModel;
+                      return next;
+                    });
+                  }
+                  setFormData((prev) => ({
+                    ...prev,
+                    form_data: {
+                      ...prev.form_data,
+                      _vehicleModel: nextModel,
+                      _vehicleId: selectedOption?.vehicleId || '',
+                    },
+                  }));
+                }}
+                required
+                disabled={!selectedVehicleMake || modelsForSelectedMake.length === 0}
+                error={fieldErrors._vehicleModel}
               />
             </div>
           </CardContent>

@@ -56,7 +56,7 @@ export function transformApplicationFromApi(app: Record<string, unknown>): LoanA
       const n = v != null ? (typeof v === 'number' ? v : parseFloat(String(v))) : NaN;
       return isNaN(n) ? null : n;
     })(),
-    status: normalizeStatus(String(app.status ?? app.Status ?? 'draft')),
+    status: normalizeStatus(String(app.status ?? app.Status ?? '')),
     assigned_credit_analyst: (app.assignedCreditAnalyst ?? app['Assigned Credit Analyst']) != null ? String(app.assignedCreditAnalyst ?? app['Assigned Credit Analyst']) : null,
     assigned_nbfc_id: (app.assignedNBFC ?? app['Assigned NBFC']) != null ? String(app.assignedNBFC ?? app['Assigned NBFC']) : null,
     lender_decision_status: (app.lenderDecisionStatus ?? app['Lender Decision Status']) != null ? String(app.lenderDecisionStatus ?? app['Lender Decision Status']) : null,

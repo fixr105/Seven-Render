@@ -126,6 +126,27 @@ export class AuthController {
         return;
       }
 
+      // Persist last-login timestamp for user-account management screens.
+      try {
+        const userAccount = await authService.getUserByEmail(email);
+        if (userAccount) {
+          await n8nClient.postUserAccount({
+            id: userAccount.id,
+            Username: userAccount.Username,
+            Password: userAccount.Password,
+            Role: userAccount.Role,
+            'Associated Profile': userAccount['Associated Profile'],
+            'Account Status': userAccount['Account Status'] ?? 'Active',
+            'Last Login': new Date().toISOString(),
+          });
+        }
+      } catch (updateError: any) {
+        defaultLogger.warn('Failed to update Last Login at login', {
+          email,
+          error: updateError?.message,
+        });
+      }
+
       const token = authService.createToken(user);
       const expiry = authService.getTokenExpiry(token);
 
@@ -168,6 +189,27 @@ export class AuthController {
       if (!user) {
         res.status(401).json({ success: false, error: 'Invalid credentials' });
         return;
+      }
+
+      // Keep legacy validate flow aligned with login for Last Login updates.
+      try {
+        const userAccount = await authService.getUserByEmail(username);
+        if (userAccount) {
+          await n8nClient.postUserAccount({
+            id: userAccount.id,
+            Username: userAccount.Username,
+            Password: userAccount.Password,
+            Role: userAccount.Role,
+            'Associated Profile': userAccount['Associated Profile'],
+            'Account Status': userAccount['Account Status'] ?? 'Active',
+            'Last Login': new Date().toISOString(),
+          });
+        }
+      } catch (updateError: any) {
+        defaultLogger.warn('Failed to update Last Login at validate', {
+          username,
+          error: updateError?.message,
+        });
       }
 
       const token = authService.createToken(user);

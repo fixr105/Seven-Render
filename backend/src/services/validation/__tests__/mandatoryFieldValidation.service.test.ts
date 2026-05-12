@@ -30,8 +30,6 @@ const basicInfoOk = {
   _typeOfPurchase: 'Rental' as const,
 };
 
-const folderShareAck = { _documentsFolderShareAcknowledged: true as const };
-
 describe('mandatoryFieldValidation.service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -44,7 +42,6 @@ describe('mandatoryFieldValidation.service', () => {
       'PAN - Documents': 'Yes, Added to Folder',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
       ...basicInfoOk,
-      ...folderShareAck,
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(true);
@@ -57,7 +54,6 @@ describe('mandatoryFieldValidation.service', () => {
       'PAN - Documents': 'Not Available',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
       ...basicInfoOk,
-      ...folderShareAck,
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     // Not Available satisfies required file field (user has made a selection); no PAN format error
@@ -70,7 +66,6 @@ describe('mandatoryFieldValidation.service', () => {
       'PAN - Documents': 'Awaiting, Will Update Folder',
       _documentsFolderLink: 'https://onedrive.live.com/embed?cid=xyz',
       ...basicInfoOk,
-      ...folderShareAck,
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(true);
@@ -82,7 +77,6 @@ describe('mandatoryFieldValidation.service', () => {
     const formData = {
       'PAN - Documents': 'Yes, Added to Folder',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
-      ...folderShareAck,
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(false);
@@ -96,7 +90,6 @@ describe('mandatoryFieldValidation.service', () => {
       'PAN - Documents': 'Yes, Added to Folder',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
       ...basicInfoOk,
-      ...folderShareAck,
       _mobileNumber: '123',
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
@@ -109,7 +102,6 @@ describe('mandatoryFieldValidation.service', () => {
       'PAN - Documents': 'Yes, Added to Folder',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
       ...basicInfoOk,
-      ...folderShareAck,
       _email: 'not-an-email',
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
@@ -122,7 +114,6 @@ describe('mandatoryFieldValidation.service', () => {
       'PAN - Documents': 'Yes, Added to Folder',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
       ...basicInfoOk,
-      ...folderShareAck,
       _typeOfPurchase: 'Lease',
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
@@ -130,23 +121,11 @@ describe('mandatoryFieldValidation.service', () => {
     expect(result.formatErrors?.some((e) => e.fieldId === '_typeOfPurchase')).toBe(true);
   });
 
-  it('reports missing folder sharing confirmation when folder link is valid', async () => {
+  it('accepts a valid folder link without separate share-ack field', async () => {
     const formData = {
       'PAN - Documents': 'Yes, Added to Folder',
       _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
       ...basicInfoOk,
-    };
-    const result = await validateMandatoryFields(formData, 'test-client-id');
-    expect(result.isValid).toBe(false);
-    expect(result.missingFields?.some((f) => f.fieldId === '_documentsFolderShareAcknowledged')).toBe(true);
-  });
-
-  it('accepts string "yes" as folder sharing confirmation', async () => {
-    const formData = {
-      'PAN - Documents': 'Yes, Added to Folder',
-      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
-      ...basicInfoOk,
-      _documentsFolderShareAcknowledged: 'yes',
     };
     const result = await validateMandatoryFields(formData, 'test-client-id');
     expect(result.isValid).toBe(true);

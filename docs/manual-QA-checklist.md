@@ -46,7 +46,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 
 #### Steps:
 1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
-2. ✅ In the left sidebar, click **"Ledger"** (icon: Dollar Sign)
+2. ✅ In the left sidebar, click **"Ledger"** (icon: Indian rupee)
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of ledger entries with columns:
    - Date
@@ -71,7 +71,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 
 #### Steps:
 1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
-2. ✅ In the left sidebar, click **"Ledger"** (icon: Dollar Sign)
+2. ✅ In the left sidebar, click **"Ledger"** (icon: Indian rupee)
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of ledger entries from ALL clients
 5. ✅ Look for filter options (dropdowns or input fields):

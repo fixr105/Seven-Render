@@ -5,6 +5,12 @@
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { LoanStatus } from '../config/constants.js';
+import {
+  ClientProductEntitlementError,
+  assertClientProductAssigned,
+  resolveClientAssignedProducts,
+} from '../services/entitlements/clientProducts.service.js';
+import { getClientVehicleOptions } from '../services/vehicles/vehicleCatalog.service.js';
 
 const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink0';
 const WEBHOOK_MAX_ATTEMPTS = 3;
@@ -16,6 +22,49 @@ const sleep = async (ms: number): Promise<void> =>
 type RetryResult =
   | { response: globalThis.Response; error?: never }
   | { response?: never; error: Error };
+
+function extractLinksFromPayload(payload: unknown): string[] {
+  const links = new Set<string>();
+
+  const pushLink = (value: unknown): void => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    links.add(trimmed);
+  };
+
+  const visit = (value: unknown): void => {
+    if (value == null) return;
+    if (typeof value === 'string') {
+      pushLink(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      // Common n8n/google sheet field names.
+      pushLink(obj.Links);
+      pushLink(obj.links);
+      pushLink(obj.link);
+      pushLink(obj.url);
+      pushLink(obj.URL);
+      // Common n8n wrappers.
+      visit(obj.fields);
+      visit(obj.json);
+      visit(obj.data);
+      visit(obj.items);
+      visit(obj.results);
+      visit(obj.rows);
+      visit(obj.body);
+    }
+  };
+
+  visit(payload);
+  return Array.from(links);
+}
 
 async function callWebhookWithRetry(
   factory: () => Promise<globalThis.Response>,
@@ -47,41 +96,36 @@ async function callWebhookWithRetry(
   return { error: lastError ?? new Error('Webhook request failed') };
 }
 
-/**
- * n8n "Respond to Webhook" for Google Sheets rows returns an array of objects
- * (e.g. Used, Links). Plain string[] is still accepted for backwards compatibility.
- */
-function normalizeLinkPoolPayload(payload: unknown): string[] {
-  const raw = (() => {
-    if (Array.isArray(payload)) return payload;
-    if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
-      return (payload as { data: unknown[] }).data;
-    }
-    return null;
-  })();
-  if (!raw) return [];
-
-  const out: string[] = [];
-  for (const item of raw) {
-    if (typeof item === 'string') {
-      const t = item.trim();
-      if (t) out.push(t);
-      continue;
-    }
-    if (!item || typeof item !== 'object') continue;
-    const row = item as Record<string, unknown>;
-    const used = String(row.Used ?? row.used ?? '').trim().toUpperCase();
-    if (used === 'YES') continue;
-    const linkVal = row.Links ?? row.links ?? row.Link ?? row.link;
-    if (typeof linkVal === 'string') {
-      const t = linkVal.trim();
-      if (t) out.push(t);
+export class ClientController {
+  /**
+   * GET /client/vehicles?productId=LPxxx
+   * Returns make/model options with requested loan amount, filtered by client/product RBAC.
+   */
+  async getVehicles(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        res.status(401).json({ success: false, error: 'Authentication required.' });
+        return;
+      }
+      const productId = String(req.query.productId ?? '').trim();
+      if (!productId) {
+        res.status(400).json({ success: false, error: 'productId is required' });
+        return;
+      }
+      const options = await getClientVehicleOptions(req.user, productId);
+      res.json({ success: true, data: options });
+    } catch (error: any) {
+      if (error instanceof ClientProductEntitlementError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch vehicles',
+      });
     }
   }
-  return out;
-}
 
-export class ClientController {
   /**
    * GET /client/link-pool
    * Fetch candidate links from webhook and normalize to string[].
@@ -104,8 +148,43 @@ export class ClientController {
         return;
       }
 
-      const payload = await response.json().catch(() => null);
-      const links = normalizeLinkPoolPayload(payload);
+      const responseText = await response.text();
+      const payload = responseText ? JSON.parse(responseText) : null;
+      let links = extractLinksFromPayload(payload);
+
+      // Some n8n webhook responses acknowledge async execution but do not return rows.
+      if (
+        links.length === 0 &&
+        payload &&
+        typeof payload === 'object' &&
+        'message' in (payload as Record<string, unknown>)
+      ) {
+        const message = String((payload as Record<string, unknown>).message ?? '').toLowerCase();
+        if (message.includes('workflow was started')) {
+          // Fallback: poll a few times in case workflow returns rows shortly after ack.
+          for (let i = 0; i < 3; i += 1) {
+            await sleep(350);
+            const pollAttempt = await callWebhookWithRetry(
+              () => fetch(GETLINK_WEBHOOK_URL, { method: 'GET' }),
+              { retryOn4xx: false }
+            );
+            if (pollAttempt.error || !pollAttempt.response.ok) continue;
+            const pollText = await pollAttempt.response.text();
+            const pollPayload = pollText ? JSON.parse(pollText) : null;
+            links = extractLinksFromPayload(pollPayload);
+            if (links.length > 0) break;
+          }
+
+          if (links.length === 0) {
+            res.status(502).json({
+              success: false,
+              error:
+                'Link webhook acknowledged execution but returned no link data. Configure n8n GET webhook response mode to return rows.',
+            });
+            return;
+          }
+        }
+      }
 
       res.json({
         success: true,
@@ -308,6 +387,7 @@ export class ClientController {
         res.json({ success: true, data: [] });
         return;
       }
+      await assertClientProductAssigned(req.user, productId);
 
       const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
       const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
@@ -326,6 +406,13 @@ export class ClientController {
       });
     } catch (error: any) {
       console.error('[getFormConfig] Unexpected error:', error);
+      if (error instanceof ClientProductEntitlementError) {
+        res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+        });
+        return;
+      }
       // Ensure error response is always valid JSON
       const errorResponse = {
         success: false,
@@ -354,6 +441,7 @@ export class ClientController {
         });
         return;
       }
+      await assertClientProductAssigned(req.user, productId);
       const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
       const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
       let config = await getFormConfigForProduct(productId);
@@ -376,6 +464,10 @@ export class ClientController {
       });
     } catch (error: any) {
       console.error('[getFormConfigDebug] Error:', error);
+      if (error instanceof ClientProductEntitlementError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
       res.status(500).json({ success: false, error: error.message || 'Failed to fetch form config' });
     }
   }
@@ -398,80 +490,28 @@ export class ClientController {
         return;
       }
 
-      const clients = await n8nClient.fetchTable('Clients');
-      const userEmail = (req.user.email || '').trim().toLowerCase();
-
-      // Resolve effective clientId: use JWT clientId, or look up by email if missing
-      let authClientId: string | null = req.user.clientId ? req.user.clientId.toString().trim() : null;
-      let matchingClient = authClientId
-        ? clients.find(
-            (c: any) =>
-              (c.id && c.id.toString().trim() === authClientId) ||
-              (c['Client ID'] && c['Client ID'].toString().trim() === authClientId) ||
-              (c.clientId && c.clientId.toString().trim() === authClientId)
-          )
-        : null;
-
-      if (!matchingClient && userEmail) {
-        matchingClient = clients.find((c: any) => {
-          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
-          return contact && contact.includes(userEmail);
-        });
-        if (matchingClient) {
-          authClientId = (matchingClient['Client ID'] || matchingClient.clientId || matchingClient.id || null)?.toString().trim() ?? null;
-        }
-      }
-
-      if (!authClientId) {
-        res.status(401).json({
+      const { clientId: authClientId, assignedProductIds: productIds } = await resolveClientAssignedProducts(req.user);
+      if (productIds.length === 0) {
+        res.status(400).json({
           success: false,
-          error:
-            'Client account not linked. Your login email must match the Contact Email/Phone on a Clients record, or you need to re-login after your account is linked.',
+          error: 'No loan products are assigned to your account. Please contact your KAM to allocate products.',
         });
         return;
       }
+      console.log(
+        `[getConfiguredProducts] Client ${authClientId} has ${productIds.length} products from Clients.products:`,
+        productIds
+      );
 
-      // Build set of all identifiers for this client (id and Client ID) for mapping match
-      const acceptedClientIds = new Set<string>([authClientId]);
-      if (matchingClient) {
-        if (matchingClient.id) acceptedClientIds.add(matchingClient.id.toString().trim());
-        if (matchingClient['Client ID']) acceptedClientIds.add(matchingClient['Client ID'].toString().trim());
-        if (matchingClient.clientId) acceptedClientIds.add(matchingClient.clientId.toString().trim());
-      }
-
-      // If client has Assigned Products, return only those (KAM-assigned products)
-      const assignedProductsRaw = (matchingClient?.['Assigned Products'] || matchingClient?.assignedProducts || '').toString().trim();
-      const assignedProductIds = assignedProductsRaw
-        ? assignedProductsRaw.split(/[,\s]+/).map((p: string) => p.trim()).filter(Boolean)
-        : [];
-
-      let productIds: string[];
-      if (assignedProductIds.length > 0) {
-        productIds = assignedProductIds;
-        console.log(
-          `[getConfiguredProducts] Client ${authClientId} has ${productIds.length} KAM-assigned products:`,
-          productIds
-        );
-      } else {
-        const { getProductIdsWithDocuments } = await import('../services/formConfig/simpleFormConfig.service.js');
-        const [productDocIds, products] = await Promise.all([
-          getProductIdsWithDocuments(),
-          n8nClient.fetchTable('Loan Products', true),
-        ]);
-        const productEmbeddedIds = (products as any[])
-          .filter((p) => Object.keys(p).some((k) => /^Section\s+\d+$/i.test(k)))
-          .map((p) => (p['Product ID'] || p.productId || p.id || '').toString().trim())
-          .filter(Boolean);
-        productIds = [...new Set([...productDocIds, ...productEmbeddedIds])];
-        console.log(
-          `[getConfiguredProducts] Client ${authClientId} (no Assigned Products) has ${productIds.length} configured products:`,
-          productIds
-        );
-      }
+      const normalizedProductIds = [...new Set(
+        productIds
+          .map((productId) => productId.toString().trim())
+          .filter(Boolean)
+      )];
 
       res.json({
         success: true,
-        data: productIds,
+        data: normalizedProductIds,
       });
     } catch (error: any) {
       console.error('[getConfiguredProducts] Error:', error);

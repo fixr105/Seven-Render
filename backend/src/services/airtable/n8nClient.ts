@@ -15,6 +15,46 @@ import { cacheService } from './cache.service.js';
 import { n8nEndpoints, getTableToGetWebhookPath } from './n8nEndpoints.js';
 import { normalizeRecords } from './recordNormalizer.service.js';
 
+interface PostDataOptions {
+  strictWriteAck?: boolean;
+  operationName?: string;
+}
+
+function hasWriteIdentifier(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false;
+  const record = payload as Record<string, unknown>;
+  const directKeys = ['id', 'recordId', 'fileId', 'loanApplicationId', 'applicationId'];
+  if (directKeys.some((key) => typeof record[key] === 'string' && String(record[key]).trim() !== '')) {
+    return true;
+  }
+  if (record.data && hasWriteIdentifier(record.data)) return true;
+  if (record.result && hasWriteIdentifier(record.result)) return true;
+  if (Array.isArray(record.records) && record.records.length > 0) return true;
+  return false;
+}
+
+function hasExplicitSuccess(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false;
+  const record = payload as Record<string, unknown>;
+  return (
+    record.success === true ||
+    record.ok === true ||
+    record.status === 'success' ||
+    record.status === 'ok'
+  );
+}
+
+function hasAsyncWorkflowAck(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false;
+  const record = payload as Record<string, unknown>;
+  const message = String(record.message ?? record.statusMessage ?? '').toLowerCase();
+  return (
+    message.includes('workflow was started') ||
+    message.includes('workflow started') ||
+    message.includes('execution started')
+  );
+}
+
 /**
  * Type definitions for n8n webhook responses
  */
@@ -555,8 +595,15 @@ export class N8nClient {
    * POST data to n8n webhook
    * This will invalidate relevant caches after successful POST
    */
-  async postData(webhookUrl: string, data: Record<string, any>, retries: number = 3): Promise<any> {
+  async postData(
+    webhookUrl: string,
+    data: Record<string, any>,
+    retries: number = 3,
+    options: PostDataOptions = {}
+  ): Promise<any> {
     let lastError: Error | null = null;
+    const strictWriteAck = options.strictWriteAck === true;
+    const operationName = options.operationName || 'webhook POST';
     
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -596,6 +643,9 @@ export class N8nClient {
           
           // Handle empty response
           if (responseText.trim() === '') {
+            if (strictWriteAck) {
+              throw new Error(`${operationName} failed: empty response from webhook`);
+            }
             console.log('[postData] Empty response received, treating as success');
             // Return a proper success object that can be serialized
             return { success: true, message: 'Data posted successfully', data: null };
@@ -607,10 +657,34 @@ export class N8nClient {
             console.log('[postData] Successfully parsed JSON response:', typeof parsed);
             // Ensure we always return an object (not null or undefined)
             if (parsed === null || parsed === undefined) {
+              if (strictWriteAck) {
+                throw new Error(`${operationName} failed: webhook returned null/undefined payload`);
+              }
               return { success: true, message: 'Data posted successfully', data: null };
+            }
+            if (strictWriteAck && parsed.success === false) {
+              throw new Error(
+                `${operationName} failed: ${parsed.error || parsed.message || 'webhook reported success=false'}`
+              );
+            }
+            if (
+              strictWriteAck &&
+              !hasExplicitSuccess(parsed) &&
+              !hasWriteIdentifier(parsed) &&
+              !hasAsyncWorkflowAck(parsed)
+            ) {
+              throw new Error(
+                `${operationName} failed: webhook response missing explicit success, created record identifier, or async workflow acknowledgement`
+              );
             }
             return parsed;
           } catch (parseError: any) {
+            if (strictWriteAck && parseError instanceof Error && parseError.name !== 'SyntaxError') {
+              throw parseError;
+            }
+            if (strictWriteAck) {
+              throw new Error(`${operationName} failed: webhook returned non-JSON response`);
+            }
             console.warn('[postData] Response is not JSON, returning as text');
             console.warn('[postData] Response text:', responseText.substring(0, 200));
             // Return a proper object structure
@@ -1036,8 +1110,20 @@ export class N8nClient {
    */
   buildLoanApplicationPayload(data: Record<string, any>): Record<string, any> {
     let formData = data['Form Data'] || data.formData || '';
+    let parsedFormData: Record<string, any> = {};
     if (typeof formData === 'object' && formData !== null) {
+      parsedFormData = formData;
       formData = JSON.stringify(formData);
+    }
+    if (typeof formData === 'string' && formData.trim() !== '') {
+      try {
+        const parsed = JSON.parse(formData);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          parsedFormData = parsed as Record<string, any>;
+        }
+      } catch {
+        parsedFormData = {};
+      }
     }
     if (formData == null || (typeof formData === 'string' && formData.trim() === '')) {
       formData = '';
@@ -1063,6 +1149,9 @@ export class N8nClient {
           ? String((rawKamId as any).id ?? (rawKamId as any)['KAM ID']).trim()
           : '';
     const md = data['MD'] ?? data.md ?? '';
+    const mobileNumber = data['Mobile Number'] ?? parsedFormData._mobileNumber ?? '';
+    const emailId = data['Email Id'] ?? data['Email ID'] ?? parsedFormData._email ?? '';
+    const typeOfPurchase = data['Type of Purchase'] ?? parsedFormData._typeOfPurchase ?? '';
 
     // Fixed key order for n8n: same format every time. No "id" — n8n uses only "File ID" for update-by-file-id.
     return {
@@ -1070,7 +1159,8 @@ export class N8nClient {
       Client: clientId,
       'Applicant Name': data['Applicant Name'] || data.applicantName || '',
       'Loan Product': data['Loan Product'] || data.loanProduct || '',
-      'Requested Loan Amount': data['Requested Loan Amount'] || data.requestedLoanAmount || '',
+      'Requested Loan Amount':
+        data['Requested Loan Amount'] ?? data.requestedLoanAmount ?? '',
       Documents: data['Documents'] || data.documents || '',
       Status: data['Status'] || data.status || '',
       'Assigned Credit Analyst': data['Assigned Credit Analyst'] || data.assignedCreditAnalyst || '',
@@ -1086,7 +1176,14 @@ export class N8nClient {
       'Asana Task ID': data['Asana Task ID'] || data.asanaTaskId || '',
       'Asana Task Link': data['Asana Task Link'] || data.asanaTaskLink || '',
       'KAM ID': kamId,
+      'Mobile Number': mobileNumber,
+      'Email Id': emailId,
+      'Type of Purchase': typeOfPurchase,
       'Form Data': formData,
+      'Form Config Version': data['Form Config Version'] || data.formConfigVersion || '',
+      'Needs Attention': data['Needs Attention'] || data.needsAttention || '',
+      'Validation Warnings': data['Validation Warnings'] || data.validationWarnings || '',
+      'Client Submission ID': data['Client Submission ID'] || data.clientSubmissionId || '',
       MD: md,
     };
   }
@@ -1114,9 +1211,13 @@ export class N8nClient {
    * 
    * See WEBHOOK_MAPPING_TABLE.md for complete mapping
    */
-  async postLoanApplication(data: Record<string, any>) {
+  async postLoanApplication(data: Record<string, any>, options: PostDataOptions = {}) {
     const loanApplicationData = this.buildLoanApplicationPayload(data);
-    const result = await this.postData(n8nConfig.postApplicationsUrl, loanApplicationData);
+    const result = await this.postData(n8nConfig.postApplicationsUrl, loanApplicationData, 3, {
+      ...options,
+      strictWriteAck: options.strictWriteAck ?? true,
+      operationName: options.operationName || 'loan application sync',
+    });
     this.invalidateCache('Loan Application');
     this.invalidateCache('File Auditing Log');
     return result;
@@ -1187,7 +1288,10 @@ export class N8nClient {
       'Address/Region': data['Address/Region'] || data.addressRegion || '',
       'Active': data['Active'] || data.active || 'True',
     };
-    const result = await this.postData(url, nbfcPartnerData);
+    const result = await this.postData(url, nbfcPartnerData, 3, {
+      strictWriteAck: true,
+      operationName: 'NBFC partner sync',
+    });
     console.log('[postNBFCPartner] Sync success for id:', nbfcPartnerData.id);
     // Invalidate cache for NBFC Partners
     this.invalidateCache('NBFC Partners');

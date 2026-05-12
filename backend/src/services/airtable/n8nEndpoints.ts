@@ -42,6 +42,7 @@ export const AIRTABLE_TABLE_IDS = {
   NBFC_PARTNERS: 'tblP0qS7vV2xZ5bB8', // NBFC Partners
   NOTIFICATIONS: 'tblmprms0l3yQjVdx', // Notifications
   USER_ACCOUNTS: 'tblQ1rT8wW3yA6cC9', // User Accounts
+  VEHICLES: 'tblVehicles', // Vehicles (Make/Model/Loan Amount catalog)
 } as const;
 
 /**
@@ -66,6 +67,7 @@ export const AIRTABLE_TABLE_NAMES = {
   NBFC_PARTNERS: 'NBFC Partners',
   NOTIFICATIONS: 'Notifications',
   USER_ACCOUNTS: 'User Accounts',
+  VEHICLES: 'Vehicles',
 } as const;
 
 /**
@@ -129,6 +131,8 @@ export const N8N_POST_WEBHOOK_PATHS = {
   
   // Email (Outlook Send a message)
   EMAIL: 'email',
+  // Vehicles
+  VEHICLES: 'VehiclesPOST',
 } as const;
 
 /**
@@ -189,6 +193,7 @@ export const N8N_GET_WEBHOOK_PATHS = {
   
   // User Accounts
   USER_ACCOUNT: 'useraccount',
+  VEHICLES: 'VehiclesGET',
 } as const;
 
 /**
@@ -230,6 +235,7 @@ export function getTableToGetWebhookPath(): Record<string, keyof typeof N8N_GET_
     [AIRTABLE_TABLE_NAMES.NBFC_PARTNERS]: 'NBFC_PARTNERS',
     [AIRTABLE_TABLE_NAMES.NOTIFICATIONS]: 'NOTIFICATIONS',
     [AIRTABLE_TABLE_NAMES.USER_ACCOUNTS]: 'USER_ACCOUNT',
+    [AIRTABLE_TABLE_NAMES.VEHICLES]: 'VEHICLES',
   };
 }
 
@@ -256,6 +262,7 @@ export function getTableToPostWebhookPath(): Record<string, keyof typeof N8N_POS
     [AIRTABLE_TABLE_NAMES.NBFC_PARTNERS]: 'NBFC_PARTNERS',
     [AIRTABLE_TABLE_NAMES.NOTIFICATIONS]: 'NOTIFICATION',
     [AIRTABLE_TABLE_NAMES.USER_ACCOUNTS]: 'ADD_USER',
+    [AIRTABLE_TABLE_NAMES.VEHICLES]: 'VEHICLES',
   };
 }
 
@@ -330,6 +337,14 @@ export const n8nEndpoints = {
     nbfcPartners: process.env.N8N_GET_NBFC_PARTNERS_URL || getGetWebhookUrl('NBFC_PARTNERS'),
     notifications: process.env.N8N_GET_NOTIFICATIONS_URL || getGetWebhookUrl('NOTIFICATIONS'),
     userAccount: process.env.N8N_GET_USER_ACCOUNTS_URL || getGetWebhookUrl('USER_ACCOUNT'),
+    vehicles:
+      process.env.N8N_GET_VEHICLES_URL ||
+      'https://fixrrahul.app.n8n.cloud/webhook/VehiclesGET',
+  },
+  vehicles: {
+    post:
+      process.env.N8N_POST_VEHICLES_URL ||
+      'https://fixrrahul.app.n8n.cloud/webhook/VehiclesPOST',
   },
 } as const;
 

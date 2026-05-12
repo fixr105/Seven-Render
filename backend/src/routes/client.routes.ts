@@ -19,6 +19,7 @@ router.get('/dashboard', clientController.getDashboard.bind(clientController));
 router.get('/form-config', clientController.getFormConfig.bind(clientController));
 router.get('/form-config-debug', clientController.getFormConfigDebug.bind(clientController));
 router.get('/configured-products', clientController.getConfiguredProducts.bind(clientController));
+router.get('/vehicles', clientController.getVehicles.bind(clientController));
 
 export default router;
 

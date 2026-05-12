@@ -19,12 +19,12 @@ vi.mock('../../services/api', () => {
           id: 'recLP1',
           productId: 'LP001',
           productName: 'Test Product',
-          applicableStatuses: [
-            { key: 'under_kam_review', label: 'Pending KAM Review', order: 10 },
-            { key: 'pending_credit_review', label: 'Forwarded to Credit', order: 20 },
-          ],
         },
       ],
+    }),
+    getConfiguredProducts: vi.fn().mockResolvedValue({
+      success: true,
+      data: ['LP001'],
     }),
     getQueries: vi.fn().mockResolvedValue({ success: true, data: [] }),
   };
@@ -167,8 +167,8 @@ describe('Applications Listing Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Pending KAM Review/i).length).toBeGreaterThanOrEqual(1);
-        expect(screen.getAllByText(/Forwarded to Credit/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(/Under KAM Review/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(/Pending Credit Review/i).length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -459,6 +459,45 @@ describe('Applications Listing Page - P0 Tests', () => {
       // Status filter is implemented as buttons with "Filter by" in aria-label
       const statusFilterButtons = screen.getAllByRole('button', { name: /Filter by/i });
       expect(statusFilterButtons.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Client product entitlement filter', () => {
+    it('shows only configured products in dropdown for client role', async () => {
+      const { apiService } = await import('../../services/api');
+      (apiService.listLoanProducts as any).mockResolvedValue({
+        success: true,
+        data: [
+          { id: 'recLP1', productId: 'LP001', productName: 'Allowed Product' },
+          { id: 'recLP2', productId: 'LP999', productName: 'Unassigned Product' },
+        ],
+      });
+      (apiService.getConfiguredProducts as any).mockResolvedValue({
+        success: true,
+        data: ['LP001'],
+      });
+      (useApplications as any).mockReturnValue({
+        applications: [],
+        loading: false,
+        refetch: vi.fn(),
+      });
+
+      renderWithProviders(<Applications />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('option', { name: 'Allowed Product' })).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('option', { name: 'Unassigned Product' })).not.toBeInTheDocument();
     });
   });
 });

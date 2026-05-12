@@ -5,8 +5,93 @@
 
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
-import { parseApplicableStatusesFromProduct } from '../services/products/loanProductStatuses.service.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
+import { resolveClientAssignedProducts } from '../services/entitlements/clientProducts.service.js';
+import { LoanStatus } from '../config/constants.js';
+
+function extractIconUrl(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const parsed = extractIconUrl(item);
+      if (parsed) return parsed;
+    }
+    return undefined;
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return (
+      extractIconUrl(record.url) ||
+      extractIconUrl(record.URL) ||
+      extractIconUrl(record.href) ||
+      extractIconUrl(record.src)
+    );
+  }
+  return undefined;
+}
+
+type ApplicableStatusEntry = {
+  key: string;
+  label: string;
+  order: number;
+};
+
+const CANONICAL_STATUS_SET = new Set<string>(Object.values(LoanStatus));
+
+function normalizeStatusKey(raw: unknown): string {
+  const normalized = String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_')
+    .replace(/\s+/g, '_');
+
+  const aliasMap: Record<string, string> = {
+    pending_kam_review: LoanStatus.UNDER_KAM_REVIEW,
+    kam_query_raised: LoanStatus.QUERY_WITH_CLIENT,
+    forwarded_to_credit: LoanStatus.PENDING_CREDIT_REVIEW,
+    credit_query_raised: LoanStatus.CREDIT_QUERY_WITH_KAM,
+  };
+  return aliasMap[normalized] ?? normalized;
+}
+
+function parseApplicableStatuses(raw: unknown): ApplicableStatusEntry[] {
+  if (raw == null || String(raw).trim() === '') {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  const mapped = parsed
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') return null;
+      const row = item as Record<string, unknown>;
+      const key = normalizeStatusKey(row.key);
+      if (!key || !CANONICAL_STATUS_SET.has(key)) return null;
+      const label = String(row.label ?? '').trim() || key;
+      const maybeOrder = Number(row.order);
+      const order = Number.isFinite(maybeOrder) ? maybeOrder : (index + 1) * 10;
+      return { key, label, order };
+    })
+    .filter((entry): entry is ApplicableStatusEntry => entry !== null);
+
+  if (mapped.length === 0) {
+    return [];
+  }
+
+  return mapped.sort((a, b) => a.order - b.order);
+}
 
 export class ProductsController {
   /**
@@ -67,6 +152,20 @@ export class ProductsController {
         console.log(`[listLoanProducts] Filtered to ${filteredProducts.length} active products`);
       }
 
+      if (req.user?.role === 'client') {
+        try {
+          const { assignedProductIds } = await resolveClientAssignedProducts(req.user);
+          const allowedIds = new Set(assignedProductIds.map((id) => id.toLowerCase()));
+          filteredProducts = filteredProducts.filter((p: any) =>
+            allowedIds.has(String(p['Product ID'] || p.productId || p.id || '').trim().toLowerCase())
+          );
+          console.log(`[listLoanProducts] Client scoped to ${filteredProducts.length} assigned products`);
+        } catch (error) {
+          console.warn('[listLoanProducts] Failed to resolve client product entitlement, returning empty set.', error);
+          filteredProducts = [];
+        }
+      }
+
       res.json({
         success: true,
         data: filteredProducts.map((product: any) => {
@@ -77,21 +176,19 @@ export class ProductsController {
             : [];
           const assignedKamIds = kamIds;
           const assignedKamNames = kamIds.map((kid) => resolveKAMName(kid, kamNameMap)).filter(Boolean);
-          const applicableStatuses = parseApplicableStatusesFromProduct(
-            product as Record<string, unknown>,
-            String(productId)
-          );
           return {
             ...product,
             id: product.id,
             productId: product['Product ID'],
             productName: product['Product Name'],
             description: product['Description'],
+            ICONS: product['ICONS'] ?? product.ICONS ?? product['Icons'] ?? product.icons,
+            iconUrl: extractIconUrl(product['ICONS'] ?? product.ICONS ?? product['Icons'] ?? product.icons),
             active: product['Active'] === 'True' || product['Active'] === true,
             requiredDocumentsFields: product['Required Documents/Fields'],
+            applicableStatuses: parseApplicableStatuses(product['Applicable Statuses'] ?? product.applicableStatuses),
             assignedKamIds,
             assignedKamNames,
-            applicableStatuses,
           };
         }),
       });
@@ -115,13 +212,25 @@ export class ProductsController {
   async getLoanProduct(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
+      const lookup = String(id ?? '').trim().toLowerCase();
       const [products, clients, kamUsers] = await Promise.all([
         n8nClient.fetchTable('Loan Products'),
         n8nClient.fetchTable('Clients', false).catch(() => [] as any[]),
         n8nClient.fetchTable('KAM Users', false).catch(() => [] as any[]),
       ]);
       
-      const product = products.find((p: any) => p.id === id || p['Product ID'] === id);
+      const product = products.find((p: any) => {
+        const candidates = [
+          p.id,
+          p['Product ID'],
+          p.productId,
+          p['Product Name'],
+          p.productName,
+        ]
+          .map((v) => String(v ?? '').trim().toLowerCase())
+          .filter(Boolean);
+        return candidates.includes(lookup);
+      });
 
       if (!product) {
         res.status(404).json({
@@ -148,11 +257,6 @@ export class ProductsController {
       const kamIds = productToKamIds.get(productId.toLowerCase()) ? Array.from(productToKamIds.get(productId.toLowerCase())!) : [];
       const kamNameMap = buildKAMNameMap(kamUsers as any[]);
       const assignedKamNames = kamIds.map((kid) => resolveKAMName(kid, kamNameMap)).filter(Boolean);
-      const applicableStatuses = parseApplicableStatusesFromProduct(
-        product as Record<string, unknown>,
-        String(productId)
-      );
-
       res.json({
         success: true,
         data: {
@@ -161,11 +265,13 @@ export class ProductsController {
           productId: product['Product ID'],
           productName: product['Product Name'],
           description: product['Description'],
+          ICONS: product['ICONS'] ?? product.ICONS ?? product['Icons'] ?? product.icons,
+          iconUrl: extractIconUrl(product['ICONS'] ?? product.ICONS ?? product['Icons'] ?? product.icons),
           active: product['Active'] === 'True',
           requiredDocumentsFields: product['Required Documents/Fields'],
+          applicableStatuses: parseApplicableStatuses(product['Applicable Statuses'] ?? product.applicableStatuses),
           assignedKamIds: kamIds,
           assignedKamNames,
-          applicableStatuses,
         },
       });
     } catch (error: any) {
