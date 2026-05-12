@@ -4,6 +4,7 @@ import { apiService } from '../api';
 describe('apiService request logical success handling', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('maps HTTP 200 with success:false body to failure', async () => {
@@ -70,5 +71,22 @@ describe('apiService request logical success handling', () => {
     expect(url).toContain('/loan-applications/app-123/submit');
     expect(requestInit.method).toBe('POST');
     expect(JSON.parse(requestInit.body)).toEqual({ clientSubmissionId: 'submit-456' });
+  });
+
+  it('requests client vehicles from the configured API base URL', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://seven-render.fly.dev');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ success: true, data: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.getClientVehicles('LP015');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://seven-render.fly.dev/api/client/vehicles?productId=LP015');
   });
 });

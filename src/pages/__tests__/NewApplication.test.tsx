@@ -184,6 +184,64 @@ describe('NewApplication Page - P0 Tests', () => {
     await user.selectOptions(loanProductSelect, 'LP001');
   }
 
+  describe('Vehicle options loading', () => {
+    it('requests vehicles for the selected product and renders returned makes and models', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await selectFirstLoanProduct(user);
+
+      await waitFor(() => {
+        expect(apiService.getClientVehicles).toHaveBeenCalledWith('LP001');
+      });
+      const vehicleMakeSelect = screen.getByTestId('vehicle-make-select');
+      expect(vehicleMakeSelect.querySelector('option[value="Tata"]')).toBeInTheDocument();
+      expect(vehicleMakeSelect).not.toHaveTextContent('No makes available');
+
+      await user.selectOptions(vehicleMakeSelect, 'Tata');
+      const vehicleModelSelect = screen.getByTestId('vehicle-model-select');
+      await waitFor(() => {
+        expect(vehicleModelSelect.querySelector('option[value="Ace Gold"]')).toBeInTheDocument();
+      });
+    }, 15000);
+
+    it('shows vehicle endpoint errors when loading makes fails', async () => {
+      const user = userEvent.setup();
+      (apiService.getClientVehicles as any).mockResolvedValue({
+        success: false,
+        error: 'Endpoint not found: /client/vehicles?productId=LP001',
+      });
+
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await selectFirstLoanProduct(user);
+
+      await waitFor(() => {
+        expect(screen.getByText('Endpoint not found: /client/vehicles?productId=LP001')).toBeInTheDocument();
+      });
+    }, 15000);
+  });
+
   describe('M2-FE-001: Dynamic Form Field Rendering', () => {
     it('should render form fields based on form configuration', async () => {
       const user = userEvent.setup();

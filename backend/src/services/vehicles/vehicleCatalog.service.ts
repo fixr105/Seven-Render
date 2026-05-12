@@ -49,6 +49,20 @@ function pickFirst(record: Record<string, unknown>, keys: string[]): string {
   return '';
 }
 
+function pickAll(record: Record<string, unknown>, keys: string[]): unknown[] {
+  const values: unknown[] = [];
+  for (const key of keys) {
+    const value = record[key];
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      values.push(...value);
+    } else {
+      values.push(value);
+    }
+  }
+  return values;
+}
+
 function parseAmount(value: unknown): string {
   const raw = normalize(value);
   if (!raw) return '';
@@ -104,15 +118,15 @@ function parseVehicleRecord(record: Record<string, unknown>): VehicleOption | nu
 
 function isProductAllowed(record: Record<string, unknown>, productId: string): boolean {
   const normalizedProductId = normalizeLower(productId);
-  const direct = normalizeLower(
-    pickFirst(record, ['Product ID', 'productId', 'Loan Product', 'loanProduct'])
-  );
-  if (direct && direct === normalizedProductId) return true;
+  const directProducts = pickAll(record, ['Product ID', 'productId', 'Loan Product', 'loanProduct'])
+    .flatMap((value) => splitMultiValue(value))
+    .map((item) => normalizeLower(item));
+  if (directProducts.includes(normalizedProductId)) return true;
 
   const allowedProducts = splitMultiValue(
     pickFirst(record, ['Allowed Products', 'allowedProducts', 'Products', 'products'])
   ).map((item) => normalizeLower(item));
-  if (allowedProducts.length === 0) return !direct;
+  if (allowedProducts.length === 0) return directProducts.length === 0;
   return allowedProducts.includes(normalizedProductId);
 }
 

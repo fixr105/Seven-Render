@@ -197,6 +197,103 @@ describe('ClientController.getVehicles', () => {
     });
   });
 
+  it('matches vehicles when Product ID contains multiple product IDs', async () => {
+    mockRequest = {
+      user: {
+        role: 'client',
+        email: 'client@example.com',
+        clientId: 'CL001',
+      } as any,
+      query: { productId: 'LP015' },
+    };
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      if (tableName === 'Clients') {
+        return [
+          {
+            id: 'recClient',
+            'Client ID': 'CL001',
+            'Assigned Products': 'LP014,LP015',
+            'Contact Email/Phone': 'client@example.com',
+          },
+        ];
+      }
+      if (tableName === 'Vehicles') {
+        return [
+          {
+            id: 'veh-1',
+            'Vehicle ID': 'VEH015',
+            Make: 'Ashok Leyland',
+            Model: 'Dost',
+            'Requested Loan Amount': '650000',
+            'Product ID': 'LP014, LP015',
+          },
+        ];
+      }
+      return [];
+    });
+
+    await controller.getVehicles(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: [
+        {
+          vehicleId: 'VEH015',
+          make: 'Ashok Leyland',
+          model: 'Dost',
+          requestedLoanAmount: '650000',
+        },
+      ],
+    });
+  });
+
+  it('returns an empty JSON vehicle list when no mapped vehicles exist', async () => {
+    mockRequest = {
+      user: {
+        role: 'client',
+        email: 'client@example.com',
+        clientId: 'CL001',
+      } as any,
+      query: { productId: 'LP015' },
+    };
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      if (tableName === 'Clients') {
+        return [
+          {
+            id: 'recClient',
+            'Client ID': 'CL001',
+            'Assigned Products': 'LP015',
+            'Contact Email/Phone': 'client@example.com',
+          },
+        ];
+      }
+      if (tableName === 'Vehicles') return [];
+      return [];
+    });
+
+    await controller.getVehicles(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.status).not.toHaveBeenCalledWith(404);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: [],
+    });
+  });
+
+  it('returns a JSON auth error when the vehicle route is unauthenticated', async () => {
+    mockRequest = {
+      query: { productId: 'LP015' },
+    };
+
+    await controller.getVehicles(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(401);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Authentication required.',
+    });
+  });
+
   it('rejects when productId is missing', async () => {
     mockRequest = {
       user: {
