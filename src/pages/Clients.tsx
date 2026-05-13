@@ -17,6 +17,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
+import { resolveClientApplicationCount } from '../utils/clientApplicationCounts';
 
 interface Client {
   id: string;
@@ -32,6 +33,7 @@ interface Client {
   _count?: {
     applications: number;
   };
+  applicationsCount?: number;
 }
 
 import { formatDateFull } from '../utils/dateFormatter';
@@ -104,7 +106,8 @@ export const Clients: React.FC = () => {
           kam_name: client.assignedKAMName || client['Assigned KAM Name'] || null,
           is_active: client.status === 'Active' || client.Status === 'Active',
           created_at: client.createdAt || client['Created At'] || client.createdTime || '',
-          _count: { applications: 0 }, // enriched below with applications count
+          applicationsCount: client.applicationsCount,
+          _count: client._count,
         }));
         
         
@@ -152,12 +155,15 @@ export const Clients: React.FC = () => {
     return clients.map((c) => ({
       ...c,
       _count: {
-        applications: applications.filter((a) => {
-          const applicationClientId = String(a.client_id || (a as any).Client || '').trim();
-          if (!applicationClientId) return false;
-          const candidateClientIds = [c.id, c.clientId].map((id) => String(id || '').trim()).filter(Boolean);
-          return candidateClientIds.includes(applicationClientId);
-        }).length,
+        applications: resolveClientApplicationCount({
+          client: c,
+          fallbackCount: applications.filter((a) => {
+            const applicationClientId = String(a.client_id || (a as any).Client || '').trim();
+            if (!applicationClientId) return false;
+            const candidateClientIds = [c.id, c.clientId].map((id) => String(id || '').trim()).filter(Boolean);
+            return candidateClientIds.includes(applicationClientId);
+          }).length,
+        }),
       },
     }));
   }, [clients, applications]);

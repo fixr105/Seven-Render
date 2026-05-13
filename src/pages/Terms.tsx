@@ -12,8 +12,8 @@ export const TermsPage: React.FC = () => {
           </p>
           <p>
             For questions about these terms, please contact us at{' '}
-            <a href="mailto:support@sevenfincorp.com" className="text-brand-primary hover:underline">
-              support@sevenfincorp.com
+            <a href="mailto:contact@sevenfincorp.com" className="text-brand-primary hover:underline">
+              contact@sevenfincorp.com
             </a>
             .
           </p>

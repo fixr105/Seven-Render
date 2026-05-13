@@ -17,7 +17,7 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
           </div>
           <div className="flex items-center gap-6 text-sm text-neutral-500">
             <a
-              href="mailto:support@sevenfincorp.com"
+              href="mailto:contact@sevenfincorp.com"
               className="hover:text-brand-primary transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 rounded"
             >
               Support

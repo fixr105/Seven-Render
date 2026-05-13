@@ -1298,7 +1298,7 @@ export class N8nClient {
     return result;
   }
 
-  async postUserAccount(data: Record<string, any>) {
+  async postUserAccount(data: Record<string, any>, options: PostDataOptions = {}) {
     // Ensure only exact fields are sent to adduser webhook
     // Only send: id, Username, PIN, Role, Associated Profile, Last Login, Account Status
     // Note: n8n adduser workflow expects PIN (not Password); value should be hashed before calling
@@ -1314,7 +1314,10 @@ export class N8nClient {
     // Explicitly exclude Password - n8n adduser expects PIN only
     delete userAccountData.Password;
     delete userAccountData.password;
-    const result = await this.postData(n8nConfig.postAddUserUrl, userAccountData);
+    const result = await this.postData(n8nConfig.postAddUserUrl, userAccountData, 3, {
+      ...options,
+      operationName: options.operationName || 'user account sync',
+    });
     // Invalidate cache for User Accounts
     this.invalidateCache('User Accounts');
     // Also clear auth service cache to prevent stale user data

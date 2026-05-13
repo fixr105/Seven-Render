@@ -138,6 +138,9 @@ export class AuthController {
             'Associated Profile': userAccount['Associated Profile'],
             'Account Status': userAccount['Account Status'] ?? 'Active',
             'Last Login': new Date().toISOString(),
+          }, {
+            strictWriteAck: true,
+            operationName: 'last login update',
           });
         }
       } catch (updateError: any) {
@@ -203,6 +206,9 @@ export class AuthController {
             'Associated Profile': userAccount['Associated Profile'],
             'Account Status': userAccount['Account Status'] ?? 'Active',
             'Last Login': new Date().toISOString(),
+          }, {
+            strictWriteAck: true,
+            operationName: 'last login update',
           });
         }
       } catch (updateError: any) {

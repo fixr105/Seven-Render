@@ -16,7 +16,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
-import { getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
+import { getBusinessStatusOptions, getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
 
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
@@ -255,6 +255,10 @@ export const ApplicationDetail: React.FC = () => {
           }
         }
 
+        if (entries.length === 0 && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin')) {
+          entries = getBusinessStatusOptions();
+        }
+
         if (cancelled || entries.length === 0) {
           if (!cancelled) setApplicationStatuses([]);
           return;
@@ -265,7 +269,7 @@ export const ApplicationDetail: React.FC = () => {
           if (!key || byKey.has(key)) return;
           byKey.set(key, {
             key,
-            label: String(row.label ?? '').trim() || getStatusDisplayNameForViewer(key, userRole || ''),
+            label: getStatusDisplayNameForViewer(key, userRole || '') || String(row.label ?? '').trim(),
           });
         });
         const next = Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label));
@@ -645,8 +649,7 @@ export const ApplicationDetail: React.FC = () => {
         setShowStatusModal(false);
         setNewStatus('');
         setStatusNotes('');
-        fetchApplicationDetails();
-        fetchStatusHistory();
+        await Promise.all([fetchApplicationDetails(), fetchStatusHistory()]);
       } else {
         throw new Error(response.error || 'Failed to update status');
       }
@@ -2072,7 +2075,7 @@ export const ApplicationDetail: React.FC = () => {
               disabled={statusDropdownDisabled}
               helperText={
                 statusDropdownDisabled
-                  ? 'No statuses found in Loan Application records.'
+                  ? 'No configured statuses are available for this application.'
                   : undefined
               }
               required

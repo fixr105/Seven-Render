@@ -9,6 +9,7 @@ import { getStatusHistory } from '../services/statusTracking/statusHistory.servi
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 import { parseFormData } from '../utils/parseFormData.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
+import { countApplicationsForClient } from '../utils/applicationClientCounts.js';
 import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 import {
   isStatusConfiguredForApplication,
@@ -1447,10 +1448,12 @@ export class CreditController {
    */
   async listClients(req: Request, res: Response): Promise<void> {
     try {
-      const [clients, kamUsers] = await Promise.all([
+      const [clients, kamUsers, loanApplicationsRaw] = await Promise.all([
         n8nClient.fetchTable('Clients'),
         n8nClient.fetchTable('KAM Users'),
+        n8nClient.fetchTable('Loan Application'),
       ]);
+      const loanApplications = deduplicateApplicationsByFileId(loanApplicationsRaw);
 
       const kamNameMap = buildKAMNameMap(kamUsers as any[]);
       const mapKeys = Array.from(kamNameMap.keys());
@@ -1482,6 +1485,7 @@ export class CreditController {
         if (assignedKAMName === assignedKAM && (client['Assigned KAM Name'] || client.assignedKAMName)) {
           assignedKAMName = client['Assigned KAM Name'] || client.assignedKAMName || assignedKAMName;
         }
+        const applicationsCount = countApplicationsForClient(client, loanApplications);
         return {
           id: client.id || client['Client ID'],
           clientId: client['Client ID'] || client.id,
@@ -1494,6 +1498,10 @@ export class CreditController {
           commissionRate: client['Commission Rate'] || client.commissionRate,
           status: client['Status'] || client.status || 'Active',
           createdAt: client['Created At'] || client.createdAt || client.createdTime || '',
+          applicationsCount,
+          _count: {
+            applications: applicationsCount,
+          },
         };
       });
 

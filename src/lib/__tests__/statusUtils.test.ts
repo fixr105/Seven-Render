@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { normalizeStatus, getStatusDisplayName, getStatusColor } from '../statusUtils';
+import {
+  normalizeStatus,
+  getStatusDisplayName,
+  getBusinessStatusDisplayName,
+  getStatusColor,
+} from '../statusUtils';
 
 describe('normalizeStatus', () => {
   describe('alias mapping', () => {
@@ -84,23 +89,40 @@ describe('normalizeStatus', () => {
 });
 
 describe('getStatusDisplayName', () => {
-  it('returns raw id for draft', () => {
-    expect(getStatusDisplayName('draft')).toBe('draft');
+  it('returns display name for draft', () => {
+    expect(getStatusDisplayName('draft')).toBe('Draft');
   });
   it('returns display name for under_kam_review', () => {
     expect(getStatusDisplayName('under_kam_review')).toBe('Under KAM Review');
   });
-  it('returns raw id for approved', () => {
-    expect(getStatusDisplayName('approved')).toBe('approved');
+  it('returns display name for approved', () => {
+    expect(getStatusDisplayName('approved')).toBe('Approved');
   });
-  it('returns raw id for rejected', () => {
-    expect(getStatusDisplayName('rejected')).toBe('rejected');
+  it('returns display name for rejected', () => {
+    expect(getStatusDisplayName('rejected')).toBe('Rejected');
   });
-  it('returns raw id for disbursed', () => {
-    expect(getStatusDisplayName('disbursed')).toBe('disbursed');
+  it('returns display name for disbursed', () => {
+    expect(getStatusDisplayName('disbursed')).toBe('Disbursed');
   });
-  it('returns raw status for unknown', () => {
-    expect(getStatusDisplayName('unknown_status')).toBe('unknown_status');
+  it('returns readable display name for unknown', () => {
+    expect(getStatusDisplayName('unknown_status')).toBe('Unknown Status');
+  });
+});
+
+describe('getBusinessStatusDisplayName', () => {
+  it('maps canonical statuses to business-facing labels without changing stored values', () => {
+    expect(getBusinessStatusDisplayName('under_kam_review')).toBe('Submitted');
+    expect(getBusinessStatusDisplayName('pending_credit_review')).toBe('Under Finance Review');
+    expect(getBusinessStatusDisplayName('in_negotiation')).toBe('Qualified');
+    expect(getBusinessStatusDisplayName('query_with_client')).toBe('Dealer Unresponsive');
+    expect(getBusinessStatusDisplayName('approved')).toBe('DO Issued');
+    expect(getBusinessStatusDisplayName('sent_to_nbfc')).toBe('DO Issued');
+    expect(getBusinessStatusDisplayName('disbursed')).toBe('Disbursed');
+    expect(getBusinessStatusDisplayName('rejected')).toBe('Rejected');
+  });
+
+  it('falls back to the normal display formatter for unmapped statuses', () => {
+    expect(getBusinessStatusDisplayName('credit_query_with_kam')).toBe('Credit Query With KAM');
   });
 });
 

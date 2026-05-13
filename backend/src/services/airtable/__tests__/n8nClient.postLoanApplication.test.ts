@@ -168,3 +168,27 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
     );
   });
 });
+
+describe('n8nClient.postUserAccount strict write acknowledgement', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('fails strict Last Login updates when add-user webhook returns an empty response', async () => {
+    mockFetch.mockResolvedValue(responseOf('') as never);
+
+    await expect(
+      n8nClient.postUserAccount(
+        {
+          id: 'user-1',
+          Username: 'user@example.com',
+          Password: 'hashed',
+          Role: 'client',
+          'Last Login': '2026-05-13T07:00:00.000Z',
+          'Account Status': 'Active',
+        },
+        { strictWriteAck: true, operationName: 'last login update' }
+      )
+    ).rejects.toThrow(/empty response/i);
+  });
+});

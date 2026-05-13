@@ -11,6 +11,11 @@ import { apiService } from '../../services/api';
 import { renderWithProviders, mockClientUser, mockKAMUser } from '../../test/helpers';
 import { useParams } from 'react-router-dom';
 
+const authState = vi.hoisted(() => ({
+  user: null as any,
+  refreshUser: vi.fn(),
+}));
+
 // Mock react-router-dom
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -20,6 +25,14 @@ vi.mock('react-router-dom', async () => {
     useNavigate: vi.fn(() => vi.fn()),
   };
 });
+
+vi.mock('../../auth/AuthContext', () => ({
+  AuthProvider: ({ children }: { children: any }) => children,
+  useAuth: () => ({
+    user: authState.user,
+    refreshUser: authState.refreshUser,
+  }),
+}));
 
 // Mock API service
 vi.mock('../../services/api', () => {
@@ -36,6 +49,9 @@ vi.mock('../../services/api', () => {
     getPublicFormConfig: vi.fn().mockResolvedValue({ success: false }),
     listApplications: vi.fn().mockResolvedValue({ success: true, data: [] }),
     getLoanProduct: vi.fn().mockResolvedValue({ success: true, data: { applicableStatuses: [] } }),
+    listLoanProducts: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    updateKAMApplicationStatus: vi.fn().mockResolvedValue({ success: true }),
+    updateCreditApplicationStatus: vi.fn().mockResolvedValue({ success: true }),
     submitApplication: vi.fn(),
   };
   return {
@@ -137,6 +153,8 @@ describe('ApplicationDetail Page - P0 Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useParams as any).mockReturnValue({ id: 'app1' });
+    authState.user = mockClientUser;
+    authState.refreshUser = vi.fn();
 
     // Default mock implementations
     (apiService.getApplication as any).mockResolvedValue({
@@ -600,7 +618,7 @@ describe('ApplicationDetail Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        expect(apiService.getLoanProduct).toHaveBeenCalledWith('BL001');
+        expect(apiService.getLoanProduct).toHaveBeenCalledWith('bl001');
       });
       expect(apiService.listApplications).not.toHaveBeenCalled();
     });
@@ -642,9 +660,62 @@ describe('ApplicationDetail Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        expect(apiService.getLoanProduct).toHaveBeenCalledWith('BL001');
+        expect(apiService.getLoanProduct).toHaveBeenCalledWith('bl001');
       });
       expect(apiService.listApplications).not.toHaveBeenCalled();
+    });
+
+    it('falls back to business status labels when product statuses are empty for KAM updates', async () => {
+      (apiService.getApplication as any).mockResolvedValue({
+        success: true,
+        data: {
+          ...mockApplication,
+          status: 'under_kam_review',
+          Status: 'under_kam_review',
+          allowedNextStatuses: [],
+          loan_product_id: 'BL001',
+          loan_product: { name: 'Business Loan', code: 'BL001' },
+          productId: 'BL001',
+        },
+      });
+      (apiService.getLoanProduct as any).mockResolvedValue({
+        success: true,
+        data: {
+          id: 'rec-prod',
+          productId: 'BL001',
+          productName: 'Business Loan',
+          active: true,
+          applicableStatuses: [],
+        },
+      });
+      (apiService.listLoanProducts as any).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+      authState.user = mockKAMUser;
+
+      const user = userEvent.setup();
+      renderWithProviders(<ApplicationDetail />, {
+        authContext: {
+          user: mockKAMUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await user.click(await screen.findByRole('button', { name: /update status/i }));
+
+      expect(await screen.findByRole('option', { name: 'Submitted' })).toHaveValue('under_kam_review');
+      expect(screen.getByRole('option', { name: 'Qualified' })).toHaveValue('in_negotiation');
+      expect(screen.getByRole('option', { name: 'Dealer Unresponsive' })).toHaveValue('query_with_client');
+      expect(screen.getByRole('option', { name: 'Under Finance Review' })).toHaveValue('pending_credit_review');
+      expect(screen.getByRole('option', { name: 'DO Issued' })).toHaveValue('approved');
+      expect(screen.getByRole('option', { name: 'Disbursed' })).toHaveValue('disbursed');
+      expect(screen.getByRole('option', { name: 'Rejected' })).toHaveValue('rejected');
     });
 
   });

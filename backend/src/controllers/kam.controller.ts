@@ -10,6 +10,7 @@ import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adm
 import { matchIds } from '../utils/idMatcher.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
+import { countApplicationsForClient } from '../utils/applicationClientCounts.js';
 import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 import {
   getApplicationProductStatuses,
@@ -437,6 +438,10 @@ export class KAMController {
         });
       }
 
+      const loanApplications = deduplicateApplicationsByFileId(
+        await n8nClient.fetchTable('Loan Application', !bypassCache)
+      );
+
       // Transform to API response format (resolve Assigned KAM ID to name for display)
       const clientList = managedClients.map((client: any) => {
         const assignedKAM = client['Assigned KAM'] || client.assignedKAM;
@@ -446,6 +451,7 @@ export class KAMController {
         }
         const clientId = client['Client ID'] || client.id;
         const displayName = client['Client Name'] || client['Primary Contact Name'] || null;
+        const applicationsCount = countApplicationsForClient(client, loanApplications);
         return {
           id: client.id,
           clientId,
@@ -458,6 +464,10 @@ export class KAMController {
           commissionRate: client['Commission Rate'] ? parseFloat(client['Commission Rate']) : null,
           status: client.Status,
           createdAt: client['Created At'] || client.createdAt || client.createdTime || '',
+          applicationsCount,
+          _count: {
+            applications: applicationsCount,
+          },
         };
       });
 
