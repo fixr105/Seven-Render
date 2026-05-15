@@ -17,6 +17,7 @@ router.post('/', requireClient, loanController.createApplication.bind(loanContro
 router.post('/:id/form', requireClient, loanController.updateApplicationForm.bind(loanController));
 router.post('/:id/submit', requireClient, loanController.submitApplication.bind(loanController));
 router.post('/:id/withdraw', requireClient, loanController.withdrawApplication.bind(loanController));
+router.post('/:id/status', requireClient, loanController.updateClientApplicationStatus.bind(loanController));
 
 // List and get - all authenticated users (filtered by role)
 router.get('/', loanController.listApplications.bind(loanController));

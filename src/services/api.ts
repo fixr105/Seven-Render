@@ -910,6 +910,20 @@ class ApiService {
   }
 
   /**
+   * Update application status (client only). Use withdrawApplication for withdrawn when preferred.
+   */
+  async updateClientApplicationStatus(
+    applicationId: string,
+    status: string,
+    notes?: string
+  ): Promise<ApiResponse> {
+    return this.request(`/loan-applications/${applicationId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, notes }),
+    });
+  }
+
+  /**
    * List loan applications (filtered by role)
    */
   async listApplications(params?: {

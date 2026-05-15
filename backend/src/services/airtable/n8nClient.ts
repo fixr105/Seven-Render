@@ -56,6 +56,38 @@ function hasAsyncWorkflowAck(payload: unknown): boolean {
 }
 
 /**
+ * n8n "Respond to Webhook" often returns minimal payloads that are still valid writes
+ * (HTTP 2xx). Without this, strictWriteAck rejects and the API errors even when Airtable updated.
+ */
+function hasLenientN8nSuccessAck(payload: unknown): boolean {
+  if (payload === null || payload === undefined) return false;
+  if (Array.isArray(payload) && payload.length > 0) return true;
+  if (typeof payload === 'object' && !Array.isArray(payload)) {
+    const r = payload as Record<string, unknown>;
+    if (Object.keys(r).length === 0) return true;
+    const msg = r.message ?? r.msg;
+    if (typeof msg === 'string' && msg.trim() !== '') return true;
+  }
+  return false;
+}
+
+/** Host + pathname only (no query/credentials) for Fly/stderr logs */
+function sanitizeWebhookUrlForLog(webhookUrl: string): string {
+  try {
+    const u = new URL(webhookUrl);
+    return `${u.hostname}${u.pathname}`;
+  } catch {
+    return '[invalid_webhook_url]';
+  }
+}
+
+function extractFileIdFromPayload(payload: Record<string, any>): string | undefined {
+  const raw = payload?.['File ID'] ?? payload?.fileId;
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  return undefined;
+}
+
+/**
  * Type definitions for n8n webhook responses
  */
 
@@ -607,6 +639,18 @@ export class N8nClient {
     
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
+        // stderr: visible in Fly and other hosts that prioritize stderr over stdout console.log
+        console.error(
+          JSON.stringify({
+            event: 'n8n_webhook_post_start',
+            operation: operationName,
+            attempt,
+            retries,
+            webhook: sanitizeWebhookUrlForLog(webhookUrl),
+            fileId: extractFileIdFromPayload(data) ?? null,
+          })
+        );
+
         console.log(`[postData] Posting to webhook: ${webhookUrl} (attempt ${attempt}/${retries})`);
         console.log(`[postData] Data:`, JSON.stringify(data, null, 2));
         
@@ -671,7 +715,8 @@ export class N8nClient {
               strictWriteAck &&
               !hasExplicitSuccess(parsed) &&
               !hasWriteIdentifier(parsed) &&
-              !hasAsyncWorkflowAck(parsed)
+              !hasAsyncWorkflowAck(parsed) &&
+              !hasLenientN8nSuccessAck(parsed)
             ) {
               throw new Error(
                 `${operationName} failed: webhook response missing explicit success, created record identifier, or async workflow acknowledgement`
@@ -704,6 +749,16 @@ export class N8nClient {
         // If this is the last attempt, throw the error
         if (attempt === retries) {
           console.error(`[postData] All ${retries} attempts failed for ${webhookUrl}`);
+          console.error(
+            JSON.stringify({
+              event: 'n8n_webhook_post_failed',
+              operation: operationName,
+              attempts: retries,
+              webhook: sanitizeWebhookUrlForLog(webhookUrl),
+              fileId: extractFileIdFromPayload(data) ?? null,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          );
           throw error;
         }
         
@@ -1215,7 +1270,8 @@ export class N8nClient {
     const loanApplicationData = this.buildLoanApplicationPayload(data);
     const result = await this.postData(n8nConfig.postApplicationsUrl, loanApplicationData, 3, {
       ...options,
-      strictWriteAck: options.strictWriteAck ?? true,
+      // Lenient by default: production n8n often returns empty body, {}, or a bare message while still updating Airtable.
+      strictWriteAck: options.strictWriteAck ?? false,
       operationName: options.operationName || 'loan application sync',
     });
     this.invalidateCache('Loan Application');
@@ -1224,16 +1280,45 @@ export class N8nClient {
   }
 
   async postLoanProduct(data: Record<string, any>) {
-    // Ensure only exact fields are sent to loanproducts webhook
-    // Only send: id, Product ID, Product Name, Description, Active, Required Documents/Fields
-    const loanProductData = {
-      id: data.id, // for matching
-      'Product ID': data['Product ID'] || data.productId || data.id,
-      'Product Name': data['Product Name'] || data.productName || '',
-      'Description': data['Description'] || data.description || '',
-      'Active': data['Active'] || data.active || 'True',
-      'Required Documents/Fields': data['Required Documents/Fields'] || data.requiredDocumentsFields || '',
-    };
+    // Forward full Airtable-shaped payloads (sections, Status, ICONS, etc.). Strip API-only
+    // camelCase duplicates from list endpoints so we do not write junk columns.
+    const omitKeys = new Set([
+      'productId',
+      'productName',
+      'description',
+      'active',
+      'requiredDocumentsFields',
+      'applicableStatuses',
+      'assignedKamIds',
+      'assignedKamNames',
+      'iconUrl',
+    ]);
+
+    const loanProductData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (omitKeys.has(key) || value === undefined) continue;
+      loanProductData[key] = value;
+    }
+
+    const id = data.id ?? data.recordId;
+    loanProductData.id = id;
+    loanProductData['Product ID'] = data['Product ID'] ?? data.productId ?? id;
+    loanProductData['Product Name'] = data['Product Name'] ?? data.productName ?? '';
+    loanProductData['Description'] = data['Description'] ?? data.description ?? '';
+
+    const activeRaw = data['Active'] ?? data.active;
+    loanProductData['Active'] =
+      typeof activeRaw === 'boolean'
+        ? activeRaw
+          ? 'True'
+          : 'False'
+        : activeRaw ?? 'True';
+
+    const reqDocs = data['Required Documents/Fields'] ?? data.requiredDocumentsFields;
+    if (reqDocs !== undefined) {
+      loanProductData['Required Documents/Fields'] = reqDocs;
+    }
+
     const result = await this.postData(n8nConfig.postLoanProductsUrl, loanProductData);
     // Invalidate cache for Loan Products
     this.invalidateCache('Loan Products');

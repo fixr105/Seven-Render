@@ -27,6 +27,15 @@ describe('normalizeStatus', () => {
     it('maps kam_query_raised → query_with_client', () => {
       expect(normalizeStatus('kam_query_raised')).toBe('query_with_client');
     });
+
+    it('maps qualified → in_negotiation (Airtable / business label)', () => {
+      expect(normalizeStatus('qualified')).toBe('in_negotiation');
+      expect(normalizeStatus('Qualified')).toBe('in_negotiation');
+    });
+
+    it('maps submitted → under_kam_review', () => {
+      expect(normalizeStatus('submitted')).toBe('under_kam_review');
+    });
   });
 
   describe('pass-through for canonical values', () => {

@@ -80,11 +80,21 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
     ).resolves.toEqual({ message: 'Workflow was started' });
   });
 
-  it('defaults loan application writes to strict acknowledgement', async () => {
+  it('treats empty webhook body as success by default (lenient loan sync)', async () => {
     mockFetch.mockResolvedValue(responseOf('') as never);
     await expect(
       n8nClient.postLoanApplication(
         { 'File ID': 'SF005', Client: 'CL001', Status: 'Draft' }
+      )
+    ).resolves.toEqual(expect.objectContaining({ success: true }));
+  });
+
+  it('can opt in to strict acknowledgement for empty webhook body', async () => {
+    mockFetch.mockResolvedValue(responseOf('') as never);
+    await expect(
+      n8nClient.postLoanApplication(
+        { 'File ID': 'SF005B', Client: 'CL001', Status: 'Draft' },
+        { strictWriteAck: true, operationName: 'loan application strict' }
       )
     ).rejects.toThrow(/empty response/i);
   });
@@ -166,6 +176,54 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
         body: expect.stringContaining('"Type of Purchase":"Rental"'),
       })
     );
+  });
+
+  it('sends Status in POST JSON body for application status updates', async () => {
+    mockFetch.mockResolvedValue(responseOf(JSON.stringify({ success: true, id: 'rec-status' })) as never);
+
+    await n8nClient.postLoanApplication({
+      'File ID': 'SF009',
+      Client: 'CL001',
+      Status: 'qualified',
+    });
+
+    expect(mockFetch).toHaveBeenCalled();
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string);
+    expect(body.Status).toBe('qualified');
+    expect(body['File ID']).toBe('SF009');
+  });
+
+  it('emits structured n8n_webhook_post_start on stderr before outbound fetch', async () => {
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockFetch.mockResolvedValue(responseOf(JSON.stringify({ success: true, id: 'rec-log' })) as never);
+
+    await n8nClient.postLoanApplication({
+      'File ID': 'SF-LOG',
+      Client: 'CL001',
+      Status: 'submitted',
+    });
+
+    const jsonLines = errSpy.mock.calls
+      .map((c) => c[0])
+      .filter((msg): msg is string => typeof msg === 'string' && msg.includes('n8n_webhook_post_start'));
+    expect(jsonLines.length).toBeGreaterThan(0);
+    const evt = JSON.parse(jsonLines[0]!) as {
+      event: string;
+      operation: string;
+      webhook: string;
+      fileId: string | null;
+      attempt: number;
+    };
+    expect(evt.event).toBe('n8n_webhook_post_start');
+    expect(evt.operation).toMatch(/loan application sync/i);
+    expect(evt.fileId).toBe('SF-LOG');
+    expect(evt.attempt).toBe(1);
+    expect(evt.webhook.length).toBeGreaterThan(0);
+    expect(evt.webhook).not.toMatch(/^https?:\/\//);
+
+    errSpy.mockRestore();
   });
 });
 

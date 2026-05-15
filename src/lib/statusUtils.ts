@@ -23,6 +23,11 @@ const STATUS_ALIASES: Record<string, string> = {
   kam_query_raised: 'query_with_client',
   forwarded_to_credit: 'pending_credit_review',
   credit_query_raised: 'credit_query_with_kam',
+  /** Match backend loanProductStatuses normalizeApplicableStatusKey / Airtable labels */
+  qualified: 'in_negotiation',
+  submitted: 'under_kam_review',
+  dealer_unresponsive: 'query_with_client',
+  under_finance_review: 'pending_credit_review',
 };
 
 const ACRONYM_PARTS: Record<string, string> = {

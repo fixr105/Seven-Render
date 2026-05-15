@@ -179,7 +179,7 @@ describe('ProductsController.listLoanProducts entitlement', () => {
     ]);
   });
 
-  it('falls back to canonical statuses when Applicable Statuses is invalid JSON', async () => {
+  it('returns empty applicableStatuses when Applicable Statuses is invalid JSON', async () => {
     mockRequest = {
       query: {},
       user: { role: 'admin', email: 'admin@example.com' },
@@ -208,9 +208,7 @@ describe('ProductsController.listLoanProducts entitlement', () => {
 
     const payload: any = (mockResponse.json as jest.Mock).mock.calls[0][0];
     expect(payload.success).toBe(true);
-    expect(Array.isArray(payload.data[0].applicableStatuses)).toBe(true);
-    expect(payload.data[0].applicableStatuses.length).toBeGreaterThan(0);
-    expect(payload.data[0].applicableStatuses.some((s: any) => s.key === 'under_kam_review')).toBe(true);
+    expect(payload.data[0].applicableStatuses).toEqual([]);
   });
 });
 

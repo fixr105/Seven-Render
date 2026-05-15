@@ -7,7 +7,7 @@ import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 import { resolveClientAssignedProducts } from '../services/entitlements/clientProducts.service.js';
-import { LoanStatus } from '../config/constants.js';
+import { parseApplicableStatusesForApi } from '../services/products/loanProductStatuses.service.js';
 
 function extractIconUrl(value: unknown): string | undefined {
   if (typeof value === 'string') {
@@ -31,66 +31,6 @@ function extractIconUrl(value: unknown): string | undefined {
     );
   }
   return undefined;
-}
-
-type ApplicableStatusEntry = {
-  key: string;
-  label: string;
-  order: number;
-};
-
-const CANONICAL_STATUS_SET = new Set<string>(Object.values(LoanStatus));
-
-function normalizeStatusKey(raw: unknown): string {
-  const normalized = String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/-/g, '_')
-    .replace(/\s+/g, '_');
-
-  const aliasMap: Record<string, string> = {
-    pending_kam_review: LoanStatus.UNDER_KAM_REVIEW,
-    kam_query_raised: LoanStatus.QUERY_WITH_CLIENT,
-    forwarded_to_credit: LoanStatus.PENDING_CREDIT_REVIEW,
-    credit_query_raised: LoanStatus.CREDIT_QUERY_WITH_KAM,
-  };
-  return aliasMap[normalized] ?? normalized;
-}
-
-function parseApplicableStatuses(raw: unknown): ApplicableStatusEntry[] {
-  if (raw == null || String(raw).trim() === '') {
-    return [];
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  } catch {
-    return [];
-  }
-
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-
-  const mapped = parsed
-    .map((item, index) => {
-      if (!item || typeof item !== 'object') return null;
-      const row = item as Record<string, unknown>;
-      const key = normalizeStatusKey(row.key);
-      if (!key || !CANONICAL_STATUS_SET.has(key)) return null;
-      const label = String(row.label ?? '').trim() || key;
-      const maybeOrder = Number(row.order);
-      const order = Number.isFinite(maybeOrder) ? maybeOrder : (index + 1) * 10;
-      return { key, label, order };
-    })
-    .filter((entry): entry is ApplicableStatusEntry => entry !== null);
-
-  if (mapped.length === 0) {
-    return [];
-  }
-
-  return mapped.sort((a, b) => a.order - b.order);
 }
 
 export class ProductsController {
@@ -186,7 +126,7 @@ export class ProductsController {
             iconUrl: extractIconUrl(product['ICONS'] ?? product.ICONS ?? product['Icons'] ?? product.icons),
             active: product['Active'] === 'True' || product['Active'] === true,
             requiredDocumentsFields: product['Required Documents/Fields'],
-            applicableStatuses: parseApplicableStatuses(product['Applicable Statuses'] ?? product.applicableStatuses),
+            applicableStatuses: parseApplicableStatusesForApi(product['Applicable Statuses'] ?? product.applicableStatuses),
             assignedKamIds,
             assignedKamNames,
           };
@@ -269,7 +209,7 @@ export class ProductsController {
           iconUrl: extractIconUrl(product['ICONS'] ?? product.ICONS ?? product['Icons'] ?? product.icons),
           active: product['Active'] === 'True',
           requiredDocumentsFields: product['Required Documents/Fields'],
-          applicableStatuses: parseApplicableStatuses(product['Applicable Statuses'] ?? product.applicableStatuses),
+          applicableStatuses: parseApplicableStatusesForApi(product['Applicable Statuses'] ?? product.applicableStatuses),
           assignedKamIds: kamIds,
           assignedKamNames,
         },

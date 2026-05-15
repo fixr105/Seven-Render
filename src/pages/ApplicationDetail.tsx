@@ -634,6 +634,16 @@ export const ApplicationDetail: React.FC = () => {
   const handleUpdateStatus = async () => {
     if (!newStatus || !id) return;
 
+    const targetKey = normalizeStatus(newStatus);
+    if (applicationStatuses.length > 0) {
+      const allowedKeys = new Set(applicationStatuses.map((s) => s.key));
+      if (!allowedKeys.has(targetKey)) {
+        console.error('Invalid status transition attempted');
+        alert(`The status "${newStatus}" is not allowed for this loan product.`);
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       let response;
@@ -641,6 +651,8 @@ export const ApplicationDetail: React.FC = () => {
         response = await apiService.updateKAMApplicationStatus(id, newStatus, statusNotes);
       } else if (userRole === 'credit_team') {
         response = await apiService.updateCreditApplicationStatus(id, newStatus, statusNotes);
+      } else if (userRole === 'client') {
+        response = await apiService.updateClientApplicationStatus(id, newStatus, statusNotes);
       } else {
         response = await apiService.editApplication(id, { status: newStatus });
       }
@@ -653,9 +665,22 @@ export const ApplicationDetail: React.FC = () => {
       } else {
         throw new Error(response.error || 'Failed to update status');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating status:', error);
-      alert(error.message || 'Failed to update status');
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' &&
+              error !== null &&
+              'message' in error &&
+              typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : '';
+      const errorMessage =
+        /applicable statuses/i.test(message)
+          ? 'This status is not allowed for this specific loan product.'
+          : message || 'Failed to update status';
+      alert(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -672,7 +697,7 @@ export const ApplicationDetail: React.FC = () => {
     let options = allOptions;
     const allowed = application?.allowedNextStatuses;
     if (allowed && Array.isArray(allowed) && allowed.length > 0) {
-      const allowedSet = new Set(allowed.map((s: string) => String(s).toLowerCase().trim()));
+      const allowedSet = new Set(allowed.map((s: string) => normalizeStatus(String(s))));
       options = allOptions.filter((opt) => allowedSet.has(opt.value));
     }
     return options;
