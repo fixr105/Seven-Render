@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { n8nClient } from '../../airtable/n8nClient.js';
-import { getApplicationProductStatuses } from '../dynamicStatus.service.js';
+import {
+  extractLoanProductMatchCandidates,
+  getApplicationProductStatuses,
+} from '../dynamicStatus.service.js';
 import { parseApplicableStatusesForApi } from '../../products/loanProductStatuses.service.js';
 
 jest.mock('../../airtable/n8nClient.js', () => ({
@@ -50,5 +53,31 @@ describe('getApplicationProductStatuses', () => {
     const application = { 'Product Name': 'Working Capital' };
     const fromService = await getApplicationProductStatuses(application);
     expect(fromService).toEqual(parseApplicableStatusesForApi(applicableJson));
+  });
+
+  it('resolves product when Loan Product is an Airtable linked record array of objects', async () => {
+    mockFetchTable.mockResolvedValue([
+      {
+        id: 'recLP',
+        'Product ID': 'LP010',
+        'Product Name': 'Working Capital',
+        'Applicable Statuses': applicableJson,
+      },
+    ]);
+
+    const application = { 'Loan Product': [{ id: 'recLP' }] };
+    const fromService = await getApplicationProductStatuses(application);
+    expect(fromService).toEqual(parseApplicableStatusesForApi(applicableJson));
+    expect(mockFetchTable).toHaveBeenCalledWith('Loan Products', false);
+  });
+
+  it('extractLoanProductMatchCandidates never emits object stringification garbage', () => {
+    const application = {
+      'Loan Product': [{ id: 'recXYZ123', 'Product ID': 'P99' }] as unknown[],
+    };
+    const cands = extractLoanProductMatchCandidates(application as Record<string, unknown>);
+    expect(cands.some((t) => t.includes('object'))).toBe(false);
+    expect(cands).toContain('recxyz123');
+    expect(cands).toContain('p99');
   });
 });

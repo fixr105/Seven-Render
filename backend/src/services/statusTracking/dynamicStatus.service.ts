@@ -14,18 +14,58 @@ function normalizeLookup(raw: unknown): string {
   return String(raw ?? '').trim().toLowerCase();
 }
 
-export async function getApplicationProductStatuses(application: Record<string, any>): Promise<ProductStatusEntry[]> {
-  const productCandidates = [
+/**
+ * Tokens used to match a Loan Application row to a Loan Products row (id, Product ID, name).
+ * Handles Airtable linked-record shapes: strings, record ids, `{ id }`, arrays of those.
+ */
+export function extractLoanProductMatchCandidates(application: Record<string, unknown>): string[] {
+  const seen = new Set<string>();
+  const addRaw = (value: unknown) => {
+    if (value == null) return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      const s = String(value).trim();
+      if (s && !s.startsWith('[object ')) {
+        const n = normalizeLookup(s);
+        if (n) seen.add(n);
+      }
+      return;
+    }
+  };
+
+  function walk(value: unknown): void {
+    if (value == null) return;
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
+    }
+    if (typeof value === 'object') {
+      const o = value as Record<string, unknown>;
+      addRaw(o.id);
+      addRaw(o.ID);
+      addRaw(o['Product ID'] ?? o.productId);
+      addRaw(o['Product Name'] ?? o.name ?? o.productName ?? o.code);
+      return;
+    }
+    addRaw(value);
+  }
+
+  const sources: unknown[] = [
     application['Loan Product'],
     application.loanProduct,
     application.productId,
     application['Product ID'],
     application.product,
     application['Product Name'],
-  ]
-    .flatMap((value) => (Array.isArray(value) ? value : [value]))
-    .map((value) => normalizeLookup(value))
-    .filter(Boolean);
+    application.loan_product,
+    application['loan_product_id'],
+  ];
+
+  sources.forEach(walk);
+  return Array.from(seen);
+}
+
+export async function getApplicationProductStatuses(application: Record<string, any>): Promise<ProductStatusEntry[]> {
+  const productCandidates = extractLoanProductMatchCandidates(application);
   if (productCandidates.length === 0) return [];
 
   const products = await n8nClient.fetchTable('Loan Products', false);
