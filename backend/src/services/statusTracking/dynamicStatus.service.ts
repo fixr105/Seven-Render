@@ -1,8 +1,11 @@
 import { n8nClient } from '../airtable/n8nClient.js';
+import { LoanStatus } from '../../config/constants.js';
 import {
   normalizeApplicableStatusKey,
   parseApplicableStatusesForApi,
 } from '../products/loanProductStatuses.service.js';
+
+const CANONICAL_LOAN_STATUS_SET = new Set<string>(Object.values(LoanStatus));
 
 export type ProductStatusEntry = {
   key: string;
@@ -53,20 +56,46 @@ export function extractLoanProductMatchCandidates(application: Record<string, un
     application['Loan Product'],
     application.loanProduct,
     application.productId,
+    application.product_id,
     application['Product ID'],
     application.product,
     application['Product Name'],
     application.loan_product,
     application['loan_product_id'],
+    (application.loan_product as Record<string, unknown> | undefined)?.code,
+    (application.loan_product as Record<string, unknown> | undefined)?.productId,
   ];
 
   sources.forEach(walk);
   return Array.from(seen);
 }
 
-export async function getApplicationProductStatuses(application: Record<string, any>): Promise<ProductStatusEntry[]> {
+/** True when Applicable Statuses is absent, blank string, empty array JSON, or `[]` value — not "malformed with invalid keys". */
+function isUnsetApplicableStatusesRaw(raw: unknown): boolean {
+  if (raw == null) return true;
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (t === '') return true;
+    try {
+      const p = JSON.parse(t);
+      if (Array.isArray(p) && p.length === 0) return true;
+    } catch {
+      return false;
+    }
+    return false;
+  }
+  if (Array.isArray(raw) && raw.length === 0) return true;
+  return false;
+}
+
+/**
+ * Locate the Loan Products row for this application (for validation and catalog lookups).
+ */
+export async function findLoanProductRecordForApplication(
+  application: Record<string, any>
+): Promise<Record<string, any> | undefined> {
   const productCandidates = extractLoanProductMatchCandidates(application);
-  if (productCandidates.length === 0) return [];
+  if (productCandidates.length === 0) return undefined;
 
   const products = await n8nClient.fetchTable('Loan Products', false);
   const product = products.find(
@@ -77,6 +106,11 @@ export async function getApplicationProductStatuses(application: Record<string, 
       productCandidates.includes(normalizeLookup(p['Product Name'])) ||
       productCandidates.includes(normalizeLookup(p.productName))
   );
+  return product ?? undefined;
+}
+
+export async function getApplicationProductStatuses(application: Record<string, any>): Promise<ProductStatusEntry[]> {
+  const product = await findLoanProductRecordForApplication(application);
   if (!product) return [];
 
   return parseApplicableStatusesForApi(product['Applicable Statuses'] ?? product.applicableStatuses);
@@ -89,10 +123,23 @@ export async function isStatusConfiguredForApplication(
   const normalizedTarget = normalizeApplicableStatusKey(targetStatus);
   if (!normalizedTarget) return false;
 
-  const productStatuses = await getApplicationProductStatuses(application);
-  if (productStatuses.length === 0) return false;
+  const product = await findLoanProductRecordForApplication(application);
+  if (!product) return false;
 
-  return productStatuses.some((statusEntry) => statusEntry.key === normalizedTarget);
+  const rawApplicable = product['Applicable Statuses'] ?? product.applicableStatuses;
+  const productStatuses = parseApplicableStatusesForApi(rawApplicable);
+
+  if (productStatuses.length === 0) {
+    if (isUnsetApplicableStatusesRaw(rawApplicable) && CANONICAL_LOAN_STATUS_SET.has(normalizedTarget)) {
+      return true;
+    }
+    return false;
+  }
+
+  return productStatuses.some(
+    (e) =>
+      e.key === normalizedTarget || normalizeApplicableStatusKey(e.label) === normalizedTarget
+  );
 }
 
 export function getAllowedStatusesFromProduct(
