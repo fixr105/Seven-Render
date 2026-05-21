@@ -3,6 +3,7 @@ import { n8nClient } from '../../airtable/n8nClient.js';
 import {
   extractLoanProductMatchCandidates,
   getApplicationProductStatuses,
+  isCanonicalLoanStatusKey,
   isStatusConfiguredForApplication,
 } from '../dynamicStatus.service.js';
 import { parseApplicableStatusesForApi } from '../../products/loanProductStatuses.service.js';
@@ -133,5 +134,14 @@ describe('isStatusConfiguredForApplication', () => {
     const app = { 'Loan Product': 'LP010' };
     await expect(isStatusConfiguredForApplication(app, 'in_negotiation')).resolves.toBe(true);
     await expect(isStatusConfiguredForApplication(app, 'Qualified')).resolves.toBe(true);
+  });
+});
+
+describe('isCanonicalLoanStatusKey', () => {
+  it('accepts canonical LoanStatus enum keys after normalization', () => {
+    expect(isCanonicalLoanStatusKey('approved')).toBe(true);
+    expect(isCanonicalLoanStatusKey('pending_credit_review')).toBe(true);
+    expect(isCanonicalLoanStatusKey('')).toBe(false);
+    expect(isCanonicalLoanStatusKey('not_a_status')).toBe(false);
   });
 });

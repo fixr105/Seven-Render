@@ -12,7 +12,7 @@ import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplicati
 import { countApplicationsForClient } from '../utils/applicationClientCounts.js';
 import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 import {
-  isStatusConfiguredForApplication,
+  isCanonicalLoanStatusKey,
   normalizeDynamicStatus,
 } from '../services/statusTracking/dynamicStatus.service.js';
 
@@ -398,17 +398,6 @@ export class CreditController {
       
       const previousStatus = normalizeDynamicStatus(application.Status ?? '');
       const newStatus = LoanStatus.IN_NEGOTIATION;
-      const isConfiguredStatus = await isStatusConfiguredForApplication(
-        application as Record<string, any>,
-        newStatus
-      );
-      if (!isConfiguredStatus) {
-        res.status(400).json({
-          success: false,
-          error: 'Status is not configured in Loan Products Applicable Statuses',
-        });
-        return;
-      }
 
       await n8nClient.postLoanApplication({
         ...application,
@@ -483,14 +472,10 @@ export class CreditController {
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
       const previousStatus = normalizeDynamicStatus(application.Status ?? '');
       const newStatus = normalizeDynamicStatus(newStatusRaw as string);
-      const isConfiguredStatus = await isStatusConfiguredForApplication(
-        application as Record<string, any>,
-        newStatus
-      );
-      if (!isConfiguredStatus) {
+      if (!isCanonicalLoanStatusKey(newStatus)) {
         res.status(400).json({
           success: false,
-          error: 'Status is not configured in Loan Products Applicable Statuses',
+          error: 'Invalid or unsupported loan status',
         });
         return;
       }
@@ -640,17 +625,6 @@ export class CreditController {
       const assignmentSummary = sortedAssignments
         .map((assignment) => `P${assignment.priority}:${assignment.nbfcId}`)
         .join(', ');
-      const isConfiguredStatus = await isStatusConfiguredForApplication(
-        application as Record<string, any>,
-        newStatus
-      );
-      if (!isConfiguredStatus) {
-        res.status(400).json({
-          success: false,
-          error: 'Status is not configured in Loan Products Applicable Statuses',
-        });
-        return;
-      }
 
       // Update with assigned NBFCs (comma-separated if multiple)
       await n8nClient.postLoanApplication({
@@ -758,32 +732,10 @@ export class CreditController {
         updateData['Lender Decision Remarks'] = terms || '';
         // If any NBFC approves, status must exist in product config.
         if (application.Status === LoanStatus.SENT_TO_NBFC) {
-          const isConfiguredApprovedStatus = await isStatusConfiguredForApplication(
-            application as Record<string, any>,
-            LoanStatus.APPROVED
-          );
-          if (!isConfiguredApprovedStatus) {
-            res.status(400).json({
-              success: false,
-              error: 'Status is not configured in Loan Products Applicable Statuses',
-            });
-            return;
-          }
           updateData.Status = LoanStatus.APPROVED;
         }
       } else if (decision === LenderDecisionStatus.REJECTED) {
         updateData['Lender Decision Remarks'] = rejectionReason || '';
-        const isConfiguredRejectedStatus = await isStatusConfiguredForApplication(
-          application as Record<string, any>,
-          LoanStatus.REJECTED
-        );
-        if (!isConfiguredRejectedStatus) {
-          res.status(400).json({
-            success: false,
-            error: 'Status is not configured in Loan Products Applicable Statuses',
-          });
-          return;
-        }
         updateData.Status = LoanStatus.REJECTED;
       } else if (decision === LenderDecisionStatus.NEEDS_CLARIFICATION) {
         updateData['Lender Decision Remarks'] = clarificationMessage || '';
@@ -861,17 +813,6 @@ export class CreditController {
       
       const previousStatus = normalizeDynamicStatus(application.Status ?? '');
       const newStatus = LoanStatus.DISBURSED;
-      const isConfiguredDisbursedStatus = await isStatusConfiguredForApplication(
-        application as Record<string, any>,
-        newStatus
-      );
-      if (!isConfiguredDisbursedStatus) {
-        res.status(400).json({
-          success: false,
-          error: 'Status is not configured in Loan Products Applicable Statuses',
-        });
-        return;
-      }
 
       // Update application status
       await n8nClient.postLoanApplication({
@@ -1003,17 +944,6 @@ export class CreditController {
       }
 
       const previousStatus = normalizeDynamicStatus(application.Status ?? '');
-      const isConfiguredClosedStatus = await isStatusConfiguredForApplication(
-        application as Record<string, any>,
-        LoanStatus.CLOSED
-      );
-      if (!isConfiguredClosedStatus) {
-        res.status(400).json({
-          success: false,
-          error: 'Status is not configured in Loan Products Applicable Statuses',
-        });
-        return;
-      }
 
       // Update status to CLOSED
       await n8nClient.postLoanApplication({

@@ -17,6 +17,7 @@ import { AuthUser } from '../../types/auth.js';
 import {
   getApplicationProductStatuses,
   getAllowedStatusesFromProduct,
+  mayApplyTargetLoanStatus,
   normalizeDynamicStatus,
 } from '../statusTracking/dynamicStatus.service.js';
 
@@ -265,8 +266,7 @@ export class LoanWorkflowService {
     const previousStatus = application.Status as LoanStatus;
     const newStatus = LoanStatus.UNDER_KAM_REVIEW;
 
-    const statusKeys = (await getApplicationProductStatuses(application)).map((s) => s.key);
-    if (statusKeys.length > 0 && !statusKeys.includes(normalizeDynamicStatus(newStatus))) {
+    if (!(await mayApplyTargetLoanStatus(application, newStatus))) {
       throw new Error('Target status is not configured in Loan Products Applicable Statuses');
     }
 
@@ -346,8 +346,7 @@ export class LoanWorkflowService {
     const previousStatus = application.Status as LoanStatus;
     const newStatus = LoanStatus.PENDING_CREDIT_REVIEW;
 
-    const statusKeys = (await getApplicationProductStatuses(application)).map((s) => s.key);
-    if (statusKeys.length > 0 && !statusKeys.includes(normalizeDynamicStatus(newStatus))) {
+    if (!(await mayApplyTargetLoanStatus(application, newStatus))) {
       throw new Error('Target status is not configured in Loan Products Applicable Statuses');
     }
 

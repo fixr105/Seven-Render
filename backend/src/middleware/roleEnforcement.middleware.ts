@@ -8,7 +8,6 @@
  * - Approve/Reject Loan: Credit, Admin (Admin can override)
  * - Disburse Loan: Admin only (Admin override token required)
  * - Edit Commission Post-Disbursal: No one (Only Admin with override)
- * - KAM Trying to Update Status: Blocked (No override)
  * - Unauthorized Role Actions: Logged as violation (Email alert optional)
  */
 
@@ -71,13 +70,6 @@ const PERMISSION_RULES: PermissionRule[] = [
     allowAdminOverride: true,
     requireOverrideToken: true,
     endpoint: '/credit/ledger/entries',
-    method: 'POST',
-  },
-  {
-    action: 'update_loan_status',
-    allowedRoles: [UserRole.CREDIT], // KAM not allowed
-    allowAdminOverride: false, // No override for KAM
-    endpoint: '/loan-applications/:id/status',
     method: 'POST',
   },
   {

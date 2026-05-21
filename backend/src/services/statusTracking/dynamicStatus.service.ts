@@ -7,6 +7,12 @@ import {
 
 const CANONICAL_LOAN_STATUS_SET = new Set<string>(Object.values(LoanStatus));
 
+/** Staff (KAM/Credit): normalized key must be a canonical LoanStatus — ignores Loan Product Applicable Statuses. */
+export function isCanonicalLoanStatusKey(targetStatus: unknown): boolean {
+  const normalized = normalizeApplicableStatusKey(targetStatus);
+  return Boolean(normalized && CANONICAL_LOAN_STATUS_SET.has(normalized));
+}
+
 export type ProductStatusEntry = {
   key: string;
   label: string;
@@ -140,6 +146,29 @@ export async function isStatusConfiguredForApplication(
     (e) =>
       e.key === normalizedTarget || normalizeApplicableStatusKey(e.label) === normalizedTarget
   );
+}
+
+/**
+ * Use for POST status updates (KAM / Credit / NBFC / workflow): rejects only when Loan Product has a
+ * **non‑empty parsed** Applicable Statuses list that does **not** include the target (by key / label / aliases).
+ * If the catalogue is empty (missing product, unset field, or no valid parsed rows), any canonical LoanStatus is allowed —
+ * aligns with flows that historically did not enforce when catalog was empty (and fixes KAM's `length === 0` hard‑fail).
+ */
+export async function mayApplyTargetLoanStatus(
+  application: Record<string, any>,
+  targetStatus: unknown
+): Promise<boolean> {
+  const normalizedTarget = normalizeApplicableStatusKey(targetStatus);
+  if (!normalizedTarget || !CANONICAL_LOAN_STATUS_SET.has(normalizedTarget)) {
+    return false;
+  }
+
+  const productStatuses = await getApplicationProductStatuses(application);
+  if (productStatuses.length === 0) {
+    return true;
+  }
+
+  return isStatusConfiguredForApplication(application, targetStatus);
 }
 
 export function getAllowedStatusesFromProduct(

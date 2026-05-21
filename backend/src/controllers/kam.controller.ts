@@ -13,7 +13,7 @@ import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplicati
 import { countApplicationsForClient } from '../utils/applicationClientCounts.js';
 import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 import {
-  getApplicationProductStatuses,
+  isCanonicalLoanStatusKey,
   normalizeDynamicStatus,
 } from '../services/statusTracking/dynamicStatus.service.js';
 
@@ -1444,13 +1444,10 @@ export class KAMController {
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
       const previousStatus = normalizeDynamicStatus(application.Status ?? '');
       const newStatus = normalizeDynamicStatus(newStatusRaw);
-      const applicableStatuses = (await getApplicationProductStatuses(application as Record<string, any>)).map(
-        (s) => s.key
-      );
-      if (applicableStatuses.length === 0 || !applicableStatuses.includes(newStatus)) {
+      if (!isCanonicalLoanStatusKey(newStatus)) {
         res.status(400).json({
           success: false,
-          error: 'Status is not configured in Loan Products Applicable Statuses',
+          error: 'Invalid or unsupported loan status',
         });
         return;
       }

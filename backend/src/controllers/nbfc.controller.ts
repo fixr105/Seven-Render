@@ -13,6 +13,7 @@ import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByPara
 import {
   getApplicationProductStatuses,
   getAllowedStatusesFromProduct,
+  mayApplyTargetLoanStatus,
   normalizeDynamicStatus,
 } from '../services/statusTracking/dynamicStatus.service.js';
 
@@ -334,10 +335,8 @@ export class NBFController {
         newStatus = normalizeDynamicStatus(
           lenderDecisionStatus === LenderDecisionStatus.APPROVED ? LoanStatus.APPROVED : LoanStatus.REJECTED
         );
-        const statusKeys = (await getApplicationProductStatuses(application as Record<string, any>)).map(
-          (s) => s.key
-        );
-        if (!statusKeys.includes(newStatus)) {
+        const permitted = await mayApplyTargetLoanStatus(application as Record<string, any>, newStatus);
+        if (!permitted) {
           res.status(400).json({
             success: false,
             error: 'Status is not configured in Loan Products Applicable Statuses',

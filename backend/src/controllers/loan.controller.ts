@@ -15,7 +15,6 @@ import {
   getApplicationProductStatuses,
   getAllowedStatusesFromProduct,
   normalizeDynamicStatus,
-  isStatusConfiguredForApplication,
 } from '../services/statusTracking/dynamicStatus.service.js';
 import {
   ClientProductEntitlementError,
@@ -1546,97 +1545,6 @@ export class LoanController {
     }
   }
 
-  /**
-   * POST /loan-applications/:id/status
-   * Client-initiated status change (non-withdraw). Withdrawn is delegated to withdrawApplication.
-   */
-  async updateClientApplicationStatus(req: Request, res: Response): Promise<void> {
-    try {
-      if (!req.user || req.user.role !== UserRole.CLIENT) {
-        res.status(403).json({ success: false, error: 'Forbidden' });
-        return;
-      }
-
-      const { id } = req.params;
-      const { status: newStatusRaw, notes } = req.body as { status?: unknown; notes?: unknown };
-
-      if (!newStatusRaw || typeof newStatusRaw !== 'string') {
-        res.status(400).json({ success: false, error: 'Status is required' });
-        return;
-      }
-
-      const newStatus = normalizeDynamicStatus(newStatusRaw);
-      const withdrawnNorm = normalizeDynamicStatus(LoanStatus.WITHDRAWN);
-      if (newStatus === withdrawnNorm) {
-        await this.withdrawApplication(req, res);
-        return;
-      }
-
-      const applications = await n8nClient.fetchTable('Loan Application', false);
-      const application = findLoanApplicationByParamId(applications, id);
-
-      if (!application || application.Client !== req.user.clientId) {
-        res.status(404).json({ success: false, error: 'Application not found' });
-        return;
-      }
-
-      const configured = await isStatusConfiguredForApplication(application as Record<string, any>, newStatus);
-      if (!configured) {
-        res.status(400).json({
-          success: false,
-          error: 'Status is not configured in Loan Products Applicable Statuses',
-        });
-        return;
-      }
-
-      const productStatuses = await getApplicationProductStatuses(application as Record<string, any>);
-      const allowedNext = getAllowedStatusesFromProduct(application as Record<string, any>, productStatuses);
-      const allowedSet = new Set(allowedNext.map((s) => normalizeDynamicStatus(s)));
-      if (!allowedSet.has(newStatus)) {
-        res.status(400).json({
-          success: false,
-          error: 'Status transition not allowed for this application',
-        });
-        return;
-      }
-
-      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
-      await n8nClient.postLoanApplication({
-        ...application,
-        Status: newStatus,
-        'Last Updated': new Date().toISOString(),
-      });
-
-      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
-      const notesReason =
-        typeof notes === 'string' && notes.trim() !== '' ? notes.trim() : `Status updated to ${newStatus}`;
-      await recordStatusChange(
-        req.user!,
-        application['File ID'],
-        previousStatus,
-        newStatus,
-        notesReason
-      );
-
-      await logApplicationAction(
-        req.user!,
-        AdminActionType.UPDATE_APPLICATION,
-        application['File ID'],
-        `Client updated status from ${previousStatus} to ${newStatus}`,
-        { previousStatus, newStatus }
-      );
-
-      res.json({
-        success: true,
-        message: 'Status updated successfully',
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Failed to update status',
-      });
-    }
-  }
 }
 
 export const loanController = new LoanController();

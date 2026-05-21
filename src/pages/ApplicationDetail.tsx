@@ -651,8 +651,6 @@ export const ApplicationDetail: React.FC = () => {
         response = await apiService.updateKAMApplicationStatus(id, newStatus, statusNotes);
       } else if (userRole === 'credit_team') {
         response = await apiService.updateCreditApplicationStatus(id, newStatus, statusNotes);
-      } else if (userRole === 'client') {
-        response = await apiService.updateClientApplicationStatus(id, newStatus, statusNotes);
       } else {
         response = await apiService.editApplication(id, { status: newStatus });
       }
@@ -694,13 +692,7 @@ export const ApplicationDetail: React.FC = () => {
       value: statusEntry.key,
       label: statusEntry.label || getStatusDisplayNameForViewer(statusEntry.key, userRole || ''),
     }));
-    let options = allOptions;
-    const allowed = application?.allowedNextStatuses;
-    if (allowed && Array.isArray(allowed) && allowed.length > 0) {
-      const allowedSet = new Set(allowed.map((s: string) => normalizeStatus(String(s))));
-      options = allOptions.filter((opt) => allowedSet.has(opt.value));
-    }
-    return options;
+    return allOptions;
   })();
   const statusDropdownDisabled = !loadingApplicationStatuses && statusOptions.length === 0;
 
@@ -832,7 +824,7 @@ export const ApplicationDetail: React.FC = () => {
             <Button variant="tertiary" icon={RefreshCw} onClick={handleRefresh} disabled={refreshing} loading={refreshing}>
               Refresh
             </Button>
-            {((userRole === 'kam' || userRole === 'credit_team') || userRole === 'client') && (
+            {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') && (
               <Button
                 variant="primary"
                 icon={Edit}
