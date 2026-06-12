@@ -375,6 +375,7 @@ export const ApplicationDetail: React.FC = () => {
           status: normalizeStatus(String(d.status ?? d.Status ?? '')),
           file_number: d.file_number ?? d.fileId ?? d['File ID'],
           applicant_name: d.applicant_name ?? d.applicantName ?? d['Applicant Name'],
+          remarks: d.remarks ?? d['Remarks'] ?? form_data.Remarks ?? '',
           form_data,
           requested_loan_amount: Number.isNaN(requested_loan_amount) ? undefined : requested_loan_amount,
           created_at: d.created_at ?? d.creationDate ?? d['Creation Date'],
@@ -894,6 +895,23 @@ export const ApplicationDetail: React.FC = () => {
                     {formatAmount(application.requested_loan_amount || 0)}
                   </p>
                 </div>
+                {(() => {
+                  const appRecord = application as unknown as Record<string, unknown>;
+                  const formDataRecord =
+                    appRecord.form_data && typeof appRecord.form_data === 'object' && !Array.isArray(appRecord.form_data)
+                      ? (appRecord.form_data as Record<string, unknown>)
+                      : {};
+                  const remarks = String(
+                    application.remarks ?? appRecord['Remarks'] ?? formDataRecord.Remarks ?? ''
+                  ).trim();
+                  if (!remarks) return null;
+                  return (
+                    <div className="sm:col-span-2">
+                      <p className="text-sm text-neutral-500">Remarks</p>
+                      <p className="font-semibold text-neutral-900 whitespace-pre-wrap">{remarks}</p>
+                    </div>
+                  );
+                })()}
                 {application.approved_loan_amount && (
                   <div>
                     <p className="text-sm text-neutral-500">Approved Amount</p>
@@ -1284,7 +1302,10 @@ export const ApplicationDetail: React.FC = () => {
                   return k.replace(/_/g, ' ');
                 };
                 const entries = Object.entries(formDataToShow).filter(
-                  ([k]) => k !== '_documentsFolderLink' && k !== '_documentsFolderShareAcknowledged'
+                  ([k]) =>
+                    k !== '_documentsFolderLink' &&
+                    k !== '_documentsFolderShareAcknowledged' &&
+                    k !== 'Remarks'
                 );
                 const folderLink = formDataToShow._documentsFolderLink;
                 const folderShareAck = formDataToShow._documentsFolderShareAcknowledged;

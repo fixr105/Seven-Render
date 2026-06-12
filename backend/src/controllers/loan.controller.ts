@@ -590,6 +590,7 @@ export class LoanController {
           lenderDecisionDate: app['Lender Decision Date'] || app.lenderDecisionDate,
           lenderDecisionRemarks: app['Lender Decision Remarks'] || app.lenderDecisionRemarks,
           approvedAmount: app['Approved Loan Amount'] || app.approvedLoanAmount,
+          remarks: app['Remarks'] || '',
           formData,
         };
       });
@@ -1189,6 +1190,7 @@ export class LoanController {
           Status: normalizedStatus,
           formData,
           form_data: formData, // Alias for frontend compatibility
+          remarks: application['Remarks'] ?? formData.Remarks ?? '',
           documents, // Parsed documents array
           auditLog: fileAuditLog,
           aiFileSummary: application['AI File Summary'] || null, // AI File Summary field
@@ -1265,6 +1267,10 @@ export class LoanController {
       const updatedData: any = {
         ...application,
         'Form Data': JSON.stringify(mergedFormData),
+        Remarks:
+          mergedFormData.Remarks != null
+            ? String(mergedFormData.Remarks)
+            : application['Remarks'] ?? '',
         'Last Updated': new Date().toISOString(),
         'Form Config Version': formConfigVersion || '', // Module 1: Preserve or update version
       };

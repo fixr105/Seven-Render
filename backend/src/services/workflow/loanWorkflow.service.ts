@@ -189,6 +189,7 @@ export class LoanWorkflowService {
       'Validation Warnings': options.metadata?.validationWarnings?.length
         ? JSON.stringify(options.metadata.validationWarnings)
         : '',
+      Remarks: options.formData?.Remarks ?? '',
     };
 
     // Add submitted date if not a draft

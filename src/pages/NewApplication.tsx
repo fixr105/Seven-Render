@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { TextArea } from '../components/ui/TextArea';
 import {
   Save,
   Send,
@@ -134,6 +135,7 @@ export const NewApplication: React.FC = () => {
       _mobileNumber: '',
       _email: '',
       _typeOfPurchase: '',
+      Remarks: '',
     },
   });
   const [folderLinkGenerating, setFolderLinkGenerating] = useState(false);
@@ -1302,6 +1304,17 @@ export const NewApplication: React.FC = () => {
                 disabled={!selectedVehicleMake || modelsForSelectedMake.length === 0}
                 error={fieldErrors._vehicleModel}
               />
+              <div className="md:col-span-2">
+                <TextArea
+                  id="Remarks"
+                  data-testid="remarks-textarea"
+                  label="Remarks"
+                  placeholder="Optional notes about this application"
+                  value={formData.form_data.Remarks ?? ''}
+                  onChange={(e) => handleFieldChange('Remarks', e.target.value)}
+                  rows={4}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

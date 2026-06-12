@@ -1239,10 +1239,18 @@ export class KAMController {
         formDataToStore = JSON.stringify(transformed);
       }
 
+      const remarks =
+        formData && Object.prototype.hasOwnProperty.call(formData, 'Remarks')
+          ? formData.Remarks != null
+            ? String(formData.Remarks)
+            : ''
+          : application['Remarks'] ?? '';
+
       // Update application
       const updatedData = {
         ...application,
         'Form Data': formDataToStore,
+        Remarks: remarks,
         'Last Updated': new Date().toISOString(),
       };
 

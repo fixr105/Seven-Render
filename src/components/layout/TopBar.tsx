@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bell, Menu, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { Bell, Menu, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { Notification } from '../../hooks/useNotifications';
 import { formatRelativeTime } from '../../utils/dateFormatter';
@@ -256,16 +256,6 @@ export const TopBar: React.FC<TopBarProps> = ({
                   >
                     <User className="w-4 h-4" />
                     Profile
-                  </button>
-                  <button 
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      navigate('/settings');
-                    }}
-                  >
-                    <SettingsIcon className="w-4 h-4" />
-                    Settings
                   </button>
                   <button 
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-error hover:bg-neutral-50 transition-colors"

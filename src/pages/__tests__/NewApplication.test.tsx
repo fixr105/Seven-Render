@@ -565,6 +565,46 @@ describe('NewApplication Page - P0 Tests', () => {
       }
     }, 25000);
 
+    it('includes optional Remarks in createApplication payload', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await selectFirstLoanProduct(user);
+      await waitFor(() => {
+        expect(apiService.getFormConfig).toHaveBeenCalled();
+      });
+
+      const applicantNameInput =
+        screen.queryByRole('textbox', { name: /applicant name/i }) ?? screen.getAllByRole('textbox')[0];
+      await user.type(applicantNameInput, 'John Doe');
+      await user.type(
+        screen.getByTestId('remarks-textarea'),
+        'Customer has existing business relationship. Priority processing requested.'
+      );
+
+      const draftButton = screen.getByRole('button', { name: /draft|save as draft/i });
+      await user.click(draftButton);
+
+      await waitFor(() => {
+        expect(apiService.createApplication).toHaveBeenCalled();
+      });
+
+      const createCall = (apiService.createApplication as any).mock.calls[0][0];
+      expect(createCall.formData.Remarks).toBe(
+        'Customer has existing business relationship. Priority processing requested.'
+      );
+    });
+
     it('should allow saving as draft without mandatory fields', async () => {
       const user = userEvent.setup();
       renderWithProviders(<NewApplication />, {

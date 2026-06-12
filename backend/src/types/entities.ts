@@ -120,6 +120,7 @@ export interface LoanApplication {
   'Lender Decision Status'?: LenderDecisionStatus;
   'Lender Decision Date'?: string;
   'Lender Decision Remarks'?: string;
+  Remarks?: string;
   'Approved Loan Amount'?: string;
   'AI File Summary'?: string;
   'Form Data'?: string; // JSON string

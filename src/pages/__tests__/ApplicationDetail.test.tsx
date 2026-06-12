@@ -189,6 +189,29 @@ describe('ApplicationDetail Page - P0 Tests', () => {
     });
   });
 
+  describe('Application remarks', () => {
+    it('renders Remarks in application summary when present', async () => {
+      (apiService.getApplication as any).mockResolvedValue({
+        success: true,
+        data: {
+          ...mockApplication,
+          remarks: 'Customer has existing business relationship. Priority processing requested.',
+        },
+      });
+
+      renderWithProviders(<ApplicationDetail />);
+
+      await waitFor(() => {
+        expect(apiService.getApplication).toHaveBeenCalledWith('app1');
+      });
+
+      expect(screen.getByText('Remarks')).toBeInTheDocument();
+      expect(
+        screen.getByText('Customer has existing business relationship. Priority processing requested.')
+      ).toBeInTheDocument();
+    });
+  });
+
   describe('M4-FE-001: Documents List Rendering', () => {
     it('should render documents list when application has documents', async () => {
       renderWithProviders(<ApplicationDetail />, {

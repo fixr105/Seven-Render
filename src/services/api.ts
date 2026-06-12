@@ -143,6 +143,7 @@ export interface LoanApplication {
   lenderDecisionStatus?: string;
   lenderDecisionDate?: string;
   lenderDecisionRemarks?: string;
+  remarks?: string;
   approvedLoanAmount?: string;
   aiFileSummary?: string;
   formData?: Record<string, unknown>;

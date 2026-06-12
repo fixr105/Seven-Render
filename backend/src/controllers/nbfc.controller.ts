@@ -216,6 +216,7 @@ export class NBFController {
           lenderDecisionStatus: application['Lender Decision Status'],
           lenderDecisionDate: application['Lender Decision Date'],
           lenderDecisionRemarks: application['Lender Decision Remarks'],
+          remarks: application['Remarks'] ?? parseFormData(application['Form Data']).Remarks ?? '',
           creationDate: application['Creation Date'],
           submittedDate: application['Submitted Date'],
           lastUpdated: application['Last Updated'],

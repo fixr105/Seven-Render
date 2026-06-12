@@ -1207,6 +1207,7 @@ export class N8nClient {
     const mobileNumber = data['Mobile Number'] ?? parsedFormData._mobileNumber ?? '';
     const emailId = data['Email Id'] ?? data['Email ID'] ?? parsedFormData._email ?? '';
     const typeOfPurchase = data['Type of Purchase'] ?? parsedFormData._typeOfPurchase ?? '';
+    const remarks = data['Remarks'] ?? parsedFormData.Remarks ?? '';
 
     // Fixed key order for n8n: same format every time. No "id" — n8n uses only "File ID" for update-by-file-id.
     return {
@@ -1234,6 +1235,7 @@ export class N8nClient {
       'Mobile Number': mobileNumber,
       'Email Id': emailId,
       'Type of Purchase': typeOfPurchase,
+      Remarks: remarks,
       'Form Data': formData,
       'Form Config Version': data['Form Config Version'] || data.formConfigVersion || '',
       'Needs Attention': data['Needs Attention'] || data.needsAttention || '',

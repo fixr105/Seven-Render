@@ -299,11 +299,13 @@ export class CreditController {
         });
       }
 
+      const parsedFormData = parseFormData(application['Form Data']);
       res.json({
         success: true,
         data: {
           ...application,
-          formData: parseFormData(application['Form Data']),
+          formData: parsedFormData,
+          remarks: application['Remarks'] ?? parsedFormData.Remarks ?? '',
           documents, // Parsed documents array
           aiFileSummary: application['AI File Summary'],
           auditLog: fileAuditLog,

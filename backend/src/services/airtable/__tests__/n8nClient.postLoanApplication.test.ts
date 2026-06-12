@@ -178,6 +178,28 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
     );
   });
 
+  it('maps Remarks from Form Data to top-level webhook key', async () => {
+    mockFetch.mockResolvedValue(responseOf(JSON.stringify({ success: true, id: 'rec-remarks' })) as never);
+
+    await n8nClient.postLoanApplication({
+      'File ID': 'SF010',
+      Client: 'CL001',
+      Status: 'Draft',
+      'Form Data': JSON.stringify({
+        Remarks: 'Customer has existing business relationship. Priority processing requested.',
+      }),
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining(
+          '"Remarks":"Customer has existing business relationship. Priority processing requested."'
+        ),
+      })
+    );
+  });
+
   it('sends Status in POST JSON body for application status updates', async () => {
     mockFetch.mockResolvedValue(responseOf(JSON.stringify({ success: true, id: 'rec-status' })) as never);
 
