@@ -289,9 +289,8 @@ describe('NewApplication Page - P0 Tests', () => {
       await user.click(screen.getByTestId('generate-link-button'));
 
       await waitFor(() => {
-        expect(document.getElementById('_documentsFolderLink')).toHaveValue(
-          'https://drive.google.com/drive/folders/available-1'
-        );
+        expect(document.getElementById('_documentsFolderLink')).toHaveAttribute('data-folder-link-assigned', 'true');
+        expect(document.getElementById('_documentsFolderLink')).toHaveValue('••••••••••••••••••••••••••••••••');
       });
       expect(apiService.consumeClientLink).not.toHaveBeenCalled();
     });
@@ -320,9 +319,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
       await user.click(screen.getByTestId('generate-link-button'));
       await waitFor(() => {
-        expect(document.getElementById('_documentsFolderLink')).toHaveValue(
-          'https://drive.google.com/drive/folders/available-1'
-        );
+        expect(document.getElementById('_documentsFolderLink')).toHaveAttribute('data-folder-link-assigned', 'true');
       });
       await user.click(screen.getByTestId('copy-folder-link'));
 
@@ -358,9 +355,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
       await user.click(screen.getByTestId('generate-link-button'));
       await waitFor(() => {
-        expect(document.getElementById('_documentsFolderLink')).toHaveValue(
-          'https://drive.google.com/drive/folders/available-1'
-        );
+        expect(document.getElementById('_documentsFolderLink')).toHaveAttribute('data-folder-link-assigned', 'true');
       });
       await user.click(screen.getByTestId('open-folder-link'));
 
@@ -461,7 +456,14 @@ describe('NewApplication Page - P0 Tests', () => {
       await user.type(document.getElementById('_mobileNumber') as HTMLElement, '9876543210');
       await user.type(document.getElementById('_email') as HTMLElement, 'john@example.com');
       await user.selectOptions(screen.getByTestId('basic-type-of-purchase'), 'Rental');
-      await user.type(document.getElementById('_documentsFolderLink') as HTMLElement, 'https://drive.google.com/drive/folders/test-folder');
+      (apiService.getClientLinkPool as any).mockResolvedValue({
+        success: true,
+        data: [{ link: 'https://drive.google.com/drive/folders/test-folder', status: '' }],
+      });
+      await user.click(screen.getByTestId('generate-link-button'));
+      await waitFor(() => {
+        expect(document.getElementById('_documentsFolderLink')).toHaveAttribute('data-folder-link-assigned', 'true');
+      });
     }
 
     it('should prevent submission when mandatory fields are empty', async () => {

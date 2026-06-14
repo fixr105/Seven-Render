@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -58,11 +59,28 @@ interface StatusHistoryItem {
 }
 
 export const ApplicationDetail: React.FC = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
-  
+
+  const getRoleDisplayName = () => {
+    switch (userRole) {
+      case 'client':
+        return t('roles.client');
+      case 'kam':
+        return t('roles.kam');
+      case 'credit_team':
+      case 'admin':
+        return t('roles.creditTeam');
+      case 'nbfc':
+        return t('roles.nbfc');
+      default:
+        return t('common.unknown');
+    }
+  };
+
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -507,19 +525,14 @@ export const ApplicationDetail: React.FC = () => {
 
   const handleRaiseQuery = async () => {
     if (!queryMessage.trim() || !id) return;
+    if (userRole !== 'kam' && userRole !== 'credit_team') return;
 
     setSubmitting(true);
     try {
-      // Use API service to raise query
-      let response;
-      if (userRole === 'kam') {
-        response = await apiService.raiseQueryToClient(id, queryMessage);
-      } else if (userRole === 'credit_team') {
-        response = await apiService.raiseQueryToKAM(id, queryMessage);
-      } else {
-        // Client raising query - use dedicated create endpoint
-        response = await apiService.createClientQuery(id, queryMessage);
-      }
+      const response =
+        userRole === 'kam'
+          ? await apiService.raiseQueryToClient(id, queryMessage)
+          : await apiService.raiseQueryToKAM(id, queryMessage);
 
       if (response.success) {
         setShowQueryModal(false);
@@ -703,8 +716,8 @@ export const ApplicationDetail: React.FC = () => {
         sidebarItems={sidebarItems}
         activeItem={activeItem}
         onItemClick={handleNavigation}
-        pageTitle="Loading..."
-        userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+        pageTitle={t('pages.applicationDetail.loading')}
+        userRole={getRoleDisplayName()}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
         notifications={notifications}
@@ -718,14 +731,14 @@ export const ApplicationDetail: React.FC = () => {
     );
   }
 
-  if (!application && !loading) {
+  if (!application) {
     return (
       <MainLayout
         sidebarItems={sidebarItems}
         activeItem={activeItem}
         onItemClick={handleNavigation}
-        pageTitle="Application Not Found"
-        userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+        pageTitle={t('pages.applicationDetail.notFound')}
+        userRole={getRoleDisplayName()}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
         notifications={notifications}
@@ -735,12 +748,12 @@ export const ApplicationDetail: React.FC = () => {
         <Card>
           <CardContent>
             <div className="text-center py-8">
-              <p className="text-neutral-600 mb-2">Application not found or access denied</p>
+              <p className="text-neutral-600 mb-2">{t('pages.applicationDetail.notFoundDescription')}</p>
               <p className="text-sm text-neutral-500 mb-4">
-                The application may not exist, or you may not have permission to view it.
+                {t('pages.applicationDetail.notFoundHint')}
               </p>
               <Button variant="secondary" onClick={() => navigate('/applications')}>
-                Back to Applications
+                {t('pages.applicationDetail.backToApplications')}
               </Button>
             </div>
           </CardContent>
@@ -749,69 +762,23 @@ export const ApplicationDetail: React.FC = () => {
     );
   }
 
-  // Show loading state
-  if (loading) {
-    return (
-      <MainLayout
-        sidebarItems={sidebarItems}
-        activeItem={activeItem}
-        onItemClick={handleNavigation}
-        pageTitle="Loading Application..."
-        userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-        userName={getUserDisplayName()}
-        notificationCount={unreadCount}
-        notifications={notifications}
-        onMarkAsRead={markAsRead}
-        onMarkAllAsRead={markAllAsRead}
-      >
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full"></div>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  // Show not found state
-  if (!application) {
-    return (
-      <MainLayout
-        sidebarItems={sidebarItems}
-        activeItem={activeItem}
-        onItemClick={handleNavigation}
-        pageTitle="Application Not Found"
-        userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
-        userName={getUserDisplayName()}
-        notificationCount={unreadCount}
-        notifications={notifications}
-        onMarkAsRead={markAsRead}
-        onMarkAllAsRead={markAllAsRead}
-      >
-        <Card>
-          <CardContent className="text-center py-12">
-            <p className="text-neutral-500 mb-4">Application not found or access denied.</p>
-            <Button variant="secondary" onClick={() => navigate('/applications')}>
-              Back to Applications
-            </Button>
-          </CardContent>
-        </Card>
-      </MainLayout>
-    );
-  }
+  const fileNumber = String(application.file_number || application.fileId || id);
+  const pageTitle = t('pages.applicationDetail.title', { fileNumber });
 
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle={`Application ${application.file_number || application.fileId || id}`}
-      userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+      pageTitle={pageTitle}
+      userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
       notifications={notifications}
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title={`Application ${application.file_number || application.fileId || id}`} />
+      <PageHero title={pageTitle} />
       <PageHeader
         onBack={() => {
           if (window.history.length > 1) {
@@ -823,7 +790,7 @@ export const ApplicationDetail: React.FC = () => {
         actions={
           <>
             <Button variant="tertiary" icon={RefreshCw} onClick={handleRefresh} disabled={refreshing} loading={refreshing}>
-              Refresh
+              {t('common.refresh')}
             </Button>
             {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') && (
               <Button
@@ -834,12 +801,12 @@ export const ApplicationDetail: React.FC = () => {
                   setShowStatusModal(true);
                 }}
               >
-                Update Status
+                {t('pages.applicationDetail.updateStatus')}
               </Button>
             )}
-            {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && (
+            {(userRole === 'kam' || userRole === 'credit_team') && (
               <Button variant="secondary" icon={MessageSquare} onClick={() => setShowQueryModal(true)}>
-                Raise Query
+                {t('pages.applicationDetail.raiseQuery')}
               </Button>
             )}
           </>
@@ -853,7 +820,7 @@ export const ApplicationDetail: React.FC = () => {
           <Card>
             <CardHeader className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <CardTitle>Application Details</CardTitle>
+                <CardTitle>{t('pages.applicationDetail.applicationDetails')}</CardTitle>
                 <Badge variant={getStatusVariant(application?.status)} data-testid="status-badge">
                   {getStatusDisplayNameForViewer(application?.status || '', userRole || '')}
                 </Badge>
@@ -862,11 +829,11 @@ export const ApplicationDetail: React.FC = () => {
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-neutral-500">File Number</p>
+                  <p className="text-sm text-neutral-500">{t('pages.applicationDetail.fileNumber')}</p>
                   <p className="font-semibold text-neutral-900">{application.file_number}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500">Client</p>
+                  <p className="text-sm text-neutral-500">{t('pages.applications.client')}</p>
                   <p className="font-semibold text-neutral-900">
                     {typeof application.client === 'object' && application.client
                       ? (application.client as import('../services/api').LoanApplicationClient).company_name
@@ -876,11 +843,11 @@ export const ApplicationDetail: React.FC = () => {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500">Applicant Name</p>
+                  <p className="text-sm text-neutral-500">{t('pages.applicationDetail.applicantName')}</p>
                   <p className="font-semibold text-neutral-900">{application.applicant_name || ''}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500">Loan Product</p>
+                  <p className="text-sm text-neutral-500">{t('pages.applicationDetail.loanProduct')}</p>
                   <p className="font-semibold text-neutral-900">
                     {typeof application.loan_product === 'object' && application.loan_product
                       ? application.loan_product.name ?? ''
@@ -890,7 +857,7 @@ export const ApplicationDetail: React.FC = () => {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500">Requested Amount</p>
+                  <p className="text-sm text-neutral-500">{t('pages.applicationDetail.requestedAmount')}</p>
                   <p className="font-semibold text-neutral-900">
                     {formatAmount(application.requested_loan_amount || 0)}
                   </p>
@@ -907,14 +874,14 @@ export const ApplicationDetail: React.FC = () => {
                   if (!remarks) return null;
                   return (
                     <div className="sm:col-span-2">
-                      <p className="text-sm text-neutral-500">Remarks</p>
+                      <p className="text-sm text-neutral-500">{t('pages.applicationDetail.remarks')}</p>
                       <p className="font-semibold text-neutral-900 whitespace-pre-wrap">{remarks}</p>
                     </div>
                   );
                 })()}
                 {application.approved_loan_amount && (
                   <div>
-                    <p className="text-sm text-neutral-500">Approved Amount</p>
+                    <p className="text-sm text-neutral-500">{t('pages.applicationDetail.approvedAmount')}</p>
                     <p className="font-semibold text-success">
                       {formatAmount(application.approved_loan_amount)}
                     </p>
@@ -922,7 +889,7 @@ export const ApplicationDetail: React.FC = () => {
                 )}
                 {(application.assignedKAMName || (application as any).assigned_kam) && (
                   <div>
-                    <p className="text-sm text-neutral-500">Assigned KAM</p>
+                    <p className="text-sm text-neutral-500">{t('pages.applicationDetail.assignedKam')}</p>
                     <p className="font-semibold text-neutral-900">
                       {(application as any).assignedKAMName || (application as any).assigned_kam || ''}
                     </p>
@@ -930,19 +897,19 @@ export const ApplicationDetail: React.FC = () => {
                 )}
                 {application.assigned_credit_analyst && (
                   <div>
-                    <p className="text-sm text-neutral-500">Assigned Credit Analyst</p>
-                    <p className="font-semibold text-neutral-900">Assigned</p>
+                    <p className="text-sm text-neutral-500">{t('pages.applicationDetail.assignedCreditAnalyst')}</p>
+                    <p className="font-semibold text-neutral-900">{t('pages.applicationDetail.assigned')}</p>
                   </div>
                 )}
                 {application.assigned_nbfc_id && application.assigned_nbfc && (
                   <div>
-                    <p className="text-sm text-neutral-500">Assigned NBFC</p>
+                    <p className="text-sm text-neutral-500">{t('pages.applicationDetail.assignedNbfc')}</p>
                     <p className="font-semibold text-neutral-900">{application.assigned_nbfc.name}</p>
                   </div>
                 )}
                 {(application.lender_decision_status || application.lenderDecisionStatus) && (
                   <div>
-                    <p className="text-sm text-neutral-500">Lender Decision</p>
+                    <p className="text-sm text-neutral-500">{t('pages.applicationDetail.lenderDecision')}</p>
                     <div className="flex items-center gap-2">
                       <Badge 
                         variant={
@@ -967,11 +934,11 @@ export const ApplicationDetail: React.FC = () => {
                   </div>
                 )}
                 <div>
-                  <p className="text-sm text-neutral-500">Created</p>
+                  <p className="text-sm text-neutral-500">{t('pages.applicationDetail.created')}</p>
                   <p className="font-semibold text-neutral-900">{formatDateSafe(application.created_at)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500">Last Updated</p>
+                  <p className="text-sm text-neutral-500">{t('pages.applicationDetail.lastUpdated')}</p>
                   <p className="font-semibold text-neutral-900">{formatDateSafe(application.updated_at)}</p>
                 </div>
               </div>
@@ -982,20 +949,20 @@ export const ApplicationDetail: React.FC = () => {
           {showAssignNbfcSection && (
             <Card className="border-brand-primary/20 bg-brand-primary/5">
               <CardHeader>
-                <CardTitle>Assign to NBFC</CardTitle>
+                <CardTitle>{t('pages.applicationDetail.assignToNbfc')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-neutral-600 mb-3">
-                  Select up to 3 NBFC partners in priority order. This will set status to Sent to NBFC and notify the assigned NBFCs.
+                  {t('pages.applicationDetail.assignToNbfcDescription')}
                 </p>
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
                     {priorityNbfcSelections.map((selection) => (
                       <Select
                         key={selection.priority}
-                        label={`Priority ${selection.priority}`}
+                        label={t('pages.applicationDetail.priority', { number: selection.priority })}
                         options={[
-                          { value: '', label: 'Select NBFC...' },
+                          { value: '', label: t('pages.applicationDetail.selectNbfc') },
                           ...nbfcPartners
                             .filter(
                               (p) =>
@@ -1026,7 +993,7 @@ export const ApplicationDetail: React.FC = () => {
                         .map((entry) => ({ nbfcId: entry.nbfcId, priority: entry.priority }));
 
                       if (!id || assignments.length === 0) {
-                        setAssignNbfcError('Please select at least one NBFC.');
+                        setAssignNbfcError(t('pages.applicationDetail.selectAtLeastOneNbfc'));
                         return;
                       }
                       setAssignNbfcSubmitting(true);
@@ -1042,10 +1009,10 @@ export const ApplicationDetail: React.FC = () => {
                           fetchApplicationDetails();
                           fetchStatusHistory();
                         } else {
-                          setAssignNbfcError(res.error || 'Failed to assign.');
+                          setAssignNbfcError(res.error || t('pages.applicationDetail.failedToAssign'));
                         }
                       } catch (err: unknown) {
-                        setAssignNbfcError(err instanceof Error ? err.message : 'Failed to assign.');
+                        setAssignNbfcError(err instanceof Error ? err.message : t('pages.applicationDetail.failedToAssign'));
                       } finally {
                         setAssignNbfcSubmitting(false);
                       }
@@ -1053,7 +1020,7 @@ export const ApplicationDetail: React.FC = () => {
                     disabled={assignNbfcSubmitting || !priorityNbfcSelections.some((entry) => entry.nbfcId)}
                     loading={assignNbfcSubmitting}
                   >
-                    Assign to NBFC
+                    {t('pages.applicationDetail.assignToNbfc')}
                   </Button>
                 </div>
                 {assignNbfcError && (
@@ -1068,9 +1035,9 @@ export const ApplicationDetail: React.FC = () => {
             <Card>
               <CardHeader className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <CardTitle>Uploaded Documents ({application.documents.length})</CardTitle>
+                  <CardTitle>{t('pages.applicationDetail.uploadedDocuments', { count: application.documents.length })}</CardTitle>
                   {userRole === 'credit_team' && (
-                    <Badge variant="info">Files from Backend</Badge>
+                    <Badge variant="info">{t('pages.applicationDetail.filesFromBackend')}</Badge>
                   )}
                 </div>
                 {userRole === 'credit_team' && (
@@ -1081,7 +1048,7 @@ export const ApplicationDetail: React.FC = () => {
                       icon={Grid3x3}
                       onClick={() => setDocumentsViewMode('grid')}
                     >
-                      Grid
+                      {t('pages.applicationDetail.grid')}
                     </Button>
                     <Button
                       variant={documentsViewMode === 'list' ? 'primary' : 'secondary'}
@@ -1089,7 +1056,7 @@ export const ApplicationDetail: React.FC = () => {
                       icon={List}
                       onClick={() => setDocumentsViewMode('list')}
                     >
-                      List
+                      {t('pages.applicationDetail.list')}
                     </Button>
                   </div>
                 )}
@@ -1122,11 +1089,11 @@ export const ApplicationDetail: React.FC = () => {
                           {/* File Info */}
                           <div className="space-y-2">
                             <p className="text-sm font-semibold text-neutral-900 line-clamp-2" title={doc.fileName}>
-                              {doc.fileName || 'Document'}
+                              {doc.fileName || t('pages.applicationDetail.document')}
                             </p>
                             <div className="flex items-center gap-2">
                               <Badge variant="neutral" className="text-xs">
-                                {doc.fieldId || 'Field'}
+                                {doc.fieldId || t('pages.applicationDetail.field')}
                               </Badge>
                               {fileExtension && (
                                 <Badge variant="info" className="text-xs uppercase">
@@ -1145,7 +1112,7 @@ export const ApplicationDetail: React.FC = () => {
                               className="flex-1"
                               onClick={() => window.open(doc.url, '_blank')}
                             >
-                              View
+                              {t('common.view')}
                             </Button>
                             <Button
                               variant="secondary"
@@ -1159,7 +1126,7 @@ export const ApplicationDetail: React.FC = () => {
                                 link.click();
                               }}
                             >
-                              Download
+                              {t('common.download')}
                             </Button>
                           </div>
                           
@@ -1204,7 +1171,7 @@ export const ApplicationDetail: React.FC = () => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <p className="text-sm font-semibold text-neutral-900 truncate" title={doc.fileName}>
-                                  {doc.fileName || 'Document'}
+                                  {doc.fileName || t('pages.applicationDetail.document')}
                                 </p>
                                 {fileExtension && (
                                   <Badge variant="info" className="text-xs uppercase flex-shrink-0">
@@ -1214,10 +1181,10 @@ export const ApplicationDetail: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Badge variant="neutral" className="text-xs">
-                                  {doc.fieldId || 'Field ID'}
+                                  {doc.fieldId || t('pages.applicationDetail.fieldId')}
                                 </Badge>
                                 {userRole === 'credit_team' && (
-                                  <span className="text-xs text-neutral-500">• Backend Upload</span>
+                                  <span className="text-xs text-neutral-500">• {t('pages.applicationDetail.backendUpload')}</span>
                                 )}
                               </div>
                             </div>
@@ -1231,7 +1198,7 @@ export const ApplicationDetail: React.FC = () => {
                               icon={Eye}
                               onClick={() => window.open(doc.url, '_blank')}
                             >
-                              View
+                              {t('common.view')}
                             </Button>
                             <Button
                               variant="secondary"
@@ -1244,7 +1211,7 @@ export const ApplicationDetail: React.FC = () => {
                                 link.click();
                               }}
                             >
-                              Download
+                              {t('common.download')}
                             </Button>
                             {userRole === 'credit_team' && (
                               <Button
@@ -1253,7 +1220,7 @@ export const ApplicationDetail: React.FC = () => {
                                 icon={ExternalLink}
                                 onClick={() => window.open(doc.url, '_blank')}
                               >
-                                Open
+                                {t('common.open')}
                               </Button>
                             )}
                           </div>
@@ -1266,7 +1233,7 @@ export const ApplicationDetail: React.FC = () => {
                 {userRole === 'credit_team' && application.documents.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-neutral-200">
                     <p className="text-xs text-neutral-500 text-center">
-                      💡 Tip: Use Grid view to visually match and compare documents. Click View to open files in a new tab.
+                      {t('pages.applicationDetail.documentsTip')}
                     </p>
                   </div>
                 )}
@@ -1277,7 +1244,7 @@ export const ApplicationDetail: React.FC = () => {
           {/* Application Form Data */}
           <Card>
             <CardHeader>
-              <CardTitle>Application Information</CardTitle>
+              <CardTitle>{t('pages.applicationDetail.applicationInformation')}</CardTitle>
             </CardHeader>
             <CardContent>
               {(() => {
@@ -1314,7 +1281,7 @@ export const ApplicationDetail: React.FC = () => {
                   folderShareAck === 'true' ||
                   folderShareAck === 'yes';
                 return (!formDataToShow || Object.keys(formDataToShow).length === 0) ? (
-                  <p className="text-center text-neutral-500 py-6">No form data recorded</p>
+                  <p className="text-center text-neutral-500 py-6">{t('pages.applicationDetail.noFormData')}</p>
                 ) : (
                   <div className="space-y-3">
                     {folderLink != null && String(folderLink).trim() !== '' && (
@@ -1336,7 +1303,7 @@ export const ApplicationDetail: React.FC = () => {
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <p className="text-sm text-neutral-500">Folder sharing confirmed</p>
                             <p className="sm:col-span-2 text-sm text-neutral-900">
-                              {folderShareAckYes ? 'Yes' : 'No'}
+                              {folderShareAckYes ? t('common.yes') : t('common.no')}
                             </p>
                           </div>
                         )}
@@ -1359,18 +1326,18 @@ export const ApplicationDetail: React.FC = () => {
             <CardHeader className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle>
-                  Queries & Communication ({queries.length} {queries.length === 1 ? 'thread' : 'threads'})
+                  {t('pages.applicationDetail.queriesAndCommunication')} ({t('pages.applicationDetail.threadCount', { count: queries.length })})
                 </CardTitle>
                 {queries.filter((q: any) => !q.isResolved).length > 0 && (
                   <Badge variant="warning">
-                    {queries.filter((q: any) => !q.isResolved).length} Unresolved
+                    {queries.filter((q: any) => !q.isResolved).length} {t('pages.applicationDetail.unresolved')}
                   </Badge>
                 )}
               </div>
             </CardHeader>
             <CardContent>
               {queries.length === 0 ? (
-                <p className="text-center text-neutral-500 py-8">No queries yet</p>
+                <p className="text-center text-neutral-500 py-8">{t('pages.applicationDetail.noQueries')}</p>
               ) : (
                 <div className="space-y-6">
                   {/* Alert for unresolved queries (credit team only) */}
@@ -1387,16 +1354,13 @@ export const ApplicationDetail: React.FC = () => {
                     return awaitingQueries.length > 0 ? (
                       <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4">
                         <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="warning">Awaiting KAM Response</Badge>
+                          <Badge variant="warning">{t('pages.applicationDetail.awaitingKamResponse')}</Badge>
                           <span className="text-sm font-medium text-neutral-900">
-                            {awaitingQueries.length} 
-                            {' '}
-                            {awaitingQueries.length === 1 ? 'query' : 'queries'} 
-                            {' '}awaiting response
+                            {t('pages.applicationDetail.awaitingResponse', { count: awaitingQueries.length })}
                           </span>
                         </div>
                         <p className="text-xs text-neutral-600">
-                          You have raised queries that are waiting for KAM to respond.
+                          {t('pages.applicationDetail.raisedQueriesWaiting')}
                         </p>
                       </div>
                     ) : null;
@@ -1419,16 +1383,16 @@ export const ApplicationDetail: React.FC = () => {
                     const awaitingKAMResponse = isCreditQuery && !hasKAMReply && !thread.isResolved;
 
                     const getActorLabel = (actorEmail: string, isRootMsg?: boolean) => {
-                                      if (!actorEmail) return 'Unknown';
+                                      if (!actorEmail) return t('common.unknown');
                                       if (user?.email && (actorEmail || '').toLowerCase() === (user.email || '').toLowerCase())
-                                        return 'You';
+                                        return t('pages.applicationDetail.you');
                                       const a = (actorEmail || '').toLowerCase();
-                                      if (a.includes('credit')) return 'Credit Team';
-                                      if (a.includes('kam')) return 'KAM';
-                                      if (isRootMsg && rootQuery.actionEventType === 'credit_query') return 'Credit Team';
-                                      if (isRootMsg && (rootQuery.actionEventType === 'query_raised' || rootQuery.targetUserRole === 'client')) return 'KAM';
+                                      if (a.includes('credit')) return t('roles.creditTeam');
+                                      if (a.includes('kam')) return t('roles.kam');
+                                      if (isRootMsg && rootQuery.actionEventType === 'credit_query') return t('roles.creditTeam');
+                                      if (isRootMsg && (rootQuery.actionEventType === 'query_raised' || rootQuery.targetUserRole === 'client')) return t('roles.kam');
                                       const beforeAt = (actorEmail || '').split('@')[0];
-                                      return beforeAt || 'Client';
+                                      return beforeAt || t('roles.client');
                                     };
 
                     const messages: Array<{ id: string; actor: string; actorLabel: string; message: string; timestamp: string; isRoot: boolean }> = [
@@ -1436,7 +1400,7 @@ export const ApplicationDetail: React.FC = () => {
                                         id: rootQuery.id,
                                         actor: rootQuery.actor || '',
                                         actorLabel: getActorLabel(rootQuery.actor || '', true),
-                                        message: rootQuery.message || 'No message',
+                                        message: rootQuery.message || t('pages.applicationDetail.noMessage'),
                                         timestamp: rootQuery.timestamp || '',
                                         isRoot: true,
                       },
@@ -1461,15 +1425,15 @@ export const ApplicationDetail: React.FC = () => {
                     >
                       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <span className="text-xs text-neutral-500">
-                          To: {rootQuery.targetUserRole === 'client' ? 'Client' : rootQuery.targetUserRole === 'kam' ? 'KAM' : (rootQuery.targetUserRole || '—')}
+                          {t('pages.applicationDetail.toRecipient')}: {rootQuery.targetUserRole === 'client' ? t('roles.client') : rootQuery.targetUserRole === 'kam' ? t('roles.kam') : (rootQuery.targetUserRole || '—')}
                         </span>
                         {rootQuery.resolved || thread.isResolved ? (
-                          <Badge variant="success" className="text-xs">Resolved</Badge>
+                          <Badge variant="success" className="text-xs">{t('status.resolved')}</Badge>
                         ) : (
-                          <Badge variant="warning" className="text-xs">Open</Badge>
+                          <Badge variant="warning" className="text-xs">{t('status.open')}</Badge>
                         )}
                         {awaitingKAMResponse && userRole === 'credit_team' && (
-                          <Badge variant="warning" className="text-xs">Awaiting KAM Response</Badge>
+                          <Badge variant="warning" className="text-xs">{t('pages.applicationDetail.awaitingKamResponse')}</Badge>
                         )}
                         {!thread.isResolved && rootQuery.id && (() => {
                           const actor = (rootQuery.actor || '').trim();
@@ -1489,7 +1453,7 @@ export const ApplicationDetail: React.FC = () => {
                               disabled={submitting}
                               loading={submitting}
                             >
-                              Mark Resolved
+                              {t('pages.applicationDetail.markResolved')}
                             </Button>
                           ) : null;
                         })()}
@@ -1501,7 +1465,7 @@ export const ApplicationDetail: React.FC = () => {
                           <div
                             key={msg.id}
                             className={`rounded-lg p-3 ${
-                              msg.actorLabel === 'You'
+                              msg.actorLabel === t('pages.applicationDetail.you')
                                 ? 'bg-brand-primary/10 ml-6 border border-brand-primary/20'
                                 : 'bg-neutral-50 mr-6 border border-neutral-200'
                             }`}
@@ -1522,10 +1486,10 @@ export const ApplicationDetail: React.FC = () => {
                                 />
                                 <div className="flex gap-2 mt-2">
                                   <Button size="sm" onClick={handleSaveEdit} disabled={submittingEdit} loading={submittingEdit}>
-                                    Save
+                                    {t('common.save')}
                                   </Button>
                                   <Button size="sm" variant="secondary" onClick={() => { setEditingQueryId(null); setEditMessage(''); }} disabled={submittingEdit}>
-                                    Cancel
+                                    {t('common.cancel')}
                                   </Button>
                                 </div>
                               </div>
@@ -1544,7 +1508,7 @@ export const ApplicationDetail: React.FC = () => {
                             icon={Edit}
                             onClick={() => { setEditingQueryId(rootQuery.id); setEditMessage(rootQuery.message || ''); }}
                           >
-                            Edit query
+                            {t('pages.applicationDetail.editQuery')}
                           </Button>
                         </div>
                       )}
@@ -1553,7 +1517,7 @@ export const ApplicationDetail: React.FC = () => {
                       {!thread.isResolved && (
                         <div className="mt-4 flex gap-2 items-end">
                           <TextArea
-                            placeholder="Type your response..."
+                            placeholder={t('pages.applicationDetail.responsePlaceholder')}
                             value={replyDrafts[thread.rootQuery.id] ?? ''}
                             onChange={(e) =>
                               setReplyDrafts((prev) => ({ ...prev, [thread.rootQuery.id]: e.target.value }))
@@ -1574,7 +1538,7 @@ export const ApplicationDetail: React.FC = () => {
                             disabled={!(replyDrafts[thread.rootQuery.id] ?? '').trim() || submittingReplyForId === thread.rootQuery.id}
                             loading={submittingReplyForId === thread.rootQuery.id}
                           >
-                            Send
+                            {t('common.send')}
                           </Button>
                         </div>
                       )}
@@ -1592,11 +1556,11 @@ export const ApplicationDetail: React.FC = () => {
           {/* Status Timeline */}
           <Card>
             <CardHeader>
-              <CardTitle>Status History</CardTitle>
+              <CardTitle>{t('pages.applicationDetail.statusHistory')}</CardTitle>
             </CardHeader>
             <CardContent>
               {statusHistory.length === 0 ? (
-                <p className="text-center text-neutral-500 py-6">No status changes yet</p>
+                <p className="text-center text-neutral-500 py-6">{t('pages.applicationDetail.noStatusChanges')}</p>
               ) : (
                 <div className="space-y-3">
                   {statusHistory.map((item, index) => (
@@ -1668,13 +1632,13 @@ export const ApplicationDetail: React.FC = () => {
             return (
               <Card>
                 <CardHeader>
-                  <CardTitle>Upload Status</CardTitle>
+                  <CardTitle>{t('pages.applicationDetail.uploadStatus')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {yesItems.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Added to folder</p>
+                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">{t('pages.applicationDetail.addedToFolder')}</p>
                         <ul className="space-y-1.5">
                           {yesItems.map((name) => (
                             <li key={name} className="flex items-center gap-2 text-sm text-success">
@@ -1687,7 +1651,7 @@ export const ApplicationDetail: React.FC = () => {
                     )}
                     {awaitingItems.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Awaiting</p>
+                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">{t('pages.applicationDetail.awaiting')}</p>
                         <ul className="space-y-1.5">
                           {awaitingItems.map((name) => (
                             <li key={name} className="flex items-center gap-2 text-sm text-neutral-600">
@@ -1700,7 +1664,7 @@ export const ApplicationDetail: React.FC = () => {
                     )}
                     {notAvailableItems.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Not available</p>
+                        <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">{t('pages.applicationDetail.notAvailable')}</p>
                         <ul className="space-y-1.5">
                           {notAvailableItems.map((name) => (
                             <li key={name} className="flex items-center gap-2 text-sm text-error">
@@ -1712,7 +1676,7 @@ export const ApplicationDetail: React.FC = () => {
                       </div>
                     )}
                     {!hasAny && (
-                      <p className="text-center text-neutral-500 py-4 text-sm">No document upload status recorded</p>
+                      <p className="text-center text-neutral-500 py-4 text-sm">{t('pages.applicationDetail.noUploadStatus')}</p>
                     )}
                   </div>
                 </CardContent>
@@ -1725,7 +1689,7 @@ export const ApplicationDetail: React.FC = () => {
             <CardHeader className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-brand-primary" />
-                AI File Summary
+                {t('pages.applicationDetail.aiFileSummary')}
               </CardTitle>
               <Button
                 variant="secondary"
@@ -1735,15 +1699,15 @@ export const ApplicationDetail: React.FC = () => {
                 loading={generatingSummary}
                 disabled={generatingSummary}
               >
-                {aiSummary ? 'Refresh Summary' : 'Generate Summary'}
+                {aiSummary ? t('pages.applicationDetail.refreshSummary') : t('pages.applicationDetail.generateSummary')}
               </Button>
             </CardHeader>
             <CardContent>
               {generatingSummary ? (
                 <div className="text-center py-8">
                   <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-                  <p className="text-sm text-neutral-600">Generating AI summary...</p>
-                  <p className="text-xs text-neutral-500 mt-1">This may take a few moments</p>
+                  <p className="text-sm text-neutral-600">{t('pages.applicationDetail.generatingSummary')}</p>
+                  <p className="text-xs text-neutral-500 mt-1">{t('pages.applicationDetail.generatingSummaryHint')}</p>
                 </div>
               ) : aiSummary ? (
                 <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200 max-h-[600px] overflow-y-auto">
@@ -1755,7 +1719,7 @@ export const ApplicationDetail: React.FC = () => {
                 <div className="text-center py-8">
                   <Sparkles className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                   <p className="text-sm text-neutral-600 mb-4">
-                    No AI summary available yet. Generate one to get insights about this application.
+                    {t('pages.applicationDetail.noAiSummary')}
                   </p>
                   <Button
                     variant="primary"
@@ -1764,7 +1728,7 @@ export const ApplicationDetail: React.FC = () => {
                     loading={generatingSummary}
                     disabled={generatingSummary}
                   >
-                    Generate AI Summary
+                    {t('pages.applicationDetail.generateAiSummary')}
                   </Button>
                 </div>
               )}
@@ -1775,7 +1739,7 @@ export const ApplicationDetail: React.FC = () => {
           {userRole === 'nbfc' && (application?.status === 'sent_to_nbfc' || application?.status === 'Sent to NBFC') && (
             <Card>
               <CardHeader>
-                <CardTitle>Record Decision</CardTitle>
+                <CardTitle>{t('pages.applicationDetail.recordDecision')}</CardTitle>
               </CardHeader>
               <CardContent>
                 {(application.lenderDecisionStatus || application.lender_decision_status) ? (
@@ -1792,13 +1756,13 @@ export const ApplicationDetail: React.FC = () => {
                       </Badge>
                       {(application.lenderDecisionDate || application.lender_decision_date) && (
                         <span className="text-sm text-neutral-500">
-                          on {formatDateSafe(application.lenderDecisionDate || application.lender_decision_date)}
+                          {t('pages.applicationDetail.onDate', { date: formatDateSafe(application.lenderDecisionDate || application.lender_decision_date) })}
                         </span>
                       )}
                     </div>
                     {(application.lenderDecisionRemarks || application.lender_decision_remarks) && (
                       <div className="bg-neutral-50 p-3 rounded">
-                        <p className="text-sm font-medium text-neutral-700 mb-1">Remarks:</p>
+                        <p className="text-sm font-medium text-neutral-700 mb-1">{t('pages.applicationDetail.remarks')}:</p>
                         <p className="text-sm text-neutral-900">{application.lenderDecisionRemarks || application.lender_decision_remarks}</p>
                 </div>
                     )}
@@ -1806,19 +1770,19 @@ export const ApplicationDetail: React.FC = () => {
                       variant="secondary"
                       onClick={() => setShowDecisionModal(true)}
                     >
-                      Update Decision
+                      {t('pages.applicationDetail.updateDecision')}
                     </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <p className="text-sm text-neutral-600">
-                      Review the application and record your decision below.
+                      {t('pages.applicationDetail.reviewAndRecord')}
                     </p>
                     <Button
                       variant="primary"
                       onClick={() => setShowDecisionModal(true)}
                     >
-                      Record Decision
+                      {t('pages.applicationDetail.recordDecision')}
                     </Button>
                   </div>
                 )}
@@ -1843,12 +1807,12 @@ export const ApplicationDetail: React.FC = () => {
           size="md"
         >
           <ModalHeader onClose={() => setShowDecisionModal(false)}>
-            Record NBFC Decision
+            {t('pages.applicationDetail.recordNbfcDecision')}
           </ModalHeader>
           <ModalBody>
             <div className="space-y-4">
               <Select
-                label="Decision Status"
+                label={t('pages.applicationDetail.decisionStatus')}
                 value={decisionStatus}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -1857,22 +1821,22 @@ export const ApplicationDetail: React.FC = () => {
                 }}
                 required
                 options={[
-                  { value: '', label: 'Select decision...' },
-                  { value: 'Approved', label: 'Approve' },
-                  { value: 'Rejected', label: 'Reject' },
-                  { value: 'Needs Clarification', label: 'Needs Clarification' },
+                  { value: '', label: t('pages.applicationDetail.selectDecision') },
+                  { value: 'Approved', label: t('pages.applicationDetail.approve') },
+                  { value: 'Rejected', label: t('pages.applicationDetail.reject') },
+                  { value: 'Needs Clarification', label: t('pages.applicationDetail.needsClarification') },
                 ]}
               />
 
               {decisionStatus === 'Approved' && (
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
-                    Approved Amount (Optional)
+                    {t('pages.applicationDetail.approvedAmountOptional')}
                   </label>
                   <input
                     type="number"
                     className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    placeholder="Enter approved amount"
+                    placeholder={t('pages.applicationDetail.enterApprovedAmount')}
                     value={approvedAmount}
                     onChange={(e) => setApprovedAmount(e.target.value)}
                   />
@@ -1882,19 +1846,19 @@ export const ApplicationDetail: React.FC = () => {
               {decisionStatus === 'Rejected' && (
                 <>
                   <Select
-                    label="Rejection reason"
+                    label={t('pages.applicationDetail.rejectionReason')}
                     value={rejectionReasonOption}
                     onChange={(e) => setRejectionReasonOption(e.target.value)}
                     required
                     options={[
-                      { value: '', label: 'Select reason...' },
+                      { value: '', label: t('pages.applicationDetail.selectReason') },
                       ...rejectionReasonsList.map((r) => ({ value: r.value, label: r.label })),
                     ]}
                   />
                   {rejectionReasonOption === 'other' && (
                     <TextArea
-                      label="Other (required)"
-                      placeholder="Enter rejection reason..."
+                      label={t('pages.applicationDetail.otherRequired')}
+                      placeholder={t('pages.applicationDetail.rejectionReasonPlaceholder')}
                       value={decisionRemarks}
                       onChange={(e) => setDecisionRemarks(e.target.value)}
                       required
@@ -1906,11 +1870,11 @@ export const ApplicationDetail: React.FC = () => {
 
               {decisionStatus !== 'Rejected' && (
                 <TextArea
-                  label={decisionStatus === 'Approved' ? 'Decision Remarks (Optional)' : 'Decision Remarks'}
+                  label={decisionStatus === 'Approved' ? t('pages.applicationDetail.decisionRemarksOptional') : t('pages.applicationDetail.decisionRemarks')}
                   placeholder={
                     decisionStatus === 'Approved'
-                      ? 'Enter approval terms and conditions...'
-                      : 'Enter clarification request...'
+                      ? t('pages.applicationDetail.approvalTermsPlaceholder')
+                      : t('pages.applicationDetail.clarificationPlaceholder')
                   }
                   value={decisionRemarks}
                   onChange={(e) => setDecisionRemarks(e.target.value)}
@@ -1930,7 +1894,7 @@ export const ApplicationDetail: React.FC = () => {
                 setRejectionReasonOption('');
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -1992,7 +1956,7 @@ export const ApplicationDetail: React.FC = () => {
               }
               loading={submitting}
             >
-              Record Decision
+              {t('pages.applicationDetail.recordDecision')}
             </Button>
           </ModalFooter>
         </Modal>
@@ -2009,12 +1973,12 @@ export const ApplicationDetail: React.FC = () => {
         size="md"
       >
         <ModalHeader onClose={() => setShowQueryModal(false)}>
-          Raise Query
+          {t('pages.applicationDetail.raiseQuery')}
         </ModalHeader>
         <ModalBody>
           <TextArea
-            label="Query Message"
-            placeholder="Enter your query or request for additional information..."
+            label={t('pages.applicationDetail.queryMessage')}
+            placeholder={t('pages.applicationDetail.queryPlaceholder')}
             value={queryMessage}
             onChange={(e) => setQueryMessage(e.target.value)}
             required
@@ -2023,7 +1987,7 @@ export const ApplicationDetail: React.FC = () => {
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" onClick={() => setShowQueryModal(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -2031,7 +1995,7 @@ export const ApplicationDetail: React.FC = () => {
             disabled={!queryMessage.trim() || submitting}
             loading={submitting}
           >
-            Send Query
+            {t('common.sendQuery')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -2047,17 +2011,17 @@ export const ApplicationDetail: React.FC = () => {
           size="md"
         >
           <ModalHeader onClose={() => setSelectedQuery(null)}>
-            Respond to Query
+            {t('pages.applicationDetail.respondToQuery')}
           </ModalHeader>
           <ModalBody>
             <div className="space-y-4">
               <div className="bg-neutral-50 p-3 rounded">
-                <p className="text-sm font-medium text-neutral-700 mb-1">Original Query:</p>
-                <p className="text-sm text-neutral-900">{(selectedQuery as any).message ?? (selectedQuery as any).query_text ?? 'No message'}</p>
+                <p className="text-sm font-medium text-neutral-700 mb-1">{t('pages.applicationDetail.originalQuery')}</p>
+                <p className="text-sm text-neutral-900">{(selectedQuery as any).message ?? (selectedQuery as any).query_text ?? t('pages.applicationDetail.noMessage')}</p>
               </div>
               <TextArea
-                label="Your Response"
-                placeholder="Enter your response..."
+                label={t('pages.applicationDetail.yourResponse')}
+                placeholder={t('pages.applicationDetail.responsePlaceholder')}
                 value={responseMessage}
                 onChange={(e) => setResponseMessage(e.target.value)}
                 required
@@ -2067,7 +2031,7 @@ export const ApplicationDetail: React.FC = () => {
           </ModalBody>
           <ModalFooter>
             <Button variant="secondary" onClick={() => setSelectedQuery(null)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -2075,7 +2039,7 @@ export const ApplicationDetail: React.FC = () => {
               disabled={!responseMessage.trim() || submitting}
               loading={submitting}
             >
-              Send Response
+              {t('pages.applicationDetail.sendResponse')}
             </Button>
           </ModalFooter>
         </Modal>
@@ -2093,34 +2057,34 @@ export const ApplicationDetail: React.FC = () => {
         size="md"
       >
         <ModalHeader onClose={() => setShowStatusModal(false)}>
-          Update Application Status
+          {t('pages.applicationDetail.updateApplicationStatus')}
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
             <div className="bg-neutral-50 p-3 rounded">
               <p className="text-sm text-neutral-700">
-                <span className="font-medium">Current Status:</span>{' '}
+                <span className="font-medium">{t('pages.applicationDetail.currentStatus')}</span>{' '}
                 <Badge variant={getStatusVariant(application?.status)}>
                   {getStatusDisplayNameForViewer(application?.status || '', userRole || '')}
                 </Badge>
               </p>
             </div>
             <Select
-              label="New Status"
+              label={t('pages.applicationDetail.newStatus')}
               options={statusOptions}
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value)}
               disabled={statusDropdownDisabled}
               helperText={
                 statusDropdownDisabled
-                  ? 'No configured statuses are available for this application.'
+                  ? t('pages.applicationDetail.noStatusesAvailable')
                   : undefined
               }
               required
             />
             <TextArea
-              label="Notes (Optional)"
-              placeholder="Add notes about this status change..."
+              label={t('pages.applicationDetail.notesOptional')}
+              placeholder={t('pages.applicationDetail.statusNotesPlaceholder')}
               value={statusNotes}
               onChange={(e) => setStatusNotes(e.target.value)}
               rows={3}
@@ -2129,7 +2093,7 @@ export const ApplicationDetail: React.FC = () => {
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" onClick={() => setShowStatusModal(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -2137,7 +2101,7 @@ export const ApplicationDetail: React.FC = () => {
             disabled={!newStatus || submitting || statusDropdownDisabled}
             loading={submitting}
           >
-            Update Status
+            {t('pages.applicationDetail.updateStatus')}
           </Button>
         </ModalFooter>
       </Modal>

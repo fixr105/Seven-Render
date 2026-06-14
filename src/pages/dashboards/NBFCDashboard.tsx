@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -7,7 +8,6 @@ import { DataTable, Column } from '../../components/ui/DataTable';
 import { FileText, Clock, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { apiService } from '../../services/api';
-import { useState, useEffect, useCallback } from 'react';
 
 interface ApplicationRow {
   id: string;
@@ -22,6 +22,7 @@ interface ApplicationRow {
 }
 
 export const NBFCDashboard: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const userRoleId = user?.nbfcId || user?.id || null;
@@ -96,36 +97,39 @@ export const NBFCDashboard: React.FC = () => {
     return 'warning';
   };
 
-  const columns: Column<ApplicationRow>[] = [
-    { key: 'fileNumber', label: 'File ID', sortable: true },
-    { key: 'clientName', label: 'Client', sortable: true },
-    { key: 'loanType', label: 'Loan Type', sortable: true },
-    { key: 'amount', label: 'Amount', sortable: true, align: 'right' },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
-    },
-    { key: 'sentDate', label: 'Received', sortable: true },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (_, row) => (
-        <div className="flex gap-2">
-          <Button
-            variant="tertiary"
-            size="sm"
-            onClick={() => {
-              const id = row.id ?? row.applicationId ?? row.fileId;
-              if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
-            }}
-          >
-            Review
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  const columns: Column<ApplicationRow>[] = useMemo(
+    () => [
+      { key: 'fileNumber', label: t('pages.applications.fileId'), sortable: true },
+      { key: 'clientName', label: t('pages.applications.client'), sortable: true },
+      { key: 'loanType', label: t('pages.applications.loanType'), sortable: true },
+      { key: 'amount', label: t('common.amount'), sortable: true, align: 'right' },
+      {
+        key: 'status',
+        label: t('common.status'),
+        render: (value) => <Badge variant={getStatusVariant(String(value))}>{String(value)}</Badge>,
+      },
+      { key: 'sentDate', label: t('common.date'), sortable: true },
+      {
+        key: 'actions',
+        label: t('common.actions'),
+        render: (_, row) => (
+          <div className="flex gap-2">
+            <Button
+              variant="tertiary"
+              size="sm"
+              onClick={() => {
+                const id = row.id ?? row.applicationId ?? row.fileId;
+                if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
+              }}
+            >
+              {t('common.view')}
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [t, navigate]
+  );
 
   return (
     <>
@@ -134,9 +138,9 @@ export const NBFCDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">Total assigned</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.totalApplications')}</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{assignedApplications.length}</p>
-              <p className="text-xs text-neutral-500 mt-1">Applications</p>
+              <p className="text-xs text-neutral-500 mt-1">{t('nav.applications')}</p>
             </div>
             <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <FileText className="w-6 h-6 text-brand-primary" />
@@ -147,11 +151,11 @@ export const NBFCDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">Pending Decision</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingDecision}</p>
               <p className="text-xs text-warning mt-1 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                Awaiting review
+                {t('pages.dashboards.readyForReview')}
               </p>
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
@@ -164,7 +168,7 @@ export const NBFCDashboard: React.FC = () => {
       {/* Action Center */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Action Center</CardTitle>
+          <CardTitle>{t('pages.dashboards.actionCenter')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
@@ -176,13 +180,13 @@ export const NBFCDashboard: React.FC = () => {
                   const id = nextFile?.id ?? nextFile?.applicationId ?? nextFile?.fileId;
                   if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
                 }}
-                title="Open next application pending your decision"
+                title={t('pages.dashboards.openNextApplication')}
               >
-                Review Next Application ({pendingDecision})
+                {t('pages.dashboards.openNextApplication')} ({pendingDecision})
               </Button>
             )}
-            <Button variant="secondary" onClick={() => navigate('/applications?status=sent_to_nbfc')} title="View all applications pending your decision">
-              View All Pending
+            <Button variant="secondary" onClick={() => navigate('/applications?status=sent_to_nbfc')} title={t('pages.dashboards.viewPendingApplications')}>
+              {t('pages.dashboards.viewPendingApplications')}
             </Button>
           </div>
         </CardContent>
@@ -193,10 +197,10 @@ export const NBFCDashboard: React.FC = () => {
         <CardContent className="py-3 flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-brand-primary flex-shrink-0" />
           <p className="text-sm text-neutral-700">
-            View or generate <strong>AI summaries</strong> on any application — open an application and use the AI File Summary section.
+            {t('pages.dashboards.aiInsightsDescription')}
           </p>
           <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
-            Applications
+            {t('nav.applications')}
           </Button>
         </CardContent>
       </Card>
@@ -209,7 +213,7 @@ export const NBFCDashboard: React.FC = () => {
               You have {pendingDecision} application{pendingDecision !== 1 ? 's' : ''} pending your decision.
             </p>
             <Button variant="secondary" size="sm" onClick={() => navigate('/applications?status=sent_to_nbfc')}>
-              View all pending
+              {t('pages.dashboards.viewPendingApplications')}
             </Button>
           </CardContent>
         </Card>
@@ -219,37 +223,34 @@ export const NBFCDashboard: React.FC = () => {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CardTitle>Assigned Applications</CardTitle>
-            <Badge variant="neutral">{assignedApplications.length} Total</Badge>
+            <CardTitle>{t('nav.applications')}</CardTitle>
+            <Badge variant="neutral">{assignedApplications.length} {t('pages.applications.total')}</Badge>
           </div>
           <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={fetchAssignedApplications}>
-            Refresh
+            {t('common.refresh')}
           </Button>
         </CardHeader>
         <CardContent>
           {fetchError ? (
             <div className="text-center py-8">
               <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
-              <p className="text-error font-medium mb-2">Could not load applications</p>
-              <p className="text-neutral-600 text-sm mb-4">{fetchError}</p>
+              <p className="text-error font-medium mb-2">{fetchError}</p>
               <Button variant="primary" onClick={fetchAssignedApplications}>
-                Retry
+                {t('common.retry')}
               </Button>
             </div>
           ) : loading ? (
-            <div className="text-center py-8 text-neutral-500">Loading applications...</div>
+            <div className="text-center py-8 text-neutral-500">{t('common.loading')}</div>
           ) : tableData.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-              <p className="text-neutral-500 mb-2">No applications assigned to you yet</p>
-              <p className="text-sm text-neutral-400">Applications will appear here once assigned by the Credit Team</p>
+              <p className="text-neutral-500 mb-2">{t('pages.applications.noApplications')}</p>
             </div>
           ) : (
             <>
               <div className="mb-4 p-3 bg-brand-primary/10 border border-brand-primary/30 rounded text-sm text-brand-primary">
                 <AlertCircle className="w-4 h-4 inline mr-2" />
-                You have {pendingDecision} application{pendingDecision !== 1 ? 's' : ''} pending your decision. 
-                Click "Review" to open and make a decision.
+                {t('pages.dashboards.reviewHint')}
               </div>
               <DataTable
                 columns={columns}
@@ -267,5 +268,3 @@ export const NBFCDashboard: React.FC = () => {
     </>
   );
 };
-
-

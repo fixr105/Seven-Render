@@ -4,6 +4,7 @@
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Mail } from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -15,6 +16,7 @@ import '../auth/LoginPage.css';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const ForgotPassword: React.FC = () => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -25,11 +27,11 @@ export const ForgotPassword: React.FC = () => {
     setError(null);
     const trimmed = email.trim();
     if (!trimmed) {
-      setError('Email is required');
+      setError(t('auth.emailRequired'));
       return;
     }
     if (!EMAIL_REGEX.test(trimmed)) {
-      setError('Please enter a valid email address');
+      setError(t('auth.validEmailRequired'));
       return;
     }
     setLoading(true);
@@ -38,7 +40,7 @@ export const ForgotPassword: React.FC = () => {
     if (result.success) {
       setSuccess(true);
     } else {
-      setError(result.error || 'Something went wrong. Please try again.');
+      setError(result.error || t('auth.somethingWrong'));
     }
   };
 
@@ -46,13 +48,11 @@ export const ForgotPassword: React.FC = () => {
     return (
       <div className="login-page" style={{ ['--login-bg' as string]: `url(${loginBg})` }}>
         <div className="login-card">
-          <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-          <h1 className="text-xl font-semibold text-white mb-2">Check your email</h1>
-          <p className="text-neutral-200 mb-6">
-            If an account exists for that email, we've sent a reset link. It may take a few minutes to arrive.
-          </p>
+          <img src={logo} alt={t('common.logoAlt')} className="login-logo" />
+          <h1 className="text-xl font-semibold text-white mb-2">{t('auth.checkEmail')}</h1>
+          <p className="text-neutral-200 mb-6">{t('auth.resetEmailSent')}</p>
           <Link to="/login" className="text-blue-200 hover:text-white hover:underline">
-            Back to login
+            {t('auth.backToLogin')}
           </Link>
         </div>
       </div>
@@ -62,17 +62,17 @@ export const ForgotPassword: React.FC = () => {
   return (
     <div className="login-page" style={{ ['--login-bg' as string]: `url(${loginBg})` }}>
       <div className="login-card">
-        <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-        <h1 className="text-xl font-semibold text-white mb-2">Forgot password?</h1>
-        <p className="text-neutral-200 mb-4">Enter your email and we'll send you a link to reset your password.</p>
+        <img src={logo} alt={t('common.logoAlt')} className="login-logo" />
+        <h1 className="text-xl font-semibold text-white mb-2">{t('auth.forgotTitle')}</h1>
+        <p className="text-neutral-200 mb-4">{t('auth.forgotDescription')}</p>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {error && <div className="login-error">{error}</div>}
           <div className="form-group">
             <Input
               type="email"
-              label="Email"
-              placeholder="Enter your email"
+              label={t('auth.email')}
+              placeholder={t('auth.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -83,13 +83,13 @@ export const ForgotPassword: React.FC = () => {
             />
           </div>
           <Button type="submit" variant="primary" className="w-full login-btn" loading={loading} disabled={loading}>
-            Send reset link
+            {t('auth.sendResetLink')}
           </Button>
         </form>
 
         <p className="login-forgot-hint text-sm text-neutral-300 mt-4">
           <Link to="/login" className="text-blue-200 hover:text-white hover:underline">
-            Back to login
+            {t('auth.backToLogin')}
           </Link>
         </p>
       </div>

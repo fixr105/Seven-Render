@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -23,6 +24,7 @@ interface NBFCPartnerRow {
 }
 
 export const AdminNBFCPartners: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const userRole = user?.role || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -61,10 +63,10 @@ export const AdminNBFCPartners: React.FC = () => {
           }))
         );
       } else {
-        setError(response.error || 'Failed to load NBFC partners');
+        setError(response.error || t('pages.adminNbfcPartners.loadFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load NBFC partners');
+      setError(err instanceof Error ? err.message : t('pages.adminNbfcPartners.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -136,18 +138,21 @@ export const AdminNBFCPartners: React.FC = () => {
     }
   };
 
-  const columns: Column<NBFCPartnerRow>[] = [
-    { key: 'lenderName', label: 'Lender Name', sortable: true },
-    { key: 'contactPerson', label: 'Contact Person', sortable: true },
-    { key: 'contactEmailPhone', label: 'Contact Email/Phone', sortable: false },
-    {
-      key: 'active',
-      label: 'Active',
-      render: (value) => (
-        <Badge variant={value ? 'success' : 'neutral'}>{value ? 'Yes' : 'No'}</Badge>
-      ),
-    },
-  ];
+  const columns: Column<NBFCPartnerRow>[] = useMemo(
+    () => [
+      { key: 'lenderName', label: t('common.lenderName'), sortable: true },
+      { key: 'contactPerson', label: t('common.contactPerson'), sortable: true },
+      { key: 'contactEmailPhone', label: t('common.contactEmailPhone'), sortable: false },
+      {
+        key: 'active',
+        label: t('common.active'),
+        render: (value) => (
+          <Badge variant={value ? 'success' : 'neutral'}>{value ? t('common.yes') : t('common.no')}</Badge>
+        ),
+      },
+    ],
+    [t]
+  );
 
   const canManage = userRole === 'credit_team' || userRole === 'admin';
 
@@ -157,7 +162,7 @@ export const AdminNBFCPartners: React.FC = () => {
         sidebarItems={sidebarItems}
         activeItem={activeItem}
         onItemClick={handleNavigation}
-        pageTitle="NBFC Partners"
+        pageTitle={t('pages.adminNbfcPartners.pageTitle')}
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={user?.name || user?.email?.split('@')[0] || ''}
         notificationCount={unreadCount}
@@ -166,7 +171,7 @@ export const AdminNBFCPartners: React.FC = () => {
         onMarkAllAsRead={markAllAsRead}
       >
         <div className="p-6">
-          <p className="text-neutral-600">You do not have permission to view NBFC partners.</p>
+          <p className="text-neutral-600">{t('pages.adminNbfcPartners.permissionDenied')}</p>
         </div>
       </MainLayout>
     );
@@ -177,7 +182,7 @@ export const AdminNBFCPartners: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="NBFC Partners"
+      pageTitle={t('pages.adminNbfcPartners.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={user?.name || user?.email?.split('@')[0] || ''}
       notificationCount={unreadCount}
@@ -186,21 +191,21 @@ export const AdminNBFCPartners: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="p-6">
-        <PageHero title="NBFC Partners" />
+        <PageHero title={t('pages.adminNbfcPartners.title')} />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5" />
-              NBFC Partners
+              {t('pages.adminNbfcPartners.title')}
             </CardTitle>
             <div className="flex gap-2">
               {canManage && (
                 <Button variant="primary" size="sm" icon={Plus} onClick={openCreate}>
-                  Add Partner
+                  {t('common.addPartner')}
                 </Button>
               )}
               <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={fetchPartners} disabled={loading}>
-                Refresh
+                {t('common.refresh')}
               </Button>
             </div>
           </CardHeader>
@@ -209,7 +214,7 @@ export const AdminNBFCPartners: React.FC = () => {
               <p className="text-error text-sm mb-4">{error}</p>
             )}
             {loading ? (
-              <div className="text-center py-8 text-neutral-500">Loading NBFC partners...</div>
+              <div className="text-center py-8 text-neutral-500">{t('pages.adminNbfcPartners.loadingPartners')}</div>
             ) : (
               <DataTable
                 columns={columns}
@@ -224,26 +229,26 @@ export const AdminNBFCPartners: React.FC = () => {
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => !saving && setShowModal(false)}>
             <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-lg font-semibold mb-4">{editingId ? 'Edit NBFC Partner' : 'Add NBFC Partner'}</h2>
+              <h2 className="text-lg font-semibold mb-4">{editingId ? t('pages.adminNbfcPartners.editPartner') : t('pages.adminNbfcPartners.addPartnerTitle')}</h2>
               <div className="space-y-3">
                 <Input
-                  label="Lender Name"
+                  label={t('common.lenderName')}
                   value={form.lenderName}
                   onChange={(e) => setForm((f) => ({ ...f, lenderName: e.target.value }))}
                   required
                 />
                 <Input
-                  label="Contact Person"
+                  label={t('common.contactPerson')}
                   value={form.contactPerson}
                   onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))}
                 />
                 <Input
-                  label="Contact Email/Phone"
+                  label={t('common.contactEmailPhone')}
                   value={form.contactEmailPhone}
                   onChange={(e) => setForm((f) => ({ ...f, contactEmailPhone: e.target.value }))}
                 />
                 <Input
-                  label="Address/Region"
+                  label={t('common.addressRegion')}
                   value={form.addressRegion}
                   onChange={(e) => setForm((f) => ({ ...f, addressRegion: e.target.value }))}
                 />
@@ -255,7 +260,7 @@ export const AdminNBFCPartners: React.FC = () => {
                     onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
                     className="rounded border-neutral-300"
                   />
-                  <label htmlFor="active" className="text-sm font-medium text-neutral-700">Active</label>
+                  <label htmlFor="active" className="text-sm font-medium text-neutral-700">{t('common.active')}</label>
                 </div>
               </div>
               <div className="flex justify-between mt-6">
@@ -264,7 +269,7 @@ export const AdminNBFCPartners: React.FC = () => {
                     <Button
                       variant="secondary"
                       onClick={async () => {
-                        if (!window.confirm('Deactivate this NBFC partner? They will no longer appear for assignment.')) return;
+                        if (!window.confirm(t('pages.adminNbfcPartners.deactivateConfirm'))) return;
                         setDeactivating(true);
                         try {
                           const res = await apiService.deleteNBFCPartner(editingId);
@@ -282,16 +287,16 @@ export const AdminNBFCPartners: React.FC = () => {
                       }}
                       disabled={saving || deactivating}
                     >
-                      {deactivating ? 'Deactivating...' : 'Deactivate partner'}
+                      {deactivating ? t('common.deactivating') : t('pages.adminNbfcPartners.deactivatePartner')}
                     </Button>
                   )}
                 </div>
                 <div className="flex gap-2">
                   <Button variant="tertiary" onClick={() => !saving && !deactivating && setShowModal(false)} disabled={saving || deactivating}>
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                   <Button variant="primary" onClick={handleSave} disabled={saving || deactivating || !form.lenderName.trim()}>
-                    {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
+                    {saving ? t('common.saving') : editingId ? t('common.update') : t('common.create')}
                   </Button>
                 </div>
               </div>

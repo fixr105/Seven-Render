@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { useAuth } from '../auth/AuthContext';
@@ -11,6 +12,7 @@ import { CreditDashboard } from './dashboards/CreditDashboard';
 import { NBFCDashboard } from './dashboards/NBFCDashboard';
 
 export const Dashboard: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const userRole = user?.role || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -19,12 +21,17 @@ export const Dashboard: React.FC = () => {
   // Get role display name (admin treated as Credit Team with full admin access)
   const getRoleDisplayName = () => {
     switch (userRole) {
-      case 'client': return 'Client';
-      case 'kam': return 'Key Account Manager';
+      case 'client':
+        return t('roles.client');
+      case 'kam':
+        return t('roles.kam');
       case 'credit_team':
-      case 'admin': return 'Credit Team';
-      case 'nbfc': return 'NBFC Partner';
-      default: return '';
+      case 'admin':
+        return t('roles.creditTeam');
+      case 'nbfc':
+        return t('roles.nbfc');
+      default:
+        return '';
     }
   };
 
@@ -55,13 +62,13 @@ export const Dashboard: React.FC = () => {
         return (
           <div className="text-center py-12">
             <p className="text-neutral-500 mb-2">
-              Unknown user role: <span className="font-mono text-neutral-700">{userRole || 'null'}</span>
+              {t('pages.dashboard.unknownRole', { role: userRole || 'null' })}
             </p>
             <p className="text-sm text-neutral-400">
-              Valid roles are: client, kam, credit_team, admin, nbfc
+              {t('pages.dashboard.validRoles')}
             </p>
             <p className="text-sm text-neutral-400 mt-2">
-              Please contact administrator to update your role in the system.
+              {t('pages.dashboard.contactAdminRole')}
             </p>
           </div>
         );
@@ -75,7 +82,7 @@ export const Dashboard: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="DASHBOARD"
+      pageTitle={t('pages.dashboard.pageTitle')}
       userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
@@ -84,9 +91,13 @@ export const Dashboard: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       {userRole === 'client' ? (
-        <PageHero title={`Welcome back, ${getUserDisplayName() || 'there'}!`} />
+        <PageHero
+          title={t('pages.dashboard.welcomeBack', {
+            name: getUserDisplayName() || t('pages.dashboard.welcomeFallback'),
+          })}
+        />
       ) : (
-        <PageHero title="Dashboard" />
+        <PageHero title={t('pages.dashboard.title')} />
       )}
       {renderDashboard()}
     </MainLayout>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface NavItem {
   id: string;
@@ -20,9 +21,10 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick, isOpen, onToggle, userRole, userName }) => {
+  const { t } = useTranslation();
+
   return (
     <>
-      {/* Mobile backdrop */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -30,7 +32,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           fixed top-0 left-0 h-full bg-brand-primary text-white z-50
@@ -40,24 +41,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
           w-64 flex flex-col shadow-level-2
         `}
       >
-        {/* Spacer for logo in corner - logo is positioned absolutely in MainLayout */}
         <div className="h-16 flex-shrink-0 lg:hidden">
-          {/* Mobile: Show close button */}
           <div className="flex items-center justify-end p-4">
             <button
               onClick={onToggle}
               className="p-2 min-h-[44px] min-w-[44px] rounded hover:bg-brand-primary/20 transition-colors cursor-none-hover touch-manipulation"
-              aria-label="Close menu"
+              aria-label={t('nav.closeMenu')}
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
-        <div className="h-16 flex-shrink-0 hidden lg:block">
-          {/* Desktop: Empty space for logo */}
-        </div>
+        <div className="h-16 flex-shrink-0 hidden lg:block" />
 
-        {/* Navigation */}
         <nav data-testid="sidebar-nav" className="flex-1 overflow-y-auto py-4">
           {(items || []).map((item) => {
             const Icon = item.icon;
@@ -91,7 +87,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
           })}
         </nav>
 
-        {/* User info */}
         <div className="p-4 border-t border-brand-primary/30">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center border border-white/30">

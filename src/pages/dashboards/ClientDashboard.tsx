@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Plus, FileText, Clock, IndianRupee, Package, RefreshCw, Sparkles, Wallet, FileEdit } from 'lucide-react';
@@ -59,18 +60,18 @@ function applicationMix(apps: LoanApplication[]) {
 }
 
 function BrandMixDonut({ draft, pipeline, terminal }: { draft: number; pipeline: number; terminal: number }) {
+  const { t } = useTranslation();
   const total = draft + pipeline + terminal;
   if (total === 0) {
     return (
       <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-neutral-200 bg-neutral-50 text-sm text-neutral-500">
-        No applications yet
+        {t('pages.dashboards.noApplicationsYet')}
       </div>
     );
   }
-  const t = total;
-  const a = (draft / t) * 360;
-  const b = (pipeline / t) * 360;
-  const c = (terminal / t) * 360;
+  const a = (draft / total) * 360;
+  const b = (pipeline / total) * 360;
+  const c = (terminal / total) * 360;
   const background = `conic-gradient(from -90deg, #1A1F5F 0deg ${a}deg, rgba(26,31,95,0.5) ${a}deg ${a + b}deg, rgba(26,31,95,0.2) ${a + b}deg ${a + b + c}deg)`;
 
   return (
@@ -87,21 +88,21 @@ function BrandMixDonut({ draft, pipeline, terminal }: { draft: number; pipeline:
         <li className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand-primary" />
-            Draft
+            {t('common.draft')}
           </span>
           <span className="font-medium text-neutral-900">{draft}</span>
         </li>
         <li className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand-primary/50" />
-            In progress
+            {t('common.inProgress')}
           </span>
           <span className="font-medium text-neutral-900">{pipeline}</span>
         </li>
         <li className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand-primary/25" />
-            Closed / disbursed
+            {t('common.closedDisbursed')}
           </span>
           <span className="font-medium text-neutral-900">{terminal}</span>
         </li>
@@ -111,6 +112,7 @@ function BrandMixDonut({ draft, pipeline, terminal }: { draft: number; pipeline:
 }
 
 export const ClientDashboard: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const { applications, loading, refetch: refetchApplications } = useApplications();
@@ -242,11 +244,10 @@ export const ClientDashboard: React.FC = () => {
         <Card className="mb-6 border-neutral-200 bg-neutral-50">
           <CardContent className="p-4">
             <p className="text-sm font-medium text-neutral-900">
-              Your account may not be linked to a client record.
+              {t('pages.dashboards.accountNotLinked')}
             </p>
             <p className="text-sm text-neutral-600 mt-1">
-              {configuredProductsError ||
-                'To see applications and available loan products, your login email must match the Contact Email/Phone on your client record in the system. Please contact your KAM or administrator to link your account.'}
+              {configuredProductsError || t('pages.dashboards.accountNotLinkedHint')}
             </p>
           </CardContent>
         </Card>
@@ -257,9 +258,9 @@ export const ClientDashboard: React.FC = () => {
         <Card className="rounded-xl shadow-sm">
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
-              <p className="text-sm text-neutral-500">Total Applications</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.totalApplications')}</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">{totalApplications}</p>
-              <p className="mt-2 text-xs text-neutral-500">Recent activity</p>
+              <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.recentActivity')}</p>
             </div>
             <div className={statIconWrap}>
               <FileText className="h-6 w-6 text-brand-primary" aria-hidden />
@@ -270,9 +271,9 @@ export const ClientDashboard: React.FC = () => {
         <Card className="rounded-xl shadow-sm">
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
-              <p className="text-sm text-neutral-500">Pending Review</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">{pendingReview}</p>
-              <p className="mt-2 text-xs text-neutral-500">Ready for review</p>
+              <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.readyForReview')}</p>
             </div>
             <div className={statIconWrap}>
               <Clock className="h-6 w-6 text-brand-primary" aria-hidden />
@@ -283,7 +284,7 @@ export const ClientDashboard: React.FC = () => {
         <Card className="rounded-xl shadow-sm sm:col-span-2 lg:col-span-1">
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
-              <p className="text-sm text-neutral-500">Commission Balance</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.commissionBalance')}</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
                 ₹{ledgerLoading ? '0.0' : (balance / 1000).toFixed(1)}K
               </p>
@@ -292,7 +293,7 @@ export const ClientDashboard: React.FC = () => {
               )}
               {balance > 0 && (
                 <Button variant="secondary" size="sm" className="mt-3" icon={Wallet} onClick={() => navigate('/ledger')}>
-                  Request Payout
+                  {t('pages.dashboards.requestPayout')}
                 </Button>
               )}
             </div>
@@ -308,14 +309,14 @@ export const ClientDashboard: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-brand-primary" aria-hidden />
-            Available Loan Products
+            {t('pages.dashboards.availableLoanProducts')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loadingProducts ? (
-            <div className="py-4 text-center text-neutral-500">Loading loan products...</div>
+            <div className="py-4 text-center text-neutral-500">{t('pages.dashboards.loadingLoanProducts')}</div>
           ) : displayProducts.length === 0 ? (
-            <div className="py-4 text-center text-neutral-500">No loan products available</div>
+            <div className="py-4 text-center text-neutral-500">{t('pages.dashboards.noLoanProducts')}</div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {displayProducts.map((product) => (
@@ -349,9 +350,9 @@ export const ClientDashboard: React.FC = () => {
       {/* Action Center — warm neutral strip, navy CTAs */}
       <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200/90 bg-[#F5F4F0] shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200/80 px-4 py-3">
-          <h3 className="text-base font-semibold text-neutral-900">Action Center</h3>
+          <h3 className="text-base font-semibold text-neutral-900">{t('pages.dashboards.actionCenter')}</h3>
           <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={refreshAll}>
-            Refresh
+            {t('common.refresh')}
           </Button>
         </div>
         <div className="flex flex-wrap gap-3 px-4 py-4">
@@ -361,24 +362,24 @@ export const ClientDashboard: React.FC = () => {
             onClick={() => navigate('/applications/new')}
             title="Create a new loan application"
           >
-            Start New Application
+            {t('pages.dashboards.startNewApplication')}
           </Button>
           <Button
             variant="secondary"
             icon={IndianRupee}
             onClick={() => navigate('/ledger')}
-            title="Open your commission ledger"
+            title={t('pages.dashboards.viewFullLedger')}
           >
-            View Full Ledger
+            {t('pages.dashboards.viewFullLedger')}
           </Button>
           {draftCount > 0 && (
             <Button
               variant="secondary"
               icon={FileEdit}
               onClick={() => navigate('/applications?status=draft')}
-              title="View draft applications"
+              title={t('pages.dashboards.viewDrafts')}
             >
-              View drafts
+              {t('pages.dashboards.viewDrafts')}
             </Button>
           )}
           {balance > 0 && (
@@ -386,9 +387,9 @@ export const ClientDashboard: React.FC = () => {
               variant="secondary"
               icon={Wallet}
               onClick={() => navigate('/ledger')}
-              title="Request a payout"
+              title={t('pages.dashboards.requestPayout')}
             >
-              Request Payout
+              {t('pages.dashboards.requestPayout')}
             </Button>
           )}
         </div>
@@ -399,15 +400,15 @@ export const ClientDashboard: React.FC = () => {
         <div className="border-b border-brand-primary/10 bg-brand-primary/[0.08] px-4 py-2">
           <div className="flex items-center gap-2 text-sm font-medium text-brand-primary">
             <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
-            AI Insights
+            {t('pages.dashboards.aiInsights')}
           </div>
         </div>
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-neutral-700">
-            View or generate <strong>AI summaries</strong> on any application — open an application and use the AI File Summary section.
+            {t('pages.dashboards.aiInsightsDescription')}
           </p>
           <Button variant="tertiary" size="sm" className="shrink-0" onClick={() => navigate('/applications')}>
-            Applications
+            {t('nav.applications')}
           </Button>
         </div>
       </div>
@@ -430,7 +431,7 @@ export const ClientDashboard: React.FC = () => {
 
         <Card className="rounded-xl shadow-sm lg:col-span-1">
           <CardHeader>
-            <CardTitle>Analytics Snapshot</CardTitle>
+            <CardTitle>{t('pages.dashboards.analyticsSnapshot')}</CardTitle>
           </CardHeader>
           <CardContent>
             <BrandMixDonut draft={mix.draft} pipeline={mix.pipeline} terminal={mix.terminal} />

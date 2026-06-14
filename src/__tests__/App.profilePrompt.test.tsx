@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import '../i18n';
 import App from '../App';
 import { UserContext } from '../auth/types';
 
@@ -37,7 +38,6 @@ vi.mock('../pages/NewApplication', () => ({ NewApplication: () => <div>New Appli
 vi.mock('../pages/Ledger', () => ({ Ledger: () => <div>Ledger</div> }));
 vi.mock('../pages/Clients', () => ({ Clients: () => <div>Clients</div> }));
 vi.mock('../pages/Profile', () => ({ Profile: () => <div>Profile</div> }));
-vi.mock('../pages/Settings', () => ({ Settings: () => <div>Settings</div> }));
 vi.mock('../pages/Reports', () => ({ Reports: () => <div>Reports</div> }));
 vi.mock('../pages/FormConfiguration', () => ({ FormConfiguration: () => <div>Form Config</div> }));
 vi.mock('../pages/ForgotPassword', () => ({ ForgotPassword: () => <div>Forgot Password</div> }));

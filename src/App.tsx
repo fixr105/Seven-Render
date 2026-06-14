@@ -11,7 +11,6 @@ import { NewApplication } from './pages/NewApplication';
 import { Ledger } from './pages/Ledger';
 import { Clients } from './pages/Clients';
 import { Profile } from './pages/Profile';
-import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -161,17 +160,6 @@ function AppRoutes() {
           <ErrorBoundary>
             <ProtectedRoute>
               <Profile />
-            </ProtectedRoute>
-          </ErrorBoundary>
-        }
-      />
-
-        <Route
-        path="/settings"
-        element={
-          <ErrorBoundary>
-            <ProtectedRoute>
-              <Settings />
             </ProtectedRoute>
           </ErrorBoundary>
         }

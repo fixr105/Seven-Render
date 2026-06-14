@@ -183,14 +183,26 @@ export class NewApplicationPage {
   }
 
   /**
-   * Documents folder acknowledgment + valid folder URL (required for final submit, not for draft).
+   * Documents folder acknowledgment + generated folder link (required for final submit, not for draft).
    */
-  async fillDocumentsFolderForSubmit(
-    folderUrl = 'https://drive.google.com/drive/folders/e2e-test-folder'
-  ): Promise<void> {
+  async fillDocumentsFolderForSubmit(): Promise<void> {
     await this.documentsFolderShareCheckbox.waitFor({ state: 'visible', timeout: 15000 });
     await this.documentsFolderShareCheckbox.check();
-    await this.documentsFolderLinkInput.fill(folderUrl);
+
+    const generateBtn = this.page.getByTestId('generate-link-button');
+    await generateBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await generateBtn.click();
+
+    const copyBtn = this.page.getByTestId('copy-folder-link');
+    await copyBtn.waitFor({ state: 'visible', timeout: 15000 });
+    await copyBtn.waitFor({ state: 'attached' });
+    await this.page.waitForFunction(
+      () => {
+        const el = document.getElementById('_documentsFolderLink');
+        return el?.getAttribute('data-folder-link-assigned') === 'true';
+      },
+      { timeout: 15000 }
+    );
   }
 
   /**

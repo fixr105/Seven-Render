@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/Button';
 import { ArrowLeft } from 'lucide-react';
 
@@ -16,12 +17,14 @@ interface PageHeaderProps {
  * Use inside MainLayout children for a uniform section layout. When using PageHero for the main heading, pass only onBack and actions (no title).
  */
 export const PageHeader: React.FC<PageHeaderProps> = ({ onBack, actions, title }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div className="flex items-center gap-3">
         {onBack != null && (
           <Button variant="secondary" icon={ArrowLeft} onClick={onBack}>
-            Back
+            {t('common.back')}
           </Button>
         )}
         {title != null && <div className="text-lg font-semibold text-neutral-900">{title}</div>}

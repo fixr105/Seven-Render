@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -17,6 +18,7 @@ interface SlaPastDueItem {
 }
 
 export const CreditDashboard: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { applications, loading } = useApplications();
   const { payoutRequests } = useLedger();
@@ -82,9 +84,9 @@ export const CreditDashboard: React.FC = () => {
         >
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">Past SLA</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.followUpSla')}</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{slaPastDue.length}</p>
-              <p className="text-xs text-warning mt-1">Need follow-up</p>
+              <p className="text-xs text-warning mt-1">{t('pages.dashboards.readyForReview')}</p>
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
               <AlertTriangle className="w-6 h-6 text-warning" />
@@ -95,9 +97,9 @@ export const CreditDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">Total Applications</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.totalApplications')}</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{totalApplications}</p>
-              <p className="text-xs text-neutral-500 mt-1">Platform-wide</p>
+              <p className="text-xs text-neutral-500 mt-1">{t('pages.dashboards.allTime')}</p>
             </div>
             <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <FileText className="w-6 h-6 text-brand-primary" />
@@ -108,11 +110,11 @@ export const CreditDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">Pending Review</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingReview}</p>
               <p className="text-xs text-warning mt-1 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                Requires attention
+                {t('pages.dashboards.readyForReview')}
               </p>
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
@@ -124,13 +126,13 @@ export const CreditDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">In Negotiation</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.filesInNegotiation')}</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{inNegotiation}</p>
               <p className="text-xs text-info mt-1 flex items-center gap-1">
                 <Send className="w-3 h-3" />
-                {sentToNBFC} sent to lenders
+                {sentToNBFC} {t('pages.dashboards.assignToNbfc').toLowerCase()}
                 {slaPastDue.length > 0 && (
-                  <Badge variant="error" className="ml-1">{slaPastDue.length} past SLA</Badge>
+                  <Badge variant="error" className="ml-1">{slaPastDue.length} {t('pages.dashboards.followUpSla').toLowerCase()}</Badge>
                 )}
               </p>
             </div>
@@ -143,10 +145,10 @@ export const CreditDashboard: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm text-neutral-500">Payout Requests</p>
+              <p className="text-sm text-neutral-500">{t('pages.dashboards.processPayouts')}</p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingPayouts}</p>
               <p className="text-xs text-neutral-500 mt-1">
-                {pendingPayouts > 0 ? `${pendingPayouts} pending approval` : 'None pending'}
+                {pendingPayouts > 0 ? `${pendingPayouts} ${t('common.requested').toLowerCase()}` : t('common.none')}
               </p>
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
@@ -162,7 +164,7 @@ export const CreditDashboard: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-warning" />
-              Follow up with NBFC (Past SLA)
+              {t('pages.dashboards.followUpSla')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -198,7 +200,7 @@ export const CreditDashboard: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-warning" />
-              Pending Queries
+              {t('common.query')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -233,43 +235,43 @@ export const CreditDashboard: React.FC = () => {
       {/* Action Center */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Action Center</CardTitle>
+          <CardTitle>{t('pages.dashboards.actionCenter')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
             {pendingReview > 0 && (
-              <Button variant="primary" onClick={() => navigate('/applications?status=pending_credit_review')} title="Review files forwarded to credit">
-                Review Files ({pendingReview})
+              <Button variant="primary" onClick={() => navigate('/applications?status=pending_credit_review')} title={t('pages.dashboards.reviewFilesCredit')}>
+                {t('pages.dashboards.reviewFilesCredit')} ({pendingReview})
               </Button>
             )}
             {assignableToNbfc > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=pending_credit_review')} title="Open applications to assign to an NBFC">
-                Assign to NBFC ({assignableToNbfc})
+              <Button variant="secondary" onClick={() => navigate('/applications?status=pending_credit_review')} title={t('pages.dashboards.assignToNbfc')}>
+                {t('pages.dashboards.assignToNbfc')} ({assignableToNbfc})
               </Button>
             )}
             {pendingPayouts > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/ledger')} title="Process payout requests">
-                Process Payouts ({pendingPayouts})
+              <Button variant="secondary" onClick={() => navigate('/ledger')} title={t('pages.dashboards.processPayouts')}>
+                {t('pages.dashboards.processPayouts')} ({pendingPayouts})
               </Button>
             )}
             {inNegotiation > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=in_negotiation')} title="Files in negotiation with NBFCs">
-                Files in Negotiation ({inNegotiation})
+              <Button variant="secondary" onClick={() => navigate('/applications?status=in_negotiation')} title={t('pages.dashboards.filesInNegotiation')}>
+                {t('pages.dashboards.filesInNegotiation')} ({inNegotiation})
               </Button>
             )}
             {slaPastDue.length > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=sent_to_nbfc')} title="Follow up on files past SLA">
-                Follow up Sent to NBFC ({slaPastDue.length} past SLA)
+              <Button variant="secondary" onClick={() => navigate('/applications?status=sent_to_nbfc')} title={t('pages.dashboards.followUpSla')}>
+                {t('pages.dashboards.followUpSla')} ({slaPastDue.length})
               </Button>
             )}
-            <Button variant="secondary" onClick={() => navigate('/clients')} title="Manage clients">
-              Manage Clients
+            <Button variant="secondary" onClick={() => navigate('/clients')} title={t('pages.dashboards.manageClients')}>
+              {t('pages.dashboards.manageClients')}
             </Button>
-            <Button variant="secondary" onClick={() => navigate('/form-configuration')} title="Configure document checklists per client">
-              Configure Client Forms
+            <Button variant="secondary" onClick={() => navigate('/form-configuration')} title={t('pages.dashboards.configureForms')}>
+              {t('pages.dashboards.configureForms')}
             </Button>
-            <Button variant="secondary" icon={BarChart3} onClick={() => navigate('/reports')} title="Generate daily summary report">
-              Generate Report
+            <Button variant="secondary" icon={BarChart3} onClick={() => navigate('/reports')} title={t('pages.dashboards.generateDailyReport')}>
+              {t('pages.dashboards.generateDailyReport')}
             </Button>
           </div>
         </CardContent>
@@ -280,10 +282,10 @@ export const CreditDashboard: React.FC = () => {
         <CardContent className="py-3 flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-brand-primary flex-shrink-0" />
           <p className="text-sm text-neutral-700">
-            View or generate <strong>AI summaries</strong> on any application — open an application and use the AI File Summary section.
+            {t('pages.dashboards.aiInsightsDescription')}
           </p>
           <Button variant="tertiary" size="sm" onClick={() => navigate('/applications')}>
-            Applications
+            {t('nav.applications')}
           </Button>
         </CardContent>
       </Card>
@@ -291,21 +293,21 @@ export const CreditDashboard: React.FC = () => {
       {/* Pipeline Overview */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Pipeline Overview</CardTitle>
+          <CardTitle>{t('pages.dashboards.analyticsSnapshot')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="text-center p-4 border border-neutral-200 rounded-lg">
               <p className="text-2xl font-bold text-neutral-900">{pendingReview}</p>
-              <p className="text-sm text-neutral-500 mt-1">Pending Review</p>
+              <p className="text-sm text-neutral-500 mt-1">{t('pages.dashboards.pendingReview')}</p>
             </div>
             <div className="text-center p-4 border border-neutral-200 rounded-lg">
               <p className="text-2xl font-bold text-neutral-900">{inNegotiation}</p>
-              <p className="text-sm text-neutral-500 mt-1">In Negotiation</p>
+              <p className="text-sm text-neutral-500 mt-1">{t('pages.dashboards.filesInNegotiation')}</p>
             </div>
             <div className="text-center p-4 border border-neutral-200 rounded-lg">
               <p className="text-2xl font-bold text-neutral-900">{sentToNBFC}</p>
-              <p className="text-sm text-neutral-500 mt-1">With Lenders</p>
+              <p className="text-sm text-neutral-500 mt-1">{t('pages.dashboards.assignToNbfc')}</p>
             </div>
           </div>
         </CardContent>
@@ -325,5 +327,3 @@ export const CreditDashboard: React.FC = () => {
     </>
   );
 };
-
-

@@ -5,11 +5,11 @@ import { TopBar } from './TopBar';
 import { Footer } from './Footer';
 import logo from '../ui/logo.png';
 import { Notification } from '../../hooks/useNotifications';
-import type { SidebarNavItem } from '../../config/sidebar';
+import type { TranslatedSidebarNavItem } from '../../hooks/useSidebarItems';
 
 interface MainLayoutProps {
   children: React.ReactNode;
-  sidebarItems: SidebarNavItem[];
+  sidebarItems: TranslatedSidebarNavItem[];
   activeItem: string;
   onItemClick: (id: string) => void;
   pageTitle: string;

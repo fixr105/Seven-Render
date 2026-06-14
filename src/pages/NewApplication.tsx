@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -30,6 +31,12 @@ import {
 } from '../utils/basicApplicationFieldsValidation';
 
 const USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY = 'seven_used_client_webhook_links';
+const FOLDER_LINK_MASKED_DISPLAY = '••••••••••••••••••••••••••••••••';
+const FOLDER_LINK_EMPTY_PLACEHOLDER = 'Generate a link above, then use Copy or Open';
+
+const blockFolderLinkFieldInteraction = (event: React.SyntheticEvent): void => {
+  event.preventDefault();
+};
 
 type NormalizedLinkPoolItem = {
   link: string;
@@ -104,6 +111,7 @@ const createClientSubmissionId = (): string =>
   `submit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 export const NewApplication: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const userRole = user?.role || null;
@@ -876,7 +884,7 @@ export const NewApplication: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="New Loan Application"
+      pageTitle={t('pages.newApplication.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
@@ -884,7 +892,7 @@ export const NewApplication: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title="New Loan Application" />
+      <PageHero title={t('pages.newApplication.pageTitle')} />
       <form onSubmit={(e) => handleSubmit(e, false)}>
         {/* Documents folder: backend-generated link with manual override */}
         <Card id="documents-folder-link" className="mb-6 overflow-hidden">
@@ -894,9 +902,9 @@ export const NewApplication: React.FC = () => {
                 <FolderOpen className="h-5 w-5 text-brand-primary" aria-hidden />
               </div>
               <div className="min-w-0">
-                <CardTitle className="text-base sm:text-lg">Documents Folder (Required)</CardTitle>
+                <CardTitle className="text-base sm:text-lg">{t('pages.newApplication.documentsFolderRequired')}</CardTitle>
                 <p className="mt-1 text-sm text-neutral-600">
-                  Generate a shareable folder link and verify it before submitting.
+                  {t('pages.newApplication.documentsFolderHint')}
                 </p>
               </div>
             </div>
@@ -926,9 +934,9 @@ export const NewApplication: React.FC = () => {
                     : 'opacity-70'
                 }`}
               >
-                <h3 className="text-base font-semibold text-neutral-900">Generate Link</h3>
+                <h3 className="text-base font-semibold text-neutral-900">{t('pages.newApplication.generateLink')}</h3>
                 <p className="mt-1 text-sm text-neutral-700">
-                  Fetch and auto-fill a shareable folder link.
+                  {t('pages.newApplication.generateLinkHint')}
                 </p>
                 <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-brand-primary ring-1 ring-brand-primary/20">
                   {folderLinkGenerating ? (
@@ -936,10 +944,10 @@ export const NewApplication: React.FC = () => {
                   ) : (
                     <Send className="h-4 w-4" aria-hidden />
                   )}
-                  <span>{folderLinkGenerating ? 'Generating link...' : 'Generate Link'}</span>
+                  <span>{folderLinkGenerating ? t('pages.newApplication.generatingLink') : t('pages.newApplication.generateLink')}</span>
                 </div>
                 {userRole !== 'client' && (
-                  <p className="mt-2 text-xs text-neutral-500">Only client users can generate links.</p>
+                  <p className="mt-2 text-xs text-neutral-500">{t('pages.newApplication.onlyClientGenerateLinks')}</p>
                 )}
                 {folderLinkStatus && (
                   <p
@@ -963,33 +971,52 @@ export const NewApplication: React.FC = () => {
               </section>
 
               <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
-                <h3 className="text-base font-semibold text-neutral-900">Folder Link</h3>
-                <p className="mt-1 text-sm text-neutral-600">You can edit this link before submission.</p>
+                <h3 className="text-base font-semibold text-neutral-900">{t('pages.newApplication.folderLink')}</h3>
+                <p className="mt-1 text-sm text-neutral-600">
+                  {t('pages.newApplication.folderLinkHint')}
+                </p>
               <Input
                 id="_documentsFolderLink"
-                label="Folder Link"
-                type="url"
+                label={t('pages.newApplication.folderLink')}
+                type="text"
                 required
-                placeholder="https://drive.google.com/... or https://onedrive.live.com/..."
-                value={formData.form_data._documentsFolderLink || ''}
-                onChange={(e) => {
-                  handleFieldChange('_documentsFolderLink', e.target.value);
-                  if (fieldErrors._documentsFolderLink) {
-                    setFieldErrors((prev) => {
-                      const next = { ...prev };
-                      delete next._documentsFolderLink;
-                      return next;
-                    });
+                readOnly
+                aria-readonly="true"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={FOLDER_LINK_EMPTY_PLACEHOLDER}
+                value={
+                  String(formData.form_data._documentsFolderLink || '').trim()
+                    ? FOLDER_LINK_MASKED_DISPLAY
+                    : ''
+                }
+                onCopy={blockFolderLinkFieldInteraction}
+                onCut={blockFolderLinkFieldInteraction}
+                onPaste={blockFolderLinkFieldInteraction}
+                onContextMenu={blockFolderLinkFieldInteraction}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Tab') {
+                    event.preventDefault();
                   }
                 }}
                 error={fieldErrors._documentsFolderLink}
                 helperText={
                   fieldErrors._documentsFolderLink
                     ? undefined
-                    : 'Paste a folder URL (not a link to one file).'
+                    : String(formData.form_data._documentsFolderLink || '').trim()
+                      ? 'Link assigned. Use Copy Link or Open Link below — you cannot copy from this field.'
+                      : 'Generate a link first, then use Copy or Open to access it.'
                 }
-                title="Paste the shareable folder link. It should open the folder view, not one document."
-                className="mt-3"
+                title={
+                  String(formData.form_data._documentsFolderLink || '').trim()
+                    ? 'Link assigned. Use Copy Link or Open Link to access it.'
+                    : 'Generate a link above to continue.'
+                }
+                className="mt-3 select-none bg-neutral-100 text-neutral-500 cursor-not-allowed caret-transparent"
+                data-testid="folder-link-display"
+                data-folder-link-assigned={
+                  String(formData.form_data._documentsFolderLink || '').trim() ? 'true' : 'false'
+                }
               />
               <div className="mt-4 flex flex-col gap-3">
                 <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:min-w-[320px]">
@@ -1002,7 +1029,7 @@ export const NewApplication: React.FC = () => {
                     data-testid="copy-folder-link"
                     className="w-full justify-center whitespace-nowrap rounded-xl border-neutral-300 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-neutral-50"
                   >
-                    Copy Link
+                    {t('pages.newApplication.copyLink')}
                   </Button>
                   <Button
                     type="button"
@@ -1010,16 +1037,16 @@ export const NewApplication: React.FC = () => {
                     icon={ExternalLink}
                     onClick={handleOpenFolderLink}
                     disabled={!String(formData.form_data._documentsFolderLink || '').trim()}
-                    aria-label="Open folder link in new tab"
-                    title="Open folder link in a new tab"
+                    aria-label={t('pages.newApplication.openLink')}
+                    title={t('pages.newApplication.openLink')}
                     data-testid="open-folder-link"
                     className="w-full justify-center whitespace-nowrap rounded-xl border-neutral-300 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-neutral-50"
                   >
-                    Open Link
+                    {t('pages.newApplication.openLink')}
                   </Button>
                 </div>
                 <p className="text-xs text-neutral-500 sm:text-sm">
-                  Make sure the link opens the entire folder for reviewers.
+                  {t('pages.newApplication.folderLinkReviewHint')}
                 </p>
               </div>
               </section>
@@ -1040,7 +1067,7 @@ export const NewApplication: React.FC = () => {
             <CardContent className="p-6">
               <Stepper
                 steps={[
-                  { id: 'details', label: 'Application Details', description: 'Basic Information' },
+                  { id: 'details', label: t('pages.newApplication.applicationDetails'), description: t('pages.newApplication.basicInformation') },
                   ...displayCategories.map((cat: any, idx: number) => ({
                     id: cat.categoryId || `category-${idx}`,
                     label: cat.categoryName || cat['Category Name'] || cat.categoryId || DEFAULT_CATEGORY_NAME,
@@ -1068,7 +1095,7 @@ export const NewApplication: React.FC = () => {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h4 className="font-medium text-warning mb-2">Validation Warnings</h4>
+                  <h4 className="font-medium text-warning mb-2">{t('pages.newApplication.validationWarnings')}</h4>
                   <ul className="space-y-1 text-sm text-neutral-700">
                     {validationWarnings.map((warning, idx) => (
                       <li key={idx}>• {warning}</li>
@@ -1080,7 +1107,7 @@ export const NewApplication: React.FC = () => {
                     )}
                   </ul>
                   <p className="text-xs text-neutral-600 mt-2">
-                    You can still submit, but please review these warnings.
+                    {t('pages.newApplication.reviewWarningsHint')}
                   </p>
                 </div>
               </div>
@@ -1091,16 +1118,16 @@ export const NewApplication: React.FC = () => {
         {/* Core Required Fields per JSON Specification */}
         <Card id="application-details" className="mb-6">
           <CardHeader>
-            <CardTitle>Application Details</CardTitle>
-            <p className="text-sm text-neutral-500 mt-0.5">Basic Information</p>
+            <CardTitle>{t('pages.newApplication.applicationDetails')}</CardTitle>
+            <p className="text-sm text-neutral-500 mt-0.5">{t('pages.newApplication.basicInformation')}</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 id="applicant_name"
                 data-testid="applicant-name-input"
-                label="Applicant Name *"
-                placeholder="Enter applicant's full name"
+                label={t('pages.newApplication.applicantName')}
+                placeholder={t('pages.newApplication.applicantNamePlaceholder')}
                 value={formData.applicant_name}
                 onChange={(e) => {
                   setFormData({ ...formData, applicant_name: e.target.value });
@@ -1121,9 +1148,9 @@ export const NewApplication: React.FC = () => {
                   <div className="flex-1 min-w-0 sm:min-w-[200px]">
                     <Select
                       data-testid="loan-product-select"
-                      label="Loan Product *"
+                      label={`${t('pages.applicationDetail.loanProduct')} *`}
                       options={[
-                        { value: '', label: loanProductsLoading ? 'Loading products...' : loanProducts.length === 0 ? 'No products available' : 'Select Loan Product' },
+                        { value: '', label: loanProductsLoading ? t('pages.newApplication.loadingProducts') : loanProducts.length === 0 ? t('pages.newApplication.noProducts') : t('pages.newApplication.selectLoanProduct') },
                         ...loanProducts.map(p => ({ value: p.id, label: p.name }))
                       ]}
                       value={formData.loan_product_id}
@@ -1141,12 +1168,12 @@ export const NewApplication: React.FC = () => {
                       required
                       error={fieldErrors.loan_product_id || loanProductsError || undefined}
                       disabled={loanProductsLoading || loanProducts.length === 0}
-                      helperText={loanProductsError || (loanProducts.length === 0 ? 'No loan products are configured for your account. Please contact your KAM.' : undefined)}
+                      helperText={loanProductsError || (loanProducts.length === 0 ? t('pages.newApplication.noProductsContactKam') : undefined)}
                     />
                   </div>
                   {userRole === 'client' && (
                     <Button data-testid="load-form-button" variant="tertiary" size="sm" icon={RefreshCw} onClick={loadForm} disabled={formConfigLoading} className="mb-1">
-                      Load form
+                      {t('pages.newApplication.loadForm')}
                     </Button>
                   )}
                 </div>
@@ -1154,9 +1181,9 @@ export const NewApplication: React.FC = () => {
               <Input
                 id="_mobileNumber"
                 data-testid="basic-mobile"
-                label="Mobile Number *"
+                label={t('pages.newApplication.mobileNumber')}
                 type="tel"
-                placeholder="10-digit mobile number"
+                placeholder={t('pages.newApplication.mobilePlaceholder')}
                 value={formData.form_data._mobileNumber ?? ''}
                 onChange={(e) => {
                   handleFieldChange('_mobileNumber', e.target.value);
@@ -1174,9 +1201,9 @@ export const NewApplication: React.FC = () => {
               <Input
                 id="_email"
                 data-testid="basic-email"
-                label="Email ID *"
+                label={t('pages.newApplication.emailId')}
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t('pages.newApplication.emailPlaceholder')}
                 value={formData.form_data._email ?? ''}
                 onChange={(e) => {
                   handleFieldChange('_email', e.target.value);
@@ -1194,9 +1221,9 @@ export const NewApplication: React.FC = () => {
               <Select
                 id="_typeOfPurchase"
                 data-testid="basic-type-of-purchase"
-                label="Type of Purchase *"
+                label={t('pages.newApplication.typeOfPurchase')}
                 options={[
-                  { value: '', label: 'Select type' },
+                  { value: '', label: t('pages.newApplication.selectType') },
                   { value: 'Rental', label: 'Rental' },
                   { value: 'EMI', label: 'EMI' },
                 ]}
@@ -1217,7 +1244,7 @@ export const NewApplication: React.FC = () => {
               <Select
                 id="_vehicleMake"
                 data-testid="vehicle-make-select"
-                label="Vehicle Make *"
+                label={t('pages.newApplication.vehicleMake')}
                 options={[
                   {
                     value: '',
@@ -1323,7 +1350,7 @@ export const NewApplication: React.FC = () => {
         {formConfig.length > 0 && businessKycCategories.length >= 1 && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Business type</CardTitle>
+              <CardTitle>{t('pages.newApplication.businessType')}</CardTitle>
               <p className="text-sm text-neutral-500 mt-0.5">
                 {businessKycCategories.length > 1
                   ? 'Tap a type below or swipe to switch. Submit for the selected type.'
@@ -1384,7 +1411,7 @@ export const NewApplication: React.FC = () => {
             <CardContent className="p-6">
               <div className="text-center">
                 <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-                <p className="text-sm text-neutral-600">Loading form configuration...</p>
+                <p className="text-sm text-neutral-600">{t('pages.newApplication.loadingForm')}</p>
               </div>
             </CardContent>
           </Card>
@@ -1619,7 +1646,7 @@ export const NewApplication: React.FC = () => {
             disabled={loading}
             data-testid="save-draft"
           >
-            Save as Draft
+            {t('pages.newApplication.saveAsDraft')}
           </Button>
           <Button
             type="submit"
@@ -1629,7 +1656,7 @@ export const NewApplication: React.FC = () => {
             disabled={loading}
             data-testid="submit-application"
           >
-            Submit Application
+            {t('pages.newApplication.submitApplication')}
           </Button>
         </div>
       </form>

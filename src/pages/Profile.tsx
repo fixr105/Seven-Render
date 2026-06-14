@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -14,6 +15,7 @@ import { useSidebarItems } from '../hooks/useSidebarItems';
 import { getRequiredProfileFields } from '../auth/profileCompletion';
 
 export const Profile: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
@@ -39,7 +41,6 @@ export const Profile: React.FC = () => {
     if (!user) return;
 
     try {
-      // Profile data comes from the user context
       setProfileData({
         name: user.name || '',
         email: user.email || '',
@@ -53,7 +54,6 @@ export const Profile: React.FC = () => {
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // Allow only numbers, +, -, spaces, and parentheses
     value = value.replace(/[^0-9+\-\s()]/g, '');
     setProfileData({ ...profileData, phone: value });
     setPhoneError('');
@@ -61,15 +61,14 @@ export const Profile: React.FC = () => {
   };
 
   const validatePhone = (phone: string): boolean => {
-    if (!phone) return true; // Phone is optional
-    // Basic validation: should contain at least 10 digits
+    if (!phone) return true;
     const digitsOnly = phone.replace(/\D/g, '');
     if (digitsOnly.length < 10) {
-      setPhoneError('Phone number must contain at least 10 digits');
+      setPhoneError(t('buildProfile.phoneMinDigits'));
       return false;
     }
     if (digitsOnly.length > 15) {
-      setPhoneError('Phone number cannot exceed 15 digits');
+      setPhoneError(t('buildProfile.phoneMaxDigits'));
       return false;
     }
     setPhoneError('');
@@ -78,19 +77,18 @@ export const Profile: React.FC = () => {
 
   const handleSave = async () => {
     if (requiredFields.includes('name') && !profileData.name.trim()) {
-      setFormError('Full Name is required');
+      setFormError(t('pages.profile.fullNameRequired'));
       return;
     }
     if (requiredFields.includes('phone') && !profileData.phone.trim()) {
-      setPhoneError('Phone number is required');
+      setPhoneError(t('buildProfile.phoneRequired'));
       return;
     }
     if (requiredFields.includes('company') && !profileData.company.trim()) {
-      setFormError('Company Name is required');
+      setFormError(t('pages.profile.companyNameRequired'));
       return;
     }
 
-    // Validate phone number before saving
     if (!validatePhone(profileData.phone)) {
       return;
     }
@@ -104,14 +102,14 @@ export const Profile: React.FC = () => {
       });
       if (response.success) {
         await refreshUser();
-        // Show success feedback (could use toast/notification instead)
-        alert('Profile updated successfully');
+        alert(t('pages.profile.profileUpdatedSuccess'));
       } else {
-        alert(response.error || 'Failed to update profile');
+        alert(response.error || t('buildProfile.updateFailed'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating profile:', error);
-      alert(`Failed to update profile: ${error.message}`);
+      const message = error instanceof Error ? error.message : t('buildProfile.updateFailed');
+      alert(`${t('buildProfile.updateFailed')}: ${message}`);
     } finally {
       setLoading(false);
     }
@@ -124,7 +122,7 @@ export const Profile: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Profile"
+      pageTitle={t('pages.profile.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={profileData.name || user?.email?.split('@')[0] || ''}
       notificationCount={unreadCount}
@@ -133,10 +131,10 @@ export const Profile: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="max-w-2xl mx-auto space-y-6">
-        <PageHero title="Profile" />
+        <PageHero title={t('pages.profile.title')} />
         <Card>
           <CardHeader>
-            <CardTitle>Profile Information</CardTitle>
+            <CardTitle>{t('pages.profile.profileInformation')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -156,8 +154,8 @@ export const Profile: React.FC = () => {
                   <div className="md:col-span-2 text-sm text-red-600">{formError}</div>
                 )}
                 <Input
-                  label="Full Name"
-                  placeholder="Enter your full name"
+                  label={t('common.fullName')}
+                  placeholder={t('pages.profile.fullNamePlaceholder')}
                   icon={User}
                   iconPosition="left"
                   value={profileData.name}
@@ -168,19 +166,19 @@ export const Profile: React.FC = () => {
                 />
                 <Input
                   type="email"
-                  label="Email Address"
-                  placeholder="Enter your email"
+                  label={t('common.emailAddress')}
+                  placeholder={t('pages.profile.emailPlaceholder')}
                   icon={Mail}
                   iconPosition="left"
                   value={profileData.email}
                   onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
                   disabled
-                  helperText="Email cannot be changed"
+                  helperText={t('pages.profile.emailCannotChange')}
                 />
                 <Input
                   type="tel"
-                  label="Phone Number"
-                  placeholder="+91 9876543210"
+                  label={t('common.phoneNumber')}
+                  placeholder={t('buildProfile.phonePlaceholder')}
                   icon={Phone}
                   iconPosition="left"
                   value={profileData.phone}
@@ -188,12 +186,12 @@ export const Profile: React.FC = () => {
                   onBlur={() => validatePhone(profileData.phone)}
                   pattern="[0-9+\-\s()]*"
                   error={phoneError}
-                  helperText="Enter phone number with country code (e.g., +91 9876543210)"
+                  helperText={t('pages.profile.phoneHelper')}
                 />
                 {(userRole === 'client' || userRole === 'nbfc') && (
                   <Input
-                    label="Company Name"
-                    placeholder="Enter company name"
+                    label={t('common.companyName')}
+                    placeholder={t('pages.profile.companyPlaceholder')}
                     icon={Building}
                     iconPosition="left"
                     value={profileData.company}
@@ -208,17 +206,16 @@ export const Profile: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* AI features - available for all profile types */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-brand-primary" />
-              AI Features
+              {t('pages.profile.aiFeatures')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-neutral-600">
-              AI-powered application summaries are available for all roles. Open any application from the Applications list and use the <strong>AI File Summary</strong> section to generate or view an AI summary with applicant profile, loan details, strengths, and risks.
+              {t('pages.profile.aiFeaturesDescription')}
             </p>
             <Button
               variant="secondary"
@@ -226,21 +223,20 @@ export const Profile: React.FC = () => {
               className="mt-3"
               onClick={() => navigate('/applications')}
             >
-              Go to Applications
+              {t('pages.profile.goToApplications')}
             </Button>
           </CardContent>
         </Card>
 
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => navigate('/dashboard')}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" icon={Save} onClick={handleSave} loading={loading}>
-            Save Changes
+            {t('common.saveChanges')}
           </Button>
         </div>
       </div>
     </MainLayout>
   );
 };
-

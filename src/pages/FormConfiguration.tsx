@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -42,6 +43,7 @@ interface EditorSection {
 type ConfigSource = 'product_embedded' | 'product_documents' | null;
 
 export function FormConfiguration() {
+  const { t } = useTranslation();
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
   const { user } = useAuth();
@@ -408,48 +410,54 @@ export function FormConfiguration() {
     }
   };
 
-  const productOptions = [
-    { value: '', label: 'Select a product' },
-    ...products.map((p) => ({ value: p.id, label: p.label })),
-  ];
+  const productOptions = useMemo(
+    () => [
+      { value: '', label: t('common.selectProduct') },
+      ...products.map((p) => ({ value: p.id, label: p.label })),
+    ],
+    [products, t]
+  );
 
-  const documentColumns: Column<ProductDocumentRow>[] = [
-    { key: 'Record Title', label: 'Record Title', render: (v) => (v ? String(v) : '—') },
-    { key: 'Display Order', label: 'Order', render: (v) => (v != null ? String(v) : '0') },
-    {
-      key: 'Is Required',
-      label: 'Required',
-      render: (v) => {
-        const val = v;
-        return val === true || val === 'True' || String(val).toLowerCase() === 'true' ? 'Yes' : 'No';
+  const documentColumns: Column<ProductDocumentRow>[] = useMemo(
+    () => [
+      { key: 'Record Title', label: t('common.recordTitle'), render: (v) => (v ? String(v) : '—') },
+      { key: 'Display Order', label: t('common.order'), render: (v) => (v != null ? String(v) : '0') },
+      {
+        key: 'Is Required',
+        label: t('common.required'),
+        render: (v) => {
+          const val = v;
+          return val === true || val === 'True' || String(val).toLowerCase() === 'true' ? t('common.yes') : t('common.no');
+        },
       },
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      align: 'right',
-      render: (_, row) => (
-        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={() => handleEditDocument(row)}
-            className="p-1.5 rounded hover:bg-neutral-100 text-neutral-600 hover:text-neutral-900"
-            aria-label="Edit"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeleteDocument(row)}
-            className="p-1.5 rounded hover:bg-red-50 text-neutral-600 hover:text-red-600"
-            aria-label="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
-    },
-  ];
+      {
+        key: 'actions',
+        label: t('common.actions'),
+        align: 'right',
+        render: (_, row) => (
+          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => handleEditDocument(row)}
+              className="p-1.5 rounded hover:bg-neutral-100 text-neutral-600 hover:text-neutral-900"
+              aria-label={t('common.edit')}
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDeleteDocument(row)}
+              className="p-1.5 rounded hover:bg-red-50 text-neutral-600 hover:text-red-600"
+              aria-label={t('common.delete')}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [t]
+  );
 
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
@@ -465,14 +473,14 @@ export function FormConfiguration() {
       sidebarItems={sidebarItems || []}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Form Configuration"
+      pageTitle={t('pages.formConfiguration.pageTitle')}
       userRole={user?.role === 'admin' ? 'Admin' : (user?.role?.replace('_', ' ').toUpperCase() || 'Credit Team')}
       userName={getUserDisplayName()}
     >
       <div className="p-6 max-w-5xl mx-auto">
         <PageHero
-          title="Form Configuration"
-          description="Configure form requirements per product. Use Sections & Fields (product-embedded) or Document Checklist (Product Documents)."
+          title={t('pages.formConfiguration.title')}
+          description={t('pages.formConfiguration.description')}
         />
         {error && (
           <div className="mb-4 p-3 bg-error/10 border border-error/30 rounded text-error text-sm">
@@ -482,11 +490,11 @@ export function FormConfiguration() {
 
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Select Product</CardTitle>
+            <CardTitle>{t('pages.formConfiguration.selectProductTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
             <Select
-              label="Product"
+              label={t('pages.formConfiguration.product')}
               options={productOptions}
               value={selectedProductId}
               onChange={(e) => setSelectedProductId(e.target.value)}
@@ -498,7 +506,7 @@ export function FormConfiguration() {
         {selectedProductId && loadingConfig && (
           <Card>
             <CardContent className="py-8 text-center text-neutral-500">
-              Loading configuration...
+              {t('pages.formConfiguration.loadingConfiguration')}
             </CardContent>
           </Card>
         )}
@@ -512,14 +520,14 @@ export function FormConfiguration() {
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <Layers className="w-5 h-5" />
-                        Sections & Fields (Product-embedded)
+                        {t('pages.formConfiguration.sectionsAndFields')}
                       </CardTitle>
                       <p className="text-sm text-neutral-500 mt-1">
-                        Configure sections and text fields stored in Loan Products. Fields with label &quot;Empty&quot; or blank are omitted from the client form.
+                        {t('pages.formConfiguration.sectionsAndFieldsHint')}
                       </p>
                     </div>
                     <span className="text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
-                      Active config source
+                      {t('pages.formConfiguration.activeConfigSource')}
                     </span>
                   </div>
                 </CardHeader>
@@ -527,9 +535,9 @@ export function FormConfiguration() {
                   <form onSubmit={handleSaveFormConfig}>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-medium text-neutral-700">Sections & Fields</h3>
+                        <h3 className="text-sm font-medium text-neutral-700">{t('pages.formConfiguration.sectionsAndFieldsHeader')}</h3>
                         <Button type="button" variant="tertiary" size="sm" icon={Plus} onClick={addSection}>
-                          Add Section
+                          {t('common.addSection')}
                         </Button>
                       </div>
                       <div className="space-y-4">
@@ -546,10 +554,10 @@ export function FormConfiguration() {
                                   onChange={(e) => updateSection(sIdx, { enabled: e.target.checked })}
                                   className="rounded border-neutral-300"
                                 />
-                                <span className="text-sm font-medium">Section {s.sectionNum}</span>
+                                <span className="text-sm font-medium">{t('pages.formConfiguration.sectionLabel', { num: s.sectionNum })}</span>
                               </label>
                               <Input
-                                placeholder="Section name (optional)"
+                                placeholder={t('pages.formConfiguration.sectionNamePlaceholder')}
                                 value={s.name}
                                 onChange={(e) => updateSection(sIdx, { name: e.target.value })}
                                 className="flex-1 min-w-[120px]"
@@ -561,7 +569,7 @@ export function FormConfiguration() {
                                 icon={Plus}
                                 onClick={() => addField(sIdx)}
                               >
-                                Add Field
+                                {t('common.addField')}
                               </Button>
                               <button
                                 type="button"
@@ -616,7 +624,7 @@ export function FormConfiguration() {
                                 </div>
                               ))}
                               {(s.fields || []).length === 0 && (
-                                <p className="text-sm text-neutral-400 pl-6 italic">No fields. Add one above.</p>
+                                <p className="text-sm text-neutral-400 pl-6 italic">{t('pages.formConfiguration.noFieldsHint')}</p>
                               )}
                             </div>
                           </div>
@@ -625,7 +633,7 @@ export function FormConfiguration() {
                     </div>
                     <div className="mt-4 flex items-center gap-4">
                       <Button type="submit" icon={Save} loading={submittingFormConfig} disabled={submittingFormConfig}>
-                        Save Form Config
+                        {t('pages.formConfiguration.saveFormConfig')}
                       </Button>
                       <Button
                         type="button"
@@ -636,7 +644,7 @@ export function FormConfiguration() {
                         loading={submittingFormConfig}
                         disabled={submittingFormConfig}
                       >
-                        Use Document Checklist instead
+                        {t('pages.formConfiguration.useDocumentChecklist')}
                       </Button>
                     </div>
                   </form>
@@ -651,15 +659,15 @@ export function FormConfiguration() {
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <FileText className="w-5 h-5" />
-                        Document Checklist (Product Documents)
+                        {t('pages.formConfiguration.documentChecklist')}
                       </CardTitle>
                       <p className="text-sm text-neutral-500 mt-1">
-                        Define the document checklist for this product (e.g. PAN Card, Aadhaar, Bank Statement).
+                        {t('pages.formConfiguration.documentChecklistHint')}
                       </p>
                     </div>
                     {configSource === 'product_documents' && (
                       <span className="text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
-                        Active config source
+                        {t('pages.formConfiguration.activeConfigSource')}
                       </span>
                     )}
                   </div>
@@ -676,10 +684,10 @@ export function FormConfiguration() {
                         loading={submittingFormConfig}
                         disabled={submittingFormConfig}
                       >
-                        Use Sections & Fields instead
+                        {t('pages.formConfiguration.useSectionsAndFields')}
                       </Button>
                       <p className="text-xs text-neutral-500 mt-1">
-                        Switch to product-embedded config (Section N, Field N) stored in Loan Products.
+                        {t('pages.formConfiguration.useSectionsHint')}
                       </p>
                     </div>
                   )}
@@ -688,21 +696,21 @@ export function FormConfiguration() {
                     data={productDocuments}
                     keyExtractor={(r) => r.id || `${r['Record Title']}-${r['Display Order']}` || 'row'}
                     loading={loadingDocuments}
-                    emptyMessage="No documents yet. Add one below."
+                    emptyMessage={t('pages.formConfiguration.noDocumentsYet')}
                   />
                   <form
                     onSubmit={handleCreateDocument}
                     className="flex flex-wrap gap-4 items-end p-4 bg-neutral-50 rounded-lg"
                   >
                     <Input
-                      label="Record Title"
+                      label={t('common.recordTitle')}
                       value={documentForm.recordTitle}
                       onChange={(e) => setDocumentForm((p) => ({ ...p, recordTitle: e.target.value }))}
-                      placeholder="e.g. PAN Card"
+                      placeholder={t('pages.formConfiguration.recordTitlePlaceholder')}
                       required
                     />
                     <Input
-                      label="Display Order"
+                      label={t('common.displayOrder')}
                       type="number"
                       value={documentForm.displayOrder}
                       onChange={(e) =>
@@ -716,10 +724,10 @@ export function FormConfiguration() {
                         onChange={(e) => setDocumentForm((p) => ({ ...p, isRequired: e.target.checked }))}
                         className="rounded border-neutral-300"
                       />
-                      <span className="text-sm font-medium text-neutral-700">Required</span>
+                      <span className="text-sm font-medium text-neutral-700">{t('common.required')}</span>
                     </label>
                     <Button type="submit" icon={Plus} loading={submittingDocument} disabled={submittingDocument}>
-                      Add Document
+                      {t('common.addDocument')}
                     </Button>
                   </form>
                 </CardContent>
@@ -731,28 +739,28 @@ export function FormConfiguration() {
         {!selectedProductId && (
           <Card>
             <CardContent className="py-8 text-center text-neutral-500">
-              Select a product above to configure its form requirements.
+              {t('pages.formConfiguration.selectProductHint')}
             </CardContent>
           </Card>
         )}
 
         <Modal isOpen={!!editingDocument} onClose={() => setEditingDocument(null)} size="md">
           <form onSubmit={handleSaveDocumentEdit}>
-            <ModalHeader onClose={() => setEditingDocument(null)}>Edit Document</ModalHeader>
+            <ModalHeader onClose={() => setEditingDocument(null)}>{t('common.editDocument')}</ModalHeader>
             <ModalBody>
               {editingDocument && (
                 <div className="space-y-4">
                   <Input
-                    label="Record Title"
+                    label={t('common.recordTitle')}
                     value={editingDocument['Record Title'] ?? ''}
                     onChange={(e) =>
                       setEditingDocument((p) => (p ? { ...p, 'Record Title': e.target.value } : null))
                     }
-                    placeholder="e.g. PAN Card"
+                    placeholder={t('pages.formConfiguration.recordTitlePlaceholder')}
                     required
                   />
                   <Input
-                    label="Display Order"
+                    label={t('common.displayOrder')}
                     type="number"
                     value={editingDocument['Display Order'] ?? 0}
                     onChange={(e) =>
@@ -774,17 +782,17 @@ export function FormConfiguration() {
                       }
                       className="rounded border-neutral-300"
                     />
-                    <span className="text-sm font-medium text-neutral-700">Required</span>
+                    <span className="text-sm font-medium text-neutral-700">{t('common.required')}</span>
                   </label>
                 </div>
               )}
             </ModalBody>
             <ModalFooter>
               <Button type="button" variant="secondary" onClick={() => setEditingDocument(null)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button type="submit" loading={submittingDocument} disabled={submittingDocument}>
-                Save
+                {t('common.save')}
               </Button>
             </ModalFooter>
           </form>

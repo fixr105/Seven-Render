@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -32,6 +33,7 @@ function getDefaultDateRange(): { from: string; to: string } {
 }
 
 export const Reports: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const userRole = user?.role || null;
   
@@ -91,12 +93,12 @@ export const Reports: React.FC = () => {
       } else {
         console.error('Error fetching reports:', response.error);
         setReports([]);
-        setReportsError(response.error || 'Could not load reports. Please try again.');
+        setReportsError(response.error || t('pages.reports.couldNotLoadReportsError'));
       }
     } catch (error) {
       console.error('Error fetching reports:', error);
       setReports([]);
-      setReportsError((error as Error)?.message || 'Could not load reports. Please try again.');
+      setReportsError((error as Error)?.message || t('pages.reports.couldNotLoadReportsError'));
     } finally {
       setLoading(false);
     }
@@ -120,7 +122,7 @@ export const Reports: React.FC = () => {
   };
 
   const handleGenerateReport = async () => {
-    if (!confirm('Generate daily summary report for today?')) {
+    if (!confirm(t('pages.reports.confirmGenerateReport'))) {
       return;
     }
 
@@ -135,8 +137,8 @@ export const Reports: React.FC = () => {
         await fetchReports();
         await fetchLatestReport();
         alert(recipients?.length
-          ? 'Report generated and email sent successfully.'
-          : 'Report generated successfully.');
+          ? t('pages.reports.reportGeneratedEmailSuccess')
+          : t('pages.reports.reportGeneratedSuccess'));
       } else {
         alert(`Failed to generate report: ${response.error || 'Unknown error'}`);
       }
@@ -211,6 +213,18 @@ export const Reports: React.FC = () => {
     }
   };
 
+  const allTabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = useMemo(
+    () => [
+      { id: 'daily', label: t('pages.reports.tabDailySummary'), icon: <BarChart3 className="w-4 h-4" /> as React.ReactNode },
+      { id: 'commission', label: t('pages.reports.tabCommission'), icon: <IndianRupee className="w-4 h-4" /> as React.ReactNode },
+      { id: 'ledger', label: t('pages.reports.tabLedger'), icon: <FileText className="w-4 h-4" /> as React.ReactNode },
+      { id: 'client-wise', label: t('pages.reports.tabClientWise'), icon: <Users className="w-4 h-4" /> as React.ReactNode },
+      { id: 'date-range', label: t('pages.reports.tabDateRange'), icon: <CalendarRange className="w-4 h-4" /> as React.ReactNode },
+    ],
+    [t]
+  );
+  const tabs = allTabs;
+
   // Restrict to credit_team, admin, and kam (client, nbfc get Access Restricted)
   if (userRole !== 'credit_team' && userRole !== 'admin' && userRole !== 'kam') {
     return (
@@ -218,7 +232,7 @@ export const Reports: React.FC = () => {
         sidebarItems={sidebarItems}
         activeItem={activeItem}
         onItemClick={handleNavigation}
-        pageTitle="Reports"
+        pageTitle={t('pages.reports.pageTitle')}
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={getUserDisplayName()}
         notificationCount={unreadCount}
@@ -228,14 +242,14 @@ export const Reports: React.FC = () => {
       >
         <Card>
           <CardHeader>
-            <CardTitle>Reports & Analytics</CardTitle>
+            <CardTitle>{t('pages.reports.reportsAnalytics')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-center py-12">
               <BarChart3 className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-neutral-900 mb-2">Access Restricted</h3>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-2">{t('common.accessRestricted')}</h3>
               <p className="text-neutral-600">
-                Reports are only available to Credit Team, KAM, and Administrators.
+                {t('pages.reports.accessRestrictedHint')}
               </p>
             </div>
           </CardContent>
@@ -244,21 +258,12 @@ export const Reports: React.FC = () => {
     );
   }
 
-  const allTabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'daily', label: 'Daily Summary', icon: <BarChart3 className="w-4 h-4" /> as React.ReactNode },
-    { id: 'commission', label: 'Commission', icon: <IndianRupee className="w-4 h-4" /> as React.ReactNode },
-    { id: 'ledger', label: 'Ledger', icon: <FileText className="w-4 h-4" /> as React.ReactNode },
-    { id: 'client-wise', label: 'Client-wise', icon: <Users className="w-4 h-4" /> as React.ReactNode },
-    { id: 'date-range', label: 'Date range', icon: <CalendarRange className="w-4 h-4" /> as React.ReactNode },
-  ];
-  const tabs = allTabs;
-
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Reports"
+      pageTitle={t('pages.reports.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
@@ -266,8 +271,8 @@ export const Reports: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
           <PageHero
-            title="Reports"
-            description="Daily summaries, ledger, client-wise, and date-range reports"
+            title={t('pages.reports.title')}
+            description={t('pages.reports.description')}
           />
           <div className="flex flex-wrap gap-1 border-b border-neutral-200">
             {tabs.map((tab) => (
@@ -292,15 +297,15 @@ export const Reports: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>
-                {reportTab === 'ledger' && 'Ledger report'}
-                {reportTab === 'client-wise' && 'Client-wise report'}
-                {reportTab === 'date-range' && 'Date range report'}
+                {reportTab === 'ledger' && t('pages.reports.ledgerReport')}
+                {reportTab === 'client-wise' && t('pages.reports.clientWiseReport')}
+                {reportTab === 'date-range' && t('pages.reports.dateRangeReport')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-neutral-700">From</label>
+                  <label className="text-sm font-medium text-neutral-700">{t('common.from')}</label>
                   <input
                     type="date"
                     value={reportFrom}
@@ -309,7 +314,7 @@ export const Reports: React.FC = () => {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-neutral-700">To</label>
+                  <label className="text-sm font-medium text-neutral-700">{t('common.to')}</label>
                   <input
                     type="date"
                     value={reportTo}
@@ -319,18 +324,18 @@ export const Reports: React.FC = () => {
                 </div>
                 {reportTab === 'ledger' && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-neutral-700">Client ID (optional)</label>
+                    <label className="text-sm font-medium text-neutral-700">{t('pages.reports.clientIdOptional')}</label>
                     <input
                       type="text"
                       value={reportClientId}
                       onChange={(e) => setReportClientId(e.target.value)}
-                      placeholder="Filter by client"
+                      placeholder={t('pages.reports.filterByClient')}
                       className="border border-neutral-300 rounded px-3 py-2 text-sm min-w-[140px]"
                     />
                   </div>
                 )}
                 <Button variant="primary" onClick={runReport} loading={reportLoading} disabled={reportLoading}>
-                  Run report
+                  {t('pages.reports.runReport')}
                 </Button>
               </div>
               {reportError && (
@@ -343,28 +348,28 @@ export const Reports: React.FC = () => {
                 <div className="mt-6 space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="bg-neutral-50 rounded-lg p-3">
-                      <p className="text-xs text-neutral-500 uppercase">Total Payouts</p>
+                      <p className="text-xs text-neutral-500 uppercase">{t('pages.reports.totalPayouts')}</p>
                       <p className="text-lg font-semibold text-neutral-900">
                         {formatCurrency(Number(reportData.totalPayoutAmount ?? 0))}
                       </p>
-                      <p className="text-xs text-neutral-500">{Number(reportData.payoutCount ?? 0)} entries</p>
+                      <p className="text-xs text-neutral-500">{t('pages.reports.entriesCount', { count: Number(reportData.payoutCount ?? 0) })}</p>
                     </div>
                     <div className="bg-neutral-50 rounded-lg p-3">
-                      <p className="text-xs text-neutral-500 uppercase">Total Payins</p>
+                      <p className="text-xs text-neutral-500 uppercase">{t('pages.reports.totalPayins')}</p>
                       <p className="text-lg font-semibold text-neutral-900">
                         {formatCurrency(Number(reportData.totalPayinAmount ?? 0))}
                       </p>
-                      <p className="text-xs text-neutral-500">{Number(reportData.payinCount ?? 0)} entries</p>
+                      <p className="text-xs text-neutral-500">{t('pages.reports.entriesCount', { count: Number(reportData.payinCount ?? 0) })}</p>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border border-neutral-200">
                       <thead>
                         <tr className="bg-neutral-50 border-b border-neutral-200">
-                          <th className="text-left p-2">Date</th>
-                          <th className="text-left p-2">Client</th>
-                          <th className="text-right p-2">Amount</th>
-                          <th className="text-left p-2">Description</th>
+                          <th className="text-left p-2">{t('common.date')}</th>
+                          <th className="text-left p-2">{t('common.clientLabel')}</th>
+                          <th className="text-right p-2">{t('common.amount')}</th>
+                          <th className="text-left p-2">{t('common.description')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -389,11 +394,11 @@ export const Reports: React.FC = () => {
                   <table className="w-full text-sm border border-neutral-200">
                     <thead>
                       <tr className="bg-neutral-50 border-b border-neutral-200">
-                        <th className="text-left p-2">Client</th>
-                        <th className="text-left p-2">Name</th>
-                        <th className="text-right p-2">Total Payouts</th>
-                        <th className="text-right p-2">Total Payins</th>
-                        <th className="text-right p-2">Entries</th>
+                        <th className="text-left p-2">{t('common.clientLabel')}</th>
+                        <th className="text-left p-2">{t('pages.reports.clientName')}</th>
+                        <th className="text-right p-2">{t('pages.reports.totalPayouts')}</th>
+                        <th className="text-right p-2">{t('pages.reports.totalPayins')}</th>
+                        <th className="text-right p-2">{t('common.entries')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -415,7 +420,7 @@ export const Reports: React.FC = () => {
                 <div className="mt-6">
                   <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
                     <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-mono">
-                      {String(reportData.summaryContent ?? 'No summary.')}
+                      {String(reportData.summaryContent ?? t('pages.reports.noSummary'))}
                     </pre>
                   </div>
                 </div>
@@ -430,9 +435,9 @@ export const Reports: React.FC = () => {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-neutral-900">Daily Summary</h2>
+              <h2 className="text-lg font-semibold text-neutral-900">{t('pages.reports.dailySummaryTitle')}</h2>
               <p className="text-sm text-neutral-600 mt-1">
-                Automated daily reports aggregating loan applications, commission ledger, and audit log metrics
+                {t('pages.reports.dailySummaryDescription')}
               </p>
             </div>
             <div className="flex gap-2">
@@ -445,7 +450,7 @@ export const Reports: React.FC = () => {
                 }}
                 disabled={loading}
               >
-                Refresh
+                {t('common.refresh')}
               </Button>
               {(userRole === 'credit_team' || userRole === 'admin') && (
                 <Button
@@ -455,7 +460,7 @@ export const Reports: React.FC = () => {
                   loading={generating}
                   disabled={generating}
                 >
-                  Generate Today&apos;s Report
+                  {t('pages.reports.generateTodayReport')}
                 </Button>
               )}
             </div>
@@ -465,8 +470,8 @@ export const Reports: React.FC = () => {
               <Input
                 id="email-recipients"
                 type="text"
-                label="Email to (optional)"
-                placeholder="e.g. manager@company.com, team@company.com"
+                label={t('pages.reports.emailToOptional')}
+                placeholder={t('pages.reports.emailRecipientsPlaceholder')}
                 value={emailRecipients}
                 onChange={(e) => setEmailRecipients(e.target.value)}
               />
@@ -477,31 +482,31 @@ export const Reports: React.FC = () => {
         {/* Latest report */}
         <Card>
           <CardHeader>
-            <CardTitle>Latest report</CardTitle>
+            <CardTitle>{t('pages.reports.latestReport')}</CardTitle>
           </CardHeader>
           <CardContent>
             {latestLoading ? (
               <div className="flex items-center gap-3 py-4">
                 <div className="animate-spin w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full" />
-                <span className="text-sm text-neutral-500">Loading latest report...</span>
+                <span className="text-sm text-neutral-500">{t('pages.reports.loadingLatestReport')}</span>
               </div>
             ) : latestReport ? (
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <Calendar className="w-5 h-5 text-neutral-400" />
                   <span className="font-medium text-neutral-900">
-                    Report for {formatDate(latestReport.reportDate)}
+                    {t('pages.reports.reportFor', { date: formatDate(latestReport.reportDate) })}
                   </span>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-neutral-600 mb-3">
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
-                    <span>Generated: {formatDateTime(latestReport.generatedTimestamp)}</span>
+                    <span>{t('pages.reports.generated')} {formatDateTime(latestReport.generatedTimestamp)}</span>
                   </div>
                   {latestReport.deliveredTo && (
                     <div className="flex items-center gap-1">
                       <Mail className="w-4 h-4" />
-                      <span>Delivered to: {latestReport.deliveredTo}</span>
+                      <span>{t('pages.reports.deliveredTo')} {latestReport.deliveredTo}</span>
                     </div>
                   )}
                 </div>
@@ -518,17 +523,17 @@ export const Reports: React.FC = () => {
                     size="sm"
                     onClick={() => document.getElementById('reports-list')?.scrollIntoView({ behavior: 'smooth' })}
                   >
-                    View full report in list below
+                    {t('pages.reports.viewFullReport')}
                   </Button>
                 </p>
               </div>
             ) : (
               <div className="text-center py-6">
                 <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-                <p className="text-neutral-600 mb-3">No report generated yet.</p>
+                <p className="text-neutral-600 mb-3">{t('pages.reports.noReportYet')}</p>
                 {(userRole === 'credit_team' || userRole === 'admin') && (
                   <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
-                    Generate Today&apos;s Report
+                    {t('pages.reports.generateTodayReport')}
                   </Button>
                 )}
               </div>
@@ -539,33 +544,33 @@ export const Reports: React.FC = () => {
         {/* Reports List */}
         <Card id="reports-list">
           <CardHeader>
-            <CardTitle>Recent Reports (Last 7 Days)</CardTitle>
+            <CardTitle>{t('pages.reports.recentReports')}</CardTitle>
           </CardHeader>
           <CardContent>
             {reportsError ? (
               <div className="text-center py-12">
                 <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Could not load reports</h3>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">{t('pages.reports.couldNotLoadReports')}</h3>
                 <p className="text-neutral-600 mb-4">{reportsError}</p>
                 <Button variant="primary" icon={RefreshCw} onClick={fetchReports}>
-                  Retry
+                  {t('common.retry')}
                 </Button>
               </div>
             ) : loading ? (
               <div className="text-center py-10">
                 <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2" />
-                <p className="text-sm text-neutral-500">Loading reports...</p>
+                <p className="text-sm text-neutral-500">{t('pages.reports.loadingReports')}</p>
               </div>
             ) : reports.length === 0 ? (
               <div className="text-center py-12">
                 <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">No reports found</h3>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">{t('pages.reports.noReports')}</h3>
                 <p className="text-neutral-600 mb-4">
-                  No daily summary reports have been generated yet.
+                  {t('pages.reports.noReportsHint')}
                 </p>
                 {(userRole === 'credit_team' || userRole === 'admin') && (
                   <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
-                    Generate First Report
+                    {t('pages.reports.generateFirstReport')}
                   </Button>
                 )}
               </div>
@@ -579,18 +584,18 @@ export const Reports: React.FC = () => {
                           <div className="flex items-center gap-3 mb-2">
                             <Calendar className="w-5 h-5 text-neutral-400" />
                             <CardTitle className="text-lg">
-                              Report for {formatDate(report.reportDate)}
+                              {t('pages.reports.reportFor', { date: formatDate(report.reportDate) })}
                             </CardTitle>
                           </div>
                           <div className="flex items-center gap-4 text-sm text-neutral-600">
                             <div className="flex items-center gap-1">
                               <Clock className="w-4 h-4" />
-                              <span>Generated: {formatDateTime(report.generatedTimestamp)}</span>
+                              <span>{t('pages.reports.generated')} {formatDateTime(report.generatedTimestamp)}</span>
                             </div>
                             {report.deliveredTo && (
                               <div className="flex items-center gap-1">
                                 <Mail className="w-4 h-4" />
-                                <span>Delivered to: {report.deliveredTo}</span>
+                                <span>{t('pages.reports.deliveredTo')} {report.deliveredTo}</span>
                               </div>
                             )}
                           </div>

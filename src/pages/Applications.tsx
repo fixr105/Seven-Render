@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { useAuth } from '../auth/AuthContext';
@@ -32,10 +33,27 @@ function getStatusChipVariant(_key: string, index: number): keyof typeof FILTER_
 }
 
 export const Applications: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const userRole = user?.role || null;
+
+  const getRoleDisplayName = () => {
+    switch (userRole) {
+      case 'client':
+        return t('roles.client');
+      case 'kam':
+        return t('roles.kam');
+      case 'credit_team':
+      case 'admin':
+        return t('roles.creditTeam');
+      case 'nbfc':
+        return t('roles.nbfc');
+      default:
+        return t('common.unknown');
+    }
+  };
   
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
@@ -275,7 +293,7 @@ export const Applications: React.FC = () => {
         (app as any).client ||
         (app as any).client_name ||
         (app as any).form_data?.client_identifier ||
-        'Unknown';
+        t('common.unknown');
 
       const applicantName =
         app.applicant_name || (app as any).performed_by || (app as any).applicant || 'N/A';
@@ -318,7 +336,7 @@ export const Applications: React.FC = () => {
         rawStatus: app.status,
       };
     });
-  }, [applications, queryCounts, statusLabelByKey, userRole]);
+  }, [applications, queryCounts, statusLabelByKey, userRole, t]);
 
   const filteredData = useMemo(() => {
     return displayApplications.filter((app) => {
@@ -395,56 +413,54 @@ export const Applications: React.FC = () => {
 
   const handleRaiseQuery = async () => {
     if (!selectedApplication || !queryMessage.trim()) return;
+    if (userRole !== 'credit_team' && userRole !== 'kam') return;
     setSubmittingQuery(true);
     try {
-      let response;
-      if (userRole === 'credit_team') {
-        response = await apiService.raiseQueryToKAM(selectedApplication.id, queryMessage.trim());
-      } else if (userRole === 'kam') {
-        response = await apiService.raiseQueryToClient(selectedApplication.id, queryMessage.trim());
-      } else {
-        response = await apiService.createClientQuery(selectedApplication.id, queryMessage.trim());
-      }
+      const response =
+        userRole === 'credit_team'
+          ? await apiService.raiseQueryToKAM(selectedApplication.id, queryMessage.trim())
+          : await apiService.raiseQueryToClient(selectedApplication.id, queryMessage.trim());
       if (response?.success) {
         setShowQueryModal(false);
         setQueryMessage('');
         setSelectedApplication(null);
         refetch();
       } else {
-        alert(response?.error || 'Failed to raise query');
+        alert(response?.error || t('pages.applications.raiseQueryFailed'));
       }
     } catch (error) {
       console.error('Error raising query:', error);
-      alert(error instanceof Error ? error.message : 'Failed to raise query');
+      alert(error instanceof Error ? error.message : t('pages.applications.raiseQueryFailed'));
     } finally {
       setSubmittingQuery(false);
     }
   };
 
-  const columns: Column<typeof displayApplications[0]>[] = [
-    { key: 'fileNumber', label: 'File ID', sortable: true },
-    { key: 'clientName', label: 'Client', sortable: true },
-    { key: 'applicantName', label: 'Applicant', sortable: true },
-    { key: 'loanType', label: 'Loan Type', sortable: true },
-    { key: 'amount', label: 'Amount', sortable: true, align: 'right' },
+  const columns: Column<typeof displayApplications[0]>[] = useMemo(
+    () => [
+    { key: 'fileNumber', label: t('pages.applications.fileId'), sortable: true },
+    { key: 'clientName', label: t('pages.applications.client'), sortable: true },
+    { key: 'applicantName', label: t('pages.applications.applicant'), sortable: true },
+    { key: 'loanType', label: t('pages.applications.loanType'), sortable: true },
+    { key: 'amount', label: t('common.amount'), sortable: true, align: 'right' },
     {
       key: 'status',
-      label: 'Status',
+      label: t('common.status'),
       render: (value, row) => (
         <div className="flex items-center gap-2">
           <Badge variant={getStatusColor(row.rawStatus ?? '')}>{String(value)}</Badge>
           {userRole === 'credit_team' && row.unresolvedQueryCount > 0 && (
             <Badge variant="warning" className="text-xs">
-              {row.unresolvedQueryCount} {row.unresolvedQueryCount === 1 ? 'query' : 'queries'}
+              {t('pages.applications.queryCount', { count: row.unresolvedQueryCount })}
             </Badge>
           )}
         </div>
       ),
     },
-    { key: 'lastUpdate', label: 'Last Update', sortable: true },
+    { key: 'lastUpdate', label: t('pages.applications.lastUpdate'), sortable: true },
     {
       key: 'actions',
-      label: 'Actions',
+      label: t('common.actions'),
       render: (_, row) => (
         <div className="flex gap-2">
           <Button
@@ -457,39 +473,43 @@ export const Applications: React.FC = () => {
               if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
             }}
           >
-            View
+            {t('common.view')}
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={MessageSquare}
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedApplication(row);
-              setShowQueryModal(true);
-            }}
-          >
-            Query
-          </Button>
+          {(userRole === 'kam' || userRole === 'credit_team') && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={MessageSquare}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedApplication(row);
+                setShowQueryModal(true);
+              }}
+            >
+              {t('common.query')}
+            </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ],
+    [t, userRole, navigate]
+  );
 
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Loan Applications"
-      userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+      pageTitle={t('pages.applications.pageTitle')}
+      userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
       notifications={notifications}
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title="Loan Applications" />
+      <PageHero title={t('pages.applications.title')} />
       {/* Loading State */}
       {loading && (
         <Card className="mb-6">
@@ -497,7 +517,7 @@ export const Applications: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="animate-spin w-5 h-5 border-2 border-brand-primary border-t-transparent rounded-full"></div>
               <div>
-                <p className="text-sm text-neutral-600">Loading applications...</p>
+                <p className="text-sm text-neutral-600">{t('common.loading')}</p>
               </div>
             </div>
           </CardContent>
@@ -511,12 +531,12 @@ export const Applications: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <p className="text-sm font-medium text-warning mb-1">
-                  {unmappedView ? 'No unmapped applications' : 'No applications found'}
+                  {unmappedView ? t('pages.applications.noUnmapped') : t('pages.applications.noApplications')}
                 </p>
                 <p className="text-xs text-neutral-600">
                   {unmappedView
-                    ? 'Applications not linked to a client or KAM (e.g. input from the backend) will appear under the Unmapped tab.'
-                    : 'There are no applications in the backend database.'}
+                    ? t('pages.applications.noUnmappedHint')
+                    : t('pages.applications.noApplicationsHint')}
                 </p>
               </div>
               <Button 
@@ -525,7 +545,7 @@ export const Applications: React.FC = () => {
                 onClick={refetch}
                 className="ml-4"
               >
-                Refresh
+                {t('common.refresh')}
               </Button>
             </div>
           </CardContent>
@@ -545,7 +565,7 @@ export const Applications: React.FC = () => {
                 : 'text-neutral-600 hover:text-neutral-900'
             }`}
           >
-            All
+            {t('pages.applications.allTab')}
           </button>
           <button
             type="button"
@@ -557,7 +577,7 @@ export const Applications: React.FC = () => {
                 : 'text-neutral-600 hover:text-neutral-900'
             }`}
           >
-            Unmapped
+            {t('pages.applications.unmappedTab')}
           </button>
         </div>
       )}
@@ -570,7 +590,7 @@ export const Applications: React.FC = () => {
               <SearchBar
                 value={searchQuery}
                 onChange={setSearchQuery}
-                placeholder="Search by File ID, Client, Applicant, or Loan Type..."
+                placeholder={t('pages.applications.searchPlaceholder')}
               />
             </div>
             <div className="flex flex-shrink-0 gap-2">
@@ -581,17 +601,17 @@ export const Applications: React.FC = () => {
                 disabled={loading}
                 className={loading ? 'opacity-50 cursor-not-allowed' : ''}
               >
-                {loading ? 'Loading...' : 'Refresh'}
+                {loading ? t('common.loading') : t('common.refresh')}
               </Button>
               <Button variant="primary" icon={Plus} onClick={() => navigate('/applications/new')}>
-                New Application
+                {t('pages.applications.newApplication')}
               </Button>
             </div>
           </div>
           <div className="flex flex-col gap-3 pt-3 mt-1 border-t border-neutral-200">
             <div className="flex flex-wrap items-center gap-2">
               <label htmlFor="applications-product-filter" className="text-sm font-medium text-neutral-600">
-                Loan product:
+                {t('pages.applications.loanType')}:
               </label>
               <select
                 id="applications-product-filter"
@@ -604,7 +624,7 @@ export const Applications: React.FC = () => {
                   updateFilterUrl(v, selectedStatusKeys);
                 }}
               >
-                <option value="">All products</option>
+                <option value="">{t('pages.applications.allProducts')}</option>
                 {loanProducts.map((p) => {
                   const id = String(p.productId ?? p.id ?? '');
                   const label = String(p.productName ?? p['Product Name'] ?? p.name ?? id);
@@ -616,12 +636,12 @@ export const Applications: React.FC = () => {
                 })}
               </select>
               {loadingLoanProducts && (
-                <span className="text-xs text-neutral-500">Loading products…</span>
+                <span className="text-xs text-neutral-500">{t('common.loading')}</span>
               )}
             </div>
             {statusCatalog.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-neutral-600 mr-1">Status:</span>
+                <span className="text-sm font-medium text-neutral-600 mr-1">{t('common.status')}:</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -629,14 +649,14 @@ export const Applications: React.FC = () => {
                     updateFilterUrl(productFilterId, []);
                   }}
                   aria-pressed={selectedStatusKeys.length === 0}
-                  aria-label="Show all statuses"
+                  aria-label={t('pages.applications.allStatuses')}
                   className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                     selectedStatusKeys.length === 0
                       ? FILTER_TAG_STYLES.neutral.active
                       : FILTER_TAG_STYLES.neutral.base
                   }`}
                 >
-                  All
+                  {t('pages.applications.allStatuses')}
                 </button>
                 {statusCatalog.map((opt, idx) => {
                   const variant = getStatusChipVariant(opt.key, idx);
@@ -656,7 +676,7 @@ export const Applications: React.FC = () => {
                         });
                       }}
                       aria-pressed={isActive}
-                      aria-label={`Filter by ${opt.label}`}
+                      aria-label={t('pages.applications.filterByStatus', { label: opt.label })}
                       className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${isActive ? styles.active : styles.base}`}
                     >
                       {opt.label}
@@ -673,20 +693,20 @@ export const Applications: React.FC = () => {
       {clientIdFromUrl && (
         <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
           <span className="text-sm text-neutral-600">
-            Client: <strong className="text-neutral-900">
+            {t('pages.applications.client')}: <strong className="text-neutral-900">
               {sortedData.length > 0
                 ? sortedData[0].clientName
-                : (clientFilterDisplayName || clientIdFromUrl || 'Client filter active')}
+                : (clientFilterDisplayName || clientIdFromUrl || t('pages.applications.clientFilterActive'))}
             </strong>
           </span>
           <button
             type="button"
             onClick={() => navigate('/applications', { replace: true })}
             className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm font-medium text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
-            aria-label="Clear client filter"
+            aria-label={t('pages.applications.clearClientFilter')}
           >
             <X className="w-4 h-4" />
-            Clear
+            {t('common.clear')}
           </button>
         </div>
       )}
@@ -695,13 +715,13 @@ export const Applications: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-2 gap-4 mb-6">
         <Card>
           <CardContent>
-            <p className="text-sm text-neutral-500">Total</p>
+            <p className="text-sm text-neutral-500">{t('pages.applications.total')}</p>
             <p className="text-2xl font-bold text-neutral-900 mt-1">{applications.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
-            <p className="text-sm text-neutral-500">Pending</p>
+            <p className="text-sm text-neutral-500">{t('pages.applications.pending')}</p>
             <p className="text-2xl font-bold text-warning mt-1">
               {applications.filter(a => a.status.includes('pending') || a.status.includes('query')).length}
             </p>
@@ -713,19 +733,21 @@ export const Applications: React.FC = () => {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle>
-            {unmappedView ? `Unmapped Applications (${sortedData.length})` : `All Applications (${sortedData.length})`}
+            {unmappedView
+              ? `${t('pages.applications.unmappedTab')} ${t('pages.applications.title')} (${sortedData.length})`
+              : `${t('pages.applications.allTab')} ${t('pages.applications.title')} (${sortedData.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-neutral-500">Loading applications...</div>
+            <div className="text-center py-8 text-neutral-500">{t('common.loading')}</div>
           ) : sortedData.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                 {applications.length > 0 ? (
                   <>
-                    <p className="text-neutral-600 font-medium mb-1">No applications match the current filters</p>
-                    <p className="text-neutral-500 text-sm mb-4">Try clearing search and status filter.</p>
+                    <p className="text-neutral-600 font-medium mb-1">{t('pages.applications.noMatchFilters')}</p>
+                    <p className="text-neutral-500 text-sm mb-4">{t('pages.applications.noMatchFiltersHint')}</p>
                     <Button
                       variant="tertiary"
                       size="sm"
@@ -741,24 +763,24 @@ export const Applications: React.FC = () => {
                         }, { replace: true });
                       }}
                     >
-                      Clear filters
+                      {t('pages.applications.clearFilters')}
                     </Button>
                   </>
                 ) : unmappedView ? (
                   <>
-                    <p className="text-neutral-600 font-medium mb-1">No unmapped applications</p>
+                    <p className="text-neutral-600 font-medium mb-1">{t('pages.applications.noUnmapped')}</p>
                     <p className="text-neutral-500 text-sm mb-4">
-                      Applications not linked to a client (or for KAM, not matching any managed client) will appear here—e.g. records input from the backend.
+                      {t('pages.applications.noUnmappedHint')}
                     </p>
                     <Button variant="tertiary" size="sm" onClick={refetch} className="mt-4">
-                      Refresh
+                      {t('common.refresh')}
                     </Button>
                   </>
                 ) : (
                   <>
-                    <p className="text-neutral-500">No applications found</p>
+                    <p className="text-neutral-500">{t('pages.applications.noApplications')}</p>
                     <Button variant="tertiary" size="sm" onClick={refetch} className="mt-4">
-                      Refresh Data
+                      {t('common.refresh')}
                     </Button>
                   </>
                 )}
@@ -798,24 +820,24 @@ export const Applications: React.FC = () => {
         size="md"
       >
         <ModalHeader onClose={() => setShowQueryModal(false)}>
-          Raise Query - File #{selectedApplication?.id}
+          {t('pages.applications.raiseQueryTitle', { id: selectedApplication?.id })}
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
             <div className="bg-neutral-50 p-3 rounded">
               <p className="text-sm text-neutral-700">
-                <span className="font-medium">Client:</span> {selectedApplication?.clientName}
+                <span className="font-medium">{t('pages.applications.client')}:</span> {selectedApplication?.clientName}
               </p>
               <p className="text-sm text-neutral-700 mt-1">
-                <span className="font-medium">Applicant:</span> {selectedApplication?.applicantName}
+                <span className="font-medium">{t('pages.applications.applicant')}:</span> {selectedApplication?.applicantName}
               </p>
               <p className="text-sm text-neutral-700 mt-1">
-                <span className="font-medium">Loan Type:</span> {selectedApplication?.loanType}
+                <span className="font-medium">{t('pages.applications.loanType')}:</span> {selectedApplication?.loanType}
               </p>
             </div>
             <TextArea
-              label="Query Message"
-              placeholder="Enter your query or request for additional information..."
+              label={t('pages.applications.queryMessage')}
+              placeholder={t('pages.applications.queryPlaceholder')}
               value={queryMessage}
               onChange={(e) => setQueryMessage(e.target.value)}
               required
@@ -832,7 +854,7 @@ export const Applications: React.FC = () => {
               setSelectedApplication(null);
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -840,7 +862,7 @@ export const Applications: React.FC = () => {
             disabled={!queryMessage.trim() || submittingQuery}
             loading={submittingQuery}
           >
-            Send Query
+            {t('common.sendQuery')}
           </Button>
         </ModalFooter>
       </Modal>

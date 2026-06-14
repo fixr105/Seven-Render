@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -15,18 +16,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
-const ROLE_OPTIONS = [
-  { value: 'client', label: 'Client' },
-  { value: 'kam', label: 'KAM' },
-  { value: 'credit_team', label: 'Credit Team' },
-  { value: 'nbfc', label: 'NBFC' },
-  { value: 'admin', label: 'Admin' },
-];
-
-const STATUS_OPTIONS = [
-  { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
-];
+const STATUS_VALUES = ['Active', 'Inactive'] as const;
 
 interface UserAccountRow {
   id: string;
@@ -37,6 +27,7 @@ interface UserAccountRow {
 }
 
 export const AdminUserAccounts: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const userRole = user?.role || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -57,6 +48,26 @@ export const AdminUserAccounts: React.FC = () => {
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
+  const roleOptions = useMemo(
+    () => [
+      { value: 'client', label: t('roles.client') },
+      { value: 'kam', label: t('roles.kam') },
+      { value: 'credit_team', label: t('roles.creditTeam') },
+      { value: 'nbfc', label: t('roles.nbfc') },
+      { value: 'admin', label: t('roles.admin') },
+    ],
+    [t]
+  );
+
+  const statusOptions = useMemo(
+    () =>
+      STATUS_VALUES.map((value) => ({
+        value,
+        label: value === 'Active' ? t('common.active') : t('common.inactive'),
+      })),
+    [t]
+  );
+
   const fetchAccounts = async (fresh = false): Promise<UserAccountRow[]> => {
     try {
       setLoading(true);
@@ -73,11 +84,11 @@ export const AdminUserAccounts: React.FC = () => {
         setAccounts(accountsData);
         return accountsData;
       } else {
-        setError(response.error || 'Failed to load user accounts');
+        setError(response.error || t('pages.adminUserAccounts.loadFailed'));
         return [];
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load user accounts');
+      setError(err instanceof Error ? err.message : t('pages.adminUserAccounts.loadFailed'));
       return [];
     } finally {
       setLoading(false);
@@ -107,11 +118,11 @@ export const AdminUserAccounts: React.FC = () => {
   const handleCreateUser = async () => {
     const email = createForm.username.trim();
     if (!email) {
-      setCreateError('Username (email) is required');
+      setCreateError(t('pages.adminUserAccounts.usernameRequired'));
       return;
     }
     if (createForm.password.length < 6) {
-      setCreateError('Password must be at least 6 characters');
+      setCreateError(t('pages.adminUserAccounts.passwordMinLength'));
       return;
     }
     setSaving(true);
@@ -140,14 +151,14 @@ export const AdminUserAccounts: React.FC = () => {
         const errMsg = res.error || 'Failed to create user';
         setCreateError(
           errMsg.includes('403') || errMsg.includes('Forbidden') || errMsg.includes('Insufficient')
-            ? 'You do not have permission to create user accounts.'
+            ? t('pages.adminUserAccounts.createPermissionDenied')
             : errMsg
         );
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create user';
+      const message = err instanceof Error ? err.message : t('pages.adminUserAccounts.createUser');
       if (message.includes('403') || message.includes('Forbidden') || message.includes('Insufficient')) {
-        setCreateError('You do not have permission to create user accounts.');
+        setCreateError(t('pages.adminUserAccounts.createPermissionDenied'));
       } else {
         setCreateError(message);
       }
@@ -156,18 +167,21 @@ export const AdminUserAccounts: React.FC = () => {
     }
   };
 
-  const columns: Column<UserAccountRow>[] = [
-    { key: 'username', label: 'Username', sortable: true },
-    { key: 'role', label: 'Role', sortable: true },
-    {
-      key: 'accountStatus',
-      label: 'Status',
-      render: (value) => (
-        <Badge variant={value === 'Active' ? 'success' : 'neutral'}>{String(value)}</Badge>
-      ),
-    },
-    { key: 'lastLogin', label: 'Last Login', sortable: true },
-  ];
+  const columns: Column<UserAccountRow>[] = useMemo(
+    () => [
+      { key: 'username', label: t('common.username'), sortable: true },
+      { key: 'role', label: t('common.role'), sortable: true },
+      {
+        key: 'accountStatus',
+        label: t('common.status'),
+        render: (value) => (
+          <Badge variant={value === 'Active' ? 'success' : 'neutral'}>{String(value)}</Badge>
+        ),
+      },
+      { key: 'lastLogin', label: t('common.lastLogin'), sortable: true },
+    ],
+    [t]
+  );
 
   if (userRole !== 'credit_team' && userRole !== 'admin') {
     return (
@@ -175,7 +189,7 @@ export const AdminUserAccounts: React.FC = () => {
         sidebarItems={sidebarItems}
         activeItem={activeItem}
         onItemClick={handleNavigation}
-        pageTitle="User Accounts"
+        pageTitle={t('pages.adminUserAccounts.pageTitle')}
         userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
         userName={user?.name || user?.email?.split('@')[0] || ''}
         notificationCount={unreadCount}
@@ -184,7 +198,7 @@ export const AdminUserAccounts: React.FC = () => {
         onMarkAllAsRead={markAllAsRead}
       >
         <div className="p-6">
-          <p className="text-neutral-600">You do not have permission to view user accounts.</p>
+          <p className="text-neutral-600">{t('pages.adminUserAccounts.permissionDenied')}</p>
         </div>
       </MainLayout>
     );
@@ -195,7 +209,7 @@ export const AdminUserAccounts: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="User Accounts"
+      pageTitle={t('pages.adminUserAccounts.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={user?.name || user?.email?.split('@')[0] || ''}
       notificationCount={unreadCount}
@@ -204,19 +218,19 @@ export const AdminUserAccounts: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="p-6">
-        <PageHero title="User Accounts" />
+        <PageHero title={t('pages.adminUserAccounts.title')} />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              User Accounts
+              {t('pages.adminUserAccounts.title')}
             </CardTitle>
             <div className="flex gap-2">
               <Button variant="primary" size="sm" icon={Plus} onClick={openCreateModal}>
-                Create user
+                {t('pages.adminUserAccounts.createUser')}
               </Button>
               <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => fetchAccounts()} disabled={loading}>
-                Refresh
+                {t('common.refresh')}
               </Button>
             </div>
           </CardHeader>
@@ -225,7 +239,7 @@ export const AdminUserAccounts: React.FC = () => {
               <p className="text-error text-sm mb-4">{error}</p>
             )}
             {loading ? (
-              <div className="text-center py-8 text-neutral-500">Loading user accounts...</div>
+              <div className="text-center py-8 text-neutral-500">{t('pages.adminUserAccounts.loadingUserAccounts')}</div>
             ) : (
               <DataTable
                 columns={columns}
@@ -238,7 +252,7 @@ export const AdminUserAccounts: React.FC = () => {
 
         <Modal isOpen={showCreateModal} onClose={() => !saving && setShowCreateModal(false)} size="md">
           <ModalHeader onClose={saving ? undefined : () => setShowCreateModal(false)}>
-            Create user
+            {t('pages.adminUserAccounts.createUser')}
           </ModalHeader>
           <ModalBody>
             {createError && (
@@ -246,36 +260,36 @@ export const AdminUserAccounts: React.FC = () => {
             )}
             <div className="space-y-4">
               <Input
-                label="Username (email)"
+                label={t('pages.adminUserAccounts.usernameEmail')}
                 type="email"
                 value={createForm.username}
                 onChange={(e) => setCreateForm((f) => ({ ...f, username: e.target.value }))}
-                placeholder="user@example.com"
+                placeholder={t('pages.adminUserAccounts.usernamePlaceholder')}
                 required
               />
               <Input
-                label="Password"
+                label={t('common.password')}
                 type="password"
                 value={createForm.password}
                 onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder="Min 6 characters"
+                placeholder={t('pages.adminUserAccounts.passwordPlaceholder')}
                 required
               />
               <Select
-                label="Role"
-                options={ROLE_OPTIONS}
+                label={t('common.role')}
+                options={roleOptions}
                 value={createForm.role}
                 onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value }))}
               />
               <Input
-                label="Associated profile (optional)"
+                label={t('pages.adminUserAccounts.associatedProfile')}
                 value={createForm.associatedProfile}
                 onChange={(e) => setCreateForm((f) => ({ ...f, associatedProfile: e.target.value }))}
-                placeholder="e.g. client or KAM profile ID"
+                placeholder={t('pages.adminUserAccounts.associatedProfilePlaceholder')}
               />
               <Select
-                label="Account status"
-                options={STATUS_OPTIONS}
+                label={t('pages.adminUserAccounts.accountStatus')}
+                options={statusOptions}
                 value={createForm.accountStatus}
                 onChange={(e) => setCreateForm((f) => ({ ...f, accountStatus: e.target.value }))}
               />
@@ -283,10 +297,10 @@ export const AdminUserAccounts: React.FC = () => {
           </ModalBody>
           <ModalFooter>
             <Button variant="tertiary" onClick={() => setShowCreateModal(false)} disabled={saving}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="primary" onClick={handleCreateUser} disabled={saving}>
-              {saving ? 'Creating…' : 'Create user'}
+              {saving ? t('common.creating') : t('pages.adminUserAccounts.createUser')}
             </Button>
           </ModalFooter>
         </Modal>

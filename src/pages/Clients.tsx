@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -42,6 +43,7 @@ import { formatDateFull } from '../utils/dateFormatter';
 const formatDate = formatDateFull;
 
 export const Clients: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const userRole = user?.role || null;
@@ -259,42 +261,42 @@ export const Clients: React.FC = () => {
     return true; // 'all'
   });
 
-  const columns: Column<Client>[] = [
+  const columns: Column<Client>[] = useMemo(() => [
     {
       key: 'company_name',
-      label: 'Company Name',
+      label: t('common.companyName'),
       sortable: true,
     },
     {
       key: 'contact_person',
-      label: 'Contact Person',
+      label: t('common.contactPerson'),
       sortable: true,
     },
     {
       key: 'email',
-      label: 'Email',
+      label: t('common.email'),
       sortable: false,
     },
     {
       key: 'phone',
-      label: 'Phone',
+      label: t('common.phone'),
       sortable: false,
     },
     {
       key: 'kam_id',
-      label: 'Assigned KAM',
+      label: t('common.assignedKam'),
       sortable: false,
       render: (value, row) => (
         value ? (
           <Badge variant="info">{String((row as Client).kam_name || value)}</Badge>
         ) : (
-          <Badge variant="warning">Unassigned</Badge>
+          <Badge variant="warning">{t('common.unassigned')}</Badge>
         )
       ),
     },
     {
       key: '_count',
-      label: 'Applications',
+      label: t('pages.applications.title'),
       align: 'center',
       render: (count) => (
         <Badge variant="neutral">{(count as { applications?: number })?.applications ?? 0}</Badge>
@@ -302,22 +304,22 @@ export const Clients: React.FC = () => {
     },
     {
       key: 'is_active',
-      label: 'Status',
+      label: t('common.status'),
       render: (value) => (
         <Badge variant={value ? 'success' : 'error'}>
-          {value ? 'Active' : 'Inactive'}
+          {value ? t('common.active') : t('common.inactive')}
         </Badge>
       ),
     },
     {
       key: 'created_at',
-      label: 'Onboarded',
+      label: t('common.onboarded'),
       sortable: true,
       render: (value) => formatDate(value as string | Date | null | undefined),
     },
     {
       key: 'actions',
-      label: 'Actions',
+      label: t('common.actions'),
       render: (_, row) => (
         <div className="flex gap-2">
           <Button
@@ -326,7 +328,7 @@ export const Clients: React.FC = () => {
             icon={Eye}
             onClick={() => navigate(`/applications?clientId=${row.id}`)}
           >
-            View Files
+            {t('common.viewFiles')}
           </Button>
           {userRole === 'credit_team' && (
             <Button
@@ -339,20 +341,20 @@ export const Clients: React.FC = () => {
                 setShowAssignModal(true);
               }}
             >
-              {row.kam_id ? 'Reassign KAM' : 'Assign KAM'}
+              {row.kam_id ? t('common.reassignKam') : t('common.assignKam')}
             </Button>
           )}
         </div>
       ),
     },
-  ];
+  ], [t, navigate, userRole]);
 
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Client Management"
+      pageTitle={t('pages.clients.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
@@ -361,13 +363,12 @@ export const Clients: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
-        <PageHero title="Client Management" />
-      {/* Debug Info Panel - only visible in development */}
+        <PageHero title={t('pages.clients.title')} />
       {import.meta.env.DEV && debugInfo && (
         <Card className="mb-4 border-2 border-brand-primary">
           <CardContent className="p-3">
             <div className="text-sm font-mono bg-neutral-50 p-2 rounded">
-              <strong>Debug Info:</strong> {debugInfo}
+              <strong>{t('pages.clients.debugInfo')}</strong> {debugInfo}
             </div>
           </CardContent>
         </Card>
@@ -381,7 +382,7 @@ export const Clients: React.FC = () => {
               <SearchBar
                 value={searchQuery}
                 onChange={setSearchQuery}
-                placeholder="Search clients by name, contact, or email..."
+                placeholder={t('pages.clients.searchPlaceholder')}
               />
             </div>
             <div className="flex gap-2">
@@ -391,11 +392,11 @@ export const Clients: React.FC = () => {
                 onClick={() => fetchClients(true)}
                 disabled={loading}
               >
-                Refresh
+                {t('common.refresh')}
               </Button>
             {userRole === 'kam' && (
               <Button variant="primary" icon={UserPlus} onClick={() => setShowOnboardModal(true)}>
-                Onboard Client
+                {t('pages.clients.onboardClient')}
               </Button>
             )}
             </div>
@@ -407,14 +408,14 @@ export const Clients: React.FC = () => {
       <div className={`grid grid-cols-1 md:grid-cols-4 ${userRole === 'credit_team' ? 'lg:grid-cols-5' : ''} gap-4 mb-6`}>
         <Card>
           <CardContent>
-            <p className="text-sm text-neutral-500">Total Clients</p>
+            <p className="text-sm text-neutral-500">{t('common.totalClients')}</p>
             <p className="text-2xl font-bold text-neutral-900 mt-1">{clientsWithCounts.length}</p>
           </CardContent>
         </Card>
         {userRole === 'credit_team' && (
           <Card>
             <CardContent>
-              <p className="text-sm text-neutral-500">Unassigned Clients</p>
+              <p className="text-sm text-neutral-500">{t('common.unassignedClients')}</p>
               <p className="text-2xl font-bold text-warning mt-1">
                 {clientsWithCounts.filter(c => !c.kam_id || c.kam_id === '').length}
               </p>
@@ -423,7 +424,7 @@ export const Clients: React.FC = () => {
         )}
         <Card>
           <CardContent>
-            <p className="text-sm text-neutral-500">Active Clients</p>
+            <p className="text-sm text-neutral-500">{t('pages.clients.activeClients')}</p>
             <p className="text-2xl font-bold text-success mt-1">
               {clientsWithCounts.filter(c => c.is_active).length}
             </p>
@@ -431,7 +432,7 @@ export const Clients: React.FC = () => {
         </Card>
         <Card>
           <CardContent>
-            <p className="text-sm text-neutral-500">Total Applications</p>
+            <p className="text-sm text-neutral-500">{t('common.totalApplications')}</p>
             <p className="text-2xl font-bold text-brand-primary mt-1">
               {clientsWithCounts.reduce((sum, c) => sum + (c._count?.applications || 0), 0)}
             </p>
@@ -439,7 +440,7 @@ export const Clients: React.FC = () => {
         </Card>
         <Card>
           <CardContent>
-            <p className="text-sm text-neutral-500">Avg per Client</p>
+            <p className="text-sm text-neutral-500">{t('common.avgPerClient')}</p>
             <p className="text-2xl font-bold text-neutral-900 mt-1">
               {clientsWithCounts.length > 0
                 ? Math.round(clientsWithCounts.reduce((sum, c) => sum + (c._count?.applications || 0), 0) / clientsWithCounts.length)
@@ -458,19 +459,19 @@ export const Clients: React.FC = () => {
                 variant={filterType === 'all' ? 'primary' : 'secondary'}
                 onClick={() => setFilterType('all')}
               >
-                All ({clientsWithCounts.length})
+                {t('common.all')} ({clientsWithCounts.length})
               </Button>
               <Button
                 variant={filterType === 'unassigned' ? 'primary' : 'secondary'}
                 onClick={() => setFilterType('unassigned')}
               >
-                Unassigned ({clientsWithCounts.filter(c => !c.kam_id || c.kam_id === '').length})
+                {t('common.unassigned')} ({clientsWithCounts.filter(c => !c.kam_id || c.kam_id === '').length})
               </Button>
               <Button
                 variant={filterType === 'assigned' ? 'primary' : 'secondary'}
                 onClick={() => setFilterType('assigned')}
               >
-                Assigned ({clientsWithCounts.filter(c => c.kam_id && c.kam_id !== '').length})
+                {t('common.assigned')} ({clientsWithCounts.filter(c => c.kam_id && c.kam_id !== '').length})
               </Button>
             </div>
           </CardContent>
@@ -481,7 +482,10 @@ export const Clients: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>
-            {filterType === 'all' ? 'All' : filterType === 'unassigned' ? 'Unassigned' : 'Assigned'} Clients ({filteredClients.length})
+            {t('pages.clients.clientsCount', {
+              filter: filterType === 'all' ? t('common.all') : filterType === 'unassigned' ? t('common.unassigned') : t('common.assigned'),
+              count: filteredClients.length,
+            })}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -490,7 +494,7 @@ export const Clients: React.FC = () => {
             data={filteredClients}
             keyExtractor={(row) => row.id}
             loading={loading}
-            emptyMessage="No clients found. Onboard your first client to get started."
+            emptyMessage={t('pages.clients.noClients')}
           />
         </CardContent>
       </Card>
@@ -513,50 +517,50 @@ export const Clients: React.FC = () => {
         size="md"
       >
         <ModalHeader onClose={() => setShowOnboardModal(false)}>
-          Onboard New Client
+          {t('pages.clients.onboardNewClient')}
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
             <Input
-              label="Company Name"
-              placeholder="Enter company name"
+              label={t('common.companyName')}
+              placeholder={t('pages.clients.companyNamePlaceholder')}
               value={newClient.company_name}
               onChange={(e) => setNewClient({ ...newClient, company_name: e.target.value })}
               required
             />
             <Input
-              label="Contact Person"
-              placeholder="Enter contact person name"
+              label={t('common.contactPerson')}
+              placeholder={t('pages.clients.contactPersonPlaceholder')}
               value={newClient.contact_person}
               onChange={(e) => setNewClient({ ...newClient, contact_person: e.target.value })}
               required
             />
             <Input
               type="email"
-              label="Email Address"
-              placeholder="Enter email address"
+              label={t('common.emailAddress')}
+              placeholder={t('pages.clients.emailPlaceholder')}
               value={newClient.email}
               onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
               required
             />
             <Input
               type="tel"
-              label="Phone Number"
-              placeholder="Enter phone number"
+              label={t('common.phoneNumber')}
+              placeholder={t('pages.clients.phonePlaceholder')}
               value={newClient.phone}
               onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
             />
             <Input
               type="number"
-              label="Commission Rate (%)"
+              label={t('common.commissionRatePct')}
               placeholder="1.0"
               value={newClient.commission_rate}
               onChange={(e) => setNewClient({ ...newClient, commission_rate: e.target.value })}
-              helperText="Default commission rate for this client (e.g., 1.0 for 1%)"
+              helperText={t('pages.clients.commissionRateHelper')}
             />
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Enabled Modules
+                {t('common.enabledModules')}
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].map((module) => (
@@ -584,7 +588,7 @@ export const Clients: React.FC = () => {
                 ))}
               </div>
               <p className="text-xs text-neutral-500 mt-1">
-                Select which modules this client has access to
+                {t('pages.clients.enabledModulesHelper')}
               </p>
             </div>
           </div>
@@ -595,7 +599,7 @@ export const Clients: React.FC = () => {
             onClick={() => setShowOnboardModal(false)}
             disabled={submitting}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -603,7 +607,7 @@ export const Clients: React.FC = () => {
             disabled={submitting}
             loading={submitting}
           >
-            Onboard Client
+            {t('pages.clients.onboardClient')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -623,19 +627,19 @@ export const Clients: React.FC = () => {
             setCopiedCredentials(false);
           }}
         >
-          Client onboarded successfully
+          {t('pages.clients.clientOnboardedSuccess')}
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
             <div className="rounded bg-neutral-50 p-3 font-mono text-sm text-neutral-800 space-y-1">
-              <p><strong>Email:</strong> {onboardSuccess?.email}</p>
+              <p><strong>{t('common.email')}:</strong> {onboardSuccess?.email}</p>
               {onboardSuccess?.tempPassword && (
-                <p><strong>Password:</strong> {onboardSuccess.tempPassword}</p>
+                <p><strong>{t('common.password')}:</strong> {onboardSuccess.tempPassword}</p>
               )}
             </div>
             {onboardSuccess?.tempPassword && (
               <p className="text-sm text-neutral-600">
-                Share these credentials with the client for first login.
+                {t('pages.clients.shareCredentialsHint')}
               </p>
             )}
           </div>
@@ -656,7 +660,7 @@ export const Clients: React.FC = () => {
                 }
               }}
             >
-              {copiedCredentials ? 'Copied' : 'Copy login credentials'}
+              {copiedCredentials ? t('common.copied') : t('common.copyLoginCredentials')}
             </Button>
           )}
           <Button
@@ -666,7 +670,7 @@ export const Clients: React.FC = () => {
               setCopiedCredentials(false);
             }}
           >
-            Done
+            {t('common.done')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -682,27 +686,27 @@ export const Clients: React.FC = () => {
         size="md"
       >
         <ModalHeader onClose={() => setShowAssignModal(false)}>
-          {selectedClient?.kam_id ? 'Reassign KAM' : 'Assign KAM'}
+          {selectedClient?.kam_id ? t('common.reassignKam') : t('common.assignKam')}
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
             <p className="text-sm text-neutral-600">
-              Client: <strong>{selectedClient?.company_name}</strong>
+              {t('common.clientLabel')}: <strong>{selectedClient?.company_name}</strong>
             </p>
             {kamUsers.length === 0 ? (
               <div className="text-sm text-neutral-500 py-2">
-                Loading KAMs...
+                {t('common.loadingKams')}
               </div>
             ) : (
               <Select
-                label="Select KAM"
+                label={t('common.selectKam')}
                 value={selectedKAMId}
                 onChange={(e) => setSelectedKAMId(e.target.value)}
                 options={[
-                  { value: '', label: 'Unassign (No KAM)' },
+                  { value: '', label: t('common.unassignNoKam') },
                   ...kamUsers.map(kam => ({
                     value: kam.kamId || kam.id,
-                    label: `${kam.name || 'Unknown'} (${kam.email || 'No email'})`
+                    label: `${kam.name || t('common.unknown')} (${kam.email || t('common.noEmail')})`
                   }))
                 ]}
               />
@@ -719,7 +723,7 @@ export const Clients: React.FC = () => {
             }}
             disabled={submitting}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -734,12 +738,13 @@ export const Clients: React.FC = () => {
                   setShowAssignModal(false);
                   setSelectedClient(null);
                   setSelectedKAMId('');
-                  alert('KAM assigned successfully');
+                  alert(t('pages.clients.kamAssignedSuccess'));
                 } else {
                   alert(`Failed: ${response.error || 'Unknown error'}`);
                 }
-              } catch (error: any) {
-                alert(`Failed: ${error.message || 'Unknown error'}`);
+              } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                alert(`Failed: ${message}`);
               } finally {
                 setSubmitting(false);
               }
@@ -747,7 +752,7 @@ export const Clients: React.FC = () => {
             disabled={submitting}
             loading={submitting}
           >
-            {selectedKAMId ? 'Assign' : 'Unassign'}
+            {selectedKAMId ? t('common.assign') : t('common.unassign')}
           </Button>
         </ModalFooter>
       </Modal>

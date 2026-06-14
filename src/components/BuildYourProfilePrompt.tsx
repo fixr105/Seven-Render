@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { User, Phone, Building } from 'lucide-react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from './ui/Modal';
 import { Input } from './ui/Input';
@@ -21,6 +22,7 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
   onDismiss,
   onSave,
 }) => {
+  const { t } = useTranslation();
   const [name, setName] = useState(user.name || '');
   const [phone, setPhone] = useState(user.phone || '');
   const [company, setCompany] = useState(user.company || '');
@@ -42,11 +44,11 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
   const validatePhone = (value: string): boolean => {
     const digitsOnly = value.replace(/\D/g, '');
     if (digitsOnly.length < 10) {
-      setPhoneError('Phone number must contain at least 10 digits');
+      setPhoneError(t('buildProfile.phoneMinDigits'));
       return false;
     }
     if (digitsOnly.length > 15) {
-      setPhoneError('Phone number cannot exceed 15 digits');
+      setPhoneError(t('buildProfile.phoneMaxDigits'));
       return false;
     }
     setPhoneError('');
@@ -55,8 +57,8 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
 
   const handleSave = async () => {
     if (!name.trim() || !phone.trim() || (missingFieldSet.has('company') && !company.trim())) {
-      setSaveError('Please fill all required fields.');
-      if (!phone.trim()) setPhoneError('Phone number is required');
+      setSaveError(t('buildProfile.fillRequiredFields'));
+      if (!phone.trim()) setPhoneError(t('buildProfile.phoneRequired'));
       return;
     }
     if (!validatePhone(phone)) return;
@@ -69,7 +71,7 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
         ...(missingFieldSet.has('company') ? { company: company.trim() } : {}),
       });
     } catch (error: unknown) {
-      setSaveError(error instanceof Error ? error.message : 'Failed to update profile');
+      setSaveError(error instanceof Error ? error.message : t('buildProfile.updateFailed'));
     } finally {
       setSaving(false);
     }
@@ -77,15 +79,13 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onDismiss} size="md" testId="build-profile-prompt">
-      <ModalHeader onClose={onDismiss}>Build Your Profile</ModalHeader>
+      <ModalHeader onClose={onDismiss}>{t('buildProfile.title')}</ModalHeader>
       <ModalBody className="space-y-4">
-        <p className="text-sm text-neutral-600">
-          Please complete your profile to continue using all features.
-        </p>
+        <p className="text-sm text-neutral-600">{t('buildProfile.description')}</p>
         {saveError && <p className="text-sm text-red-600">{saveError}</p>}
         <Input
-          label="Full Name"
-          placeholder="Enter your full name"
+          label={t('buildProfile.fullName')}
+          placeholder={t('buildProfile.fullNamePlaceholder')}
           icon={User}
           iconPosition="left"
           value={name}
@@ -93,8 +93,8 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
         />
         <Input
           type="tel"
-          label="Phone Number"
-          placeholder="+91 9876543210"
+          label={t('buildProfile.phone')}
+          placeholder={t('buildProfile.phonePlaceholder')}
           icon={Phone}
           iconPosition="left"
           value={phone}
@@ -108,8 +108,8 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
         />
         {missingFieldSet.has('company') && (
           <Input
-            label="Company Name"
-            placeholder="Enter company name"
+            label={t('buildProfile.company')}
+            placeholder={t('buildProfile.companyPlaceholder')}
             icon={Building}
             iconPosition="left"
             value={company}
@@ -119,10 +119,10 @@ export const BuildYourProfilePrompt: React.FC<BuildYourProfilePromptProps> = ({
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" onClick={onDismiss}>
-          Maybe Later
+          {t('buildProfile.maybeLater')}
         </Button>
         <Button variant="primary" onClick={handleSave} loading={saving}>
-          Save Profile
+          {t('buildProfile.saveProfile')}
         </Button>
       </ModalFooter>
     </Modal>

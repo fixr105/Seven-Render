@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Bell, Menu, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { Notification } from '../../hooks/useNotifications';
 import { formatRelativeTime } from '../../utils/dateFormatter';
 import { apiService } from '../../services/api';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface TopBarProps {
   title: string;
@@ -14,7 +16,6 @@ interface TopBarProps {
   notifications?: Notification[];
   onMarkAsRead?: (notificationId: string) => void;
   onMarkAllAsRead?: () => void;
-  /** When true, sidebar is hidden (Tools page) - adjusts layout and Tools button acts as back to Dashboard */
   hideSidebar?: boolean;
 }
 
@@ -28,6 +29,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onMarkAllAsRead,
   hideSidebar = false,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -60,7 +62,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   const handleNotificationClick = (notification: Notification) => {
-    // Mark as read if not already read
     if (!notification.isRead && onMarkAsRead) {
       onMarkAsRead(notification.id);
     }
@@ -74,7 +75,6 @@ export const TopBar: React.FC<TopBarProps> = ({
       const isJavaScriptScheme = lower.startsWith('javascript:');
       const isInternalRoute = link.startsWith('/') && !link.startsWith('//');
 
-      // Allow only internal app routes from notifications.
       if (link && !isExternal && !isJavaScriptScheme && isInternalRoute) {
         target = link;
       }
@@ -87,7 +87,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
     if (!target) {
       if (notification.actionLink || notification.relatedFile) {
-        alert('Invalid notification link');
+        alert(t('topbar.invalidNotificationLink'));
       }
       setShowNotifications(false);
       return;
@@ -109,15 +109,14 @@ export const TopBar: React.FC<TopBarProps> = ({
   return (
     <header
       className={`bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full ${hideSidebar ? '' : 'lg:ml-[-256px] lg:w-[calc(100%+256px)]'}`}
-      aria-label={title ? `Page: ${title}` : undefined}
+      aria-label={title ? t('topbar.pageTitle', { title }) : undefined}
     >
       <div className="flex items-center justify-between h-16 w-full">
-        {/* Left section - account for logo space on desktop when sidebar visible; show page title */}
         <div className={`flex items-center gap-4 pl-4 flex-1 min-w-0 ${hideSidebar ? 'lg:pl-4' : 'lg:pl-64'}`}>
           <button
             onClick={onMenuToggle}
             className="lg:hidden p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
-            aria-label="Toggle menu"
+            aria-label={t('topbar.toggleMenu')}
           >
             <Menu className="w-5 h-5 text-neutral-700" />
           </button>
@@ -128,27 +127,25 @@ export const TopBar: React.FC<TopBarProps> = ({
           ) : null}
         </div>
 
-        {/* Right section */}
         <div className="flex items-center gap-2 pr-4">
-          {/* Tools - NBFC only; when on Tools page, acts as "Back to Dashboard" */}
+          <LanguageSwitcher />
           {user?.role === 'nbfc' && (
             <button
               onClick={handleToolsClick}
               className="relative bg-[#332f78] text-white text-sm px-3 py-1.5 rounded-full hover:opacity-90 transition-opacity touch-manipulation"
-              aria-label={isOnToolsPage ? 'Back to Dashboard' : 'AI Tools'}
+              aria-label={isOnToolsPage ? t('topbar.backToDashboard') : t('topbar.aiTools')}
             >
-              {isOnToolsPage ? '← Dashboard' : '⚡ Tools'}
+              {isOnToolsPage ? t('topbar.backToDashboard') : t('topbar.tools')}
               {!isOnToolsPage && hasUnreadTools && (
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-error rounded-full" />
               )}
             </button>
           )}
-          {/* Notifications */}
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
-              aria-label="Notifications"
+              aria-label={t('topbar.notifications')}
             >
               <Bell className="w-5 h-5 text-neutral-700" />
               {notificationCount > 0 && (
@@ -158,7 +155,6 @@ export const TopBar: React.FC<TopBarProps> = ({
               )}
             </button>
 
-            {/* Notifications dropdown */}
             {showNotifications && (
               <>
                 <div
@@ -167,7 +163,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 />
                 <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-level-2 z-50 max-h-96 overflow-y-auto border border-neutral-200">
                   <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-neutral-900">Notifications</h3>
+                    <h3 className="text-sm font-semibold text-neutral-900">{t('topbar.notifications')}</h3>
                     {notificationCount > 0 && onMarkAllAsRead && (
                       <button
                         onClick={() => {
@@ -175,13 +171,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                         }}
                         className="text-xs text-brand-primary hover:text-brand-primary-dark font-medium"
                       >
-                        Mark all as read
+                        {t('topbar.markAllAsRead')}
                       </button>
                     )}
                   </div>
                   {notifications.length === 0 ? (
                     <div className="p-4 text-center text-neutral-500">
-                      No notifications
+                      {t('topbar.noNotifications')}
                     </div>
                   ) : (
                     <div className="divide-y divide-neutral-200">
@@ -224,19 +220,17 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </div>
 
-          {/* User profile */}
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               className="flex items-center gap-2 p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
-              aria-label="User menu"
+              aria-label={t('topbar.userMenu')}
             >
               <div className="w-8 h-8 bg-brand-primary rounded-full flex items-center justify-center">
                 <span className="text-sm font-medium text-white">{(userName || 'U').charAt(0).toUpperCase()}</span>
               </div>
             </button>
 
-            {/* Profile dropdown */}
             {showProfileMenu && (
               <>
                 <div
@@ -247,7 +241,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                   <div className="px-4 py-2 border-b border-neutral-200">
                     <p className="text-sm font-semibold text-neutral-900">{userName}</p>
                   </div>
-                  <button 
+                  <button
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
                     onClick={() => {
                       setShowProfileMenu(false);
@@ -255,9 +249,9 @@ export const TopBar: React.FC<TopBarProps> = ({
                     }}
                   >
                     <User className="w-4 h-4" />
-                    Profile
+                    {t('topbar.profile')}
                   </button>
-                  <button 
+                  <button
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-error hover:bg-neutral-50 transition-colors"
                     onClick={() => {
                       setShowProfileMenu(false);
@@ -265,7 +259,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     }}
                   >
                     <LogOut className="w-4 h-4" />
-                    Logout
+                    {t('topbar.logout')}
                   </button>
                 </div>
               </>

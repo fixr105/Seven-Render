@@ -4,7 +4,8 @@
  * Tools: RAAD, PAGER, Query Drafter. NBFC-only.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
@@ -81,6 +82,7 @@ interface HistoryJob {
 }
 
 export const NBFCTools: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -144,6 +146,15 @@ export const NBFCTools: React.FC = () => {
   const [queryLoanId, setQueryLoanId] = useState('');
   const [querySubmitting, setQuerySubmitting] = useState(false);
   const [editableQuery, setEditableQuery] = useState('');
+
+  const toolTabLabels = useMemo(
+    () => ({
+      raad: t('pages.nbfcTools.toolRaad'),
+      pager: t('pages.nbfcTools.toolPager'),
+      query: t('pages.nbfcTools.toolQueryDrafter'),
+    }),
+    [t]
+  );
 
   const getUserDisplayName = () => {
     if (user?.name) return user.name;
@@ -813,7 +824,7 @@ export const NBFCTools: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="AI Tools"
+      pageTitle={t('pages.nbfcTools.pageTitle')}
       userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
@@ -826,21 +837,21 @@ export const NBFCTools: React.FC = () => {
       {/* Horizontal tool tabs */}
       <div className="bg-[#1a1a2e] shrink-0 border-b border-white/10">
         <nav className="flex gap-0">
-          {TOOL_ITEMS.map((t) => {
-            const Icon = t.icon;
+          {TOOL_ITEMS.map((tool) => {
+            const Icon = tool.icon;
             return (
               <button
-                key={t.id}
-                onClick={() => setSelectedTool(t.id)}
-                title={t.label}
+                key={tool.id}
+                onClick={() => setSelectedTool(tool.id)}
+                title={tool.label}
                 className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${
-                  selectedTool === t.id
+                  selectedTool === tool.id
                     ? 'border-[#332f78] bg-white/5 text-white'
                     : 'border-transparent text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
                 }`}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                <span>{t.id === 'raad' ? 'RAAD' : t.id === 'pager' ? 'PAGER' : 'Query Drafter'}</span>
+                <span>{toolTabLabels[tool.id]}</span>
               </button>
             );
           })}
@@ -1144,7 +1155,7 @@ export const NBFCTools: React.FC = () => {
         {/* RIGHT COLUMN */}
         <div data-testid="report-viewer" className="bg-[#f8f9ff] flex flex-col overflow-hidden border-l border-neutral-200">
           <h3 className="px-4 py-4 text-lg font-semibold text-neutral-900 border-b border-neutral-200">
-            Report Viewer
+            {t('pages.nbfcTools.reportViewer')}
           </h3>
           <div className="flex-1 flex flex-col min-h-0 p-4">
             {jobStatus === 'idle' && selectedTool === 'raad' && (
@@ -1159,7 +1170,7 @@ export const NBFCTools: React.FC = () => {
                       }}
                     disabled={raadIdListLoading}
                     className="p-1.5 rounded text-neutral-500 hover:text-[#332f78] hover:bg-neutral-100 disabled:opacity-50"
-                    title="Refresh list"
+                    title={t('pages.nbfcTools.refreshList')}
                   >
                     <RefreshCw className={`w-4 h-4 ${raadIdListLoading ? 'animate-spin' : ''}`} />
                   </button>
@@ -1167,7 +1178,7 @@ export const NBFCTools: React.FC = () => {
                 {raadIdListLoading ? (
                   <div className="flex flex-col items-center justify-center flex-1 text-neutral-500">
                     <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                    <p className="text-sm">Loading reports...</p>
+                    <p className="text-sm">{t('pages.nbfcTools.loadingReports')}</p>
                   </div>
                 ) : raadListError ? (
                   <div className="flex flex-col items-center justify-center flex-1 text-center text-red-600">
@@ -1225,7 +1236,7 @@ export const NBFCTools: React.FC = () => {
                     }}
                     disabled={pagerIdListLoading}
                     className="p-1.5 rounded text-neutral-500 hover:text-[#332f78] hover:bg-neutral-100 disabled:opacity-50"
-                    title="Refresh list"
+                    title={t('pages.nbfcTools.refreshList')}
                   >
                     <RefreshCw className={`w-4 h-4 ${pagerIdListLoading ? 'animate-spin' : ''}`} />
                   </button>
@@ -1233,7 +1244,7 @@ export const NBFCTools: React.FC = () => {
                 {pagerIdListLoading ? (
                   <div className="flex flex-col items-center justify-center flex-1 text-neutral-500">
                     <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                    <p className="text-sm">Loading reports...</p>
+                    <p className="text-sm">{t('pages.nbfcTools.loadingReports')}</p>
                   </div>
                 ) : pagerListError ? (
                   <div className="flex flex-col items-center justify-center flex-1 text-center text-red-600">
@@ -1388,7 +1399,7 @@ export const NBFCTools: React.FC = () => {
                       download
                       className="flex items-center justify-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
                     >
-                      <Download className="w-4 h-4" /> Download PDF
+                      <Download className="w-4 h-4" /> {t('pages.nbfcTools.downloadPdf')}
                     </a>
                   )}
                   {raadRequestError && <p className="text-xs text-red-500">{formatRaadError(raadRequestError) ?? raadRequestError}</p>}
@@ -1427,7 +1438,7 @@ export const NBFCTools: React.FC = () => {
                     download
                     className="flex items-center justify-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
                   >
-                    <Download className="w-4 h-4" /> Download PDF
+                    <Download className="w-4 h-4" /> {t('pages.nbfcTools.downloadPdf')}
                   </a>
                   {raadRequestError && <p className="text-xs text-red-500">{formatRaadError(raadRequestError) ?? raadRequestError}</p>}
                   <p className="text-xs text-neutral-500">Report saved for 30 days</p>
@@ -1458,7 +1469,7 @@ export const NBFCTools: React.FC = () => {
       {showRaadFullScreen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-white" data-testid="report-fullscreen-viewer">
           <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 shrink-0 bg-white">
-            <h3 className="text-lg font-semibold text-neutral-900">Report Viewer</h3>
+            <h3 className="text-lg font-semibold text-neutral-900">{t('pages.nbfcTools.reportViewer')}</h3>
             <div className="flex items-center gap-3">
               {raadFetchedHtml ? (
                 <button
@@ -1468,7 +1479,7 @@ export const NBFCTools: React.FC = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
                 >
                   {raadPdfDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Download PDF
+                  {t('pages.nbfcTools.downloadPdf')}
                 </button>
               ) : reportUrl ? (
                 <button
@@ -1478,7 +1489,7 @@ export const NBFCTools: React.FC = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
                 >
                   {raadPdfUrlDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Download PDF
+                  {t('pages.nbfcTools.downloadPdf')}
                 </button>
               ) : null}
               <button

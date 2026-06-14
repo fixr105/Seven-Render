@@ -29,7 +29,6 @@ test.describe('Role-persona smoke', () => {
     await expect(nav.getByRole('button', { name: 'Applications' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Ledger' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Reports' })).toBeVisible();
-    await expect(nav.getByRole('button', { name: 'Settings' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Clients' })).toHaveCount(0);
 
     // Allowed pages
@@ -82,8 +81,6 @@ test.describe('Role-persona smoke', () => {
     await expect(nav.getByRole('button', { name: 'Clients' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Ledger' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Reports' })).toBeVisible();
-    await expect(nav.getByRole('button', { name: 'Settings' })).toBeVisible();
-
     // Allowed pages (aligned with getSidebarItemsForRole in src/config/sidebar.ts)
     await page.goto('/clients');
     await page.waitForLoadState('networkidle');
@@ -135,8 +132,6 @@ test.describe('Role-persona smoke', () => {
     await expect(nav.getByRole('button', { name: 'Form Configuration' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Ledger' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Reports' })).toBeVisible();
-    await expect(nav.getByRole('button', { name: 'Settings' })).toBeVisible();
-
     // Allowed pages (visit /ledger first while token is valid; it can trigger 403 on payout-requests for credit and clear token)
     await page.goto('/ledger');
     await page.waitForLoadState('networkidle');
@@ -190,7 +185,6 @@ test.describe('Role-persona smoke', () => {
     await expect(nav.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 });
     await expect(nav.getByRole('button', { name: 'Applications' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Reports' })).toBeVisible();
-    await expect(nav.getByRole('button', { name: 'Settings' })).toBeVisible();
     await expect(nav.getByRole('button', { name: 'Clients' })).toHaveCount(0);
     await expect(nav.getByRole('button', { name: 'Ledger' })).toHaveCount(0);
 

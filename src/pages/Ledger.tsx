@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -14,6 +15,7 @@ import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 
 export const Ledger: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const userRole = user?.role || null;
   const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -99,7 +101,7 @@ export const Ledger: React.FC = () => {
         await requestPayout(undefined, true);
         setShowPayoutModal(false);
         setPayoutAmount('');
-        alert('Payout request created successfully!');
+        alert(t('pages.ledger.payoutCreatedSuccess'));
       } catch (err: any) {
         setError(err.message || 'Failed to create payout request');
       } finally {
@@ -113,7 +115,7 @@ export const Ledger: React.FC = () => {
         await flagPayout(selectedEntry.id);
         setShowPayoutModal(false);
         setSelectedEntry(null);
-        alert('Entry flagged for payout request!');
+        alert(t('pages.ledger.entryFlaggedSuccess'));
       } catch (err: any) {
         setError(err.message || 'Failed to flag payout');
       } finally {
@@ -124,7 +126,7 @@ export const Ledger: React.FC = () => {
 
   const handleRaiseQuery = async () => {
     if (!selectedEntry || !queryMessage.trim()) {
-      setError('Please enter a query message');
+      setError(t('pages.ledger.enterQueryMessage'));
       return;
     }
 
@@ -135,7 +137,7 @@ export const Ledger: React.FC = () => {
       setShowQueryModal(false);
       setQueryMessage('');
       setSelectedEntry(null);
-      alert('Query raised successfully!');
+      alert(t('pages.ledger.queryRaisedSuccess'));
     } catch (err: any) {
       setError(err.message || 'Failed to raise query');
     } finally {
@@ -147,23 +149,23 @@ export const Ledger: React.FC = () => {
     switch (status) {
       case 'Under Query':
       case 'UNDER_QUERY':
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-warning/20 text-warning">Under Query</span>;
+        return <span className="px-2 py-1 text-xs font-medium rounded bg-warning/20 text-warning">{t('common.underQuery')}</span>;
       case 'Resolved':
       case 'RESOLVED':
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-success/20 text-success">Resolved</span>;
+        return <span className="px-2 py-1 text-xs font-medium rounded bg-success/20 text-success">{t('status.resolved')}</span>;
       default:
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-neutral-100 text-neutral-600">None</span>;
+        return <span className="px-2 py-1 text-xs font-medium rounded bg-neutral-100 text-neutral-600">{t('common.none')}</span>;
     }
   };
 
   const getPayoutRequestBadge = (status: string) => {
     switch (status) {
       case 'Requested':
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-brand-primary/20 text-brand-primary">Requested</span>;
+        return <span className="px-2 py-1 text-xs font-medium rounded bg-brand-primary/20 text-brand-primary">{t('common.requested')}</span>;
       case 'Paid':
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-success/20 text-success">Paid</span>;
+        return <span className="px-2 py-1 text-xs font-medium rounded bg-success/20 text-success">{t('common.paid')}</span>;
       case 'Rejected':
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-error/20 text-error">Rejected</span>;
+        return <span className="px-2 py-1 text-xs font-medium rounded bg-error/20 text-error">{t('status.rejected')}</span>;
       default:
         return null;
     }
@@ -177,7 +179,7 @@ export const Ledger: React.FC = () => {
     if (!creditPayoutForAction) return;
     const amount = creditPayoutForAction.amount;
     if (typeof amount !== 'number' || amount <= 0) {
-      setError('Invalid amount');
+      setError(t('pages.ledger.invalidAmount'));
       return;
     }
     setSubmitting(true);
@@ -189,7 +191,7 @@ export const Ledger: React.FC = () => {
         setCreditPayoutForAction(null);
         setApproveNote('');
         await refetchPayoutRequests();
-        alert('Payout approved successfully.');
+        alert(t('pages.ledger.payoutApprovedSuccess'));
       } else {
         setError(res.error || 'Failed to approve payout');
       }
@@ -202,7 +204,7 @@ export const Ledger: React.FC = () => {
 
   const handleRejectPayout = async () => {
     if (!creditPayoutForAction || !rejectReason.trim()) {
-      setError('Please enter a rejection reason');
+      setError(t('pages.ledger.enterRejectionReason'));
       return;
     }
     setSubmitting(true);
@@ -214,7 +216,7 @@ export const Ledger: React.FC = () => {
         setCreditPayoutForAction(null);
         setRejectReason('');
         await refetchPayoutRequests();
-        alert('Payout rejected.');
+        alert(t('pages.ledger.payoutRejectedSuccess'));
       } else {
         setError(res.error || 'Failed to reject payout');
       }
@@ -230,7 +232,7 @@ export const Ledger: React.FC = () => {
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle="Commission Ledger"
+      pageTitle={t('pages.ledger.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
@@ -240,27 +242,27 @@ export const Ledger: React.FC = () => {
     >
       <div className="space-y-6">
         <PageHero
-          title="Commission Ledger"
-          description="Positive amounts are your earnings; negative amounts are payable to us."
+          title={t('pages.ledger.title')}
+          description={t('pages.ledger.description')}
         />
         {/* KAM: Client selector */}
         {userRole === 'kam' && (
           <Card>
             <CardHeader>
-              <CardTitle>Select Client</CardTitle>
+              <CardTitle>{t('pages.ledger.selectClient')}</CardTitle>
             </CardHeader>
             <CardContent>
               {clientsLoading ? (
-                <p className="text-sm text-neutral-500">Loading clients...</p>
+                <p className="text-sm text-neutral-500">{t('pages.ledger.loadingClients')}</p>
               ) : clients.length === 0 ? (
-                <p className="text-sm text-neutral-500">No clients assigned to you.</p>
+                <p className="text-sm text-neutral-500">{t('pages.ledger.noClientsAssigned')}</p>
               ) : (
                 <Select
-                  label="Client"
+                  label={t('common.clientLabel')}
                   value={selectedClientId}
                   onChange={(e) => setSelectedClientId(e.target.value)}
                   options={[
-                    { value: '', label: 'Select a client...' },
+                    { value: '', label: t('pages.ledger.selectClientPlaceholder') },
                     ...clients.map((c) => ({ value: c.id, label: c.name })),
                   ]}
                 />
@@ -273,23 +275,23 @@ export const Ledger: React.FC = () => {
         {(userRole === 'credit_team' || userRole === 'admin') && (
           <Card>
             <CardHeader>
-              <CardTitle>Payout Requests</CardTitle>
+              <CardTitle>{t('pages.ledger.payoutRequests')}</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-6 text-neutral-500">Loading payout requests...</div>
+                <div className="text-center py-6 text-neutral-500">{t('pages.ledger.loadingPayoutRequests')}</div>
               ) : pendingPayoutRequests.length === 0 ? (
-                <div className="text-center py-6 text-neutral-600">No pending payout requests.</div>
+                <div className="text-center py-6 text-neutral-600">{t('pages.ledger.noPendingPayouts')}</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-neutral-200">
-                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Client</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">Amount</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Date</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Description</th>
-                        <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Actions</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">{t('common.clientLabel')}</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">{t('common.amount')}</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">{t('common.date')}</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">{t('common.description')}</th>
+                        <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -312,7 +314,7 @@ export const Ledger: React.FC = () => {
                                   setShowApproveModal(true);
                                 }}
                               >
-                                Approve
+                                {t('common.approve')}
                               </Button>
                               <Button
                                 variant="secondary"
@@ -325,7 +327,7 @@ export const Ledger: React.FC = () => {
                                   setShowRejectModal(true);
                                 }}
                               >
-                                Reject
+                                {t('common.reject')}
                               </Button>
                             </div>
                           </td>
@@ -344,29 +346,29 @@ export const Ledger: React.FC = () => {
           <CardHeader>
             <CardTitle>
               {userRole === 'kam'
-                ? 'Client Commission Balance'
+                ? t('pages.ledger.clientCommissionBalance')
                 : userRole === 'credit_team' || userRole === 'admin'
-                  ? 'All Clients Commission Ledger'
-                  : 'Commission Balance'}
+                  ? t('pages.ledger.allClientsLedger')
+                  : t('pages.ledger.commissionBalance')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 {userRole === 'kam' && !selectedClientId ? (
-                  <p className="text-neutral-500">Select a client to view their commission ledger</p>
+                  <p className="text-neutral-500">{t('pages.ledger.selectClientToView')}</p>
                 ) : (
                   <>
-                    <p className="text-sm text-neutral-600">Total earnings</p>
+                    <p className="text-sm text-neutral-600">{t('pages.ledger.totalEarnings')}</p>
                     <p className="text-xl font-semibold text-success">{formatCurrency(totalEarnings)}</p>
                     {totalFeesDue !== 0 && (
                       <>
-                        <p className="text-sm text-neutral-600 mt-2">Amount payable to us</p>
+                        <p className="text-sm text-neutral-600 mt-2">{t('pages.ledger.amountPayableToUs')}</p>
                         <p className="text-xl font-semibold text-warning">{formatCurrency(Math.abs(totalFeesDue))}</p>
-                        <p className="text-xs text-neutral-500">Not received by you—payable to us.</p>
+                        <p className="text-xs text-neutral-500">{t('pages.ledger.payableNotReceivedHint')}</p>
                       </>
                     )}
-                    <p className="text-sm text-neutral-600 mt-2">Current balance</p>
+                    <p className="text-sm text-neutral-600 mt-2">{t('pages.ledger.currentBalance')}</p>
                     <p className={`text-3xl font-bold ${balance >= 0 ? 'text-success' : 'text-error'}`}>
                       {formatCurrency(balance)}
                     </p>
@@ -382,7 +384,7 @@ export const Ledger: React.FC = () => {
                     setShowPayoutModal(true);
                   }}
                 >
-                  Request Payout
+                  {t('pages.ledger.requestPayout')}
                 </Button>
               )}
             </div>
@@ -392,21 +394,21 @@ export const Ledger: React.FC = () => {
         {/* Ledger Entries Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Ledger Entries</CardTitle>
-            <p className="text-sm text-neutral-500 mt-1">Positive = earnings; negative = payable to us.</p>
+            <CardTitle>{t('pages.ledger.ledgerEntries')}</CardTitle>
+            <p className="text-sm text-neutral-500 mt-1">{t('pages.ledger.ledgerEntriesHint')}</p>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-                <p className="text-sm text-neutral-600">Loading ledger entries...</p>
+                <p className="text-sm text-neutral-600">{t('pages.ledger.loadingLedgerEntries')}</p>
               </div>
             ) : entries.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-neutral-600">
                   {userRole === 'kam' && !selectedClientId
-                    ? 'Select a client to view their commission ledger'
-                    : 'No ledger entries found'}
+                    ? t('pages.ledger.selectClientToView')
+                    : t('pages.ledger.noEntries')}
                 </p>
               </div>
             ) : (
@@ -414,17 +416,17 @@ export const Ledger: React.FC = () => {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b border-neutral-200">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Date</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Loan File</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Description</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">Disbursed Amount</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">Commission Rate</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">Payout Amount</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">Running Balance</th>
-                      <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Dispute Status</th>
-                      <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Payout Request</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">{t('common.date')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">{t('common.loanFile')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">{t('common.description')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">{t('common.disbursedAmount')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">{t('common.commissionRate')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">{t('common.payoutAmount')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-neutral-700">{t('common.runningBalance')}</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.disputeStatus')}</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.payoutRequestCol')}</th>
                       {userRole === 'client' && (
-                        <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Actions</th>
+                        <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.actions')}</th>
                       )}
                     </tr>
                   </thead>
@@ -460,7 +462,7 @@ export const Ledger: React.FC = () => {
                               <>
                                 {formatCurrency(payoutAmount)}
                                 {payoutAmount < 0 && (
-                                  <span className="block text-xs font-normal text-neutral-500 mt-0.5">Payable to us</span>
+                                  <span className="block text-xs font-normal text-neutral-500 mt-0.5">{t('common.payableToUs')}</span>
                                 )}
                               </>
                             ) : '-'}
@@ -487,7 +489,7 @@ export const Ledger: React.FC = () => {
                                     }}
                                     className="text-xs"
                                   >
-                                    Request Payout
+                                    {t('pages.ledger.requestPayout')}
                                   </Button>
                                 )}
                                 <Button
@@ -500,7 +502,7 @@ export const Ledger: React.FC = () => {
                                   }}
                                   className="text-xs"
                                 >
-                                  Raise Query
+                                  {t('pages.ledger.raiseQuery')}
                                 </Button>
                               </div>
                             </td>
@@ -521,38 +523,38 @@ export const Ledger: React.FC = () => {
             <Card className="w-full max-w-md mx-4">
               <CardHeader>
                 <CardTitle>
-                  {selectedEntry ? 'Request Payout for Entry' : 'Request Payout'}
+                  {selectedEntry ? t('pages.ledger.requestPayoutForEntry') : t('pages.ledger.requestPayout')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {selectedEntry ? (
                   <div className="space-y-4">
                     <div>
-                      <p className="text-sm text-neutral-600 mb-2">Entry Details:</p>
+                      <p className="text-sm text-neutral-600 mb-2">{t('common.entryDetails')}</p>
                       <p className="text-sm font-medium">{selectedEntry.Description || selectedEntry.description}</p>
                       <p className="text-sm text-neutral-600">
-                        Amount: {formatCurrency(parseFloat(selectedEntry['Payout Amount'] || selectedEntry.payoutAmount || '0'))}
+                        {t('common.amount')}: {formatCurrency(parseFloat(selectedEntry['Payout Amount'] || selectedEntry.payoutAmount || '0'))}
                       </p>
                     </div>
                     <p className="text-sm text-neutral-600">
-                      This will flag this entry for payout request. The credit team will review and process your request.
+                      {t('pages.ledger.flagPayoutHint')}
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div>
-                      <p className="text-sm text-neutral-600 mb-2">Available Balance:</p>
+                      <p className="text-sm text-neutral-600 mb-2">{t('pages.ledger.availableBalance')}</p>
                       <p className="text-2xl font-bold text-success">{formatCurrency(balance)}</p>
                     </div>
                     <Input
-                      label="Request Amount (leave empty for full balance)"
+                      label={t('pages.ledger.requestAmountLabel')}
                       type="number"
-                      placeholder="Enter amount"
+                      placeholder={t('pages.ledger.enterAmount')}
                       value={payoutAmount}
                       onChange={(e) => setPayoutAmount(e.target.value)}
                     />
                     <p className="text-xs text-neutral-500">
-                      Leave empty to request the full available balance
+                      {t('pages.ledger.fullBalanceHint')}
                     </p>
                   </div>
                 )}
@@ -572,7 +574,7 @@ export const Ledger: React.FC = () => {
                     }}
                     disabled={submitting}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     variant="primary"
@@ -580,7 +582,7 @@ export const Ledger: React.FC = () => {
                     loading={submitting}
                     disabled={submitting}
                   >
-                    {selectedEntry ? 'Flag for Payout' : 'Request Payout'}
+                    {selectedEntry ? t('pages.ledger.flagForPayout') : t('pages.ledger.requestPayout')}
                   </Button>
                 </div>
               </CardContent>
@@ -593,35 +595,35 @@ export const Ledger: React.FC = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <Card className="w-full max-w-md mx-4">
               <CardHeader>
-                <CardTitle>Raise Query on Ledger Entry</CardTitle>
+                <CardTitle>{t('pages.ledger.raiseQueryOnEntry')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm text-neutral-600 mb-2">Entry Details:</p>
+                    <p className="text-sm text-neutral-600 mb-2">{t('common.entryDetails')}</p>
                     <p className="text-sm font-medium">{selectedEntry.Description || selectedEntry.description}</p>
                     <p className="text-sm text-neutral-600">
-                      Date: {formatDate(selectedEntry.Date || selectedEntry.date)}
+                      {t('common.date')}: {formatDate(selectedEntry.Date || selectedEntry.date)}
                     </p>
                     <p className="text-sm text-neutral-600">
-                      Amount: {formatCurrency(parseFloat(selectedEntry['Payout Amount'] || selectedEntry.payoutAmount || '0'))}
+                      {t('common.amount')}: {formatCurrency(parseFloat(selectedEntry['Payout Amount'] || selectedEntry.payoutAmount || '0'))}
                     </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-2">
-                      Query Message *
+                      {t('pages.ledger.queryMessageRequired')}
                     </label>
                     <textarea
                       value={queryMessage}
                       onChange={(e) => setQueryMessage(e.target.value)}
-                      placeholder="Enter your query or dispute reason..."
+                      placeholder={t('pages.ledger.queryPlaceholder')}
                       rows={4}
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                       required
                     />
                   </div>
                   <p className="text-xs text-neutral-500">
-                    Your query will be sent to the credit team for review. They will respond via the audit log.
+                    {t('pages.ledger.querySentHint')}
                   </p>
                 </div>
                 {error && (
@@ -640,7 +642,7 @@ export const Ledger: React.FC = () => {
                     }}
                     disabled={submitting}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     variant="primary"
@@ -648,7 +650,7 @@ export const Ledger: React.FC = () => {
                     loading={submitting}
                     disabled={!queryMessage.trim() || submitting}
                   >
-                    Raise Query
+                    {t('pages.ledger.raiseQuery')}
                   </Button>
                 </div>
               </CardContent>
@@ -661,22 +663,22 @@ export const Ledger: React.FC = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <Card className="w-full max-w-md mx-4">
               <CardHeader>
-                <CardTitle>Approve Payout</CardTitle>
+                <CardTitle>{t('pages.ledger.approvePayout')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <p className="text-sm text-neutral-600">
-                    Client: <strong>{creditPayoutForAction.client ?? creditPayoutForAction.id}</strong>
+                    {t('common.clientLabel')}: <strong>{creditPayoutForAction.client ?? creditPayoutForAction.id}</strong>
                   </p>
                   <p className="text-sm text-neutral-600">
-                    Amount: <strong>{formatCurrency(creditPayoutForAction.amount)}</strong>
+                    {t('common.amount')}: <strong>{formatCurrency(creditPayoutForAction.amount)}</strong>
                   </p>
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Note (optional)</label>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('common.noteOptional')}</label>
                     <textarea
                       value={approveNote}
                       onChange={(e) => setApproveNote(e.target.value)}
-                      placeholder="e.g. Commission payout"
+                      placeholder={t('pages.ledger.commissionPayoutPlaceholder')}
                       rows={2}
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     />
@@ -689,10 +691,10 @@ export const Ledger: React.FC = () => {
                 )}
                 <div className="flex gap-3 mt-6">
                   <Button variant="secondary" onClick={() => { setShowApproveModal(false); setCreditPayoutForAction(null); setError(null); }} disabled={submitting}>
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                   <Button variant="primary" onClick={handleApprovePayout} loading={submitting} disabled={submitting}>
-                    Approve
+                    {t('common.approve')}
                   </Button>
                 </div>
               </CardContent>
@@ -705,22 +707,22 @@ export const Ledger: React.FC = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <Card className="w-full max-w-md mx-4">
               <CardHeader>
-                <CardTitle>Reject Payout</CardTitle>
+                <CardTitle>{t('pages.ledger.rejectPayout')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <p className="text-sm text-neutral-600">
-                    Client: <strong>{creditPayoutForAction.client ?? creditPayoutForAction.id}</strong>
+                    {t('common.clientLabel')}: <strong>{creditPayoutForAction.client ?? creditPayoutForAction.id}</strong>
                   </p>
                   <p className="text-sm text-neutral-600">
-                    Amount: <strong>{formatCurrency(creditPayoutForAction.amount)}</strong>
+                    {t('common.amount')}: <strong>{formatCurrency(creditPayoutForAction.amount)}</strong>
                   </p>
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Reason for rejection *</label>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('pages.ledger.rejectionReasonRequired')}</label>
                     <textarea
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="Enter reason..."
+                      placeholder={t('pages.ledger.rejectionReasonPlaceholder')}
                       rows={3}
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
                       required
@@ -734,10 +736,10 @@ export const Ledger: React.FC = () => {
                 )}
                 <div className="flex gap-3 mt-6">
                   <Button variant="secondary" onClick={() => { setShowRejectModal(false); setCreditPayoutForAction(null); setRejectReason(''); setError(null); }} disabled={submitting}>
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                   <Button variant="primary" onClick={handleRejectPayout} loading={submitting} disabled={!rejectReason.trim() || submitting}>
-                    Reject
+                    {t('common.reject')}
                   </Button>
                 </div>
               </CardContent>

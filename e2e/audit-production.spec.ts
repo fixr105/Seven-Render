@@ -171,7 +171,7 @@ ${flagged.length ? flagged.map((f) => `- ${f}`).join('\n') : '- None (from this 
     }
     await page.waitForLoadState('domcontentloaded');
 
-    const sidebarButtons = page.locator('aside button, nav button').filter({ hasText: /^(Dashboard|Applications|Ledger|Clients|Reports|Settings)$/ });
+    const sidebarButtons = page.locator('aside button, nav button').filter({ hasText: /^(Dashboard|Applications|Ledger|Clients|Reports)$/ });
     const navCount = Math.min(await sidebarButtons.count(), 5);
     for (let i = 0; i < navCount; i++) {
       const btn = sidebarButtons.nth(i);

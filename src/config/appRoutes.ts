@@ -29,7 +29,6 @@ export const FRONTEND_PATHS: FrontendPathEntry[] = [
   { path: '/ledger', type: 'action', description: 'Ledger' },
   { path: '/clients', type: 'action', description: 'Clients' },
   { path: '/profile', type: 'action', description: 'Profile' },
-  { path: '/settings', type: 'action', description: 'Settings' },
   { path: '/reports', type: 'action', description: 'Reports' },
   { path: '/admin/activity-log', type: 'action', description: 'Admin activity log' },
   { path: '/admin/user-accounts', type: 'action', description: 'Admin user accounts' },

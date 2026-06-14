@@ -5,10 +5,12 @@
 
 import React, { useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Mail, Lock } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { LanguageSwitcher } from '../components/layout/LanguageSwitcher';
 import loginBg from '../components/ui/login-bg.png';
 import logo from '../components/ui/logo.png';
 import './LoginPage.css';
@@ -16,6 +18,7 @@ import './LoginPage.css';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const LoginPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login, user } = useAuth();
@@ -39,25 +42,25 @@ export const LoginPage: React.FC = () => {
     const password = passwordRef.current?.value ?? '';
 
     if (!email) {
-      setError('Email is required');
+      setError(t('auth.emailRequired'));
       emailRef.current?.focus();
       return;
     }
     if (email.length > 254) {
-      setError('Invalid email');
+      setError(t('auth.invalidEmail'));
       return;
     }
     if (!EMAIL_REGEX.test(email)) {
-      setError('Please enter a valid email address');
+      setError(t('auth.validEmailRequired'));
       return;
     }
     if (!password) {
-      setError('Password is required');
+      setError(t('auth.passwordRequired'));
       passwordRef.current?.focus();
       return;
     }
     if (password.length > 128) {
-      setError('Invalid password');
+      setError(t('auth.invalidPassword'));
       return;
     }
 
@@ -77,20 +80,27 @@ export const LoginPage: React.FC = () => {
       className="login-page"
       style={{ ['--login-bg' as string]: `url(${loginBg})` }}
     >
-      <div className="login-card">
-        <img src={logo} alt="SEVEN FINCORP" className="login-logo" />
-        <p className="login-tagline">AI-FIRST TECH-FIRST PLATFORM</p>
+      <div className="login-card relative">
+        <div className="absolute top-4 right-4 z-10">
+          <LanguageSwitcher />
+        </div>
+        <img src={logo} alt={t('common.logoAlt')} className="login-logo" />
+        <p className="login-tagline">{t('common.tagline')}</p>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
-          {resetSuccess && <div className="login-success mb-3 p-2 rounded bg-green-50 text-green-800 text-sm">Password updated. You can log in with your new password.</div>}
+          {resetSuccess && (
+            <div className="login-success mb-3 p-2 rounded bg-green-50 text-green-800 text-sm">
+              {t('auth.resetSuccess')}
+            </div>
+          )}
           {error && <div className="login-error">{error}</div>}
 
           <div className="form-group">
             <Input
               ref={emailRef}
               type="email"
-              label="Email"
-              placeholder="Enter your email"
+              label={t('auth.email')}
+              placeholder={t('auth.emailPlaceholder')}
               autoComplete="email"
               icon={Mail}
               iconPosition="left"
@@ -104,8 +114,8 @@ export const LoginPage: React.FC = () => {
             <Input
               ref={passwordRef}
               type="password"
-              label="Password"
-              placeholder="Enter your password"
+              label={t('auth.password')}
+              placeholder={t('auth.passwordPlaceholder')}
               autoComplete="current-password"
               icon={Lock}
               iconPosition="left"
@@ -123,14 +133,14 @@ export const LoginPage: React.FC = () => {
             disabled={loading}
             className="login-btn"
           >
-            Login
+            {t('auth.login')}
           </Button>
 
           <p className="login-forgot-hint text-sm text-neutral-500 mt-4">
             <Link to="/forgot-password" className="text-brand-primary hover:underline">
-              Forgot your password?
+              {t('auth.forgotPassword')}
             </Link>{' '}
-            Contact your administrator to reset it.
+            {t('auth.contactAdminReset')}
           </p>
         </form>
       </div>
