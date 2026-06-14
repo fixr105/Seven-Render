@@ -186,16 +186,15 @@ export class NewApplicationPage {
    * Documents folder acknowledgment + generated folder link (required for final submit, not for draft).
    */
   async fillDocumentsFolderForSubmit(): Promise<void> {
-    await this.documentsFolderShareCheckbox.waitFor({ state: 'visible', timeout: 15000 });
-    await this.documentsFolderShareCheckbox.check();
+    const shareCheckbox = this.documentsFolderShareCheckbox;
+    if (await shareCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await shareCheckbox.check();
+    }
 
     const generateBtn = this.page.getByTestId('generate-link-button');
     await generateBtn.waitFor({ state: 'visible', timeout: 10000 });
     await generateBtn.click();
 
-    const copyBtn = this.page.getByTestId('copy-folder-link');
-    await copyBtn.waitFor({ state: 'visible', timeout: 15000 });
-    await copyBtn.waitFor({ state: 'attached' });
     await this.page.waitForFunction(
       () => {
         const el = document.getElementById('_documentsFolderLink');
@@ -203,6 +202,20 @@ export class NewApplicationPage {
       },
       { timeout: 15000 }
     );
+
+    const copyBtn = this.page.getByTestId('copy-folder-link');
+    await copyBtn.waitFor({ state: 'visible', timeout: 15000 });
+    const consumePromise = this.page.waitForResponse(
+      (response) =>
+        response.url().includes('/client/link-pool/consume') &&
+        response.request().method() === 'POST',
+      { timeout: 15000 }
+    );
+    await copyBtn.click();
+    const consumeResponse = await consumePromise;
+    if (!consumeResponse.ok()) {
+      throw new Error(`Link consume failed: ${consumeResponse.status()} ${await consumeResponse.text()}`);
+    }
   }
 
   /**

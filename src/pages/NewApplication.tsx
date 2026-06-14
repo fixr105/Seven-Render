@@ -32,7 +32,6 @@ import {
 
 const USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY = 'seven_used_client_webhook_links';
 const FOLDER_LINK_MASKED_DISPLAY = '••••••••••••••••••••••••••••••••';
-const FOLDER_LINK_EMPTY_PLACEHOLDER = 'Generate a link above, then use Copy or Open';
 
 const blockFolderLinkFieldInteraction = (event: React.SyntheticEvent): void => {
   event.preventDefault();
@@ -443,7 +442,7 @@ export const NewApplication: React.FC = () => {
       if (!selectedLink) {
         setFolderLinkStatus({
           type: 'info',
-          message: 'No unused links are available right now. Please try again shortly.',
+          message: t('pages.newApplication.noUnusedLinks'),
         });
         return;
       }
@@ -456,7 +455,7 @@ export const NewApplication: React.FC = () => {
         return next;
       });
       setCopiedFolderUrl(false);
-      setFolderLinkStatus({ type: 'success', message: 'Link generated and added to the folder link field.' });
+      setFolderLinkStatus({ type: 'success', message: t('pages.newApplication.linkGeneratedSuccess') });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to generate folder link';
       setFolderLinkStatus({ type: 'error', message });
@@ -494,7 +493,7 @@ export const NewApplication: React.FC = () => {
       await navigator.clipboard.writeText(link);
       setCopiedFolderUrl(true);
       setTimeout(() => setCopiedFolderUrl(false), 2500);
-      setFolderLinkStatus({ type: 'success', message: 'Link copied to clipboard.' });
+      setFolderLinkStatus({ type: 'success', message: t('pages.newApplication.linkCopiedSuccess') });
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -666,8 +665,12 @@ export const NewApplication: React.FC = () => {
         folderLink.toLowerCase().includes('onedrive.live.com') ||
         folderLink.toLowerCase().includes('sharepoint.com'));
     if (!isValidFolderLink) {
-      errors._documentsFolderLink =
-        'Please provide the document folder link and update the document checklist before submitting the application.';
+      errors._documentsFolderLink = t('pages.newApplication.documentsFolderLinkRequired');
+    } else if (
+      userRole === 'client' &&
+      !usedWebhookLinks.has(String(folderLink).trim())
+    ) {
+      errors._documentsFolderLink = t('pages.newApplication.folderLinkAccessRequired');
     }
 
     return { isValid: Object.keys(errors).length === 0, errors };
@@ -713,7 +716,7 @@ export const NewApplication: React.FC = () => {
           '_documentsFolderLink' in validation.errors ||
           Object.keys(validation.errors).some((k) => !basicApplicationErrorKeys.has(k));
         const message = hasDocumentErrors
-          ? 'Please provide the document folder link and update the document checklist before submitting the application.'
+          ? t('pages.newApplication.documentsFolderLinkRequired')
           : `Please fill in all required fields:\n\n${Object.values(validation.errors).join('\n')}`;
         alert(message);
         return;
@@ -965,7 +968,7 @@ export const NewApplication: React.FC = () => {
                 )}
                 {copiedFolderUrl && (
                   <p className="mt-2 text-sm text-success" aria-live="polite">
-                    Link copied to clipboard.
+                    {t('pages.newApplication.linkCopiedSuccess')}
                   </p>
                 )}
               </section>
@@ -984,7 +987,7 @@ export const NewApplication: React.FC = () => {
                 aria-readonly="true"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder={FOLDER_LINK_EMPTY_PLACEHOLDER}
+                placeholder={t('pages.newApplication.folderLinkEmptyPlaceholder')}
                 value={
                   String(formData.form_data._documentsFolderLink || '').trim()
                     ? FOLDER_LINK_MASKED_DISPLAY
@@ -1004,13 +1007,13 @@ export const NewApplication: React.FC = () => {
                   fieldErrors._documentsFolderLink
                     ? undefined
                     : String(formData.form_data._documentsFolderLink || '').trim()
-                      ? 'Link assigned. Use Copy Link or Open Link below — you cannot copy from this field.'
-                      : 'Generate a link first, then use Copy or Open to access it.'
+                      ? t('pages.newApplication.folderLinkAssignedHelper')
+                      : t('pages.newApplication.folderLinkEmptyHelper')
                 }
                 title={
                   String(formData.form_data._documentsFolderLink || '').trim()
-                    ? 'Link assigned. Use Copy Link or Open Link to access it.'
-                    : 'Generate a link above to continue.'
+                    ? t('pages.newApplication.folderLinkAssignedTitle')
+                    : t('pages.newApplication.folderLinkEmptyTitle')
                 }
                 className="mt-3 select-none bg-neutral-100 text-neutral-500 cursor-not-allowed caret-transparent"
                 data-testid="folder-link-display"

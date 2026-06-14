@@ -47,6 +47,107 @@ describe('ClientController.getLinkPool', () => {
       ],
     });
   });
+
+  it('polls getLinkPool when webhook initially returns workflow started ack', async () => {
+    let fetchCalls = 0;
+    global.fetch = jest.fn(async () => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) {
+        return {
+          ok: true,
+          text: async () => JSON.stringify({ message: 'Workflow was started' }),
+        } as unknown as globalThis.Response;
+      }
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify([{ Links: 'https://drive.google.com/drive/folders/available-1', Status: '' }]),
+      } as unknown as globalThis.Response;
+    }) as unknown as typeof fetch;
+
+    await controller.getLinkPool({} as Request, mockResponse as Response);
+
+    expect(fetchCalls).toBeGreaterThan(1);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: [{ link: 'https://drive.google.com/drive/folders/available-1', status: '' }],
+    });
+  });
+});
+
+describe('ClientController.consumeLink', () => {
+  let controller: ClientController;
+  let mockRequest: any;
+  let mockResponse: any;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    controller = new ClientController();
+    jest.clearAllMocks();
+    mockRequest = { body: { link: 'https://drive.google.com/drive/folders/available-1' } };
+    mockResponse = {} as any;
+    mockResponse.status = jest.fn().mockReturnValue(mockResponse);
+    mockResponse.json = jest.fn().mockReturnValue(mockResponse);
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('posts YES status to webhook and returns marked link', async () => {
+    global.fetch = jest.fn(async (_url, init?: RequestInit) => {
+      expect(init?.method).toBe('POST');
+      expect(JSON.parse(String(init?.body))).toEqual({
+        status: 'YES',
+        link: 'https://drive.google.com/drive/folders/available-1',
+      });
+      return {
+        ok: true,
+        text: async () => JSON.stringify({ success: true }),
+      } as unknown as globalThis.Response;
+    }) as unknown as typeof fetch;
+
+    await controller.consumeLink(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: {
+        link: 'https://drive.google.com/drive/folders/available-1',
+        marked: true,
+      },
+    });
+  });
+
+  it('returns 502 when webhook response is not ok', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: false,
+      status: 500,
+      text: async () => 'Internal error',
+    } as unknown as globalThis.Response)) as unknown as typeof fetch;
+
+    await controller.consumeLink(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(502);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Internal error',
+    });
+  });
+
+  it('returns 502 when webhook JSON reports success false', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      text: async () => JSON.stringify({ success: false, error: 'Row not found' }),
+    } as unknown as globalThis.Response)) as unknown as typeof fetch;
+
+    await controller.consumeLink(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(502);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Row not found',
+    });
+  });
 });
 
 describe('ClientController.getConfiguredProducts', () => {

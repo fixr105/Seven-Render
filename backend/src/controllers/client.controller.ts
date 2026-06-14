@@ -114,6 +114,24 @@ async function callWebhookWithRetry(
   return { error: lastError ?? new Error('Webhook request failed') };
 }
 
+function getWebhookFailureMessage(responseText: string): string | null {
+  const trimmed = responseText.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (parsed.success === false) {
+      return String(parsed.error ?? parsed.message ?? 'Webhook reported failure');
+    }
+    if (parsed.error != null && String(parsed.error).trim() !== '') {
+      return String(parsed.error);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export class ClientController {
   /**
    * GET /client/vehicles?productId=LPxxx
@@ -253,6 +271,16 @@ export class ClientController {
         res.status(502).json({
           success: false,
           error: responseText || `Failed to mark link used (${webhookResponse.status})`,
+        });
+        return;
+      }
+
+      const responseText = await webhookResponse.text().catch(() => '');
+      const webhookFailure = getWebhookFailureMessage(responseText);
+      if (webhookFailure) {
+        res.status(502).json({
+          success: false,
+          error: webhookFailure,
         });
         return;
       }

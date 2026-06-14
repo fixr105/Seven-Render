@@ -255,6 +255,7 @@ describe('NewApplication Page - P0 Tests', () => {
   describe('Documents folder link generation', () => {
     beforeEach(() => {
       sessionStorage.clear();
+      HTMLElement.prototype.scrollIntoView = vi.fn();
       Object.defineProperty(navigator, 'clipboard', {
         value: { writeText: vi.fn().mockResolvedValue(undefined) },
         configurable: true,
@@ -328,7 +329,73 @@ describe('NewApplication Page - P0 Tests', () => {
           'https://drive.google.com/drive/folders/available-1'
         );
       });
-      expect(screen.queryAllByText('Link copied to clipboard.').length).toBeGreaterThan(0);
+      expect(screen.queryAllByText(/Link copied to clipboard/i).length).toBeGreaterThan(0);
+    });
+
+    it('blocks final submit when link is generated but not copied or opened', async () => {
+      const user = userEvent.setup();
+      (apiService.getClientLinkPool as any).mockResolvedValue({
+        success: true,
+        data: [{ link: 'https://drive.google.com/drive/folders/available-1', status: '' }],
+      });
+
+      renderWithProviders(<NewApplication />);
+
+      await user.click(screen.getByTestId('generate-link-button'));
+      await waitFor(() => {
+        expect(document.getElementById('_documentsFolderLink')).toHaveAttribute('data-folder-link-assigned', 'true');
+      });
+
+      await user.click(screen.getByTestId('submit-application'));
+
+      await waitFor(() => {
+        expect(apiService.createApplication).not.toHaveBeenCalled();
+      });
+      expect(
+        screen.getByText(/Use Copy Link or Open Link to access your folder link before submitting/i)
+      ).toBeInTheDocument();
+    });
+
+    it('allows submit after copy marks the link as used', async () => {
+      const user = userEvent.setup();
+      (apiService.getFormConfig as any).mockResolvedValue({ success: true, data: [] });
+      (apiService.getClientLinkPool as any).mockResolvedValue({
+        success: true,
+        data: [{ link: 'https://drive.google.com/drive/folders/available-1', status: '' }],
+      });
+
+      renderWithProviders(<NewApplication />);
+
+      await selectFirstLoanProduct(user);
+      await user.type(screen.getByTestId('applicant-name-input'), 'John Doe');
+      await user.type(document.getElementById('_mobileNumber') as HTMLElement, '9876543210');
+      await user.type(document.getElementById('_email') as HTMLElement, 'john@example.com');
+      await user.selectOptions(screen.getByTestId('basic-type-of-purchase'), 'Rental');
+      await user.selectOptions(screen.getByTestId('vehicle-make-select'), 'Tata');
+      await waitFor(() => {
+        expect(screen.getByTestId('vehicle-model-select')).not.toBeDisabled();
+      });
+      await user.selectOptions(screen.getByTestId('vehicle-model-select'), 'Ace Gold');
+
+      await user.click(screen.getByTestId('generate-link-button'));
+      await waitFor(() => {
+        expect(document.getElementById('_documentsFolderLink')).toHaveAttribute('data-folder-link-assigned', 'true');
+      });
+      await user.click(screen.getByTestId('copy-folder-link'));
+      await waitFor(() => {
+        expect(apiService.consumeClientLink).toHaveBeenCalledWith(
+          'https://drive.google.com/drive/folders/available-1'
+        );
+      });
+
+      await user.click(screen.getByTestId('submit-application'));
+
+      await waitFor(() => {
+        expect(apiService.validateApplicationSubmission).toHaveBeenCalled();
+      });
+      expect(
+        screen.queryByText(/Use Copy Link or Open Link to access your folder link before submitting/i)
+      ).not.toBeInTheDocument();
     });
 
     it('marks the generated link used when Open Link is clicked', async () => {
