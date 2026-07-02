@@ -105,4 +105,39 @@ describe('LoanWorkflowService durability', () => {
       })
     );
   });
+
+  it('recovers when verify fails but the application was persisted', async () => {
+    mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
+    let fetchCalls = 0;
+    mockN8nClient.fetchTable.mockImplementation(async () => {
+      fetchCalls += 1;
+      if (fetchCalls <= 6) {
+        return [] as never;
+      }
+      return [
+        {
+          id: 'rec-new',
+          Client: 'CLIENT001',
+          'File ID': 'SFNEW001',
+          Status: LoanStatus.UNDER_KAM_REVIEW,
+          'Client Submission ID': 'submit-789',
+        },
+      ] as never;
+    });
+
+    const result = await service.createLoanApplication(clientUser as any, {
+      clientId: 'CLIENT001',
+      productId: 'LP001',
+      applicantName: 'Recover Test',
+      saveAsDraft: false,
+      clientSubmissionId: 'submit-789',
+    });
+
+    expect(result).toEqual({
+      applicationId: 'rec-new',
+      fileId: 'SFNEW001',
+      status: LoanStatus.UNDER_KAM_REVIEW,
+    });
+    expect(mockN8nClient.postLoanApplication).toHaveBeenCalledTimes(1);
+  });
 });

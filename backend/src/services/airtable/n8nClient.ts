@@ -20,6 +20,14 @@ interface PostDataOptions {
   operationName?: string;
 }
 
+/** Thrown when a webhook returned HTTP 2xx but ack validation failed — must not retry POST (write may have succeeded). */
+export class NonRetryableWebhookError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableWebhookError';
+  }
+}
+
 function hasWriteIdentifier(payload: unknown): boolean {
   if (!payload || typeof payload !== 'object') return false;
   const record = payload as Record<string, unknown>;
@@ -682,13 +690,13 @@ export class N8nClient {
               throw new Error(errorMessage);
             }
             // Don't retry on 4xx errors (client errors)
-            throw new Error(errorMessage);
+            throw new NonRetryableWebhookError(errorMessage);
           }
           
           // Handle empty response
           if (responseText.trim() === '') {
             if (strictWriteAck) {
-              throw new Error(`${operationName} failed: empty response from webhook`);
+              throw new NonRetryableWebhookError(`${operationName} failed: empty response from webhook`);
             }
             console.log('[postData] Empty response received, treating as success');
             // Return a proper success object that can be serialized
@@ -702,12 +710,12 @@ export class N8nClient {
             // Ensure we always return an object (not null or undefined)
             if (parsed === null || parsed === undefined) {
               if (strictWriteAck) {
-                throw new Error(`${operationName} failed: webhook returned null/undefined payload`);
+                throw new NonRetryableWebhookError(`${operationName} failed: webhook returned null/undefined payload`);
               }
               return { success: true, message: 'Data posted successfully', data: null };
             }
             if (strictWriteAck && parsed.success === false) {
-              throw new Error(
+              throw new NonRetryableWebhookError(
                 `${operationName} failed: ${parsed.error || parsed.message || 'webhook reported success=false'}`
               );
             }
@@ -718,7 +726,7 @@ export class N8nClient {
               !hasAsyncWorkflowAck(parsed) &&
               !hasLenientN8nSuccessAck(parsed)
             ) {
-              throw new Error(
+              throw new NonRetryableWebhookError(
                 `${operationName} failed: webhook response missing explicit success, created record identifier, or async workflow acknowledgement`
               );
             }
@@ -728,7 +736,7 @@ export class N8nClient {
               throw parseError;
             }
             if (strictWriteAck) {
-              throw new Error(`${operationName} failed: webhook returned non-JSON response`);
+              throw new NonRetryableWebhookError(`${operationName} failed: webhook returned non-JSON response`);
             }
             console.warn('[postData] Response is not JSON, returning as text');
             console.warn('[postData] Response text:', responseText.substring(0, 200));
@@ -745,6 +753,10 @@ export class N8nClient {
       } catch (error: any) {
         lastError = error;
         console.error(`[postData] Attempt ${attempt} failed:`, error.message);
+
+        if (error instanceof NonRetryableWebhookError) {
+          throw error;
+        }
         
         // If this is the last attempt, throw the error
         if (attempt === retries) {

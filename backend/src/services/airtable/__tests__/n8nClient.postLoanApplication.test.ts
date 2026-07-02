@@ -48,6 +48,7 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
         { strictWriteAck: true, operationName: 'loan application create' }
       )
     ).rejects.toThrow(/empty response/i);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it('fails when webhook returns non-JSON body', async () => {

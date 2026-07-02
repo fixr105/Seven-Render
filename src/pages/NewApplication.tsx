@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
@@ -152,6 +152,7 @@ export const NewApplication: React.FC = () => {
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+  const submitInFlightRef = useRef(false);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -679,6 +680,9 @@ export const NewApplication: React.FC = () => {
   // Module 2: Enhanced submit with strict mandatory field validation
   const handleSubmit = async (e: React.FormEvent, saveAsDraft = false) => {
     e.preventDefault();
+    if (submitInFlightRef.current) {
+      return;
+    }
     
     // Clear previous errors
     setFieldErrors({});
@@ -723,6 +727,7 @@ export const NewApplication: React.FC = () => {
       }
     }
 
+    submitInFlightRef.current = true;
     setLoading(true);
 
     // Transform form_data: ensure file field values are human-readable for storage
@@ -855,6 +860,7 @@ export const NewApplication: React.FC = () => {
     } catch (error: any) {
       alert(`Failed to ${saveAsDraft ? 'save' : 'submit'} application: ${error.message}`);
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };

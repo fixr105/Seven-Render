@@ -7,6 +7,7 @@ import { UserRole } from '../../config/constants.js';
 jest.mock('../../services/airtable/n8nClient.js', () => ({
   n8nClient: {
     fetchTable: jest.fn(),
+    postLoanApplication: jest.fn(),
   },
 }));
 
@@ -27,9 +28,11 @@ jest.mock('../../utils/logger.js', () => ({
 }));
 
 const mockCreateLoanApplication = jest.fn();
+const mockFindApplicationBySubmissionId = jest.fn<(...args: unknown[]) => Promise<unknown>>(async () => null);
 jest.mock('../../services/workflow/loanWorkflow.service.js', () => ({
   loanWorkflowService: {
-    findApplicationBySubmissionId: jest.fn(async () => null),
+    findApplicationBySubmissionId: (clientId: unknown, submissionId: unknown) =>
+      mockFindApplicationBySubmissionId(clientId, submissionId),
     createLoanApplication: (...args: unknown[]) => mockCreateLoanApplication(...args),
   },
 }));
@@ -44,6 +47,8 @@ describe('LoanController.createApplication entitlement', () => {
     controller = new LoanController();
     jest.clearAllMocks();
     mockCreateLoanApplication.mockReset();
+    mockFindApplicationBySubmissionId.mockReset();
+    (mockFindApplicationBySubmissionId as any).mockResolvedValue(null);
     (mockCreateLoanApplication as any).mockResolvedValue({
       applicationId: 'APP-1',
       fileId: 'SF001',
@@ -184,6 +189,96 @@ describe('LoanController.createApplication entitlement', () => {
     expect(payload.formData._vehicleRequestedLoanAmount).toBe('550000');
     expect(payload.formData._vehicleMake).toBe('Tata');
     expect(payload.formData._vehicleModel).toBe('Ace Gold');
+  });
+
+  it('returns existing application when workflow fails after write instead of creating a duplicate', async () => {
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      if (tableName === 'Clients') {
+        return [
+          {
+            id: 'recClient',
+            'Client ID': 'CL001',
+            'Assigned Products': 'LP001',
+          },
+        ];
+      }
+      return [];
+    });
+
+    mockCreateLoanApplication.mockRejectedValue(new Error('persistence verify failed') as never);
+    (mockFindApplicationBySubmissionId as any)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'rec-existing',
+        'File ID': 'SF-EXISTING',
+        Status: 'under_kam_review',
+        'Client Submission ID': 'submit-abc',
+      });
+
+    const req = {
+      user: {
+        id: 'u1',
+        email: 'client@example.com',
+        role: UserRole.CLIENT,
+        clientId: 'CL001',
+      },
+      body: {
+        productId: 'LP001',
+        applicantName: 'Dup Test',
+        formData: {},
+        saveAsDraft: true,
+        clientSubmissionId: 'submit-abc',
+      },
+    } as unknown as Request;
+
+    await controller.createApplication(req, mockResponse as Response);
+
+    expect(mockN8nClientInstance.postLoanApplication).not.toHaveBeenCalled();
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        loanApplicationId: 'rec-existing',
+        fileId: 'SF-EXISTING',
+        status: 'under_kam_review',
+      }),
+    });
+  });
+
+  it('returns 500 when workflow fails and no persisted application is found', async () => {
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+      if (tableName === 'Clients') {
+        return [
+          {
+            id: 'recClient',
+            'Client ID': 'CL001',
+            'Assigned Products': 'LP001',
+          },
+        ];
+      }
+      return [];
+    });
+
+    mockCreateLoanApplication.mockRejectedValue(new Error('workflow failed') as never);
+
+    const req = {
+      user: {
+        id: 'u1',
+        email: 'client@example.com',
+        role: UserRole.CLIENT,
+        clientId: 'CL001',
+      },
+      body: {
+        productId: 'LP001',
+        applicantName: 'Fail Test',
+        formData: {},
+        saveAsDraft: true,
+      },
+    } as unknown as Request;
+
+    await controller.createApplication(req, mockResponse as Response);
+
+    expect(mockN8nClientInstance.postLoanApplication).not.toHaveBeenCalled();
+    expect(mockResponse.status).toHaveBeenCalledWith(500);
   });
 });
 

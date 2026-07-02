@@ -239,135 +239,32 @@ export class LoanController {
         });
         return;
       } catch (workflowError: any) {
-        // If workflow service fails, fall back to original implementation
-        console.warn('[createApplication] Workflow service failed, using fallback:', workflowError);
-      }
+        console.error('[createApplication] Workflow service failed:', workflowError);
 
-      // Fallback: Original implementation
-      // Determine status - if saveAsDraft is false, set to UNDER_KAM_REVIEW, otherwise DRAFT
-      const status = saveAsDraft ? LoanStatus.DRAFT : LoanStatus.UNDER_KAM_REVIEW;
-      const timestamp = Date.now().toString(36).toUpperCase();
-      const fileId = `SF${timestamp.slice(-8)}`;
-      const applicationId = `APP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-      // Module 1: Get current form config version for this client (for versioning)
-      const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
-      const formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!);
-
-      // Module 2: If submitting with warnings/issues, mark for KAM attention
-      const needsAttention = !saveAsDraft && validationWarnings.length > 0;
-      if (needsAttention) {
-        // Status will be UNDER_KAM_REVIEW but with attention flag
-        // KAM will see this in their "needs attention" list
-      }
-
-      // Create application in Airtable with full form data (all fields row-wise)
-      const applicationData: any = {
-        id: applicationId,
-        'File ID': fileId,
-        Client: req.user.clientId!,
-        'Applicant Name': finalApplicantName,
-        'Loan Product': productId,
-        'Requested Loan Amount':
-          finalRequestedAmount !== '' && finalRequestedAmount !== null && finalRequestedAmount !== undefined
-            ? String(finalRequestedAmount)
-            : '',
-        Status: status,
-        'Creation Date': new Date().toISOString().split('T')[0],
-        'Last Updated': new Date().toISOString(),
-        'Form Data': JSON.stringify(fullFormDataToStore),
-        'Form Config Version': formConfigVersion || '', // Module 1: Store form config version
-        Documents: '', // Link-first flow: no per-file uploads; Drive link handled separately when implemented
-        'Needs Attention': needsAttention ? 'True' : 'False', // Module 2: Flag for KAM attention
-        'Validation Warnings': validationWarnings.length > 0 
-          ? JSON.stringify(validationWarnings) 
-          : '', // Module 2: Store validation warnings
-        'Client Submission ID': clientSubmissionId || '',
-      };
-
-      // Add submitted date if not a draft
-      if (!saveAsDraft) {
-        applicationData['Submitted Date'] = new Date().toISOString().split('T')[0];
-      }
-
-      await n8nClient.postLoanApplication(applicationData, {
-        strictWriteAck: true,
-        operationName: 'loan application create fallback',
-      });
-
-      // Asana Integration: Create Asana task if not a draft (non-blocking)
-      if (!saveAsDraft) {
-        (async () => {
-          try {
-            const { createAsanaTaskForLoan } = await import('../services/asana/asana.service.js');
-            await createAsanaTaskForLoan({
-              ...applicationData,
-              'Submitted By': req.user!.email,
+        if (clientSubmissionId) {
+          const existingAfterError = await loanWorkflowService.findApplicationBySubmissionId(
+            req.user!.clientId!,
+            clientSubmissionId
+          );
+          if (existingAfterError) {
+            res.json({
+              success: true,
+              data: {
+                loanApplicationId: existingAfterError.id,
+                fileId: existingAfterError['File ID'] || existingAfterError.fileId,
+                status: existingAfterError.Status || existingAfterError.status,
+                warnings: validationWarnings,
+                duplicateFound: duplicateCheck ? {
+                  fileId: duplicateCheck.fileId,
+                  status: duplicateCheck.status,
+                } : null,
+              },
             });
-          } catch (error: any) {
-            console.error('[createApplication] Failed to create Asana task (non-blocking):', error.message);
+            return;
           }
-        })();
-      }
-
-      // Return success response immediately, then log audit actions asynchronously (non-blocking)
-      res.json({
-        success: true,
-        data: {
-          loanApplicationId: applicationId,
-          fileId,
-          status,
-          warnings: validationWarnings, // Module 2: Return warnings to frontend
-          duplicateFound: duplicateCheck ? {
-            fileId: duplicateCheck.fileId,
-            status: duplicateCheck.status,
-          } : null,
-        },
-      });
-
-      // Module 0: Use admin logger helper (non-blocking)
-      logApplicationAction(
-        req.user!,
-        saveAsDraft ? AdminActionType.SAVE_DRAFT : AdminActionType.SUBMIT_APPLICATION,
-        fileId,
-        `${saveAsDraft ? 'Created draft' : 'Submitted'} loan application`,
-        { productId, formConfigVersion }
-      ).catch((error) => {
-        console.error('[createApplication] Failed to log admin action (non-blocking):', error);
-      });
-
-      // If submitted (not draft), also log to file audit (non-blocking)
-      if (!saveAsDraft) {
-        n8nClient.postFileAuditLog({
-          id: `AUDIT-${Date.now()}`,
-          'Log Entry ID': `AUDIT-${Date.now()}`,
-          File: fileId,
-          Timestamp: new Date().toISOString(),
-          Actor: req.user.email,
-          'Action/Event Type': 'status_change',
-          'Details/Message': `Application submitted and moved to KAM review${needsAttention ? ' (needs attention)' : ''}`,
-          'Target User/Role': 'kam',
-          Resolved: 'False',
-        }).catch((error) => {
-          console.error('[createApplication] Failed to log file audit (non-blocking):', error);
-        });
-
-        // Module 2: Auto-create query/task marker for KAM attention if issues found (non-blocking)
-        if (needsAttention) {
-          n8nClient.postFileAuditLog({
-            id: `AUDIT-${Date.now()}-ATTENTION`,
-            'Log Entry ID': `AUDIT-${Date.now()}-ATTENTION`,
-            File: fileId,
-            Timestamp: new Date().toISOString(),
-            Actor: 'System',
-            'Action/Event Type': 'query',
-            'Details/Message': `Application submitted with validation warnings. Please review: ${validationWarnings.join('; ')}`,
-            'Target User/Role': 'kam',
-            Resolved: 'False',
-          }).catch((error) => {
-            console.error('[createApplication] Failed to log attention marker (non-blocking):', error);
-          });
         }
+
+        throw workflowError;
       }
     } catch (error: any) {
       if (error instanceof ClientProductEntitlementError) {

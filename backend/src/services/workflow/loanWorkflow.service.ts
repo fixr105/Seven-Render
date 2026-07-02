@@ -116,6 +116,36 @@ export class LoanWorkflowService {
     }) || null;
   }
 
+  async findApplicationByFileId(fileId: string): Promise<any | null> {
+    const normalizedFileId = String(fileId || '').trim();
+    if (!normalizedFileId) return null;
+    const applications = await n8nClient.fetchTable('Loan Application', false);
+    return applications.find((app: any) => {
+      const appFileId = String(app['File ID'] || app.fileId || '').trim();
+      return appFileId === normalizedFileId;
+    }) || null;
+  }
+
+  private async recoverPersistedApplication(options: {
+    clientId: string;
+    fileId: string;
+    clientSubmissionId?: string;
+    fallbackStatus: LoanStatus;
+  }): Promise<{ applicationId: string; fileId: string; status: LoanStatus } | null> {
+    const recovered =
+      (options.clientSubmissionId
+        ? await this.findApplicationBySubmissionId(options.clientId, options.clientSubmissionId)
+        : null) ?? (await this.findApplicationByFileId(options.fileId));
+
+    if (!recovered) return null;
+
+    return {
+      applicationId: String(recovered.id),
+      fileId: String(recovered['File ID'] || recovered.fileId || options.fileId),
+      status: String(recovered.Status || recovered.status || options.fallbackStatus) as LoanStatus,
+    };
+  }
+
   /**
    * Create new loan application
    * 
@@ -202,11 +232,24 @@ export class LoanWorkflowService {
       strictWriteAck: true,
       operationName: 'loan application create',
     });
-    await this.verifyLoanApplicationPersisted({
-      fileId,
-      clientSubmissionId: options.clientSubmissionId,
-      expectedStatus: status,
-    });
+    try {
+      await this.verifyLoanApplicationPersisted({
+        fileId,
+        clientSubmissionId: options.clientSubmissionId,
+        expectedStatus: status,
+      });
+    } catch (verifyError) {
+      const recovered = await this.recoverPersistedApplication({
+        clientId: options.clientId,
+        fileId,
+        clientSubmissionId: options.clientSubmissionId,
+        fallbackStatus: status,
+      });
+      if (recovered) {
+        return recovered;
+      }
+      throw verifyError;
+    }
 
     // Log application creation
     await centralizedLogger.logApplicationCreated(
