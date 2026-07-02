@@ -18,6 +18,7 @@ import {
 } from '../services/statusTracking/dynamicStatus.service.js';
 import {
   ClientProductEntitlementError,
+  entitlementErrorBody,
   assertClientProductAssigned,
 } from '../services/entitlements/clientProducts.service.js';
 import { resolveRequestedLoanAmountFromVehicleSelection } from '../services/vehicles/vehicleCatalog.service.js';
@@ -268,10 +269,7 @@ export class LoanController {
       }
     } catch (error: any) {
       if (error instanceof ClientProductEntitlementError) {
-        res.status(error.statusCode).json({
-          success: false,
-          error: error.message,
-        });
+        res.status(error.statusCode).json(entitlementErrorBody(error));
         return;
       }
       res.status(500).json({

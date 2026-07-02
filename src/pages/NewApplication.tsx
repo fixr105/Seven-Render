@@ -112,7 +112,7 @@ const createClientSubmissionId = (): string =>
 export const NewApplication: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
   const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -129,6 +129,8 @@ export const NewApplication: React.FC = () => {
   const [vehicleOptions, setVehicleOptions] = useState<VehicleOption[]>([]);
   const [vehicleOptionsLoading, setVehicleOptionsLoading] = useState(false);
   const [vehicleOptionsError, setVehicleOptionsError] = useState<string | null>(null);
+  const [formConfigError, setFormConfigError] = useState<string | null>(null);
+  const [accountLinkError, setAccountLinkError] = useState<string | null>(null);
   const [formConfig, setFormConfig] = useState<any[]>([]); // Form configuration from backend
   const [currentStep, setCurrentStep] = useState(0); // Module 2: Stepper current step
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]); // Module 2: Soft validation warnings
@@ -173,6 +175,7 @@ export const NewApplication: React.FC = () => {
 
   useEffect(() => {
     if (userRole === 'client') {
+      void refreshUser();
       fetchClientId();
       fetchConfiguredProducts();
       setFormConfigLoading(false);
@@ -271,37 +274,39 @@ export const NewApplication: React.FC = () => {
       return;
     }
 
-    // Backend resolves clientId from email when missing in JWT (e.g. cross-origin deploy)
     try {
       setFormConfigLoading(true);
-      // Fetch form configuration for this client (product-specific when productId provided)
+      setFormConfigError(null);
       const response = await apiService.getFormConfig(productId);
       if (response.success && response.data) {
-        // The backend returns an array of categories with fields
         const configData = Array.isArray(response.data) ? response.data : [];
         
-        // Handle both nested module format and flat category format
         let categoriesList: any[] = [];
         if (configData.length > 0) {
-          // Check if data is nested in modules or flat categories
           if (configData[0]?.modules) {
-            // Nested format: extract categories from modules
             configData.forEach((module: any) => {
               if (module.categories && Array.isArray(module.categories)) {
                 categoriesList.push(...module.categories);
               }
             });
           } else {
-            // Flat format: already categories
             categoriesList = configData;
           }
         }
         setFormConfig(categoriesList);
+        setFormConfigError(null);
       } else {
         setFormConfig([]);
+        const message = response.error || 'Failed to load form configuration.';
+        setFormConfigError(message);
+        if (response.code === 'CLIENT_NOT_LINKED') {
+          setAccountLinkError(message);
+        }
       }
-    } catch (_error) {
+    } catch (error: any) {
       setFormConfig([]);
+      const message = error.message || 'Failed to load form configuration.';
+      setFormConfigError(message);
     } finally {
       setFormConfigLoading(false);
     }
@@ -368,17 +373,22 @@ export const NewApplication: React.FC = () => {
           .map((productId: unknown) => String(productId ?? '').trim())
           .filter(Boolean);
         setConfiguredProductsError(null);
+        setAccountLinkError(null);
         setConfiguredProductIds(new Set(normalizedProductIds));
         setConfiguredProductsFetched(true);
       } else if (response.error) {
         setConfiguredProductsError(response.error);
+        if (response.code === 'CLIENT_NOT_LINKED') {
+          setAccountLinkError(response.error);
+        }
         setLoanProductsError(response.error);
         setConfiguredProductIds(new Set());
         setConfiguredProductsFetched(true);
       }
-    } catch (_error) {
-      setConfiguredProductsError('No loan products are assigned to your account. Please contact your KAM to allocate products.');
-      setLoanProductsError('No loan products are assigned to your account. Please contact your KAM to allocate products.');
+    } catch (error: any) {
+      const message = error.message || 'Failed to load configured products.';
+      setConfiguredProductsError(message);
+      setLoanProductsError(message);
       setConfiguredProductIds(new Set());
       setConfiguredProductsFetched(true);
     }
@@ -902,6 +912,20 @@ export const NewApplication: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <PageHero title={t('pages.newApplication.pageTitle')} />
+      {(accountLinkError || formConfigError) && (
+        <div
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+          role="alert"
+          data-testid="new-application-link-error"
+        >
+          <p>{accountLinkError || formConfigError}</p>
+          {accountLinkError && (
+            <p className="mt-2 text-red-700">
+              Try logging out and back in after your KAM links your account, or contact your KAM for help.
+            </p>
+          )}
+        </div>
+      )}
       <form onSubmit={(e) => handleSubmit(e, false)}>
         {/* Documents folder: backend-generated link with manual override */}
         <Card id="documents-folder-link" className="mb-6 overflow-hidden">
@@ -1292,7 +1316,7 @@ export const NewApplication: React.FC = () => {
                 error={fieldErrors._vehicleMake || vehicleOptionsError || undefined}
                 helperText={
                   vehicleOptionsError ||
-                  (formData.loan_product_id && vehicleMakes.length === 0
+                  (formData.loan_product_id && vehicleMakes.length === 0 && !vehicleOptionsLoading
                     ? 'No mapped vehicles found for this product. Please contact your KAM.'
                     : undefined)
                 }

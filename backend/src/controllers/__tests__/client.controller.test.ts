@@ -6,6 +6,7 @@ import { n8nClient } from '../../services/airtable/n8nClient.js';
 jest.mock('../../services/airtable/n8nClient.js', () => ({
   n8nClient: {
     fetchTable: jest.fn(),
+    getUserAccounts: jest.fn(async () => []),
   },
 }));
 const mockN8nClientInstance = n8nClient as any;
@@ -212,6 +213,27 @@ describe('ClientController.getConfiguredProducts', () => {
     });
   });
 
+  it('returns CLIENT_NOT_LINKED when client account cannot be resolved', async () => {
+    mockRequest = {
+      user: {
+        role: 'client',
+        email: 'unknown@example.com',
+        clientId: null,
+      } as any,
+    };
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockResolvedValue([] as never);
+
+    await controller.getConfiguredProducts(mockRequest as Request, mockResponse as Response);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(401);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        code: 'CLIENT_NOT_LINKED',
+      })
+    );
+  });
+
   it('does not use fallback product sources when products is empty', async () => {
     mockRequest = {
       user: {
@@ -260,6 +282,7 @@ describe('ClientController.getConfiguredProducts', () => {
     expect(mockResponse.json).toHaveBeenCalledWith({
       success: false,
       error: 'This product is not assigned to your account. Please contact your KAM to allocate products.',
+      code: 'PRODUCT_NOT_ASSIGNED',
     });
   });
 });

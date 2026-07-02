@@ -8,6 +8,7 @@ jest.mock('../../services/airtable/n8nClient.js', () => ({
   n8nClient: {
     fetchTable: jest.fn(),
     postLoanApplication: jest.fn(),
+    getUserAccounts: jest.fn(async () => []),
   },
 }));
 
@@ -89,6 +90,7 @@ describe('LoanController.createApplication entitlement', () => {
     expect(mockResponse.json).toHaveBeenCalledWith({
       success: false,
       error: 'This product is not assigned to your account. Please contact your KAM to allocate products.',
+      code: 'PRODUCT_NOT_ASSIGNED',
     });
   });
 
@@ -129,6 +131,7 @@ describe('LoanController.createApplication entitlement', () => {
     expect(mockResponse.json).toHaveBeenCalledWith({
       success: false,
       error: 'This product is not assigned to your account. Please contact your KAM to allocate products.',
+      code: 'PRODUCT_NOT_ASSIGNED',
     });
   });
 

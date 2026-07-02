@@ -8,7 +8,9 @@ import { LoanStatus } from '../config/constants.js';
 import {
   ClientProductEntitlementError,
   assertClientProductAssigned,
+  entitlementErrorBody,
   resolveClientAssignedProducts,
+  resolveClientRecord,
 } from '../services/entitlements/clientProducts.service.js';
 import { getClientVehicleOptions } from '../services/vehicles/vehicleCatalog.service.js';
 
@@ -152,7 +154,7 @@ export class ClientController {
       res.json({ success: true, data: options });
     } catch (error: any) {
       if (error instanceof ClientProductEntitlementError) {
-        res.status(error.statusCode).json({ success: false, error: error.message });
+        res.status(error.statusCode).json(entitlementErrorBody(error));
         return;
       }
       res.status(500).json({
@@ -440,7 +442,7 @@ export class ClientController {
       let config = await getFormConfigForProduct(productId);
       let categoriesArray = config.categories;
       if (categoriesArray.length === 0) {
-        const clientId = (req.user?.clientId ?? '').toString();
+        const { clientId } = await resolveClientRecord(req.user);
         config = await getSimpleFormConfig(clientId, productId);
         categoriesArray = config.categories;
       }
@@ -453,10 +455,7 @@ export class ClientController {
     } catch (error: any) {
       console.error('[getFormConfig] Unexpected error:', error);
       if (error instanceof ClientProductEntitlementError) {
-        res.status(error.statusCode).json({
-          success: false,
-          error: error.message,
-        });
+        res.status(error.statusCode).json(entitlementErrorBody(error));
         return;
       }
       // Ensure error response is always valid JSON
@@ -488,13 +487,13 @@ export class ClientController {
         return;
       }
       await assertClientProductAssigned(req.user, productId);
+      const { clientId: resolvedClientId } = await resolveClientRecord(req.user);
       const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
       const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
       let config = await getFormConfigForProduct(productId);
       let categoriesArray = config.categories;
       if (categoriesArray.length === 0) {
-        const clientId = (req.user?.clientId ?? '').toString();
-        config = await getSimpleFormConfig(clientId, productId);
+        config = await getSimpleFormConfig(resolvedClientId, productId);
         categoriesArray = config.categories;
       }
       const totalFields = categoriesArray.reduce((sum, c) => sum + (c.fields?.length || 0), 0);
@@ -502,7 +501,7 @@ export class ClientController {
         success: true,
         data: categoriesArray,
         _debug: {
-          clientId: req.user.clientId?.toString() ?? null,
+          clientId: resolvedClientId,
           productId,
           categoriesCount: categoriesArray.length,
           fieldsCount: totalFields,
@@ -511,7 +510,7 @@ export class ClientController {
     } catch (error: any) {
       console.error('[getFormConfigDebug] Error:', error);
       if (error instanceof ClientProductEntitlementError) {
-        res.status(error.statusCode).json({ success: false, error: error.message });
+        res.status(error.statusCode).json(entitlementErrorBody(error));
         return;
       }
       res.status(500).json({ success: false, error: error.message || 'Failed to fetch form config' });
@@ -561,6 +560,10 @@ export class ClientController {
       });
     } catch (error: any) {
       console.error('[getConfiguredProducts] Error:', error);
+      if (error instanceof ClientProductEntitlementError) {
+        res.status(error.statusCode).json(entitlementErrorBody(error));
+        return;
+      }
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to fetch configured products',

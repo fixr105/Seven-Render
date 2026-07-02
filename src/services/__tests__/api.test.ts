@@ -89,4 +89,92 @@ describe('apiService request logical success handling', () => {
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe('https://seven-render.fly.dev/api/client/vehicles?productId=LP015');
   });
+
+  it('preserves auth token when backend returns CLIENT_NOT_LINKED', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () =>
+          JSON.stringify({
+            success: true,
+            data: {
+              user: {
+                id: 'user-1',
+                email: 'client@example.com',
+                role: 'client',
+                clientId: 'CL001',
+              },
+              token: 'test-token',
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () =>
+          JSON.stringify({
+            success: false,
+            error: 'Client account not linked.',
+            code: 'CLIENT_NOT_LINKED',
+          }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.login('client@example.com', 'password');
+    expect(sessionStorage.getItem('seven_auth_token')).toBe('test-token');
+
+    const result = await apiService.getFormConfig('LP012');
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe('CLIENT_NOT_LINKED');
+    expect(sessionStorage.getItem('seven_auth_token')).toBe('test-token');
+  });
+
+  it('clears auth token when backend returns LOGIN_REQUIRED', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () =>
+          JSON.stringify({
+            success: true,
+            data: {
+              user: {
+                id: 'user-1',
+                email: 'client@example.com',
+                role: 'client',
+                clientId: 'CL001',
+              },
+              token: 'test-token',
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () =>
+          JSON.stringify({
+            success: false,
+            error: 'Session expired. Please login again.',
+            code: 'LOGIN_REQUIRED',
+          }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.login('client@example.com', 'password');
+    await apiService.getMe();
+
+    expect(sessionStorage.getItem('seven_auth_token')).toBeNull();
+  });
 });

@@ -36,6 +36,7 @@ export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+  code?: string;
 }
 
 export interface ClientLinkPoolItem {
@@ -289,6 +290,20 @@ export interface AuditLogEntry {
   resolved: string;
 }
 
+const ENTITLEMENT_ERROR_CODES = new Set([
+  'CLIENT_NOT_LINKED',
+  'NO_PRODUCTS_ASSIGNED',
+  'PRODUCT_NOT_ASSIGNED',
+  'PRODUCT_ID_REQUIRED',
+  'AUTH_REQUIRED',
+]);
+
+function shouldClearAuthOnError(status: number, code?: string): boolean {
+  if (code === 'LOGIN_REQUIRED') return true;
+  if (code && ENTITLEMENT_ERROR_CODES.has(code)) return false;
+  return status === 401;
+}
+
 class ApiService {
   /** Per-tab Bearer token (sessionStorage). Backend prefers Bearer over cookie so each tab keeps its own user after refresh. Set on login, restored on load, cleared on logout/401. */
   private bearerToken: string | null = null;
@@ -453,11 +468,15 @@ class ApiService {
       }
 
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
+        const errorCode = typeof data?.code === 'string' ? data.code : undefined;
+        if (shouldClearAuthOnError(response.status, errorCode)) {
           this.clearAuthToken();
+        }
+        if (response.status === 401 || response.status === 403) {
           return {
             success: false,
             error: data.error || `Authentication failed (${response.status}).`,
+            code: errorCode,
           };
         }
         // Pass through validation payload (missingFields, formatErrors) for 400 responses

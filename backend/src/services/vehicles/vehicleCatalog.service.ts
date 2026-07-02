@@ -2,6 +2,7 @@ import { AuthUser } from '../../types/auth.js';
 import { n8nClient } from '../airtable/n8nClient.js';
 import {
   ClientProductEntitlementError,
+  ClientProductEntitlementCode,
   assertClientProductAssigned,
   resolveClientAssignedProducts,
 } from '../entitlements/clientProducts.service.js';
@@ -218,6 +219,7 @@ export async function resolveRequestedLoanAmountFromVehicleSelection(
 
   throw new ClientProductEntitlementError(
     'Selected vehicle is not available for your account and product assignment.',
-    403
+    403,
+    ClientProductEntitlementCode.PRODUCT_NOT_ASSIGNED
   );
 }

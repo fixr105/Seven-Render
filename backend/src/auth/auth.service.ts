@@ -9,6 +9,7 @@ import { UserRole, AccountStatus } from '../config/constants.js';
 import { UserAccount } from '../types/entities.js';
 import { AuthUser } from '../types/auth.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
+import { resolveClientRecord } from '../services/entitlements/clientProducts.service.js';
 import { authConfig } from '../config/auth.js';
 import { defaultLogger } from '../utils/logger.js';
 
@@ -103,26 +104,18 @@ export class AuthService {
 
     const username = (account.Username || '').trim();
     const normalizedEmail = username.toLowerCase();
-    const associatedProfile = (account['Associated Profile'] || '').toString().trim().toLowerCase();
 
     try {
       if (base.role === UserRole.CLIENT) {
-        // Map client users to Clients table
-        const clients = await n8nClient.fetchTable('Clients');
-        const matchingClient = clients.find((c: any) => {
-          const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
-          const clientName = (c['Client Name'] || c.clientName || '').toString().trim().toLowerCase();
-
-          // Match rule (from N8N_LOGIN_WORKFLOW_FIX.md):
-          // - Contact Email/Phone contains username (email)
-          // - OR Client Name matches associated_profile
-          const emailMatch = normalizedEmail && contact.includes(normalizedEmail);
-          const nameMatch = associatedProfile && clientName === associatedProfile;
-          return emailMatch || nameMatch;
-        });
-
-        if (matchingClient) {
-          clientId = (matchingClient['Client ID'] || matchingClient.clientId || matchingClient.id || null)?.toString() ?? null;
+        const tempUser: AuthUser = {
+          ...base,
+          email: username,
+        };
+        try {
+          const { clientId: resolvedClientId } = await resolveClientRecord(tempUser);
+          clientId = resolvedClientId;
+        } catch {
+          // Login should not fail when client linking is missing; endpoints will enforce later.
         }
       } else if (base.role === UserRole.KAM) {
         // Map KAM users to KAM Users table (match by email, then fallback to User Account id)
@@ -244,31 +237,25 @@ export class AuthService {
    * This ensures RBAC and client endpoints see a valid clientId without requiring re-login.
    */
   async resolveClientIdForClientUser(user: AuthUser): Promise<AuthUser> {
-    if (user.role !== UserRole.CLIENT || user.clientId) {
+    if (user.role !== UserRole.CLIENT) {
       return user;
     }
-    const email = (user.email || '').trim().toLowerCase();
-    if (!email) return user;
     try {
-      const clients = await n8nClient.fetchTable('Clients');
-      const matching = clients.find((c: any) => {
-        const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString().toLowerCase();
-        return contact && contact.includes(email);
-      });
-      if (matching) {
-        const resolved = (matching['Client ID'] || matching.clientId || matching.id || null)?.toString() ?? null;
-        if (resolved) {
-          defaultLogger.debug('Resolved clientId for client user from Clients table', {
-            email: user.email,
-            clientId: resolved,
-          });
-          return { ...user, clientId: resolved };
-        }
+      const { clientId } = await resolveClientRecord(user);
+      if (clientId && clientId !== user.clientId) {
+        defaultLogger.debug('Resolved clientId for client user from Clients table', {
+          email: user.email,
+          clientId,
+        });
       }
+      return { ...user, clientId };
     } catch (err: any) {
-      defaultLogger.warn('Failed to resolve clientId for client user', { email: user.email, error: err.message });
+      defaultLogger.warn('Failed to resolve clientId for client user', {
+        email: user.email,
+        error: err.message,
+      });
+      return user;
     }
-    return user;
   }
 
   async hashPassword(password: string): Promise<string> {
