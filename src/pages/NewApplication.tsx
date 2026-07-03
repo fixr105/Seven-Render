@@ -19,6 +19,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService, type ClientLinkPoolItem } from '../services/api';
+import {
+  createLoanApplicationViaWebhook,
+  hasDirectLoanApplicationWebhook,
+} from '../services/loanApplicationWebhook';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
@@ -802,13 +806,42 @@ export const NewApplication: React.FC = () => {
         }
       }
 
-      const response = await apiService.createApplication({
-        productId: formData.loan_product_id,
-        applicantName: formData.applicant_name,
-        formData: formDataToSend,
-        saveAsDraft: saveAsDraft,
-        clientSubmissionId,
-      });
+      let response: {
+        success: boolean;
+        error?: string;
+        data?: {
+          loanApplicationId?: string;
+          fileId?: string;
+          status?: string;
+          warnings?: string[];
+          duplicateFound?: { fileId: string; status: string } | null;
+          missingFields?: Array<{ fieldId: string; label: string; displayKey?: string }>;
+          formatErrors?: Array<{ fieldId: string; message: string }>;
+        };
+      };
+
+      if (hasDirectLoanApplicationWebhook() && clientId) {
+        const direct = await createLoanApplicationViaWebhook({
+          clientId,
+          productId: formData.loan_product_id,
+          applicantName: formData.applicant_name,
+          requestedLoanAmount: formData.requested_loan_amount,
+          formData: formDataToSend,
+          saveAsDraft,
+          clientSubmissionId,
+        });
+        response = direct.success && direct.data
+          ? { success: true, data: direct.data }
+          : { success: false, error: direct.error || 'Failed to create application via n8n' };
+      } else {
+        response = await apiService.createApplication({
+          productId: formData.loan_product_id,
+          applicantName: formData.applicant_name,
+          formData: formDataToSend,
+          saveAsDraft: saveAsDraft,
+          clientSubmissionId,
+        });
+      }
 
       if (!response.success) {
         // Handle backend validation errors (400 with missingFields and/or formatErrors)

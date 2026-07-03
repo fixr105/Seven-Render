@@ -45,6 +45,7 @@
     "reassign:applications": "tsx scripts/reassign-applications-to-client.ts",
     "debug:form-data": "tsx scripts/debug-form-data-get.ts",
     "test:post-one-application": "tsx scripts/test-post-one-application.ts",
+    "test:n8n-loan-create": "tsx scripts/test-n8n-loan-create.ts",
     "post:application-airtable": "tsx scripts/post-application-with-airtable-data.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",

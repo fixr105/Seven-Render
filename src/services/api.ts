@@ -16,8 +16,8 @@ function getApiBaseUrl(): string {
     if (import.meta.env.DEV) {
       return '/api';
     }
-    // Production: use explicit backend so we don't depend on Vercel rewrites
-    return 'https://seven-render.fly.dev/api';
+    // Production: same-origin /api (Vercel rewrite or hosted API on lms.sevenfincorp.com)
+    return '/api';
   }
 
   // Ensure /api is appended if not present
@@ -428,7 +428,7 @@ class ApiService {
         let errorMessage = `Server returned HTML instead of JSON (${response.status} ${response.statusText})`;
         
         if (response.status === 404) {
-          errorMessage = `Endpoint not found: ${endpoint}. Set VITE_API_BASE_URL=https://seven-render.fly.dev in Vercel and redeploy. See docs/NBFC_TOOLS_404_FIX.md.`;
+          errorMessage = `Endpoint not found: ${endpoint}. Ensure the API is deployed and reachable at /api.`;
         } else if (response.status === 401 || response.status === 403) {
           errorMessage = `Authentication failed (${response.status}).`;
         } else if (response.status >= 500) {
@@ -544,7 +544,7 @@ class ApiService {
         const isNBFCUploadFailure = endpoint.includes('/nbfc/tools/raad') || endpoint.includes('/nbfc/tools/pager');
 
         if (isRelativeUrl) {
-          errorMessage = `Cannot connect to backend API. The frontend is missing the VITE_API_BASE_URL environment variable.\n\nTo fix:\n1. Go to Vercel Dashboard → Settings → Environment Variables\n2. Add: VITE_API_BASE_URL = https://seven-render.fly.dev\n3. Redeploy the frontend\n\nCurrent base URL: ${currentBase}`;
+          errorMessage = `Cannot connect to backend API. Set VITE_API_BASE_URL to your API host if not using same-origin /api.\n\nCurrent base URL: ${currentBase}`;
         } else {
           const origin = typeof window !== 'undefined' ? window.location.origin : '';
           const corsHint = endpoint.includes('/auth/login')

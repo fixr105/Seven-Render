@@ -11,6 +11,7 @@
 
 import { n8nClient } from '../airtable/n8nClient.js';
 import { LoanStatus, UserRole } from '../../config/constants.js';
+import { normalizeToCanonicalStatus } from '../statusTracking/statusStateMachine.js';
 import { recordStatusChange } from '../statusTracking/statusHistory.service.js';
 import { centralizedLogger } from '../logging/centralizedLogger.service.js';
 import { AuthUser } from '../../types/auth.js';
@@ -75,14 +76,22 @@ export class LoanWorkflowService {
 
         if (found) {
           if (options.expectedStatus) {
-            const status = String(found.Status || found.status || '').trim();
-            if (status !== options.expectedStatus) {
+            const statusRaw = String(found.Status || found.status || '').trim();
+            let status = statusRaw;
+            let expected = options.expectedStatus;
+            try {
+              status = normalizeToCanonicalStatus(statusRaw);
+              expected = normalizeToCanonicalStatus(options.expectedStatus);
+            } catch {
+              // Keep literal comparison when Airtable stores a non-canonical label.
+            }
+            if (status !== expected) {
               if (attempt < 5) {
                 await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
                 continue;
               }
               throw new Error(
-                `Loan application persisted with unexpected status ${status || '(empty)'}; expected ${options.expectedStatus}`
+                `Loan application persisted with unexpected status ${statusRaw || '(empty)'}; expected ${options.expectedStatus}`
               );
             }
           }
@@ -229,7 +238,7 @@ export class LoanWorkflowService {
 
     // Create application via Loan Files webhook
     await n8nClient.postLoanApplication(applicationData, {
-      strictWriteAck: true,
+      strictWriteAck: false,
       operationName: 'loan application create',
     });
     try {

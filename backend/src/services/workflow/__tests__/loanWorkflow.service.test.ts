@@ -13,6 +13,7 @@ jest.mock('../../airtable/n8nClient.js', () => ({
 jest.mock('../../statusTracking/statusStateMachine.js', () => ({
   validateTransition: jest.fn(),
   toUserRole: jest.fn(() => 'client'),
+  normalizeToCanonicalStatus: (raw: string) => String(raw || '').trim().toLowerCase().replace(/\s+/g, '_'),
 }));
 
 jest.mock('../../statusTracking/statusHistory.service.js', () => ({
@@ -24,6 +25,10 @@ jest.mock('../../logging/centralizedLogger.service.js', () => ({
     logApplicationCreated: jest.fn().mockResolvedValue(undefined as never),
     logStatusChange: jest.fn().mockResolvedValue(undefined as never),
   },
+}));
+
+jest.mock('../../formConfigVersioning.js', () => ({
+  getLatestFormConfigVersion: jest.fn().mockResolvedValue(null as never),
 }));
 
 describe('LoanWorkflowService durability', () => {
@@ -139,5 +144,51 @@ describe('LoanWorkflowService durability', () => {
       status: LoanStatus.UNDER_KAM_REVIEW,
     });
     expect(mockN8nClient.postLoanApplication).toHaveBeenCalledTimes(1);
+    expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Client: 'CLIENT001',
+        Status: LoanStatus.UNDER_KAM_REVIEW,
+      }),
+      expect.objectContaining({
+        strictWriteAck: false,
+        operationName: 'loan application create',
+      })
+    );
+  });
+
+  it('uses lenient webhook acknowledgement when creating draft applications', async () => {
+    let createdFileId = '';
+    mockN8nClient.postLoanApplication.mockImplementation(async (data: Record<string, unknown>) => {
+      createdFileId = String(data['File ID'] || '');
+      return { success: true } as never;
+    });
+    mockN8nClient.fetchTable.mockImplementation(async (tableName: string) => {
+      if (tableName !== 'Loan Application' || !createdFileId) {
+        return [] as never;
+      }
+      return [
+        {
+          id: 'rec-draft',
+          Client: 'CLIENT001',
+          'File ID': createdFileId,
+          Status: LoanStatus.DRAFT,
+        },
+      ] as never;
+    });
+
+    await service.createLoanApplication(clientUser as any, {
+      clientId: 'CLIENT001',
+      productId: 'LP001',
+      applicantName: 'Draft Test',
+      saveAsDraft: true,
+    });
+
+    expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
+      expect.objectContaining({ Status: LoanStatus.DRAFT }),
+      expect.objectContaining({
+        strictWriteAck: false,
+        operationName: 'loan application create',
+      })
+    );
   });
 });

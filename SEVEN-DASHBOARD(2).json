@@ -1478,7 +1478,6 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "id": "={{ $json.body.id }}",
             "File ID": "={{ $json.body['File ID'] }}",
             "Client": "={{ $json.body.Client }}",
             "Applicant Name": "={{ $json.body['Applicant Name'] }}",
@@ -1496,10 +1495,22 @@
             "Form Data": "={{ $json.body['Form Data'] }}",
             "Creation Date": "={{ $json.body['Creation Date'] }}",
             "Submitted Date": "={{ $json.body['Submitted Date'] }}",
-            "Last Updated": "={{ $json.body['Last Updated'] }}"
+            "Last Updated": "={{ $json.body['Last Updated'] }}",
+            "KAM ID": "={{ $json.body['KAM ID'] }}",
+            "Mobile Number": "={{ $json.body['Mobile Number'] }}",
+            "Email Id": "={{ $json.body['Email Id'] }}",
+            "Type of Purchase": "={{ $json.body['Type of Purchase'] }}",
+            "Remarks": "={{ $json.body.Remarks }}",
+            "Form Config Version": "={{ $json.body['Form Config Version'] }}",
+            "Needs Attention": "={{ $json.body['Needs Attention'] }}",
+            "Validation Warnings": "={{ $json.body['Validation Warnings'] }}",
+            "Client Submission ID": "={{ $json.body['Client Submission ID'] }}",
+            "MD": "={{ $json.body.MD }}",
+            "Asana Task ID": "={{ $json.body['Asana Task ID'] }}",
+            "Asana Task Link": "={{ $json.body['Asana Task Link'] }}"
           },
           "matchingColumns": [
-            "id"
+            "File ID"
           ],
           "schema": [
             {

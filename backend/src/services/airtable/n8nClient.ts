@@ -1171,9 +1171,8 @@ export class N8nClient {
    * Fixed format and key order for n8n mapping. Always send all keys so n8n receives a consistent structure.
    * Used by postLoanApplication and by the AI summary big-brain-bro webhook.
    *
-   * N8N workflow uses only "File ID" for create vs update: when payload has a non-empty "File ID",
-   * n8n updates that Airtable record (Update record by File ID); otherwise it creates a new one.
-   * The former "id" field was removed from the workflow in favor of File ID.
+   * N8N workflow upserts by "File ID": when File ID is new, Airtable creates a record; when it exists, n8n updates that row.
+   * Re-import SEVEN-DASHBOARD(2).json if creates fail (matchingColumns must be File ID, not id).
    */
   buildLoanApplicationPayload(data: Record<string, any>): Record<string, any> {
     let formData = data['Form Data'] || data.formData || '';
