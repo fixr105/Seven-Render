@@ -101,7 +101,7 @@ export const Profile: React.FC = () => {
         company: profileData.company || undefined,
       });
       if (response.success) {
-        await refreshUser();
+        await refreshUser({ silent: true });
         alert(t('pages.profile.profileUpdatedSuccess'));
       } else {
         alert(response.error || t('buildProfile.updateFailed'));

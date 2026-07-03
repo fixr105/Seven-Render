@@ -5,7 +5,7 @@
  */
 /* eslint-disable react-refresh/only-export-components */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import { UserContext, UserRole } from './types';
 
@@ -15,7 +15,7 @@ interface AuthContextType {
   authSessionId: string | null;
   login: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => void;
-  refreshUser: () => Promise<void>;
+  refreshUser: (options?: { silent?: boolean }) => Promise<void>;
   hasRole: (role: UserRole) => boolean;
 }
 
@@ -30,9 +30,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAuthSessionId(`${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
   };
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await apiService.getMe();
       if (response.success && response.data) {
         const userData = response.data;
@@ -40,7 +41,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           userData.name = userData.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
         }
         setUser(userData);
-        if (!authSessionId) startNewSession();
+        setAuthSessionId((prev) => prev ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       } else {
         setUser(null);
         setAuthSessionId(null);
@@ -49,13 +50,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setAuthSessionId(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    refreshUser();
-  }, []);
+    void refreshUser();
+  }, [refreshUser]);
 
   const login = async (email: string, password: string): Promise<{ error?: string }> => {
     try {

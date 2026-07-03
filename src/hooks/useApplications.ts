@@ -154,7 +154,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
         setApplications([]);
         // If 401/403, token was cleared by API service; refresh user so ProtectedRoute redirects to login
         if (response.error?.includes('401') || response.error?.includes('403')) {
-          refreshUser();
+          void refreshUser({ silent: true });
           return;
         }
       }

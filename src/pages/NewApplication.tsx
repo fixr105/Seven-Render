@@ -116,7 +116,7 @@ const createClientSubmissionId = (): string =>
 export const NewApplication: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const userRole = user?.role || null;
   const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -179,7 +179,6 @@ export const NewApplication: React.FC = () => {
 
   useEffect(() => {
     if (userRole === 'client') {
-      void refreshUser();
       fetchClientId();
       fetchConfiguredProducts();
       setFormConfigLoading(false);

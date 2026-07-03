@@ -74,7 +74,7 @@ function AppRoutes() {
     if (!response.success) {
       throw new Error(response.error || 'Failed to update profile');
     }
-    await refreshUser();
+    await refreshUser({ silent: true });
   };
 
   return (

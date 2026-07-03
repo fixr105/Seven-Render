@@ -415,14 +415,14 @@ export const ApplicationDetail: React.FC = () => {
         console.error(`[ApplicationDetail] Error fetching application ${id}:`, response.error);
         // If 401/403, token was cleared; refresh user so ProtectedRoute redirects to login
         if (response.error?.includes('401') || response.error?.includes('Authentication') || response.error?.includes('403') || response.error?.includes('Access denied')) {
-          refreshUser();
+          void refreshUser({ silent: true });
         }
         setApplication(null);
       }
     } catch (error: any) {
       console.error(`[ApplicationDetail] Exception fetching application ${id}:`, error);
       if (error.message?.includes('401') || error.message?.includes('403')) {
-        refreshUser();
+        void refreshUser({ silent: true });
       }
       setApplication(null);
     } finally {

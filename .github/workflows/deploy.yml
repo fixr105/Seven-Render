@@ -53,17 +53,24 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
       - name: Deploy to Vercel
         id: vercel-deploy
-        uses: amondnet/vercel-action@v25
+        run: |
+          DEPLOY_URL=$(npx vercel@latest deploy --prod --yes --force --token "$VERCEL_TOKEN")
+          echo "deployment-url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          echo "preview-url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_FORCE_NO_BUILD_CACHE: '1'
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod --force'
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   deploy-summary:
     name: Deploy Summary - Test Links

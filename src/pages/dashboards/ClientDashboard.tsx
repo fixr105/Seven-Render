@@ -184,7 +184,7 @@ export const ClientDashboard: React.FC = () => {
         setLoanProducts(products);
       } else if (response.error) {
         if (response.error.includes('401') || response.error.includes('403')) {
-          refreshUser();
+          void refreshUser({ silent: true });
         }
       }
     } catch (_error) {
@@ -203,7 +203,7 @@ export const ClientDashboard: React.FC = () => {
         setConfiguredProductIds(new Set(response.data));
       } else if (response.error) {
         if (response.error.includes('401') || response.error.includes('403')) {
-          refreshUser();
+          void refreshUser({ silent: true });
         }
         setConfiguredProductsError(response.error);
       }
