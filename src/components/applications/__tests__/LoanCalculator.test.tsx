@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LoanCalculator } from '../LoanCalculator';
 import type { LoanFrozenValues } from '../../../lib/loanCalculator';
@@ -8,6 +8,9 @@ describe('LoanCalculator', () => {
   it('shows empty stage 2 placeholders until values are frozen', () => {
     render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
 
+    expect(screen.getByTestId('loan-extra-costs-disclaimer')).toHaveTextContent(
+      /Insurance and vehicle registration costs are extra/
+    );
     expect(screen.getByTestId('loan-form-amount')).toHaveAttribute(
       'placeholder',
       'Freeze values in calculator first.'
@@ -27,8 +30,7 @@ describe('LoanCalculator', () => {
       <LoanCalculator frozenValues={frozen} onFrozenValuesChange={onChange} />
     );
 
-    await user.type(screen.getByTestId('loan-calc-invoice'), '100000');
-    await user.type(screen.getByTestId('loan-calc-upfront'), '20000');
+    await user.type(screen.getByTestId('loan-calc-downpayment'), '20000');
     await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
     await user.click(screen.getByTestId('loan-calc-freeze'));
 
@@ -42,21 +44,37 @@ describe('LoanCalculator', () => {
     rerender(<LoanCalculator frozenValues={snapshot} onFrozenValuesChange={onChange} />);
 
     expect(screen.getByTestId('loan-form-amount')).toHaveValue(String(snapshot.loanAmount));
-    expect(screen.getByTestId('loan-form-interest')).toHaveValue('35');
+    expect(screen.getByTestId('loan-form-tenure')).toHaveValue(String(snapshot.tenureMonths));
+    expect(screen.queryByTestId('loan-form-interest')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('loan-form-processing-fee-pct')).not.toBeInTheDocument();
     expect(screen.getByTestId('loan-form-amount')).toBeDisabled();
+    expect(screen.getByTestId('loan-calc-downpayment')).toBeDisabled();
     expect(screen.getByTestId('loan-calc-invoice')).toBeDisabled();
   });
 
-  it('shows over-budget warning without blocking freeze', async () => {
+  it('computes invoice value from downpayment and disbursement', async () => {
     const user = userEvent.setup();
     render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
 
-    await user.type(screen.getByTestId('loan-calc-invoice'), '100000');
-    await user.type(screen.getByTestId('loan-calc-upfront'), '20000');
-    await user.type(screen.getByTestId('loan-calc-disbursement'), '90000');
+    await user.type(screen.getByTestId('loan-calc-downpayment'), '15000');
+    await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
 
-    expect(screen.getByTestId('loan-calc-over-budget')).toBeInTheDocument();
-    expect(screen.getByTestId('loan-calc-freeze')).not.toBeDisabled();
+    expect(screen.getByTestId('loan-calc-invoice')).toHaveValue('65000');
+  });
+
+  it('shows simplified live preview with EMI and without ROI or PF%', () => {
+    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+
+    const stage1 = within(screen.getByTestId('loan-calculator-stage1'));
+
+    expect(stage1.getByTestId('loan-calc-preview-amount')).toBeInTheDocument();
+    expect(stage1.getByTestId('loan-calc-preview-tenure')).toBeInTheDocument();
+    expect(stage1.getByTestId('loan-calc-preview-gps')).toBeInTheDocument();
+    expect(stage1.getByTestId('loan-calc-preview-emi')).toBeInTheDocument();
+    expect(stage1.queryByText('Interest Rate')).not.toBeInTheDocument();
+    expect(stage1.queryByText('Processing Fee %')).not.toBeInTheDocument();
+    expect(stage1.queryByText('Processing Fee ₹')).not.toBeInTheDocument();
+    expect(stage1.queryByText('Disbursal Amount')).not.toBeInTheDocument();
   });
 
   it('unfreezes on Edit so stage 1 is editable again', async () => {

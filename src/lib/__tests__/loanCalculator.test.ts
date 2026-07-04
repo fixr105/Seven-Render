@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import {
+  calculateEmi,
   calculateLoanPreview,
+  computeInvoiceValue,
   freezeLoanPreview,
   frozenValuesToFormDataPatch,
-  isDisbursementOverBudget,
   INTEREST_RATE,
 } from '../loanCalculator';
 
 describe('loanCalculator', () => {
   it('calculates loan amount, fees and disbursal from disbursement and tenure', () => {
     const preview = calculateLoanPreview({
-      invoiceValue: 100000,
       upfrontPayment: 20000,
       disbursementToDealer: 50000,
       tenureMonths: 12,
@@ -26,11 +26,26 @@ describe('loanCalculator', () => {
     expect(preview.disbursalAmount).toBe(
       preview.loanAmount - preview.processingFee - preview.gpsCharges
     );
+    expect(preview.emiAmount).toBe(calculateEmi(preview.loanAmount, 12));
+  });
+
+  it('derives invoice value from downpayment plus disbursement', () => {
+    const preview = calculateLoanPreview({
+      upfrontPayment: 15000,
+      disbursementToDealer: 50000,
+      tenureMonths: 18,
+    });
+
+    expect(computeInvoiceValue(15000, 50000)).toBe(65000);
+    expect(preview.invoiceValue).toBe(65000);
+    expect(preview.loanAmount).toBe(57065);
+    expect(preview.gpsCharges).toBe(2500);
+    expect(preview.tenureMonths).toBe(18);
+    expect(preview.emiAmount).toBe(calculateEmi(57065, 18));
   });
 
   it('uses GPS 2500 for 18 month tenure', () => {
     const preview = calculateLoanPreview({
-      invoiceValue: 100000,
       upfrontPayment: 0,
       disbursementToDealer: 46000,
       tenureMonths: 18,
@@ -39,9 +54,14 @@ describe('loanCalculator', () => {
     expect(preview.tenureMonths).toBe(18);
   });
 
+  it('calculates EMI using reducing-balance formula at 35% annual rate', () => {
+    const emi = calculateEmi(57065, 18);
+    expect(emi).toBeGreaterThan(0);
+    expect(emi).toBeLessThan(57065);
+  });
+
   it('freezes a snapshot that stage 1 cannot mutate', () => {
     const preview = calculateLoanPreview({
-      invoiceValue: 100000,
       upfrontPayment: 10000,
       disbursementToDealer: 40000,
       tenureMonths: 12,
@@ -57,24 +77,5 @@ describe('loanCalculator', () => {
       disbursalAmount: preview.disbursalAmount,
     });
     expect(frozenValuesToFormDataPatch(frozen)['loan.amount']).toBe(String(frozen.loanAmount));
-  });
-
-  it('flags disbursement over invoice minus upfront (non-blocking sanity check)', () => {
-    expect(
-      isDisbursementOverBudget({
-        invoiceValue: 100000,
-        upfrontPayment: 20000,
-        disbursementToDealer: 90000,
-        tenureMonths: 12,
-      })
-    ).toBe(true);
-    expect(
-      isDisbursementOverBudget({
-        invoiceValue: 100000,
-        upfrontPayment: 20000,
-        disbursementToDealer: 50000,
-        tenureMonths: 12,
-      })
-    ).toBe(false);
   });
 });

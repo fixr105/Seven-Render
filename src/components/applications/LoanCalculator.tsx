@@ -5,7 +5,6 @@ import { Button } from '../ui/Button';
 import {
   calculateLoanPreview,
   freezeLoanPreview,
-  isDisbursementOverBudget,
   parseMoneyInput,
   type LoanFrozenValues,
   type LoanTenureMonths,
@@ -34,56 +33,47 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   onUnfreeze,
 }) => {
   const isFrozen = frozenValues != null;
-  const [invoiceValue, setInvoiceValue] = useState('');
-  const [upfrontPayment, setUpfrontPayment] = useState('');
+  const [downpayment, setDownpayment] = useState('');
   const [disbursementToDealer, setDisbursementToDealer] = useState('');
   const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(12);
 
   const inputs = useMemo(
     () => ({
-      invoiceValue: parseMoneyInput(invoiceValue),
-      upfrontPayment: parseMoneyInput(upfrontPayment),
+      upfrontPayment: parseMoneyInput(downpayment),
       disbursementToDealer: parseMoneyInput(disbursementToDealer),
       tenureMonths,
     }),
-    [invoiceValue, upfrontPayment, disbursementToDealer, tenureMonths]
+    [downpayment, disbursementToDealer, tenureMonths]
   );
 
   const preview = useMemo(() => calculateLoanPreview(inputs), [inputs]);
-  const overBudget = isDisbursementOverBudget(inputs);
 
   const handleFreeze = () => {
     onFreeze(freezeLoanPreview(preview));
   };
+
+  const invoiceDisplay =
+    preview.invoiceValue > 0 ? String(preview.invoiceValue) : '';
 
   return (
     <div className="space-y-6" data-testid="loan-calculator-stage1">
       <div>
         <h3 className="text-sm font-semibold text-neutral-900">Loan calculator</h3>
         <p className="mt-1 text-sm text-neutral-600">
-          Enter invoice and disbursement details. Values update live. Freeze to lock them into the
-          application form below.
+          Enter downpayment and disbursement to dealer. Invoice value is computed automatically.
+          Values update live. Freeze to lock them into the application form below.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Input
-          label="Invoice Value (₹)"
+          label="Downpayment (₹)"
           type="text"
           inputMode="decimal"
-          value={invoiceValue}
+          value={downpayment}
           disabled={isFrozen}
-          onChange={(e) => setInvoiceValue(e.target.value)}
-          data-testid="loan-calc-invoice"
-        />
-        <Input
-          label="Upfront Payment (₹)"
-          type="text"
-          inputMode="decimal"
-          value={upfrontPayment}
-          disabled={isFrozen}
-          onChange={(e) => setUpfrontPayment(e.target.value)}
-          data-testid="loan-calc-upfront"
+          onChange={(e) => setDownpayment(e.target.value)}
+          data-testid="loan-calc-downpayment"
         />
         <Input
           label="Disbursement to Dealer (₹)"
@@ -93,6 +83,15 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           disabled={isFrozen}
           onChange={(e) => setDisbursementToDealer(e.target.value)}
           data-testid="loan-calc-disbursement"
+        />
+        <Input
+          label="Invoice Value (₹)"
+          type="text"
+          value={invoiceDisplay}
+          readOnly
+          disabled
+          data-testid="loan-calc-invoice"
+          className="bg-neutral-100 text-neutral-700"
         />
         <Select
           label="Tenure"
@@ -106,16 +105,6 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
         />
       </div>
 
-      {overBudget && !isFrozen && (
-        <p
-          className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-neutral-800"
-          data-testid="loan-calc-over-budget"
-        >
-          Disbursement to dealer exceeds invoice value minus upfront payment. You can still freeze,
-          but please verify the amounts.
-        </p>
-      )}
-
       <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
         <h4 className="mb-3 text-sm font-semibold text-neutral-900">Live preview</h4>
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -126,35 +115,21 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">Interest Rate</dt>
-            <dd className="text-sm font-medium text-neutral-900">{preview.interestRate}%</dd>
-          </div>
-          <div>
             <dt className="text-xs text-neutral-500">Tenure</dt>
-            <dd className="text-sm font-medium text-neutral-900">{preview.tenureMonths} months</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-neutral-500">Processing Fee ₹</dt>
-            <dd className="text-sm font-medium text-neutral-900">
-              {formatRupee(preview.processingFee)}
+            <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-tenure">
+              {preview.tenureMonths} months
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">GPS/IOT ₹</dt>
-            <dd className="text-sm font-medium text-neutral-900">
+            <dt className="text-xs text-neutral-500">GPS/IOT</dt>
+            <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-gps">
               {formatRupee(preview.gpsCharges)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">Processing Fee %</dt>
-            <dd className="text-sm font-medium text-neutral-900">
-              {preview.processingFeePctDisplay}%
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-neutral-500">Disbursal Amount</dt>
-            <dd className="text-sm font-medium text-neutral-900">
-              {formatRupee(preview.disbursalAmount)}
+            <dt className="text-xs text-neutral-500">EMI Amount</dt>
+            <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-emi">
+              {formatRupee(preview.emiAmount)}
             </dd>
           </div>
         </dl>
@@ -204,12 +179,6 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
       required: true,
     },
     {
-      label: 'Interest Rate (%)',
-      value: hasFrozen ? String(frozenValues.interestRate) : '',
-      testId: 'loan-form-interest',
-      required: true,
-    },
-    {
       label: 'Tenure (months)',
       value: hasFrozen ? String(frozenValues.tenureMonths) : '',
       testId: 'loan-form-tenure',
@@ -226,11 +195,6 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
       value: hasFrozen ? String(frozenValues.gpsCharges) : '',
       testId: 'loan-form-gps',
       required: true,
-    },
-    {
-      label: 'Processing Fee %',
-      value: hasFrozen ? String(frozenValues.processingFeePct) : '',
-      testId: 'loan-form-processing-fee-pct',
     },
     {
       label: 'Disbursal Amount (₹)',
@@ -281,6 +245,13 @@ export const LoanCalculator: React.FC<LoanCalculatorProps> = ({
 }) => {
   return (
     <div className="space-y-8" data-testid="loan-calculator">
+      <p
+        className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        data-testid="loan-extra-costs-disclaimer"
+      >
+        Insurance and vehicle registration costs are extra and are not included in the loan amount
+        shown in this calculator.
+      </p>
       <LoanCalculatorStage1
         frozenValues={frozenValues}
         onFreeze={(values) => onFrozenValuesChange(values)}

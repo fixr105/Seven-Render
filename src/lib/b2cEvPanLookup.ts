@@ -4,6 +4,8 @@ const GENDER_VALUES = new Set(['Male', 'Female', 'Other']);
 
 export const PAN_LOOKUP_TIMEOUT_SECONDS = 90;
 
+export type PanLookupFieldPrefix = 'borrower' | 'coApplicant' | 'guarantor';
+
 export const PAN_LOOKUP_FIELD_KEYS = [
   '_meta.panLookup.mobileNumber',
   '_meta.panLookup.panNumber',
@@ -86,7 +88,8 @@ export function normalizeWebhookGender(value: string): string {
 }
 
 export function mapPanLookupOutputToFormDataPatch(
-  output: PanLookupWebhookOutput
+  output: PanLookupWebhookOutput,
+  prefix: PanLookupFieldPrefix = 'borrower'
 ): Record<string, string> {
   const patch: Record<string, string> = {};
   const record = output as Record<string, unknown>;
@@ -142,21 +145,38 @@ export function mapPanLookupOutputToFormDataPatch(
   const district = readFirstStringFlexible(record, ['district', 'District']);
   const state = readFirstStringFlexible(record, ['state', 'State']);
 
-  if (firstName) patch['borrower.firstName'] = firstName;
-  if (lastName) patch['borrower.lastName'] = lastName;
-  if (customerName) patch['borrower.customerName'] = customerName;
-  if (gender) patch['borrower.gender'] = gender;
-  if (dob) patch['borrower.dob'] = dob;
-  if (fatherName) patch['borrower.fatherName'] = fatherName;
-  if (mobile) patch['borrower.mobile'] = mobile;
-  if (email) patch['borrower.email'] = email;
-  if (pan) patch['borrower.pan'] = pan;
-  if (addressLine1) patch['borrower.address.line1'] = addressLine1;
-  if (addressLine2) patch['borrower.address.line2'] = addressLine2;
-  if (village) patch['borrower.address.village'] = village;
-  if (pincode) patch['borrower.address.pincode'] = pincode;
-  if (district) patch['borrower.address.district'] = district;
-  if (state) patch['borrower.address.state'] = state;
+  if (prefix === 'borrower') {
+    if (firstName) patch['borrower.firstName'] = firstName;
+    if (lastName) patch['borrower.lastName'] = lastName;
+    if (customerName) patch['borrower.customerName'] = customerName;
+    if (gender) patch['borrower.gender'] = gender;
+    if (dob) patch['borrower.dob'] = dob;
+    if (fatherName) patch['borrower.fatherName'] = fatherName;
+    if (mobile) patch['borrower.mobile'] = mobile;
+    if (email) patch['borrower.email'] = email;
+    if (pan) patch['borrower.pan'] = pan;
+    if (addressLine1) patch['borrower.address.line1'] = addressLine1;
+    if (addressLine2) patch['borrower.address.line2'] = addressLine2;
+    if (village) patch['borrower.address.village'] = village;
+    if (pincode) patch['borrower.address.pincode'] = pincode;
+    if (district) patch['borrower.address.district'] = district;
+    if (state) patch['borrower.address.state'] = state;
+    return patch;
+  }
+
+  const displayName =
+    customerName || [firstName, lastName].filter(Boolean).join(' ').trim();
+  if (displayName) patch[`${prefix}.name`] = displayName;
+  if (dob) patch[`${prefix}.dob`] = dob;
+  if (email) patch[`${prefix}.email`] = email;
+  if (pan) patch[`${prefix}.pan`] = pan;
+  if (mobile) patch[`${prefix}.mobile`] = mobile;
+  if (addressLine1) patch[`${prefix}.address.line1`] = addressLine1;
+  if (addressLine2) patch[`${prefix}.address.line2`] = addressLine2;
+  if (village) patch[`${prefix}.address.village`] = village;
+  if (pincode) patch[`${prefix}.address.pincode`] = pincode;
+  if (district) patch[`${prefix}.address.district`] = district;
+  if (state) patch[`${prefix}.address.state`] = state;
 
   return patch;
 }

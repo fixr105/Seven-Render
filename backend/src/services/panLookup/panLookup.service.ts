@@ -2,6 +2,7 @@ import {
   hasBorrowerPatchData,
   mapPanLookupOutputToFormDataPatch,
   parseWebhookOutput,
+  type PanLookupFieldPrefix,
 } from './panLookup.mapper.js';
 
 const DEFAULT_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/postMMfrontPAN';
@@ -16,6 +17,7 @@ export interface PanLookupRequest {
   panNumber: string;
   fullName: string;
   borrowerEmail?: string | null;
+  target?: PanLookupFieldPrefix;
 }
 
 export type PanLookupSuccess = {
@@ -174,11 +176,14 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   // CIBIL is intentionally discarded — reserved for a future feature.
   delete output.cibil_score;
 
-  const formDataPatch = mapPanLookupOutputToFormDataPatch(output);
+  const target = input.target ?? 'borrower';
+  const formDataPatch = mapPanLookupOutputToFormDataPatch(output, target);
   if (!hasBorrowerPatchData(formDataPatch)) {
+    const emptyLabel =
+      target === 'borrower' ? 'borrower' : target === 'coApplicant' ? 'co-applicant' : 'guarantor';
     return {
       success: false,
-      error: 'PAN lookup returned no borrower details',
+      error: `PAN lookup returned no ${emptyLabel} details`,
       code: 'EMPTY_RESPONSE',
     };
   }

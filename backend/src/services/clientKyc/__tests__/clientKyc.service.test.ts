@@ -1,4 +1,4 @@
-import { describe, it, expect, jest } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 jest.mock('../../airtable/n8nClient.js', () => ({
   n8nClient: {
@@ -6,8 +6,15 @@ jest.mock('../../airtable/n8nClient.js', () => ({
   },
 }));
 
+jest.mock('../../entitlements/clientProducts.service.js', () => ({
+  resolveClientRecord: jest.fn(),
+}));
+
+import { n8nClient } from '../../airtable/n8nClient.js';
+import { resolveClientRecord } from '../../entitlements/clientProducts.service.js';
 import {
   findClientKycRecord,
+  getClientKycForUser,
   normalizeClientKycRecord,
   clientKycToFormDataPatch,
 } from '../clientKyc.service.js';
@@ -82,5 +89,20 @@ describe('clientKyc.service', () => {
     expect(patch['dealer.id']).toBe('SFDLR11030');
     expect(patch['dealer.displayLabel']).toBe('Ajay Enterprises - 7905835489');
     expect(patch['_meta.dealerKycVerified']).toBe(true);
+  });
+
+  it('loads KYC by login email when client record is not linked', async () => {
+    jest.mocked(resolveClientRecord).mockRejectedValue(new Error('Client account not linked'));
+    jest.mocked(n8nClient.fetchTable).mockResolvedValue([sampleRecord]);
+
+    const profile = await getClientKycForUser({
+      id: 'rec-user-1',
+      email: 'nagendra998451@gmail.com',
+      role: 'client',
+      clientId: null,
+    } as any);
+
+    expect(profile?.dealerId).toBe('SFDLR11030');
+    expect(profile?.displayLabel).toBe('Ajay Enterprises - 7905835489');
   });
 });

@@ -27,8 +27,11 @@ import {
 import {
   clearSupportPersonFields,
   getB2cEvFormCompletion,
+  isDealerKycPopulated,
   syncB2cEvComputedFields,
   validateB2cEvStage,
+  validateSupportPanLookupInput,
+  validateSupportPersonStageAccessible,
 } from '../../lib/b2cEvFormValidation';
 import {
   buildPanLookupInputHash,
@@ -39,7 +42,18 @@ import {
   PAN_LOOKUP_FIELD_KEYS,
   PAN_LOOKUP_TIMEOUT_SECONDS,
 } from '../../lib/b2cEvPanLookup';
+import {
+  buildSupportPanLookupInputHash,
+  clearSupportPersonProfileFields,
+  getSupportPanLookupPayload,
+  getSupportPanLookupPhase,
+  shouldRefetchSupportPanLookup,
+  SUPPORT_PAN_LOOKUP_FIELD_KEYS,
+  SUPPORT_PAN_LOOKUP_TIMEOUT_SECONDS,
+} from '../../lib/b2cEvSupportPanLookup';
 import { LoanCalculator } from './LoanCalculator';
+import { SupportPersonPanWizard } from './SupportPersonPanWizard';
+import { GeoTaggedPhotoUploads } from './GeoTaggedPhotoUploads';
 import {
   formDataToFrozenValues,
   frozenValuesToFormDataPatch,
@@ -158,11 +172,15 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [loanProductsError, setLoanProductsError] = useState<string | null>(null);
   const [dealerProfile, setDealerProfile] = useState<ClientKycDealerProfile | null>(null);
   const [dealerKycError, setDealerKycError] = useState<string | null>(null);
+  const [dealerKycLoading, setDealerKycLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [panLookupLoading, setPanLookupLoading] = useState(false);
   const [panLookupError, setPanLookupError] = useState<string | null>(null);
   const [panLookupCountdown, setPanLookupCountdown] = useState(0);
+  const [supportPanLookupLoading, setSupportPanLookupLoading] = useState(false);
+  const [supportPanLookupError, setSupportPanLookupError] = useState<string | null>(null);
+  const [supportPanLookupCountdown, setSupportPanLookupCountdown] = useState(0);
   const [clientSubmissionId] = useState(createClientSubmissionId);
   const submitInFlightRef = useRef(false);
 
@@ -184,7 +202,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     [visibleStages, formState.form_data, formState.loan_product_id]
   );
 
-  const isReviewStep = currentStage?.id === 'review';
+  const isLastStep = currentStep === visibleStages.length - 1;
 
   useEffect(() => {
     if (!panLookupLoading) {
@@ -205,10 +223,36 @@ export const B2CEvApplicationWizard: React.FC = () => {
       ? `Fetching borrower details… ${panLookupCountdown}s remaining`
       : 'Fetching borrower details…';
 
+  useEffect(() => {
+    if (!supportPanLookupLoading) {
+      setSupportPanLookupCountdown(0);
+      return;
+    }
+
+    setSupportPanLookupCountdown(SUPPORT_PAN_LOOKUP_TIMEOUT_SECONDS);
+    const interval = window.setInterval(() => {
+      setSupportPanLookupCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [supportPanLookupLoading]);
+
+  const supportPanLookupLoadingMessage =
+    supportPanLookupCountdown > 0
+      ? `Fetching support person details… ${supportPanLookupCountdown}s remaining`
+      : 'Fetching support person details…';
+
+  const supportPersonStepIndex = useMemo(
+    () => visibleStages.findIndex((stage) => stage.id === 'support-person'),
+    [visibleStages]
+  );
+  const supportPanPhase = getSupportPanLookupPhase(formState.form_data);
+  const supportNextDisabled =
+    currentStage?.id === 'support-person' && supportPanPhase !== 'profile';
+
   const completedStepIndices = useMemo(() => {
     return visibleStages
       .map((stage, index) => {
-        if (stage.id === 'review') return null;
         const { errors } = getB2cEvFormCompletion(
           [stage],
           formState.form_data,
@@ -226,14 +270,51 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }));
   };
 
+  const loadDealerKyc = async (formData?: Record<string, unknown>): Promise<boolean> => {
+    if (formData && isDealerKycPopulated(formData)) {
+      return true;
+    }
+
+    setDealerKycLoading(true);
+    try {
+      const kycRes = await apiService.getClientKyc();
+      if (kycRes.success && kycRes.data?.formDataPatch) {
+        setDealerProfile(kycRes.data);
+        setDealerKycError(null);
+        setFormState((prev) => ({
+          ...prev,
+          form_data: syncB2cEvComputedFields({
+            ...prev.form_data,
+            ...kycRes.data!.formDataPatch!,
+          }),
+        }));
+        return true;
+      }
+
+      const message =
+        kycRes.error ||
+        'No active Client KYC record found for your account. Contact your KAM to complete dealer KYC setup.';
+      setDealerKycError(message);
+      if (window.location.search.includes('b2cEv=1')) {
+        applyDealerPatch(DEMO_DEALER_PATCH);
+        return true;
+      }
+      return false;
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to load dealer profile from Client KYC';
+      setDealerKycError(message);
+      return false;
+    } finally {
+      setDealerKycLoading(false);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoanProductsLoading(true);
       try {
-        const [productsRes, kycRes] = await Promise.all([
-          apiService.listLoanProducts(true),
-          apiService.getClientKyc(),
-        ]);
+        const productsRes = await apiService.listLoanProducts(true);
 
         if (productsRes.success && productsRes.data) {
           setLoanProducts(
@@ -248,22 +329,13 @@ export const B2CEvApplicationWizard: React.FC = () => {
           setLoanProductsError(productsRes.error || 'Failed to load loan products');
         }
 
-        if (kycRes.success && kycRes.data) {
-          setDealerProfile(kycRes.data);
-          if (kycRes.data.formDataPatch) {
-            applyDealerPatch(kycRes.data.formDataPatch);
-          }
-        } else {
-          setDealerKycError(kycRes.error || 'Dealer KYC not found');
-          if (window.location.search.includes('b2cEv=1')) {
-            applyDealerPatch(DEMO_DEALER_PATCH);
-          }
-        }
+        await loadDealerKyc();
       } finally {
         setLoanProductsLoading(false);
       }
     };
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial mount only
   }, []);
 
   useEffect(() => {
@@ -307,6 +379,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
             })
           ),
         });
+        if (!isDealerKycPopulated(parsedFormData)) {
+          await loadDealerKyc(parsedFormData);
+        }
       } catch (error: unknown) {
         setDraftLoadError(error instanceof Error ? error.message : 'Failed to load draft');
       } finally {
@@ -315,6 +390,13 @@ export const B2CEvApplicationWizard: React.FC = () => {
     };
     void loadDraft();
   }, [draftIdParam]);
+
+  useEffect(() => {
+    if (currentStage?.id !== 'dealer') return;
+    if (dealerKycLoading || isDealerKycPopulated(formState.form_data)) return;
+    void loadDealerKyc(formState.form_data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load when dealer stage is opened
+  }, [currentStage?.id, currentStep]);
 
   const updateField = (key: string, value: string) => {
     setFormState((prev) => {
@@ -326,6 +408,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
         nextFormData['_meta.panLookup.status'] = 'pending';
         nextFormData['_meta.panLookup.inputHash'] = '';
         nextFormData['_meta.panLookup.completedAt'] = '';
+      }
+      if ((SUPPORT_PAN_LOOKUP_FIELD_KEYS as readonly string[]).includes(key)) {
+        nextFormData['_meta.supportPanLookup.status'] = 'pending';
+        nextFormData['_meta.supportPanLookup.inputHash'] = '';
+        nextFormData['_meta.supportPanLookup.completedAt'] = '';
+        nextFormData['_meta.supportPanLookup.phase'] = 'input';
       }
       nextFormData = syncB2cEvComputedFields(nextFormData);
       const applicantName = readFieldValue(nextFormData, 'borrower.customerName');
@@ -340,10 +428,34 @@ export const B2CEvApplicationWizard: React.FC = () => {
     if ((PAN_LOOKUP_FIELD_KEYS as readonly string[]).includes(key)) {
       setPanLookupError(null);
     }
+    if ((SUPPORT_PAN_LOOKUP_FIELD_KEYS as readonly string[]).includes(key)) {
+      setSupportPanLookupError(null);
+    }
     setFieldErrors((prev) => {
       if (!prev[key]) return prev;
       const next = { ...prev };
       delete next[key];
+      return next;
+    });
+  };
+
+  const updateFields = (patch: Record<string, string>) => {
+    setFormState((prev) => {
+      const nextFormData = syncB2cEvComputedFields({ ...prev.form_data, ...patch });
+      const applicantName = readFieldValue(nextFormData, 'borrower.customerName');
+      const loanAmount = readFieldValue(nextFormData, 'loan.amount').replace(/,/g, '');
+      return {
+        ...prev,
+        applicant_name: applicantName,
+        requested_loan_amount: loanAmount || prev.requested_loan_amount,
+        form_data: nextFormData,
+      };
+    });
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch)) {
+        delete next[key];
+      }
       return next;
     });
   };
@@ -436,6 +548,119 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }
   };
 
+  const handleSupportTypeChange = (type: SupportPersonType) => {
+    setFormState((prev) => ({
+      ...prev,
+      form_data: clearSupportPersonFields(
+        { ...prev.form_data, '_meta.supportPersonType': type },
+        type
+      ),
+    }));
+    setSupportPanLookupError(null);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next['_meta.supportPersonType'];
+      return next;
+    });
+  };
+
+  const runSupportPanLookup = async (): Promise<boolean> => {
+    const inputErrors = validateSupportPanLookupInput(formState.form_data);
+    if (Object.keys(inputErrors).length > 0) {
+      setFieldErrors(inputErrors);
+      return false;
+    }
+
+    const payload = getSupportPanLookupPayload(formState.form_data);
+    if (!payload) return false;
+
+    const inputHash = buildSupportPanLookupInputHash(formState.form_data);
+    if (!shouldRefetchSupportPanLookup(formState.form_data)) {
+      setFormState((prev) => ({
+        ...prev,
+        form_data: {
+          ...prev.form_data,
+          '_meta.supportPanLookup.phase': 'profile',
+        },
+      }));
+      return true;
+    }
+
+    setSupportPanLookupLoading(true);
+    setSupportPanLookupError(null);
+    setFormState((prev) => ({
+      ...prev,
+      form_data: {
+        ...prev.form_data,
+        '_meta.supportPanLookup.phase': 'loading',
+      },
+    }));
+
+    try {
+      const response = await apiService.lookupBorrowerPan({
+        mobileNumber: payload.mobileNumber,
+        panNumber: payload.panNumber,
+        fullName: payload.fullName,
+        borrowerEmail: payload.borrowerEmail ?? null,
+        target: payload.target,
+      });
+
+      if (!response.success || !response.data?.formDataPatch) {
+        const message =
+          response.error ||
+          'Could not fetch support person details. Please verify PAN and try again.';
+        setSupportPanLookupError(message);
+        setFormState((prev) => ({
+          ...prev,
+          form_data: {
+            ...prev.form_data,
+            '_meta.supportPanLookup.status': 'failed',
+            '_meta.supportPanLookup.phase': 'input',
+          },
+        }));
+        return false;
+      }
+
+      const prefix = payload.target;
+      if (prefix !== 'coApplicant' && prefix !== 'guarantor') {
+        return false;
+      }
+      setFormState((prev) => {
+        const cleared = clearSupportPersonProfileFields(prev.form_data, prefix);
+        const patched = syncB2cEvComputedFields({
+          ...cleared,
+          ...response.data!.formDataPatch,
+          '_meta.supportPanLookup.status': 'success',
+          '_meta.supportPanLookup.inputHash': inputHash,
+          '_meta.supportPanLookup.completedAt': response.data!.lookupAt,
+          '_meta.supportPanLookup.phase': 'profile',
+        });
+        return {
+          ...prev,
+          form_data: patched,
+        };
+      });
+      return true;
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Could not fetch support person details. Please verify PAN and try again.';
+      setSupportPanLookupError(message);
+      setFormState((prev) => ({
+        ...prev,
+        form_data: {
+          ...prev.form_data,
+          '_meta.supportPanLookup.status': 'failed',
+          '_meta.supportPanLookup.phase': 'input',
+        },
+      }));
+      return false;
+    } finally {
+      setSupportPanLookupLoading(false);
+    }
+  };
+
   const goNext = async () => {
     if (!validateCurrentStep(false)) return;
 
@@ -444,6 +669,16 @@ export const B2CEvApplicationWizard: React.FC = () => {
       if (!lookupOk) return;
       advanceStep();
       return;
+    }
+
+    if (currentStage?.id === 'support-person') {
+      if (supportPanPhase !== 'profile') {
+        setFieldErrors({
+          '_meta.supportPanLookup.phase':
+            'Verify PAN and complete the support person profile before continuing',
+        });
+        return;
+      }
     }
 
     const nextStage = visibleStages[currentStep + 1];
@@ -455,6 +690,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return;
     }
 
+    if (nextStage?.id === 'dealer') {
+      const kycOk = await loadDealerKyc(formState.form_data);
+      if (!kycOk) return;
+    }
+
     advanceStep();
   };
 
@@ -464,7 +704,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     if (submitInFlightRef.current) return;
 
     if (!saveAsDraft) {
-      if (!isReviewStep) return;
+      if (!isLastStep) return;
       if (!completion.isComplete) {
         setFieldErrors(completion.errors);
         alert(
@@ -706,99 +946,61 @@ export const B2CEvApplicationWizard: React.FC = () => {
       );
     }
 
-    if (stage.id === 'support-person') {
-      const selected = readFieldValue(formState.form_data, '_meta.supportPersonType');
-      const choices: Array<{ type: SupportPersonType; title: string; subtitle: string }> = [
-        { type: 'co_applicant', title: 'Co-applicant', subtitle: 'Family / blood relation' },
-        { type: 'guarantor', title: 'Guarantor', subtitle: 'Non-family relation' },
-      ];
-      return (
-        <div className="space-y-4">
-          <p className="text-sm text-neutral-600">
-            Choose one supporting person for this loan. Co-applicant and guarantor are mutually exclusive.
+    if (stage.id === 'dealer') {
+      if (dealerKycLoading) {
+        return (
+          <p className="text-sm text-neutral-600" data-testid="b2c-dealer-kyc-loading">
+            Loading dealer profile from Client KYC…
           </p>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {choices.map((choice) => {
-              const active = selected === choice.type;
-              return (
-                <button
-                  key={choice.type}
-                  type="button"
-                  data-testid={`support-person-${choice.type}`}
-                  onClick={() => updateField('_meta.supportPersonType', choice.type)}
-                  className={`rounded-xl border p-4 text-left transition-all ${
-                    active
-                      ? 'border-brand-primary bg-brand-primary/5 shadow-sm'
-                      : 'border-neutral-200 bg-white hover:border-neutral-300'
-                  }`}
-                >
-                  <p className="font-semibold text-neutral-900">{choice.title}</p>
-                  <p className="mt-1 text-sm text-neutral-600">{choice.subtitle}</p>
-                </button>
-              );
-            })}
+        );
+      }
+
+      if (!isDealerKycPopulated(formState.form_data)) {
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-600">
+              Dealer details are auto-filled from your Client KYC profile.
+            </p>
+            {dealerKycError && (
+              <p className="text-sm text-error" data-testid="b2c-dealer-kyc-error">
+                {dealerKycError}
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              data-testid="b2c-dealer-kyc-retry"
+              onClick={() => void loadDealerKyc()}
+            >
+              Retry loading dealer profile
+            </Button>
           </div>
-          {fieldErrors['_meta.supportPersonType'] && (
-            <p className="text-sm text-error">{fieldErrors['_meta.supportPersonType']}</p>
-          )}
-        </div>
+        );
+      }
+    }
+
+    if (stage.id === 'support-person') {
+      return (
+        <SupportPersonPanWizard
+          formData={formState.form_data}
+          fieldErrors={fieldErrors}
+          loading={supportPanLookupLoading}
+          loadingMessage={supportPanLookupLoadingMessage}
+          lookupError={supportPanLookupError}
+          onFieldChange={updateField}
+          onSupportTypeChange={handleSupportTypeChange}
+          onVerify={() => void runSupportPanLookup()}
+        />
       );
     }
 
-    if (stage.id === 'review') {
-      const sections = visibleStages.filter((s) => s.id !== 'review' && s.fields.length > 0);
+    if (stage.id === 'geo-photos') {
       return (
-        <div className="space-y-4">
-          <p className="text-sm text-neutral-600">Review your application before submitting.</p>
-          {!completion.isComplete && completion.missingByStage.length > 0 && (
-            <div className="rounded-lg border border-warning/40 bg-warning/5 p-4">
-              <p className="text-sm font-medium text-neutral-900">Complete these sections before submitting:</p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-700">
-                {completion.missingByStage.map((section) => (
-                  <li key={section.stageId}>
-                    <strong>{section.stageTitle}</strong>: {section.fieldLabels.join(', ')}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {sections.map((section) => (
-            <div key={section.id} className="rounded-lg border border-neutral-200 p-4">
-              <h4 className="font-medium text-neutral-900">{section.title}</h4>
-              <dl className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                {section.fields.map((field) => {
-                  const value = readFieldValue(formState.form_data, field.key);
-                  if (!value) return null;
-                  return (
-                    <div key={field.key}>
-                      <dt className="text-xs text-neutral-500">{field.label}</dt>
-                      <dd className="text-sm text-neutral-900 break-words">{value}</dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </div>
-          ))}
-          <div className="rounded-lg border border-neutral-200 p-4">
-            <h4 className="font-medium text-neutral-900">Summary</h4>
-            <dl className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-              <div>
-                <dt className="text-xs text-neutral-500">Applicant</dt>
-                <dd className="text-sm text-neutral-900">{formState.applicant_name || '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-neutral-500">Loan Amount</dt>
-                <dd className="text-sm text-neutral-900">₹{formState.requested_loan_amount || '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-neutral-500">Dealer</dt>
-                <dd className="text-sm text-neutral-900">
-                  {readFieldValue(formState.form_data, 'dealer.displayLabel') || '—'}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
+        <GeoTaggedPhotoUploads
+          formData={formState.form_data}
+          fieldErrors={fieldErrors}
+          onBatchChange={updateFields}
+        />
       );
     }
 
@@ -930,6 +1132,13 @@ export const B2CEvApplicationWizard: React.FC = () => {
               ) {
                 return;
               }
+              if (
+                supportPersonStepIndex >= 0 &&
+                index > supportPersonStepIndex &&
+                !validateSupportPersonStageAccessible(formState.form_data)
+              ) {
+                return;
+              }
               if (index <= currentStep) setCurrentStep(index);
             }}
           />
@@ -950,7 +1159,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
           variant="secondary"
           icon={ChevronLeft}
           onClick={goBack}
-          disabled={currentStep === 0 || loading || panLookupLoading}
+          disabled={
+            currentStep === 0 || loading || panLookupLoading || supportPanLookupLoading
+          }
         >
           Back
         </Button>
@@ -961,12 +1172,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
             variant="tertiary"
             icon={Save}
             onClick={() => void handleSubmit(true)}
-            disabled={loading || panLookupLoading || !formState.loan_product_id}
+            disabled={loading || panLookupLoading || !formState.loan_product_id || supportPanLookupLoading}
           >
             Save draft
           </Button>
 
-          {isReviewStep ? (
+          {isLastStep ? (
             <Button
               type="button"
               icon={Send}
@@ -986,10 +1197,19 @@ export const B2CEvApplicationWizard: React.FC = () => {
               type="button"
               icon={ChevronRight}
               onClick={() => void goNext()}
-              disabled={loading || panLookupLoading}
+              disabled={
+                loading ||
+                panLookupLoading ||
+                supportPanLookupLoading ||
+                supportNextDisabled
+              }
               data-testid="b2c-wizard-next"
             >
-              {panLookupLoading ? panLookupLoadingMessage : 'Next'}
+              {panLookupLoading
+                ? panLookupLoadingMessage
+                : supportPanLookupLoading
+                  ? supportPanLookupLoadingMessage
+                  : 'Next'}
             </Button>
           )}
         </div>

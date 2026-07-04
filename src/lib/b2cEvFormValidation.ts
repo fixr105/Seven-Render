@@ -1,7 +1,14 @@
 import { getPanValidationError } from '../utils/panValidation';
 import { isValidEmailFormat, parseIndianMobile } from '../utils/basicApplicationFieldsValidation';
-import type { B2cEvStage } from '../config/forms/b2cEvFormSchema';
+import type { B2cEvStage, SupportPersonType } from '../config/forms/b2cEvFormSchema';
+import { getSupportPersonProfileFields } from '../config/forms/b2cEvFormSchema';
 import { isPanLookupSuccessful } from './b2cEvPanLookup';
+import {
+  getSupportPanLookupPhase,
+  isSupportPanLookupSuccessful,
+  SUPPORT_PAN_LOOKUP_FIELD_KEYS,
+} from './b2cEvSupportPanLookup';
+import { validateGeoPhotosStage } from './b2cEvGeoPhotos';
 
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
@@ -32,6 +39,10 @@ function validateDealerPopulated(formData: Record<string, unknown>): Record<stri
     }
   }
   return errors;
+}
+
+export function isDealerKycPopulated(formData: Record<string, unknown>): boolean {
+  return B2C_EV_DEALER_POPULATED_KEYS.every((key) => !isEmptyValue(readValue(formData, key)));
 }
 
 function readValue(formData: Record<string, unknown>, key: string): string {
@@ -115,8 +126,50 @@ export function validateB2cEvStage(
     const supportType = readValue(formData, '_meta.supportPersonType');
     if (!supportType || supportType === 'none') {
       errors['_meta.supportPersonType'] = 'Select co-applicant or guarantor';
+      return errors;
+    }
+
+    const phase = getSupportPanLookupPhase(formData);
+    if (phase !== 'profile') {
+      errors['_meta.supportPanLookup.phase'] =
+        'Verify PAN and complete the support person profile before continuing';
+      return errors;
+    }
+
+    if (!isSupportPanLookupSuccessful(formData)) {
+      errors['_meta.supportPanLookup.status'] =
+        'Support person details must be verified with PAN before continuing';
+      return errors;
+    }
+
+    const profileFields = getSupportPersonProfileFields(supportType as SupportPersonType);
+    for (const field of profileFields) {
+      const value = readValue(formData, field.key);
+      if (field.required && isEmptyValue(value)) {
+        errors[field.key] = `${field.label} is required`;
+        continue;
+      }
+      if (isEmptyValue(value)) continue;
+
+      if (field.type === 'email' && !isValidEmailFormat(value)) {
+        errors[field.key] = 'Please enter a valid email address';
+      }
+      if (field.type === 'tel') {
+        const parsed = parseIndianMobile(value);
+        if (parsed.ok === false) {
+          errors[field.key] = 'Please enter a valid 10-digit Indian mobile number';
+        }
+      }
+      if (field.key.endsWith('.pan') || field.label.toLowerCase().includes('pan')) {
+        const panError = getPanValidationError(value);
+        if (panError) errors[field.key] = panError;
+      }
     }
     return errors;
+  }
+
+  if (stage.id === 'geo-photos') {
+    return validateGeoPhotosStage(formData);
   }
 
   if (stage.id === 'review') return errors;
@@ -191,7 +244,14 @@ export function getB2cEvFormCompletion(
 
     const fieldLabels = stageErrorKeys.map((key) => {
       if (key === 'loan_product_id') return 'Loan Product';
-      const field = stage.fields.find((f) => f.key === key);
+      let field = stage.fields.find((f) => f.key === key);
+      if (!field && stage.id === 'support-person') {
+        const supportType = readValue(formData, '_meta.supportPersonType') as SupportPersonType;
+        field = getSupportPersonProfileFields(supportType).find((f) => f.key === key);
+      }
+      if (!field && stage.id === 'geo-photos') {
+        field = stage.fields.find((f) => f.key === key);
+      }
       return field?.label ?? key;
     });
 
@@ -213,6 +273,55 @@ export function validateBorrowerStageAccessible(formData: Record<string, unknown
   return isPanLookupSuccessful(formData);
 }
 
+export function validateSupportPersonStageAccessible(formData: Record<string, unknown>): boolean {
+  return (
+    getSupportPanLookupPhase(formData) === 'profile' && isSupportPanLookupSuccessful(formData)
+  );
+}
+
+export function validateSupportPanLookupInput(
+  formData: Record<string, unknown>
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const supportType = readValue(formData, '_meta.supportPersonType');
+  if (!supportType || supportType === 'none') {
+    errors['_meta.supportPersonType'] = 'Select co-applicant or guarantor';
+    return errors;
+  }
+
+  for (const key of SUPPORT_PAN_LOOKUP_FIELD_KEYS) {
+    const value = readValue(formData, key);
+    const label =
+      key === '_meta.supportPanLookup.mobileNumber'
+        ? 'Mobile Number'
+        : key === '_meta.supportPanLookup.panNumber'
+          ? 'PAN Number'
+          : key === '_meta.supportPanLookup.fullName'
+            ? 'Full Name'
+            : 'Email';
+    const required = key !== '_meta.supportPanLookup.email';
+    if (required && isEmptyValue(value)) {
+      errors[key] = `${label} is required`;
+      continue;
+    }
+    if (isEmptyValue(value)) continue;
+    if (key === '_meta.supportPanLookup.email' && !isValidEmailFormat(value)) {
+      errors[key] = 'Please enter a valid email address';
+    }
+    if (key === '_meta.supportPanLookup.mobileNumber') {
+      const parsed = parseIndianMobile(value);
+      if (parsed.ok === false) {
+        errors[key] = 'Please enter a valid 10-digit Indian mobile number';
+      }
+    }
+    if (key === '_meta.supportPanLookup.panNumber') {
+      const panError = getPanValidationError(value);
+      if (panError) errors[key] = panError;
+    }
+  }
+  return errors;
+}
+
 export function clearSupportPersonFields(
   formData: Record<string, unknown>,
   type: 'co_applicant' | 'guarantor' | 'none'
@@ -229,5 +338,9 @@ export function clearSupportPersonFields(
       delete next[key];
     }
   }
+  next['_meta.supportPanLookup.status'] = 'pending';
+  next['_meta.supportPanLookup.inputHash'] = '';
+  next['_meta.supportPanLookup.completedAt'] = '';
+  next['_meta.supportPanLookup.phase'] = 'input';
   return next;
 }

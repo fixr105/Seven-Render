@@ -8,7 +8,6 @@ export const GPS_CHARGES: Record<12 | 18, number> = {
 export type LoanTenureMonths = 12 | 18;
 
 export interface LoanCalculatorInputs {
-  invoiceValue: number;
   upfrontPayment: number;
   disbursementToDealer: number;
   tenureMonths: LoanTenureMonths;
@@ -25,6 +24,7 @@ export interface LoanFrozenValues {
 }
 
 export interface LoanLivePreview {
+  invoiceValue: number;
   loanAmount: number;
   interestRate: number;
   tenureMonths: LoanTenureMonths;
@@ -32,6 +32,7 @@ export interface LoanLivePreview {
   gpsCharges: number;
   processingFeePctDisplay: number;
   disbursalAmount: number;
+  emiAmount: number;
 }
 
 export function roundRupee(value: number): number {
@@ -46,17 +47,36 @@ export function parseMoneyInput(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+export function computeInvoiceValue(downpayment: number, disbursement: number): number {
+  return roundRupee(Math.max(0, downpayment) + Math.max(0, disbursement));
+}
+
+export function calculateEmi(loanAmount: number, tenureMonths: LoanTenureMonths): number {
+  if (loanAmount <= 0 || tenureMonths <= 0) return 0;
+
+  const monthlyRate = INTEREST_RATE / 100 / 12;
+  if (monthlyRate === 0) return roundRupee(loanAmount / tenureMonths);
+
+  const factor = Math.pow(1 + monthlyRate, tenureMonths);
+  const emi = (loanAmount * monthlyRate * factor) / (factor - 1);
+  return roundRupee(emi);
+}
+
 export function calculateLoanPreview(inputs: LoanCalculatorInputs): LoanLivePreview {
   const tenureMonths = inputs.tenureMonths === 18 ? 18 : 12;
   const gps = GPS_CHARGES[tenureMonths];
   const disbursementToDealer = Math.max(0, inputs.disbursementToDealer);
+  const upfrontPayment = Math.max(0, inputs.upfrontPayment);
+  const invoiceValue = computeInvoiceValue(upfrontPayment, disbursementToDealer);
   const loanAmountRaw = (disbursementToDealer + gps) / (1 - FEE_PCT);
   const loanAmount = roundRupee(loanAmountRaw);
   const processingFee = roundRupee(loanAmount * FEE_PCT);
   const gpsCharges = roundRupee(gps);
   const disbursalAmount = roundRupee(loanAmount - processingFee - gpsCharges);
+  const emiAmount = calculateEmi(loanAmount, tenureMonths);
 
   return {
+    invoiceValue,
     loanAmount,
     interestRate: INTEREST_RATE,
     tenureMonths,
@@ -64,6 +84,7 @@ export function calculateLoanPreview(inputs: LoanCalculatorInputs): LoanLivePrev
     gpsCharges,
     processingFeePctDisplay: FEE_PCT * 100,
     disbursalAmount,
+    emiAmount,
   };
 }
 
@@ -77,12 +98,6 @@ export function freezeLoanPreview(preview: LoanLivePreview): LoanFrozenValues {
     processingFeePct: FEE_PCT * 100,
     disbursalAmount: preview.disbursalAmount,
   };
-}
-
-/** Sanity check: disbursement should not exceed invoice − upfront. */
-export function isDisbursementOverBudget(inputs: LoanCalculatorInputs): boolean {
-  const maxDisbursement = inputs.invoiceValue - inputs.upfrontPayment;
-  return inputs.disbursementToDealer > maxDisbursement;
 }
 
 export function frozenValuesToFormDataPatch(

@@ -80,12 +80,20 @@ export const LoginPage: React.FC = () => {
       className="login-page"
       style={{ ['--login-bg' as string]: `url(${loginBg})` }}
     >
-      <div className="login-card relative">
-        <div className="absolute top-4 right-4 z-10">
-          <LanguageSwitcher />
-        </div>
+      <div className="login-card">
         <img src={logo} alt={t('common.logoAlt')} className="login-logo" />
         <p className="login-tagline">{t('common.tagline')}</p>
+
+        <div className="login-language-row">
+          <label htmlFor="login-language-select" className="login-language-label">
+            {t('topbar.language')}
+          </label>
+          <LanguageSwitcher
+            id="login-language-select"
+            variant="onDark"
+            className="login-language-select"
+          />
+        </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {resetSuccess && (

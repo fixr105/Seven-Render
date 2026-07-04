@@ -833,6 +833,7 @@ class ApiService {
     panNumber: string;
     fullName: string;
     borrowerEmail?: string | null;
+    target?: 'borrower' | 'coApplicant' | 'guarantor';
   }): Promise<
     ApiResponse<{
       formDataPatch: Record<string, string>;

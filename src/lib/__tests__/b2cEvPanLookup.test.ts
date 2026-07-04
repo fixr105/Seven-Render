@@ -82,4 +82,18 @@ describe('b2cEvPanLookup', () => {
     expect(migrated['_meta.panLookup.borrowerEmail']).toBe('old@example.com');
     expect(migrated['_meta.panLookup.recipientEmail']).toBeUndefined();
   });
+
+  it('maps guarantor prefix to guarantor form keys', () => {
+    const patch = mapPanLookupOutputToFormDataPatch(
+      {
+        customer_name: 'JOHN DOE',
+        pan_card: 'ABCDE1234F',
+        mobile_number: '9876543210',
+      },
+      'guarantor'
+    );
+    expect(patch['guarantor.name']).toBe('JOHN DOE');
+    expect(patch['guarantor.pan']).toBe('ABCDE1234F');
+    expect(patch['guarantor.mobile']).toBe('9876543210');
+  });
 });

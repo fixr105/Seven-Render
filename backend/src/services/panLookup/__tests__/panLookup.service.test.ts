@@ -130,6 +130,32 @@ describe('panLookup.mapper', () => {
     expect(patch['borrower.address.state']).toBe('Gujarat');
     expect(patch).not.toHaveProperty('cibil_score');
   });
+
+  it('maps webhook output to co-applicant patch with single name field', () => {
+    const patch = mapPanLookupOutputToFormDataPatch(
+      {
+        first_name: 'PRIYA',
+        last_name: 'SHARMA',
+        customer_name: 'PRIYA SHARMA',
+        date_of_birth: '07/04/1993',
+        mobile_number: '919876543377',
+        email: 'priya@example.com',
+        pan_card: 'FGHIJ5678K',
+        'address Line 1': '12 Main Street',
+        'village/City': 'Delhi',
+        pincode: '110001',
+        district: 'Delhi',
+        state: 'Delhi',
+      },
+      'coApplicant'
+    );
+
+    expect(patch['coApplicant.name']).toBe('PRIYA SHARMA');
+    expect(patch['coApplicant.dob']).toBe('1993-04-07');
+    expect(patch['coApplicant.mobile']).toBe('9876543377');
+    expect(patch['coApplicant.address.line1']).toBe('12 Main Street');
+    expect(patch).not.toHaveProperty('borrower.firstName');
+  });
 });
 
 describe('validatePanLookupRequest', () => {

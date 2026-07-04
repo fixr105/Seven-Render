@@ -152,12 +152,20 @@ export function findClientKycRecord(
 }
 
 export async function getClientKycForUser(user: AuthUser): Promise<ClientKycDealerProfile | null> {
-  const { clientId } = await resolveClientRecord(user);
-  const lookupIds = collectLookupIds(user, clientId);
   const records = (await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.CLIENT_KYC, true)) as Record<
     string,
     unknown
   >[];
+
+  let resolvedClientId = '';
+  try {
+    const { clientId } = await resolveClientRecord(user);
+    resolvedClientId = clientId;
+  } catch {
+    // Client may still have a Client KYC row matched by login email or user id.
+  }
+
+  const lookupIds = collectLookupIds(user, resolvedClientId);
   const match = findClientKycRecord(records, lookupIds, user.email || '');
   return match ? normalizeClientKycRecord(match) : null;
 }

@@ -206,7 +206,58 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByText('Address')).toBeInTheDocument();
   });
 
-  it('does not show Submit until the review step', async () => {
+  it('autofills dealer stage from Client KYC on mount and when opened', async () => {
+    const dealerPatch = {
+      'dealer.id': 'SFDLR11030',
+      'dealer.displayLabel': 'Ajay Enterprises - 7905835489',
+      'dealer.tradeName': 'Ajay Enterprises',
+      'dealer.name': 'Ajay Enterprises',
+      'dealer.contact': '7905835489',
+      'dealer.email': 'dealer@example.com',
+      'dealer.gstNumber': '09BMCPG4250M1ZY',
+      'dealer.pan': 'BMCPG4250M',
+      'dealer.ifscCode': 'HDFC0001885',
+    };
+
+    (apiService.getClientKyc as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        clientId: 'USER-1776170387392-b7n4q1v5z',
+        displayLabel: 'Ajay Enterprises - 7905835489',
+        formDataPatch: dealerPatch,
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(apiService.getClientKyc).toHaveBeenCalled();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await user.type(screen.getByTestId('loan-calc-downpayment'), '15000');
+    await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
+    await user.click(screen.getByTestId('loan-calc-freeze'));
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-dealer-id')).toHaveValue('SFDLR11030');
+    });
+
+    expect(screen.getByTestId('b2c-field-dealer-tradeName')).toHaveValue('Ajay Enterprises');
+    expect(screen.getByTestId('b2c-field-dealer-contact')).toHaveValue('7905835489');
+  });
+
+  it('does not show Submit until the last step', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
 

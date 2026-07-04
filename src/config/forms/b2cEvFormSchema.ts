@@ -1,3 +1,5 @@
+import { B2C_EV_GEO_PHOTO_SLOTS } from '../../lib/b2cEvGeoPhotos';
+
 export const B2C_EV_FORM_TEMPLATE_ID = 'b2c_ev_v1';
 
 export type SupportPersonType = 'co_applicant' | 'guarantor' | 'none';
@@ -11,7 +13,8 @@ export type B2cEvFieldType =
   | 'number'
   | 'currency'
   | 'percent'
-  | 'textarea';
+  | 'textarea'
+  | 'geoPhoto';
 
 export interface B2cEvFieldOption {
   value: string;
@@ -81,6 +84,25 @@ const supportPersonFields = (prefix: 'coApplicant' | 'guarantor', relationOption
     options: relationOptions,
   },
 ];
+
+export const SUPPORT_PAN_LOOKUP_INPUT_FIELDS: B2cEvFieldDef[] = [
+  { key: '_meta.supportPanLookup.mobileNumber', label: 'Mobile Number', type: 'tel', required: true },
+  { key: '_meta.supportPanLookup.panNumber', label: 'PAN Number', type: 'text', required: true },
+  { key: '_meta.supportPanLookup.fullName', label: 'Full Name', type: 'text', required: true, colSpan: 2 },
+  { key: '_meta.supportPanLookup.email', label: 'Email', type: 'email' },
+];
+
+export function getSupportPersonProfileFields(
+  supportType: SupportPersonType
+): B2cEvFieldDef[] {
+  if (supportType === 'co_applicant') {
+    return supportPersonFields('coApplicant', CO_APPLICANT_RELATIONS);
+  }
+  if (supportType === 'guarantor') {
+    return supportPersonFields('guarantor', GUARANTOR_RELATIONS);
+  }
+  return [];
+}
 
 export const B2C_EV_STAGES: B2cEvStage[] = [
   {
@@ -157,22 +179,8 @@ export const B2C_EV_STAGES: B2cEvStage[] = [
   {
     id: 'support-person',
     title: 'Co-applicant / Guarantor',
-    description: 'Family co-applicant or non-family guarantor',
-    fields: [],
-  },
-  {
-    id: 'co-applicant',
-    title: 'Co-Applicant',
-    description: 'Blood relation details',
-    visibleWhen: (fd) => fd['_meta.supportPersonType'] === 'co_applicant',
-    fields: supportPersonFields('coApplicant', CO_APPLICANT_RELATIONS),
-  },
-  {
-    id: 'guarantor',
-    title: 'Guarantor',
-    description: 'Non-family guarantor details',
-    visibleWhen: (fd) => fd['_meta.supportPersonType'] === 'guarantor',
-    fields: supportPersonFields('guarantor', GUARANTOR_RELATIONS),
+    description: 'Verify PAN and complete co-applicant or guarantor details',
+    fields: SUPPORT_PAN_LOOKUP_INPUT_FIELDS,
   },
   {
     id: 'bank',
@@ -187,18 +195,16 @@ export const B2C_EV_STAGES: B2cEvStage[] = [
     ],
   },
   {
-    id: 'product-details',
-    title: 'Product Details',
-    description: 'Battery and vehicle identifiers',
-    fields: [
-      { key: 'product.selectedLabel', label: 'Selected Product', type: 'text', required: true, colSpan: 2 },
-      { key: 'product.batteryName', label: 'Battery Name', type: 'text', required: true },
-      { key: 'product.batteryType', label: 'Battery Type', type: 'text', required: true },
-      { key: 'product.model', label: 'E-Rickshaw Model', type: 'text', required: true },
-      { key: 'product.batterySerial1', label: 'Battery Serial No. 1', type: 'text', required: true },
-      { key: 'product.batterySerial2', label: 'Battery Serial No. 2', type: 'text' },
-      { key: 'product.chassisNo', label: 'Chassis No.', type: 'text', required: true },
-    ],
+    id: 'geo-photos',
+    title: 'Geo-tagged Photos',
+    description: 'Upload photos with verified location at time of capture',
+    fields: B2C_EV_GEO_PHOTO_SLOTS.map((slot) => ({
+      key: slot.urlKey,
+      label: slot.label,
+      type: 'geoPhoto' as const,
+      required: true,
+      colSpan: 2 as const,
+    })),
   },
   {
     id: 'insurance',
@@ -225,19 +231,10 @@ export const B2C_EV_STAGES: B2cEvStage[] = [
       { key: 'vehicle.registrationCost', label: 'Vehicle Registration Cost (₹)', type: 'currency', required: true },
     ],
   },
-  {
-    id: 'review',
-    title: 'Review',
-    description: 'Confirm and submit',
-    fields: [],
-  },
 ];
 
 export function getVisibleB2cEvStages(formData: Record<string, unknown>): B2cEvStage[] {
-  const supportType = formData['_meta.supportPersonType'];
   return B2C_EV_STAGES.filter((stage) => {
-    if (stage.id === 'co-applicant' && supportType !== 'co_applicant') return false;
-    if (stage.id === 'guarantor' && supportType !== 'guarantor') return false;
     if (stage.visibleWhen && !stage.visibleWhen(formData)) return false;
     return true;
   });
@@ -251,5 +248,9 @@ export function createInitialB2cEvFormData(): Record<string, unknown> {
     '_meta.panLookup.status': 'pending',
     '_meta.panLookup.inputHash': '',
     '_meta.panLookup.completedAt': '',
+    '_meta.supportPanLookup.status': 'pending',
+    '_meta.supportPanLookup.inputHash': '',
+    '_meta.supportPanLookup.completedAt': '',
+    '_meta.supportPanLookup.phase': 'input',
   };
 }

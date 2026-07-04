@@ -18,6 +18,7 @@ import {
   getClientKycForUser,
 } from '../services/clientKyc/clientKyc.service.js';
 import { lookupBorrowerByPan } from '../services/panLookup/panLookup.service.js';
+import { parsePanLookupTarget } from '../services/panLookup/panLookup.mapper.js';
 
 const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink0';
 const WEBHOOK_MAX_ATTEMPTS = 3;
@@ -232,11 +233,14 @@ export class ClientController {
           ? null
           : String(borrowerEmailRaw).trim();
 
+      const target = parsePanLookupTarget(req.body?.target);
+
       const result = await lookupBorrowerByPan({
         mobileNumber,
         panNumber,
         fullName,
         borrowerEmail,
+        target,
       });
 
       if (result.success === false) {

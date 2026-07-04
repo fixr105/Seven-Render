@@ -18,15 +18,32 @@ const DEALER_PATCH: Record<string, unknown> = {
   'dealer.ifscCode': 'HDFC0001885',
 };
 
+const GEO_PHOTO_PATCH: Record<string, unknown> = {
+  'geoPhotos.withSupportPerson.url': 'data:image/jpeg;base64,abc',
+  'geoPhotos.withSupportPerson.latitude': '28.6139',
+  'geoPhotos.withSupportPerson.longitude': '77.2090',
+  'geoPhotos.withVehicle.url': 'data:image/jpeg;base64,def',
+  'geoPhotos.withVehicle.latitude': '28.6139',
+  'geoPhotos.withVehicle.longitude': '77.2090',
+  'geoPhotos.atResidence.url': 'data:image/jpeg;base64,ghi',
+  'geoPhotos.atResidence.latitude': '28.6139',
+  'geoPhotos.atResidence.longitude': '77.2090',
+};
+
 function buildCompleteCoApplicantForm(): Record<string, unknown> {
   return {
     ...createInitialB2cEvFormData(),
     ...DEALER_PATCH,
+    ...GEO_PHOTO_PATCH,
     '_meta.panLookup.status': 'success',
     '_meta.panLookup.mobileNumber': '9876543210',
     '_meta.panLookup.panNumber': 'ABCDE1234F',
     '_meta.panLookup.fullName': 'Rahul Sharma',
     '_meta.supportPersonType': 'co_applicant',
+    '_meta.supportPanLookup.status': 'success',
+    '_meta.supportPanLookup.phase': 'profile',
+    '_meta.supportPanLookup.inputHash': 'co_applicant|9876543211|FGHIJ5678K|Co Name|',
+    '_meta.supportPanLookup.completedAt': '2026-01-01T00:00:00.000Z',
     'borrower.firstName': 'Rahul',
     'borrower.lastName': 'Sharma',
     'borrower.customerName': 'Rahul Sharma',
@@ -64,12 +81,6 @@ function buildCompleteCoApplicantForm(): Record<string, unknown> {
     'bank.accountNumber': '1234567890',
     'bank.ifscCode': 'HDFC0001885',
     'bank.branchAddress': 'Branch Address',
-    'product.selectedLabel': 'EV Product',
-    'product.batteryName': 'Battery A',
-    'product.batteryType': 'Lithium',
-    'product.model': 'Model X',
-    'product.batterySerial1': 'SN001',
-    'product.chassisNo': 'CH001',
     'insurance.cost': '5000',
     'insurance.provider': 'Provider',
     'insurance.policyNumber': 'POL001',
@@ -116,6 +127,7 @@ describe('getB2cEvFormCompletion', () => {
     const formData = {
       ...buildCompleteCoApplicantForm(),
       '_meta.supportPersonType': 'guarantor',
+      '_meta.supportPanLookup.inputHash': 'guarantor|9876543211|FGHIJ5678K|Co Name|',
     };
     delete formData['coApplicant.name'];
 
@@ -123,8 +135,7 @@ describe('getB2cEvFormCompletion', () => {
     const result = getB2cEvFormCompletion(stages, formData, 'LP001');
 
     expect(result.isComplete).toBe(false);
-    expect(result.missingByStage.some((s) => s.stageId === 'guarantor')).toBe(true);
-    expect(result.missingByStage.some((s) => s.stageId === 'co-applicant')).toBe(false);
+    expect(result.missingByStage.some((s) => s.stageId === 'support-person')).toBe(true);
   });
 
   it('flags missing dealer KYC fields', () => {

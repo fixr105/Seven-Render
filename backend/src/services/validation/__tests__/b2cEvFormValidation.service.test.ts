@@ -18,9 +18,22 @@ const DEALER_PATCH: Record<string, unknown> = {
   'dealer.ifscCode': 'HDFC0001885',
 };
 
+const GEO_PHOTO_PATCH: Record<string, unknown> = {
+  'geoPhotos.withSupportPerson.url': 'data:image/jpeg;base64,abc',
+  'geoPhotos.withSupportPerson.latitude': '28.6139',
+  'geoPhotos.withSupportPerson.longitude': '77.2090',
+  'geoPhotos.withVehicle.url': 'data:image/jpeg;base64,def',
+  'geoPhotos.withVehicle.latitude': '28.6139',
+  'geoPhotos.withVehicle.longitude': '77.2090',
+  'geoPhotos.atResidence.url': 'data:image/jpeg;base64,ghi',
+  'geoPhotos.atResidence.latitude': '28.6139',
+  'geoPhotos.atResidence.longitude': '77.2090',
+};
+
 function buildCompleteForm(): Record<string, unknown> {
   return {
     ...DEALER_PATCH,
+    ...GEO_PHOTO_PATCH,
     '_meta.supportPersonType': 'co_applicant',
     'borrower.firstName': 'Rahul',
     'borrower.lastName': 'Sharma',
@@ -58,12 +71,6 @@ function buildCompleteForm(): Record<string, unknown> {
     'bank.accountNumber': '1234567890',
     'bank.ifscCode': 'HDFC0001885',
     'bank.branchAddress': 'Branch Address',
-    'product.selectedLabel': 'EV Product',
-    'product.batteryName': 'Battery A',
-    'product.batteryType': 'Lithium',
-    'product.model': 'Model X',
-    'product.batterySerial1': 'SN001',
-    'product.chassisNo': 'CH001',
     'insurance.cost': '5000',
     'insurance.provider': 'Provider',
     'insurance.policyNumber': 'POL001',

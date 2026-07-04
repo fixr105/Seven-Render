@@ -83,12 +83,6 @@ const BASE_REQUIRED_FIELDS: FieldDef[] = [
   { key: 'bank.accountNumber', label: 'Account Number', type: 'text', required: true },
   { key: 'bank.ifscCode', label: 'IFSC Code', type: 'text', required: true },
   { key: 'bank.branchAddress', label: 'Branch Address', type: 'text', required: true },
-  { key: 'product.selectedLabel', label: 'Selected Product', type: 'text', required: true },
-  { key: 'product.batteryName', label: 'Battery Name', type: 'text', required: true },
-  { key: 'product.batteryType', label: 'Battery Type', type: 'text', required: true },
-  { key: 'product.model', label: 'E-Rickshaw Model', type: 'text', required: true },
-  { key: 'product.batterySerial1', label: 'Battery Serial No. 1', type: 'text', required: true },
-  { key: 'product.chassisNo', label: 'Chassis No.', type: 'text', required: true },
   { key: 'insurance.cost', label: 'Insurance Cost', type: 'currency', required: true },
   { key: 'insurance.provider', label: 'Insurance Provider', type: 'text', required: true },
   { key: 'insurance.policyNumber', label: 'Policy Number', type: 'text', required: true },
@@ -196,6 +190,49 @@ export function validateB2cEvFormData(
         : [];
 
   const fieldsToValidate = [...BASE_REQUIRED_FIELDS, ...supportFields];
+
+  const geoPhotoSlots = [
+    {
+      urlKey: 'geoPhotos.withSupportPerson.url',
+      latitudeKey: 'geoPhotos.withSupportPerson.latitude',
+      longitudeKey: 'geoPhotos.withSupportPerson.longitude',
+      label: 'Upload geo tagged photo with borrower',
+    },
+    {
+      urlKey: 'geoPhotos.withVehicle.url',
+      latitudeKey: 'geoPhotos.withVehicle.latitude',
+      longitudeKey: 'geoPhotos.withVehicle.longitude',
+      label: 'Upload geo tagged photo of borrower with vehicle',
+    },
+    {
+      urlKey: 'geoPhotos.atResidence.url',
+      latitudeKey: 'geoPhotos.atResidence.latitude',
+      longitudeKey: 'geoPhotos.atResidence.longitude',
+      label: 'Upload geo tagged photo of borrower at residence location',
+    },
+  ] as const;
+
+  for (const slot of geoPhotoSlots) {
+    if (!readValue(formData, slot.urlKey)) {
+      missingFields.push({
+        fieldId: slot.urlKey,
+        label: slot.label,
+        type: 'file',
+        displayKey: slot.urlKey,
+      });
+      continue;
+    }
+    const latitude = readValue(formData, slot.latitudeKey);
+    const longitude = readValue(formData, slot.longitudeKey);
+    if (!latitude || !longitude) {
+      missingFields.push({
+        fieldId: slot.latitudeKey,
+        label: `${slot.label} location`,
+        type: 'text',
+        displayKey: slot.latitudeKey,
+      });
+    }
+  }
 
   for (const field of fieldsToValidate) {
     if (!field.required) continue;
