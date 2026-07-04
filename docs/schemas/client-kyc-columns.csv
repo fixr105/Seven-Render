@@ -1,0 +1,23 @@
+Column Name,Airtable Field Type,Required,Lookup Key,Form Data Key,Auto-fill Stage,Description
+Client ID,Single line text,Yes,Yes,dealer.linkedClientId,Dealer,Foreign key to Clients.Client ID. Primary key used by GET /client/kyc after login resolves clientId from JWT.
+Login Email,Email,Yes,Yes (fallback),dealer.loginEmail,Dealer,Fallback lookup when Client ID is missing. Must match the dealer User Account login email or Clients Contact Email/Phone.
+Status,Single select (Active|Inactive|Pending KYC),Yes,No,,,Only Active rows are returned for auto-fill.
+KYC Verified,Checkbox,No,No,_meta.dealerKycVerified,Dealer,Whether dealer KYC has been verified by ops.
+KYC Verified Date,Date,No,No,_meta.dealerKycVerifiedDate,Dealer,Date KYC was last verified.
+Dealer ID,Single line text,Yes,No,dealer.id,Dealer,Business dealer code shown in application (e.g. SFDLR11030).
+Trade Name,Single line text,Yes,No,dealer.tradeName,Dealer,Registered trade / business name.
+Dealer Name,Single line text,Yes,No,dealer.name,Dealer,Display dealer name (may match trade name).
+Dealer Contact,Phone number,Yes,No,dealer.contact,Dealer,Primary dealer mobile number.
+Dealer Email,Email,Yes,No,dealer.email,Dealer,Primary dealer email.
+GST Number,Single line text,Yes,No,dealer.gstNumber,Dealer,15-character GSTIN.
+Dealer PAN,Single line text,Yes,No,dealer.pan,Dealer,Dealer entity PAN (10 characters).
+Dealer Address,Long text,Yes,No,dealer.address,Dealer,Full street / building address.
+Dealer City,Single line text,Yes,No,dealer.city,Dealer,City.
+Dealer State,Single line text,Yes,No,dealer.state,Dealer,State.
+Dealer Pincode,Single line text,Yes,No,dealer.pincode,Dealer,6-digit pincode.
+Dealer Bank Name,Single line text,Yes,No,dealer.bankName,Dealer,Settlement bank name.
+Dealer Account Number,Single line text,Yes,No,dealer.accountNumber,Dealer,Settlement account number.
+Dealer IFSC Code,Single line text,Yes,No,dealer.ifscCode,Dealer,11-character IFSC for settlement account.
+Name in Bank,Single line text,Yes,No,dealer.nameInBank,Dealer,Account holder name as per bank records.
+Selected Dealer Display,Single line text,No,No,dealer.displayLabel,Dealer,Preformatted label for read-only UI (e.g. Ajay Enterprises - 7905835489). Auto-computed if blank.
+Notes,Long text,No,No,,,Internal ops notes. Not shown on application form.

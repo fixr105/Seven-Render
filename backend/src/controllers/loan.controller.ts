@@ -129,33 +129,55 @@ export class LoanController {
 
       // Strict mandatory field validation for non-draft submissions (must run before workflow)
       if (!saveAsDraft) {
-        const documentLinks: Record<string, string> = {};
-        Object.keys(finalFormData).forEach((key) => {
-          const v = finalFormData[key];
-          if (v && typeof v === 'string' && (v.includes('onedrive') || v.includes('sharepoint') || v.startsWith('http'))) {
-            documentLinks[key] = v;
-          }
-        });
-        const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
-        const mandatoryValidation = await validateMandatoryFields(
-          finalFormData,
-          req.user!.clientId!,
-          productId,
-          documentLinks
+        const { isB2cEvFormTemplate, validateB2cEvFormData } = await import(
+          '../services/validation/b2cEvFormValidation.service.js'
         );
-        if (!mandatoryValidation.isValid) {
-          res.status(400).json({
-            success: false,
-            error: mandatoryValidation.errorMessage || 'Missing required fields',
-            missingFields: mandatoryValidation.missingFields.map((f) => ({
-              fieldId: f.fieldId,
-              label: f.label,
-              type: f.type,
-              displayKey: f.displayKey,
-            })),
-            formatErrors: mandatoryValidation.formatErrors ?? [],
+
+        if (isB2cEvFormTemplate(finalFormData)) {
+          const b2cValidation = validateB2cEvFormData(finalFormData, productId);
+          if (!b2cValidation.isValid) {
+            res.status(400).json({
+              success: false,
+              error: b2cValidation.errorMessage || 'Missing required fields',
+              missingFields: b2cValidation.missingFields.map((f) => ({
+                fieldId: f.fieldId,
+                label: f.label,
+                type: f.type,
+                displayKey: f.displayKey,
+              })),
+              formatErrors: b2cValidation.formatErrors,
+            });
+            return;
+          }
+        } else {
+          const documentLinks: Record<string, string> = {};
+          Object.keys(finalFormData).forEach((key) => {
+            const v = finalFormData[key];
+            if (v && typeof v === 'string' && (v.includes('onedrive') || v.includes('sharepoint') || v.startsWith('http'))) {
+              documentLinks[key] = v;
+            }
           });
-          return;
+          const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
+          const mandatoryValidation = await validateMandatoryFields(
+            finalFormData,
+            req.user!.clientId!,
+            productId,
+            documentLinks
+          );
+          if (!mandatoryValidation.isValid) {
+            res.status(400).json({
+              success: false,
+              error: mandatoryValidation.errorMessage || 'Missing required fields',
+              missingFields: mandatoryValidation.missingFields.map((f) => ({
+                fieldId: f.fieldId,
+                label: f.label,
+                type: f.type,
+                displayKey: f.displayKey,
+              })),
+              formatErrors: mandatoryValidation.formatErrors ?? [],
+            });
+            return;
+          }
         }
       }
 
@@ -1251,10 +1273,6 @@ export class LoanController {
         return;
       }
 
-      // Strict mandatory field validation
-      // Load form fields configuration and validate all mandatory fields
-      const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
-      
       // Parse form data from application
       let formData: Record<string, any> = {};
       try {
@@ -1265,24 +1283,39 @@ export class LoanController {
         formData = {};
       }
 
-      // Extract document links from form data (for file fields)
-      const documentLinks: Record<string, string> = {};
-      Object.keys(formData).forEach((key) => {
-        // Check if this field might be a document link
-        if (formData[key] && typeof formData[key] === 'string' && 
-            (formData[key].includes('onedrive') || formData[key].includes('sharepoint') || formData[key].startsWith('http'))) {
-          documentLinks[key] = formData[key];
-        }
-      });
-
-      // Validate mandatory fields
-      const productId = application['Loan Product'] || application.loanProduct;
-      const validationResult = await validateMandatoryFields(
-        formData,
-        req.user!.clientId!,
-        productId,
-        documentLinks
+      // Strict mandatory field validation
+      const { isB2cEvFormTemplate, validateB2cEvFormData } = await import(
+        '../services/validation/b2cEvFormValidation.service.js'
       );
+
+      const productId = application['Loan Product'] || application.loanProduct;
+      let validationResult: {
+        isValid: boolean;
+        errorMessage?: string;
+        missingFields?: Array<{ fieldId: string; label: string; type: string; displayKey?: string }>;
+        formatErrors?: Array<{ fieldId: string; message: string }>;
+      };
+
+      if (isB2cEvFormTemplate(formData)) {
+        validationResult = validateB2cEvFormData(formData, productId);
+      } else {
+        const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
+
+        const documentLinks: Record<string, string> = {};
+        Object.keys(formData).forEach((key) => {
+          if (formData[key] && typeof formData[key] === 'string' &&
+              (formData[key].includes('onedrive') || formData[key].includes('sharepoint') || formData[key].startsWith('http'))) {
+            documentLinks[key] = formData[key];
+          }
+        });
+
+        validationResult = await validateMandatoryFields(
+          formData,
+          req.user!.clientId!,
+          productId,
+          documentLinks
+        );
+      }
 
       if (!validationResult.isValid) {
         res.status(400).json({

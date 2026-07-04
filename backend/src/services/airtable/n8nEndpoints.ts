@@ -43,6 +43,7 @@ export const AIRTABLE_TABLE_IDS = {
   NOTIFICATIONS: 'tblmprms0l3yQjVdx', // Notifications
   USER_ACCOUNTS: 'tblQ1rT8wW3yA6cC9', // User Accounts
   VEHICLES: 'tblVehicles', // Vehicles (Make/Model/Loan Amount catalog)
+  CLIENT_KYC: 'tblClientKYC', // Client KYC (dealer profile for B2C EV form auto-fill)
 } as const;
 
 /**
@@ -68,6 +69,7 @@ export const AIRTABLE_TABLE_NAMES = {
   NOTIFICATIONS: 'Notifications',
   USER_ACCOUNTS: 'User Accounts',
   VEHICLES: 'Vehicles',
+  CLIENT_KYC: 'Client KYC',
 } as const;
 
 /**
@@ -194,6 +196,7 @@ export const N8N_GET_WEBHOOK_PATHS = {
   // User Accounts
   USER_ACCOUNT: 'useraccount',
   VEHICLES: 'VehiclesGET',
+  CLIENT_KYC: 'getclientKYC',
 } as const;
 
 /**
@@ -236,6 +239,7 @@ export function getTableToGetWebhookPath(): Record<string, keyof typeof N8N_GET_
     [AIRTABLE_TABLE_NAMES.NOTIFICATIONS]: 'NOTIFICATIONS',
     [AIRTABLE_TABLE_NAMES.USER_ACCOUNTS]: 'USER_ACCOUNT',
     [AIRTABLE_TABLE_NAMES.VEHICLES]: 'VEHICLES',
+    [AIRTABLE_TABLE_NAMES.CLIENT_KYC]: 'CLIENT_KYC',
   };
 }
 
@@ -340,6 +344,9 @@ export const n8nEndpoints = {
     vehicles:
       process.env.N8N_GET_VEHICLES_URL ||
       'https://fixrrahul.app.n8n.cloud/webhook/VehiclesGET',
+    clientKyc:
+      process.env.N8N_GET_CLIENT_KYC_URL ||
+      'https://fixrrahul.app.n8n.cloud/webhook/getclientKYC',
   },
   vehicles: {
     post:

@@ -30,6 +30,7 @@ import {
   isValidTypeOfPurchase,
   parseIndianMobile,
 } from '../utils/basicApplicationFieldsValidation';
+import { B2CEvApplicationWizard } from '../components/applications/B2CEvApplicationWizard';
 
 const USED_CLIENT_WEBHOOK_LINKS_STORAGE_KEY = 'seven_used_client_webhook_links';
 const FOLDER_LINK_MASKED_DISPLAY = '••••••••••••••••••••••••••••••••';
@@ -110,7 +111,7 @@ const normalizeProductId = (value: unknown): string => String(value ?? '').trim(
 const createClientSubmissionId = (): string =>
   `submit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-export const NewApplication: React.FC = () => {
+const LegacyNewApplication: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -209,7 +210,7 @@ export const NewApplication: React.FC = () => {
         }
 
         let parsedFormData: Record<string, unknown> = {};
-        const rawForm = app.formData ?? (app as Record<string, unknown>).form_data;
+        const rawForm = app.formData ?? (app as unknown as Record<string, unknown>).form_data;
         if (rawForm != null) {
           if (typeof rawForm === 'string') {
             try {
@@ -1813,4 +1814,49 @@ export const NewApplication: React.FC = () => {
       </form>
     </MainLayout>
   );
+};
+
+function NewApplicationLoadingShell() {
+  const { user } = useAuth();
+  const sidebarItems = useSidebarItems();
+  const { activeItem, handleNavigation } = useNavigation(sidebarItems);
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const userRole = user?.role || null;
+  return (
+    <MainLayout
+      sidebarItems={sidebarItems}
+      activeItem={activeItem}
+      onItemClick={handleNavigation}
+      pageTitle="New Application"
+      userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+      userName={user?.name || user?.email || 'User'}
+      notificationCount={unreadCount}
+      notifications={notifications}
+      onMarkAsRead={markAsRead}
+      onMarkAllAsRead={markAllAsRead}
+    >
+      <div className="flex items-center justify-center gap-2 p-12 text-neutral-600">
+        <RefreshCw className="h-5 w-5 animate-spin" />
+        <span>Loading application form...</span>
+      </div>
+    </MainLayout>
+  );
+}
+
+export const NewApplication: React.FC = () => {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const forceB2cEv = searchParams.get('b2cEv') === '1';
+
+  // Clients always use the B2C EV staged wizard (KYC is loaded inside the wizard).
+  // Non-clients use the legacy form unless ?b2cEv=1 is forced.
+  const useB2cEvForm = forceB2cEv || user?.role === 'client';
+
+  if (user == null) {
+    return <NewApplicationLoadingShell />;
+  }
+  if (useB2cEvForm) {
+    return <B2CEvApplicationWizard />;
+  }
+  return <LegacyNewApplication />;
 };

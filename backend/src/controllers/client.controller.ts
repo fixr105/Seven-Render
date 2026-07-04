@@ -13,6 +13,11 @@ import {
   resolveClientRecord,
 } from '../services/entitlements/clientProducts.service.js';
 import { getClientVehicleOptions } from '../services/vehicles/vehicleCatalog.service.js';
+import {
+  clientKycToFormDataPatch,
+  getClientKycForUser,
+} from '../services/clientKyc/clientKyc.service.js';
+import { lookupBorrowerByPan } from '../services/panLookup/panLookup.service.js';
 
 const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink0';
 const WEBHOOK_MAX_ATTEMPTS = 3;
@@ -160,6 +165,106 @@ export class ClientController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to fetch vehicles',
+      });
+    }
+  }
+
+  /**
+   * GET /client/kyc
+   * Returns dealer KYC profile for the logged-in client (auto-fill on B2C EV form).
+   */
+  async getClientKyc(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        res.status(401).json({ success: false, error: 'Authentication required.' });
+        return;
+      }
+
+      const profile = await getClientKycForUser(req.user);
+      if (!profile) {
+        res.status(404).json({
+          success: false,
+          error: 'No active Client KYC record found for your account. Contact your KAM to complete dealer KYC setup.',
+          code: 'CLIENT_KYC_NOT_FOUND',
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          ...profile,
+          formDataPatch: clientKycToFormDataPatch(profile),
+        },
+      });
+    } catch (error: any) {
+      if (error instanceof ClientProductEntitlementError) {
+        res.status(error.statusCode).json(entitlementErrorBody(error));
+        return;
+      }
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch client KYC',
+      });
+    }
+  }
+
+  /**
+   * POST /client/pan-lookup
+   * Proxy PAN lookup to n8n postMMfrontPAN webhook; returns borrower autofill patch.
+   */
+  async lookupBorrowerPan(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        res.status(401).json({ success: false, error: 'Authentication required.' });
+        return;
+      }
+
+      const mobileNumber = String(req.body?.mobileNumber ?? req.body?.Mobile_Number ?? '').trim();
+      const panNumber = String(req.body?.panNumber ?? req.body?.PAN_Number ?? '').trim();
+      const fullName = String(req.body?.fullName ?? req.body?.Full_Name ?? '').trim();
+      const borrowerEmailRaw =
+        req.body?.borrowerEmail ??
+        req.body?.recipientEmail ??
+        req.body?.recipient_email;
+      const borrowerEmail =
+        borrowerEmailRaw == null || borrowerEmailRaw === ''
+          ? null
+          : String(borrowerEmailRaw).trim();
+
+      const result = await lookupBorrowerByPan({
+        mobileNumber,
+        panNumber,
+        fullName,
+        borrowerEmail,
+      });
+
+      if (!result.success) {
+        const status =
+          result.code === 'VALIDATION_ERROR'
+            ? 400
+            : result.code === 'WEBHOOK_ERROR'
+              ? 502
+              : 422;
+        res.status(status).json({
+          success: false,
+          error: result.error,
+          code: result.code,
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          formDataPatch: result.formDataPatch,
+          lookupAt: result.lookupAt,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to lookup borrower PAN',
       });
     }
   }

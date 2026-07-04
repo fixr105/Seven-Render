@@ -20,6 +20,8 @@ router.get('/form-config', clientController.getFormConfig.bind(clientController)
 router.get('/form-config-debug', clientController.getFormConfigDebug.bind(clientController));
 router.get('/configured-products', clientController.getConfiguredProducts.bind(clientController));
 router.get('/vehicles', clientController.getVehicles.bind(clientController));
+router.get('/kyc', clientController.getClientKyc.bind(clientController));
+router.post('/pan-lookup', clientController.lookupBorrowerPan.bind(clientController));
 
 export default router;
 

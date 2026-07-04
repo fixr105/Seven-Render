@@ -44,6 +44,32 @@ export interface ClientLinkPoolItem {
   status?: string;
 }
 
+export interface ClientKycDealerProfile {
+  id: string;
+  clientId: string;
+  loginEmail: string;
+  status: string;
+  kycVerified: boolean;
+  kycVerifiedDate: string | null;
+  dealerId: string;
+  tradeName: string;
+  dealerName: string;
+  dealerContact: string;
+  dealerEmail: string;
+  gstNumber: string;
+  dealerPan: string;
+  dealerAddress: string;
+  dealerCity: string;
+  dealerState: string;
+  dealerPincode: string;
+  dealerBankName: string;
+  dealerAccountNumber: string;
+  dealerIfscCode: string;
+  nameInBank: string;
+  displayLabel: string;
+  formDataPatch?: Record<string, unknown>;
+}
+
 export interface PrioritizedNBFCAssignment {
   nbfcId: string;
   priority: number;
@@ -381,8 +407,10 @@ class ApiService {
       const isAuthRequest = endpoint.includes('/auth/login') || endpoint.includes('/auth/validate');
       const isAuthMe = endpoint.includes('/auth/me');
       const isNBFCUpload = endpoint.includes('/nbfc/tools/raad') || endpoint.includes('/nbfc/tools/pager');
+      const isPanLookupRequest = endpoint.includes('/client/pan-lookup');
       const timeoutMs = isAuthRequest ? 120000
         : isAuthMe ? 90000
+        : isPanLookupRequest ? 90000
         : isApplicationRequest ? 60000
         : isNBFCUpload ? 120000
         : isGetRequest ? 55000
@@ -792,6 +820,36 @@ class ApiService {
   > {
     return this.request<Array<{ vehicleId: string; make: string; model: string; requestedLoanAmount: string }>>(
       `/client/vehicles?productId=${encodeURIComponent(productId)}`
+    );
+  }
+
+  /**
+   * Get dealer KYC profile for the logged-in client (B2C EV dealer auto-fill).
+   */
+  async getClientKyc(): Promise<ApiResponse<ClientKycDealerProfile>> {
+    return this.request<ClientKycDealerProfile>('/client/kyc');
+  }
+
+  /**
+   * Lookup borrower details by PAN (B2C EV stage-1 autofill).
+   */
+  async lookupBorrowerPan(payload: {
+    mobileNumber: string;
+    panNumber: string;
+    fullName: string;
+    borrowerEmail?: string | null;
+  }): Promise<
+    ApiResponse<{
+      formDataPatch: Record<string, string>;
+      lookupAt: string;
+    }>
+  > {
+    return this.request<{ formDataPatch: Record<string, string>; lookupAt: string }>(
+      '/client/pan-lookup',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
     );
   }
 
