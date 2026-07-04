@@ -44,6 +44,12 @@ export const AdminUserAccounts: React.FC = () => {
     associatedProfile: '',
     accountStatus: 'Active',
   });
+  const [creditTeamUsers, setCreditTeamUsers] = useState<Array<{ id: string; name: string; email: string; role: string; status: string }>>([]);
+  const [creditTeamLoading, setCreditTeamLoading] = useState(false);
+  const [showCreditTeamModal, setShowCreditTeamModal] = useState(false);
+  const [creditTeamForm, setCreditTeamForm] = useState({ name: '', email: '', phone: '', role: 'credit_team', status: 'Active' });
+  const [creditTeamError, setCreditTeamError] = useState<string | null>(null);
+  const [creditTeamSaving, setCreditTeamSaving] = useState(false);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -98,10 +104,60 @@ export const AdminUserAccounts: React.FC = () => {
   useEffect(() => {
     if (userRole === 'credit_team' || userRole === 'admin') {
       fetchAccounts();
+      fetchCreditTeamUsers();
     } else {
       setLoading(false);
     }
   }, [userRole]);
+
+  const fetchCreditTeamUsers = async () => {
+    setCreditTeamLoading(true);
+    try {
+      const res = await apiService.listCreditTeamUsers();
+      if (res.success && res.data) {
+        setCreditTeamUsers(
+          res.data.map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            status: u.status,
+          }))
+        );
+      }
+    } finally {
+      setCreditTeamLoading(false);
+    }
+  };
+
+  const handleCreateCreditTeamUser = async () => {
+    if (!creditTeamForm.name.trim() || !creditTeamForm.email.trim() || !creditTeamForm.phone.trim()) {
+      setCreditTeamError('Name, email, and phone are required');
+      return;
+    }
+    setCreditTeamSaving(true);
+    setCreditTeamError(null);
+    try {
+      const res = await apiService.createCreditTeamUser({
+        name: creditTeamForm.name.trim(),
+        email: creditTeamForm.email.trim(),
+        phone: creditTeamForm.phone.trim(),
+        role: creditTeamForm.role,
+        status: creditTeamForm.status,
+      });
+      if (res.success) {
+        setShowCreditTeamModal(false);
+        setCreditTeamForm({ name: '', email: '', phone: '', role: 'credit_team', status: 'Active' });
+        await fetchCreditTeamUsers();
+      } else {
+        setCreditTeamError(res.error || 'Failed to create credit team user');
+      }
+    } catch (err) {
+      setCreditTeamError(err instanceof Error ? err.message : 'Failed to create credit team user');
+    } finally {
+      setCreditTeamSaving(false);
+    }
+  };
 
   const openCreateModal = () => {
     setCreateForm({
@@ -250,6 +306,44 @@ export const AdminUserAccounts: React.FC = () => {
           </CardContent>
         </Card>
 
+        <Card className="mt-6">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Credit team users</CardTitle>
+            <div className="flex gap-2">
+              <Button variant="primary" size="sm" icon={Plus} onClick={() => { setCreditTeamError(null); setShowCreditTeamModal(true); }}>
+                Add credit team user
+              </Button>
+              <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={fetchCreditTeamUsers} disabled={creditTeamLoading}>
+                {t('common.refresh')}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {creditTeamLoading ? (
+              <div className="text-center py-6 text-neutral-500">{t('common.loading')}</div>
+            ) : creditTeamUsers.length === 0 ? (
+              <p className="text-sm text-neutral-600">No credit team users found.</p>
+            ) : (
+              <DataTable
+                columns={[
+                  { key: 'name', label: 'Name', sortable: true },
+                  { key: 'email', label: 'Email', sortable: true },
+                  { key: 'role', label: t('common.role'), sortable: true },
+                  {
+                    key: 'status',
+                    label: t('common.status'),
+                    render: (value) => (
+                      <Badge variant={value === 'Active' ? 'success' : 'neutral'}>{String(value)}</Badge>
+                    ),
+                  },
+                ]}
+                data={creditTeamUsers}
+                keyExtractor={(row) => row.id}
+              />
+            )}
+          </CardContent>
+        </Card>
+
         <Modal isOpen={showCreateModal} onClose={() => !saving && setShowCreateModal(false)} size="md">
           <ModalHeader onClose={saving ? undefined : () => setShowCreateModal(false)}>
             {t('pages.adminUserAccounts.createUser')}
@@ -301,6 +395,26 @@ export const AdminUserAccounts: React.FC = () => {
             </Button>
             <Button variant="primary" onClick={handleCreateUser} disabled={saving}>
               {saving ? t('common.creating') : t('pages.adminUserAccounts.createUser')}
+            </Button>
+          </ModalFooter>
+        </Modal>
+
+        <Modal isOpen={showCreditTeamModal} onClose={() => !creditTeamSaving && setShowCreditTeamModal(false)} size="md">
+          <ModalHeader onClose={creditTeamSaving ? undefined : () => setShowCreditTeamModal(false)}>
+            Add credit team user
+          </ModalHeader>
+          <ModalBody>
+            {creditTeamError && <p className="text-error text-sm mb-4">{creditTeamError}</p>}
+            <div className="space-y-4">
+              <Input label="Name" value={creditTeamForm.name} onChange={(e) => setCreditTeamForm((f) => ({ ...f, name: e.target.value }))} required />
+              <Input label="Email" type="email" value={creditTeamForm.email} onChange={(e) => setCreditTeamForm((f) => ({ ...f, email: e.target.value }))} required />
+              <Input label="Phone" value={creditTeamForm.phone} onChange={(e) => setCreditTeamForm((f) => ({ ...f, phone: e.target.value }))} required />
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="tertiary" onClick={() => setShowCreditTeamModal(false)} disabled={creditTeamSaving}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreateCreditTeamUser} disabled={creditTeamSaving} loading={creditTeamSaving}>
+              Create
             </Button>
           </ModalFooter>
         </Modal>

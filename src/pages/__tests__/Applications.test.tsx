@@ -167,8 +167,8 @@ describe('Applications Listing Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Under KAM Review/i).length).toBeGreaterThanOrEqual(1);
-        expect(screen.getAllByText(/Pending Credit Review/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(/Submitted/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(/Under Finance Review/i).length).toBeGreaterThanOrEqual(1);
       });
     });
 

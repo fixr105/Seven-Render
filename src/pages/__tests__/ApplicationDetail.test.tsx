@@ -52,6 +52,14 @@ vi.mock('../../services/api', () => {
     listLoanProducts: vi.fn().mockResolvedValue({ success: true, data: [] }),
     updateKAMApplicationStatus: vi.fn().mockResolvedValue({ success: true }),
     updateCreditApplicationStatus: vi.fn().mockResolvedValue({ success: true }),
+    markInNegotiation: vi.fn().mockResolvedValue({ success: true }),
+    markDisbursed: vi.fn().mockResolvedValue({ success: true }),
+    closeApplication: vi.fn().mockResolvedValue({ success: true }),
+    createClientQuery: vi.fn().mockResolvedValue({ success: true }),
+    forwardToCredit: vi.fn().mockResolvedValue({ success: true }),
+    withdrawApplication: vi.fn().mockResolvedValue({ success: true }),
+    captureNBFCDecision: vi.fn().mockResolvedValue({ success: true }),
+    listNBFCPartners: vi.fn().mockResolvedValue({ success: true, data: [] }),
     submitApplication: vi.fn(),
   };
   return {

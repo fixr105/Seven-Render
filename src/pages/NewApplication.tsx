@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHero } from '../components/layout/PageHero';
@@ -19,10 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService, type ClientLinkPoolItem } from '../services/api';
-import {
-  createLoanApplicationViaWebhook,
-  hasDirectLoanApplicationWebhook,
-} from '../services/loanApplicationWebhook';
+import { normalizeStatus } from '../lib/statusUtils';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
@@ -116,6 +113,8 @@ const createClientSubmissionId = (): string =>
 export const NewApplication: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const draftIdParam = searchParams.get('draftId');
   const { user } = useAuth();
   const userRole = user?.role || null;
   const userRoleId = user?.clientId || user?.kamId || user?.nbfcId || user?.creditTeamId || user?.id || null;
@@ -159,6 +158,9 @@ export const NewApplication: React.FC = () => {
     message: string;
   } | null>(null);
   const submitInFlightRef = useRef(false);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [draftLoadError, setDraftLoadError] = useState<string | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -187,6 +189,69 @@ export const NewApplication: React.FC = () => {
       setLoanProductsLoading(false);
     }
   }, [userRoleId, userRole]);
+
+  useEffect(() => {
+    if (userRole !== 'client' || !draftIdParam) return;
+
+    let cancelled = false;
+    const loadDraft = async () => {
+      setDraftLoading(true);
+      setDraftLoadError(null);
+      try {
+        const response = await apiService.getApplication(draftIdParam);
+        if (!response.success || !response.data) {
+          throw new Error(response.error || 'Draft application not found');
+        }
+        const app = response.data;
+        const statusKey = normalizeStatus(app.status || app.Status || '');
+        if (statusKey !== 'draft' && statusKey !== 'query_with_client') {
+          throw new Error('Only draft or query-with-client applications can be edited here');
+        }
+
+        let parsedFormData: Record<string, unknown> = {};
+        const rawForm = app.formData ?? (app as Record<string, unknown>).form_data;
+        if (rawForm != null) {
+          if (typeof rawForm === 'string') {
+            try {
+              parsedFormData = JSON.parse(rawForm) as Record<string, unknown>;
+            } catch {
+              parsedFormData = {};
+            }
+          } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+            parsedFormData = rawForm as Record<string, unknown>;
+          }
+        }
+
+        const productId =
+          typeof app.loan_product === 'object' && app.loan_product
+            ? String((app.loan_product as { code?: string }).code || '')
+            : String(app.loanProduct || app.loan_product || '');
+
+        if (!cancelled) {
+          setEditingDraftId(draftIdParam);
+          setFormData({
+            applicant_name: app.applicant_name || app.applicantName || '',
+            loan_product_id: productId,
+            requested_loan_amount: String(
+              app.requested_loan_amount ?? app.requestedLoanAmount ?? '0'
+            ),
+            form_data: parsedFormData as Record<string, unknown>,
+          });
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          setDraftLoadError(error instanceof Error ? error.message : 'Failed to load draft');
+        }
+      } finally {
+        if (!cancelled) setDraftLoading(false);
+      }
+    };
+
+    void loadDraft();
+    return () => {
+      cancelled = true;
+    };
+  }, [draftIdParam, userRole]);
 
   // Fetch loan products when configured product IDs have been fetched (from reload or Load form)
   useEffect(() => {
@@ -819,19 +884,30 @@ export const NewApplication: React.FC = () => {
         };
       };
 
-      if (hasDirectLoanApplicationWebhook() && clientId) {
-        const direct = await createLoanApplicationViaWebhook({
-          clientId,
-          productId: formData.loan_product_id,
-          applicantName: formData.applicant_name,
-          requestedLoanAmount: formData.requested_loan_amount,
-          formData: formDataToSend,
-          saveAsDraft,
-          clientSubmissionId,
-        });
-        response = direct.success && direct.data
-          ? { success: true, data: direct.data }
-          : { success: false, error: direct.error || 'Failed to create application via n8n' };
+      if (editingDraftId) {
+        const mergedFormPayload = {
+          ...formDataToSend,
+          applicant_name: formData.applicant_name,
+          loan_product_id: formData.loan_product_id,
+          requested_loan_amount: formData.requested_loan_amount,
+        };
+        const updateRes = await apiService.updateApplicationForm(editingDraftId, mergedFormPayload);
+        if (!updateRes.success) {
+          response = { success: false, error: updateRes.error || 'Failed to update draft' };
+        } else if (saveAsDraft) {
+          response = { success: true, data: { loanApplicationId: editingDraftId, fileId: editingDraftId } };
+        } else {
+          const submitRes = await apiService.submitApplication(editingDraftId, { clientSubmissionId });
+          response = submitRes.success
+            ? {
+                success: true,
+                data: {
+                  loanApplicationId: editingDraftId,
+                  fileId: editingDraftId,
+                },
+              }
+            : { success: false, error: submitRes.error || 'Failed to submit application' };
+        }
       } else {
         response = await apiService.createApplication({
           productId: formData.loan_product_id,
@@ -944,6 +1020,16 @@ export const NewApplication: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <PageHero title={t('pages.newApplication.pageTitle')} />
+      {draftLoading && (
+        <Card className="mb-4">
+          <CardContent className="p-4 text-sm text-neutral-600">Loading draft application…</CardContent>
+        </Card>
+      )}
+      {draftLoadError && (
+        <Card className="mb-4 border-error">
+          <CardContent className="p-4 text-sm text-error">{draftLoadError}</CardContent>
+        </Card>
+      )}
       {(accountLinkError || formConfigError) && (
         <div
           className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"

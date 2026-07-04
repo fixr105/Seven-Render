@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BuildYourProfilePrompt } from '../BuildYourProfilePrompt';
 import { UserContext } from '../../auth/types';
+import { TestWrapper } from '../../test/helpers';
 
 const baseUser: UserContext = {
   id: 'u1',
@@ -15,13 +16,15 @@ const baseUser: UserContext = {
 describe('BuildYourProfilePrompt', () => {
   it('renders company field for roles that require it', () => {
     render(
-      <BuildYourProfilePrompt
-        isOpen
-        user={baseUser}
-        missingFields={['name', 'phone', 'company']}
-        onDismiss={vi.fn()}
-        onSave={vi.fn(async () => {})}
-      />
+      <TestWrapper>
+        <BuildYourProfilePrompt
+          isOpen
+          user={baseUser}
+          missingFields={['name', 'phone', 'company']}
+          onDismiss={vi.fn()}
+          onSave={vi.fn(async () => {})}
+        />
+      </TestWrapper>
     );
     expect(screen.getByPlaceholderText(/Enter company name/i)).toBeInTheDocument();
   });
@@ -29,13 +32,15 @@ describe('BuildYourProfilePrompt', () => {
   it('calls save with required payload', async () => {
     const onSave = vi.fn(async () => {});
     render(
-      <BuildYourProfilePrompt
-        isOpen
-        user={baseUser}
-        missingFields={['name', 'phone', 'company']}
-        onDismiss={vi.fn()}
-        onSave={onSave}
-      />
+      <TestWrapper>
+        <BuildYourProfilePrompt
+          isOpen
+          user={baseUser}
+          missingFields={['name', 'phone', 'company']}
+          onDismiss={vi.fn()}
+          onSave={onSave}
+        />
+      </TestWrapper>
     );
 
     fireEvent.change(screen.getByPlaceholderText(/Enter your full name/i), { target: { value: 'Test User' } });
@@ -55,13 +60,15 @@ describe('BuildYourProfilePrompt', () => {
   it('calls dismiss when maybe later clicked', () => {
     const onDismiss = vi.fn();
     render(
-      <BuildYourProfilePrompt
-        isOpen
-        user={{ ...baseUser, role: 'kam' }}
-        missingFields={['name', 'phone']}
-        onDismiss={onDismiss}
-        onSave={vi.fn(async () => {})}
-      />
+      <TestWrapper>
+        <BuildYourProfilePrompt
+          isOpen
+          user={{ ...baseUser, role: 'kam' }}
+          missingFields={['name', 'phone']}
+          onDismiss={onDismiss}
+          onSave={vi.fn(async () => {})}
+        />
+      </TestWrapper>
     );
     fireEvent.click(screen.getByRole('button', { name: /Maybe Later/i }));
     expect(onDismiss).toHaveBeenCalledTimes(1);

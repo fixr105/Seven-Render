@@ -30,21 +30,6 @@ const STATUS_ALIASES: Record<string, string> = {
   under_finance_review: 'pending_credit_review',
 };
 
-const BUSINESS_STATUS_KEYS = [
-  'under_kam_review',
-  'pending_credit_review',
-  'in_negotiation',
-  'query_with_client',
-  'approved',
-  'sent_to_nbfc',
-  'disbursed',
-  'rejected',
-  'draft',
-  'credit_query_with_kam',
-  'withdrawn',
-  'closed',
-] as const;
-
 const BUSINESS_STATUS_DROPDOWN_KEYS = [
   'under_kam_review',
   'in_negotiation',
@@ -64,24 +49,21 @@ export function normalizeStatus(status: string): string {
   return STATUS_ALIASES[normalized] ?? normalized;
 }
 
-function statusTranslationKey(normalized: string): string {
-  if ((BUSINESS_STATUS_KEYS as readonly string[]).includes(normalized)) {
-    return `status.${normalized}`;
-  }
-  return `status.technical_${normalized}`;
-}
-
-export function getStatusDisplayName(status: string): string {
-  const normalized = normalizeStatus(status);
-  if (!normalized) return '';
-  const key = statusTranslationKey(normalized);
-  const translated = i18n.t(key);
-  if (translated !== key) return translated;
+function formatStatusFallback(normalized: string): string {
   return normalized
     .split('_')
     .filter(Boolean)
     .map((part) => (part === 'kam' ? 'KAM' : part === 'nbfc' ? 'NBFC' : part.charAt(0).toUpperCase() + part.slice(1)))
     .join(' ');
+}
+
+export function getStatusDisplayName(status: string): string {
+  const normalized = normalizeStatus(status);
+  if (!normalized) return '';
+  const technicalKey = `status.technical_${normalized}`;
+  const technical = i18n.t(technicalKey);
+  if (technical !== technicalKey) return technical;
+  return formatStatusFallback(normalized);
 }
 
 export function getBusinessStatusDisplayName(status: string): string {

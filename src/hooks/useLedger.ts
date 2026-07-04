@@ -277,24 +277,41 @@ export const useLedger = (options?: UseLedgerOptions) => {
   };
 
   const addLedgerEntry = async (entryData: {
-    client_id?: string;
-    application_id?: string;
-    transaction_type?: 'pay_in' | 'pay_out';
-    amount?: number;
-    balance_after?: number;
-    description?: string;
-    status?: string;
+    clientId: string;
+    loanFile?: string;
     date?: string;
-    disbursed_amount?: number;
-    commission_rate?: number;
-    dispute_status?: string;
-    payout_request_flag?: boolean;
-    client_name?: string;
-    file_number?: string;
+    disbursedAmount?: number;
+    commissionRate?: number;
+    payoutAmount: number;
+    description?: string;
   }) => {
-    // Ledger entries are created automatically by the backend
-    // No automatic refresh - user must manually refresh to see updates
-    return entryData;
+    const response = await apiService.createCreditLedgerEntry(entryData);
+    if (response.success) {
+      await fetchLedger();
+      return response;
+    }
+    throw new Error(response.error || 'Failed to create ledger entry');
+  };
+
+  const flagCreditDispute = async (ledgerEntryId: string, reason: string) => {
+    const response = await apiService.flagCreditLedgerDispute(ledgerEntryId, reason);
+    if (response.success) {
+      await fetchLedger();
+      return response;
+    }
+    throw new Error(response.error || 'Failed to flag dispute');
+  };
+
+  const resolveCreditDispute = async (
+    ledgerEntryId: string,
+    data: { resolved: boolean; adjustedAmount?: number; notes?: string }
+  ) => {
+    const response = await apiService.resolveCreditLedgerDispute(ledgerEntryId, data);
+    if (response.success) {
+      await fetchLedger();
+      return response;
+    }
+    throw new Error(response.error || 'Failed to resolve dispute');
   };
 
   return {
@@ -311,5 +328,7 @@ export const useLedger = (options?: UseLedgerOptions) => {
     refetch: fetchLedger,
     refetchPayoutRequests: fetchPayoutRequests,
     addLedgerEntry,
+    flagCreditDispute,
+    resolveCreditDispute,
   };
 };

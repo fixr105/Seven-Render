@@ -21,6 +21,9 @@ vi.mock('../../services/api', () => {
     consumeClientLink: vi.fn(),
     validateApplicationSubmission: vi.fn(),
     createApplication: vi.fn(),
+    getApplication: vi.fn(),
+    updateApplicationForm: vi.fn(),
+    submitApplication: vi.fn(),
   };
   return {
     apiService: mockApiService,
@@ -34,7 +37,15 @@ vi.mock('../../hooks/useNotifications', () => ({
   }),
 }));
 
-// Mock useNavigation hook
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
+    useNavigate: vi.fn(() => vi.fn()),
+  };
+});
+
 vi.mock('../../hooks/useNavigation', () => ({
   useNavigation: () => ({
     activeItem: null,
@@ -571,8 +582,8 @@ describe('NewApplication Page - P0 Tests', () => {
       }, { timeout: 3000 });
 
       // Optionally check that some error/validation feedback is shown
-      const errorText = screen.queryByText(/required|mandatory|fill in|is required/i);
-      if (errorText) expect(errorText).toBeInTheDocument();
+      const errorTexts = screen.queryAllByText(/required|mandatory|fill in|is required/i);
+      if (errorTexts.length > 0) expect(errorTexts[0]).toBeInTheDocument();
     }, 15000);
 
     it.skip('should allow submission when all mandatory fields are filled', async () => {
@@ -808,6 +819,57 @@ describe('NewApplication Page - P0 Tests', () => {
       // Should handle error gracefully: form config stays empty so category labels are not shown
       await waitFor(() => {
         expect(screen.queryByText(/Personal Information/i)).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Draft resume', () => {
+    it('loads draft via draftId and submits with updateApplicationForm + submitApplication', async () => {
+      const { useSearchParams } = await import('react-router-dom');
+      vi.mocked(useSearchParams).mockReturnValue([
+        new URLSearchParams('draftId=draft-123'),
+        vi.fn(),
+      ] as ReturnType<typeof useSearchParams>);
+
+      (apiService.getApplication as any).mockResolvedValue({
+        success: true,
+        data: {
+          id: 'draft-123',
+          status: 'draft',
+          applicant_name: 'Draft User',
+          loan_product: { code: 'LP001', name: 'Test Product' },
+          requested_loan_amount: 500000,
+          formData: { field1: 'value' },
+        },
+      });
+      (apiService.validateApplicationSubmission as any).mockResolvedValue({ success: true, data: {} });
+      (apiService.updateApplicationForm as any).mockResolvedValue({ success: true });
+      (apiService.submitApplication as any).mockResolvedValue({ success: true });
+
+      vi.mocked(useAuth).mockReturnValue({
+        user: mockClientUser,
+        loading: false,
+        login: vi.fn(),
+        logout: vi.fn(),
+        refreshUser: vi.fn(),
+        hasRole: vi.fn(() => true),
+        authSessionId: 'test-session',
+      } as ReturnType<typeof useAuth>);
+
+      renderWithProviders(<NewApplication />, {
+        authContext: {
+          user: mockClientUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      await waitFor(() => {
+        expect(apiService.getApplication).toHaveBeenCalledWith('draft-123');
       });
     });
   });

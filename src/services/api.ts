@@ -1302,9 +1302,13 @@ class ApiService {
   /**
    * Forward application to credit (KAM)
    */
-  async forwardToCredit(applicationId: string): Promise<ApiResponse> {
+  async forwardToCredit(
+    applicationId: string,
+    payload?: { notes?: string; assignedCreditAnalystId?: string }
+  ): Promise<ApiResponse> {
     return this.request(`/kam/loan-applications/${applicationId}/forward-to-credit`, {
       method: 'POST',
+      body: JSON.stringify(payload ?? {}),
     });
   }
 
@@ -1452,11 +1456,23 @@ class ApiService {
       decisionDate: string;
       remarks?: string;
       approvedAmount?: string;
+      rejectionReason?: string;
+      clarificationMessage?: string;
     }
   ): Promise<ApiResponse> {
     return this.request(`/credit/loan-applications/${applicationId}/nbfc-decision`, {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Close/archive application (Credit team / admin)
+   */
+  async closeApplication(applicationId: string, notes?: string): Promise<ApiResponse> {
+    return this.request(`/credit/loan-applications/${applicationId}/close`, {
+      method: 'POST',
+      body: JSON.stringify(notes ? { notes } : {}),
     });
   }
 
@@ -1661,6 +1677,47 @@ class ApiService {
    */
   async getKAMLedger(clientId: string): Promise<ApiResponse<KAMLedgerResponse>> {
     return this.request<KAMLedgerResponse>(`/kam/ledger?clientId=${encodeURIComponent(clientId)}`);
+  }
+
+  /**
+   * Create manual credit ledger entry (Credit team)
+   */
+  async createCreditLedgerEntry(data: {
+    clientId: string;
+    loanFile?: string;
+    date?: string;
+    disbursedAmount?: number;
+    commissionRate?: number;
+    payoutAmount: number;
+    description?: string;
+  }): Promise<ApiResponse> {
+    return this.request('/credit/ledger/entries', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Flag ledger entry for dispute (Credit team)
+   */
+  async flagCreditLedgerDispute(ledgerEntryId: string, reason: string): Promise<ApiResponse> {
+    return this.request(`/credit/ledger/${ledgerEntryId}/flag-dispute`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /**
+   * Resolve ledger entry dispute (Credit team)
+   */
+  async resolveCreditLedgerDispute(
+    ledgerEntryId: string,
+    data: { resolved: boolean; adjustedAmount?: number; notes?: string }
+  ): Promise<ApiResponse> {
+    return this.request(`/credit/ledger/${ledgerEntryId}/resolve-dispute`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   /**

@@ -10,7 +10,8 @@ import { Badge } from '../components/ui/Badge';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
-import { MessageSquare, Download, Edit, Sparkles, RefreshCw, File, FileText, Image, Eye, ExternalLink, Grid3x3, List, CheckCircle, XCircle } from 'lucide-react';
+import { Input } from '../components/ui/Input';
+import { MessageSquare, Download, Edit, Sparkles, RefreshCw, File, FileText, Image, Eye, ExternalLink, Grid3x3, List, CheckCircle, XCircle, Send, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -18,6 +19,12 @@ import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
 import { getBusinessStatusOptions, getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
+import {
+  applyApplicationStatusChange,
+  statusRequiresDisbursementFields,
+} from '../lib/applicationStatusMutations';
+
+const WITHDRAWABLE_CLIENT_STATUSES = new Set(['draft', 'under_kam_review', 'query_with_client']);
 
 const getStatusVariant = (status: string | undefined | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' => {
   if (!status) return 'neutral';
@@ -100,6 +107,17 @@ export const ApplicationDetail: React.FC = () => {
   const [selectedQuery, setSelectedQuery] = useState<Query | null>(null);
   const [newStatus, setNewStatus] = useState('');
   const [statusNotes, setStatusNotes] = useState('');
+  const [disbursedAmountInput, setDisbursedAmountInput] = useState('');
+  const [disbursedDateInput, setDisbursedDateInput] = useState('');
+  const [forwardingToCredit, setForwardingToCredit] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [showOfflineNbfcModal, setShowOfflineNbfcModal] = useState(false);
+  const [offlineNbfcId, setOfflineNbfcId] = useState('');
+  const [offlineNbfcDecision, setOfflineNbfcDecision] = useState('');
+  const [offlineNbfcApprovedAmount, setOfflineNbfcApprovedAmount] = useState('');
+  const [offlineNbfcRejectionReason, setOfflineNbfcRejectionReason] = useState('');
+  const [offlineNbfcClarification, setOfflineNbfcClarification] = useState('');
+  const [submittingOfflineNbfc, setSubmittingOfflineNbfc] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [generatingSummary, setGeneratingSummary] = useState(false);
@@ -525,14 +543,18 @@ export const ApplicationDetail: React.FC = () => {
 
   const handleRaiseQuery = async () => {
     if (!queryMessage.trim() || !id) return;
-    if (userRole !== 'kam' && userRole !== 'credit_team') return;
+    if (userRole !== 'kam' && userRole !== 'credit_team' && userRole !== 'client') return;
 
     setSubmitting(true);
     try {
-      const response =
-        userRole === 'kam'
-          ? await apiService.raiseQueryToClient(id, queryMessage)
-          : await apiService.raiseQueryToKAM(id, queryMessage);
+      let response;
+      if (userRole === 'client') {
+        response = await apiService.createClientQuery(id, queryMessage.trim());
+      } else if (userRole === 'kam') {
+        response = await apiService.raiseQueryToClient(id, queryMessage);
+      } else {
+        response = await apiService.raiseQueryToKAM(id, queryMessage);
+      }
 
       if (response.success) {
         setShowQueryModal(false);
@@ -660,19 +682,21 @@ export const ApplicationDetail: React.FC = () => {
 
     setSubmitting(true);
     try {
-      let response;
-      if (userRole === 'kam') {
-        response = await apiService.updateKAMApplicationStatus(id, newStatus, statusNotes);
-      } else if (userRole === 'credit_team') {
-        response = await apiService.updateCreditApplicationStatus(id, newStatus, statusNotes);
-      } else {
-        response = await apiService.editApplication(id, { status: newStatus });
-      }
+      const response = await applyApplicationStatusChange({
+        applicationId: id,
+        userRole,
+        newStatus,
+        notes: statusNotes,
+        disbursedAmount: disbursedAmountInput,
+        disbursedDate: disbursedDateInput,
+      });
 
       if (response.success) {
         setShowStatusModal(false);
         setNewStatus('');
         setStatusNotes('');
+        setDisbursedAmountInput('');
+        setDisbursedDateInput('');
         await Promise.all([fetchApplicationDetails(), fetchStatusHistory()]);
       } else {
         throw new Error(response.error || 'Failed to update status');
@@ -697,6 +721,104 @@ export const ApplicationDetail: React.FC = () => {
       setSubmitting(false);
     }
   };
+
+  const handleForwardToCredit = async () => {
+    if (!id) return;
+    const notes = window.prompt('Optional notes for credit team:') ?? '';
+    if (!window.confirm('Forward this application to the credit team?')) return;
+
+    setForwardingToCredit(true);
+    try {
+      const response = await apiService.forwardToCredit(id, { notes: notes.trim() || undefined });
+      if (response.success) {
+        await Promise.all([fetchApplicationDetails(), fetchStatusHistory()]);
+        alert('Application forwarded to credit team.');
+      } else {
+        throw new Error(response.error || 'Failed to forward application');
+      }
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Failed to forward application');
+    } finally {
+      setForwardingToCredit(false);
+    }
+  };
+
+  const handleWithdrawApplication = async () => {
+    if (!id) return;
+    if (!window.confirm('Withdraw this application? This action may not be reversible.')) return;
+
+    setWithdrawing(true);
+    try {
+      const response = await apiService.withdrawApplication(id);
+      if (response.success) {
+        await Promise.all([fetchApplicationDetails(), fetchStatusHistory()]);
+        alert('Application withdrawn.');
+      } else {
+        throw new Error(response.error || 'Failed to withdraw application');
+      }
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Failed to withdraw application');
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
+  const handleOfflineNbfcDecision = async () => {
+    if (!id || !offlineNbfcId || !offlineNbfcDecision) return;
+
+    setSubmittingOfflineNbfc(true);
+    try {
+      const response = await apiService.captureNBFCDecision(id, {
+        nbfcId: offlineNbfcId,
+        decision: offlineNbfcDecision,
+        decisionDate: new Date().toISOString().split('T')[0],
+        approvedAmount: offlineNbfcApprovedAmount || undefined,
+        rejectionReason: offlineNbfcDecision === 'Rejected' ? offlineNbfcRejectionReason : undefined,
+        clarificationMessage:
+          offlineNbfcDecision === 'Needs Clarification' ? offlineNbfcClarification : undefined,
+      });
+
+      if (response.success) {
+        setShowOfflineNbfcModal(false);
+        setOfflineNbfcId('');
+        setOfflineNbfcDecision('');
+        setOfflineNbfcApprovedAmount('');
+        setOfflineNbfcRejectionReason('');
+        setOfflineNbfcClarification('');
+        await Promise.all([fetchApplicationDetails(), fetchStatusHistory()]);
+        alert('NBFC decision recorded.');
+      } else {
+        throw new Error(response.error || 'Failed to record NBFC decision');
+      }
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Failed to record NBFC decision');
+    } finally {
+      setSubmittingOfflineNbfc(false);
+    }
+  };
+
+  const openStatusModal = () => {
+    const amountDefault = String(
+      application?.approved_loan_amount ??
+        application?.requested_loan_amount ??
+        application?.approvedLoanAmount ??
+        ''
+    ).replace(/[^\d.]/g, '');
+    setDisbursedAmountInput(amountDefault);
+    setDisbursedDateInput(new Date().toISOString().split('T')[0]);
+    setShowStatusModal(true);
+  };
+
+  const applicationStatusKey = normalizeStatus(application?.status || application?.Status || '');
+  const canForwardToCredit =
+    userRole === 'kam' && applicationStatusKey === 'under_kam_review';
+  const canWithdrawApplication =
+    userRole === 'client' && WITHDRAWABLE_CLIENT_STATUSES.has(applicationStatusKey);
+  const canRecordOfflineNbfcDecision =
+    (userRole === 'credit_team' || userRole === 'admin') &&
+    applicationStatusKey === 'sent_to_nbfc' &&
+    !application?.lenderDecisionStatus &&
+    !application?.lender_decision_status;
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
@@ -796,17 +918,41 @@ export const ApplicationDetail: React.FC = () => {
               <Button
                 variant="primary"
                 icon={Edit}
-                onClick={async () => {
-                  await fetchApplicationDetails();
-                  setShowStatusModal(true);
-                }}
+                onClick={openStatusModal}
               >
                 {t('pages.applicationDetail.updateStatus')}
               </Button>
             )}
-            {(userRole === 'kam' || userRole === 'credit_team') && (
+            {canForwardToCredit && (
+              <Button
+                variant="secondary"
+                icon={Send}
+                onClick={handleForwardToCredit}
+                disabled={forwardingToCredit}
+                loading={forwardingToCredit}
+              >
+                Forward to Credit
+              </Button>
+            )}
+            {canWithdrawApplication && (
+              <Button
+                variant="secondary"
+                icon={LogOut}
+                onClick={handleWithdrawApplication}
+                disabled={withdrawing}
+                loading={withdrawing}
+              >
+                Withdraw
+              </Button>
+            )}
+            {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'client') && (
               <Button variant="secondary" icon={MessageSquare} onClick={() => setShowQueryModal(true)}>
                 {t('pages.applicationDetail.raiseQuery')}
+              </Button>
+            )}
+            {canRecordOfflineNbfcDecision && (
+              <Button variant="secondary" onClick={() => setShowOfflineNbfcModal(true)}>
+                Record offline NBFC decision
               </Button>
             )}
           </>
@@ -2053,6 +2199,8 @@ export const ApplicationDetail: React.FC = () => {
           setShowStatusModal(false);
           setNewStatus('');
           setStatusNotes('');
+          setDisbursedAmountInput('');
+          setDisbursedDateInput('');
         }}
         size="md"
       >
@@ -2082,6 +2230,24 @@ export const ApplicationDetail: React.FC = () => {
               }
               required
             />
+            {statusRequiresDisbursementFields(newStatus) && (
+              <>
+                <Input
+                  label="Disbursed amount"
+                  type="number"
+                  value={disbursedAmountInput}
+                  onChange={(e) => setDisbursedAmountInput(e.target.value)}
+                  required
+                />
+                <Input
+                  label="Disbursed date"
+                  type="date"
+                  value={disbursedDateInput}
+                  onChange={(e) => setDisbursedDateInput(e.target.value)}
+                  required
+                />
+              </>
+            )}
             <TextArea
               label={t('pages.applicationDetail.notesOptional')}
               placeholder={t('pages.applicationDetail.statusNotesPlaceholder')}
@@ -2098,10 +2264,88 @@ export const ApplicationDetail: React.FC = () => {
           <Button
             variant="primary"
             onClick={handleUpdateStatus}
-            disabled={!newStatus || submitting || statusDropdownDisabled}
+            disabled={
+              !newStatus ||
+              submitting ||
+              statusDropdownDisabled ||
+              (statusRequiresDisbursementFields(newStatus) && !disbursedAmountInput.trim())
+            }
             loading={submitting}
           >
             {t('pages.applicationDetail.updateStatus')}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        isOpen={showOfflineNbfcModal}
+        onClose={() => setShowOfflineNbfcModal(false)}
+        size="md"
+      >
+        <ModalHeader onClose={() => setShowOfflineNbfcModal(false)}>
+          Record offline NBFC decision
+        </ModalHeader>
+        <ModalBody>
+          <div className="space-y-4">
+            <Select
+              label="NBFC partner"
+              options={[
+                { value: '', label: 'Select NBFC' },
+                ...nbfcPartners.map((p) => ({ value: p.id, label: p.lenderName })),
+              ]}
+              value={offlineNbfcId}
+              onChange={(e) => setOfflineNbfcId(e.target.value)}
+              required
+            />
+            <Select
+              label="Decision"
+              options={[
+                { value: '', label: 'Select decision' },
+                { value: 'Approved', label: 'Approved' },
+                { value: 'Rejected', label: 'Rejected' },
+                { value: 'Needs Clarification', label: 'Needs Clarification' },
+              ]}
+              value={offlineNbfcDecision}
+              onChange={(e) => setOfflineNbfcDecision(e.target.value)}
+              required
+            />
+            {offlineNbfcDecision === 'Approved' && (
+              <Input
+                label="Approved amount"
+                type="number"
+                value={offlineNbfcApprovedAmount}
+                onChange={(e) => setOfflineNbfcApprovedAmount(e.target.value)}
+              />
+            )}
+            {offlineNbfcDecision === 'Rejected' && (
+              <TextArea
+                label="Rejection reason"
+                value={offlineNbfcRejectionReason}
+                onChange={(e) => setOfflineNbfcRejectionReason(e.target.value)}
+                rows={3}
+              />
+            )}
+            {offlineNbfcDecision === 'Needs Clarification' && (
+              <TextArea
+                label="Clarification message"
+                value={offlineNbfcClarification}
+                onChange={(e) => setOfflineNbfcClarification(e.target.value)}
+                rows={3}
+              />
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowOfflineNbfcModal(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleOfflineNbfcDecision}
+            disabled={!offlineNbfcId || !offlineNbfcDecision || submittingOfflineNbfc}
+            loading={submittingOfflineNbfc}
+          >
+            Record decision
           </Button>
         </ModalFooter>
       </Modal>

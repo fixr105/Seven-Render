@@ -13,7 +13,7 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
-import { Plus, Eye, MessageSquare, RefreshCw, FileText, X } from 'lucide-react';
+import { Plus, Eye, MessageSquare, RefreshCw, FileText, X, Edit } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
@@ -475,6 +475,22 @@ export const Applications: React.FC = () => {
           >
             {t('common.view')}
           </Button>
+          {(userRole === 'client' && normalizeStatus(row.rawStatus ?? '') === 'draft') && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Edit}
+              onClick={(e) => {
+                e.stopPropagation();
+                const id = row.id ?? row.fileNumber;
+                if (id && String(id) !== 'undefined') {
+                  navigate(`/applications/new?draftId=${encodeURIComponent(String(id))}`);
+                }
+              }}
+            >
+              Continue
+            </Button>
+          )}
           {(userRole === 'kam' || userRole === 'credit_team') && (
             <Button
               variant="secondary"

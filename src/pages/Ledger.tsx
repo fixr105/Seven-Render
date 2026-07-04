@@ -29,7 +29,21 @@ export const Ledger: React.FC = () => {
   };
 
   const ledgerOptions = userRole === 'kam' ? { clientId: selectedClientId || null } : undefined;
-  const { entries, balance, totalEarnings, totalFeesDue, loading, requestPayout, raiseQuery, flagPayout, payoutRequests, refetchPayoutRequests } = useLedger(ledgerOptions);
+  const {
+    entries,
+    balance,
+    totalEarnings,
+    totalFeesDue,
+    loading,
+    requestPayout,
+    raiseQuery,
+    flagPayout,
+    payoutRequests,
+    refetchPayoutRequests,
+    addLedgerEntry,
+    flagCreditDispute,
+    resolveCreditDispute,
+  } = useLedger(ledgerOptions);
 
   useEffect(() => {
     if (userRole === 'kam') {
@@ -50,6 +64,21 @@ export const Ledger: React.FC = () => {
           }
         })
         .finally(() => setClientsLoading(false));
+    } else if (userRole === 'credit_team' || userRole === 'admin') {
+      setClientsLoading(true);
+      apiService.listCreditClients()
+        .then((res) => {
+          if (res.success && res.data) {
+            const list = (res.data as any[]).map((c: any) => {
+              const id = c.id ?? c.clientId ?? c['Client ID'] ?? '';
+              const rawName = c.clientName || c.name || c.company_name || c['Client Name'] || '';
+              const name = rawName && rawName.trim() !== '' ? rawName.trim() : `Client (${id})`;
+              return { id, name };
+            }).filter((c) => c.id);
+            setClients(list);
+          }
+        })
+        .finally(() => setClientsLoading(false));
     }
   }, [userRole]);
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -65,6 +94,19 @@ export const Ledger: React.FC = () => {
   const [creditPayoutForAction, setCreditPayoutForAction] = useState<{ id: string; client?: string; amount: number; date?: string; description?: string } | null>(null);
   const [approveNote, setApproveNote] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [showResolveDisputeModal, setShowResolveDisputeModal] = useState(false);
+  const [showManualEntryModal, setShowManualEntryModal] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [resolveNotes, setResolveNotes] = useState('');
+  const [resolveAdjustedAmount, setResolveAdjustedAmount] = useState('');
+  const [resolveAccepted, setResolveAccepted] = useState(true);
+  const [manualEntryForm, setManualEntryForm] = useState({
+    clientId: '',
+    loanFile: '',
+    payoutAmount: '',
+    description: '',
+  });
 
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -226,6 +268,74 @@ export const Ledger: React.FC = () => {
       setSubmitting(false);
     }
   };
+
+  const handleFlagCreditDispute = async () => {
+    if (!selectedEntry || !disputeReason.trim()) {
+      setError('Dispute reason is required');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await flagCreditDispute(selectedEntry.id, disputeReason.trim());
+      setShowDisputeModal(false);
+      setSelectedEntry(null);
+      setDisputeReason('');
+      alert('Ledger entry flagged for dispute.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to flag dispute');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResolveCreditDispute = async () => {
+    if (!selectedEntry) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await resolveCreditDispute(selectedEntry.id, {
+        resolved: resolveAccepted,
+        adjustedAmount: resolveAdjustedAmount ? parseFloat(resolveAdjustedAmount) : undefined,
+        notes: resolveNotes.trim() || undefined,
+      });
+      setShowResolveDisputeModal(false);
+      setSelectedEntry(null);
+      setResolveNotes('');
+      setResolveAdjustedAmount('');
+      alert(resolveAccepted ? 'Dispute resolved.' : 'Dispute rejected.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to resolve dispute');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCreateManualEntry = async () => {
+    if (!manualEntryForm.clientId || !manualEntryForm.payoutAmount.trim()) {
+      setError('Client and payout amount are required');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await addLedgerEntry({
+        clientId: manualEntryForm.clientId,
+        loanFile: manualEntryForm.loanFile.trim() || undefined,
+        payoutAmount: parseFloat(manualEntryForm.payoutAmount),
+        description: manualEntryForm.description.trim() || undefined,
+      });
+      setShowManualEntryModal(false);
+      setManualEntryForm({ clientId: '', loanFile: '', payoutAmount: '', description: '' });
+      alert('Manual ledger entry created.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create ledger entry');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isCreditLedgerView = userRole === 'credit_team' || userRole === 'admin';
 
   return (
     <MainLayout
@@ -393,9 +503,16 @@ export const Ledger: React.FC = () => {
 
         {/* Ledger Entries Table */}
         <Card>
-          <CardHeader>
-            <CardTitle>{t('pages.ledger.ledgerEntries')}</CardTitle>
-            <p className="text-sm text-neutral-500 mt-1">{t('pages.ledger.ledgerEntriesHint')}</p>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle>{t('pages.ledger.ledgerEntries')}</CardTitle>
+              <p className="text-sm text-neutral-500 mt-1">{t('pages.ledger.ledgerEntriesHint')}</p>
+            </div>
+            {isCreditLedgerView && (
+              <Button variant="secondary" size="sm" onClick={() => setShowManualEntryModal(true)}>
+                Add manual entry
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -426,6 +543,9 @@ export const Ledger: React.FC = () => {
                       <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.disputeStatus')}</th>
                       <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.payoutRequestCol')}</th>
                       {userRole === 'client' && (
+                        <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.actions')}</th>
+                      )}
+                      {isCreditLedgerView && (
                         <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">{t('common.actions')}</th>
                       )}
                     </tr>
@@ -504,6 +624,44 @@ export const Ledger: React.FC = () => {
                                 >
                                   {t('pages.ledger.raiseQuery')}
                                 </Button>
+                              </div>
+                            </td>
+                          )}
+                          {isCreditLedgerView && (
+                            <td className="py-3 px-4">
+                              <div className="flex items-center justify-center gap-2 flex-wrap">
+                                {String(entry['Dispute Status'] || entry.disputeStatus || 'None').toLowerCase() === 'none' && (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => {
+                                      setSelectedEntry(entry);
+                                      setDisputeReason('');
+                                      setError(null);
+                                      setShowDisputeModal(true);
+                                    }}
+                                  >
+                                    Flag dispute
+                                  </Button>
+                                )}
+                                {String(entry['Dispute Status'] || entry.disputeStatus || '').toLowerCase() === 'open' && (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => {
+                                      setSelectedEntry(entry);
+                                      setResolveNotes('');
+                                      setResolveAdjustedAmount('');
+                                      setResolveAccepted(true);
+                                      setError(null);
+                                      setShowResolveDisputeModal(true);
+                                    }}
+                                  >
+                                    Resolve dispute
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           )}
@@ -741,6 +899,109 @@ export const Ledger: React.FC = () => {
                   <Button variant="primary" onClick={handleRejectPayout} loading={submitting} disabled={!rejectReason.trim() || submitting}>
                     {t('common.reject')}
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showDisputeModal && selectedEntry && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-md mx-4">
+              <CardHeader><CardTitle>Flag ledger dispute</CardTitle></CardHeader>
+              <CardContent>
+                <textarea
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  placeholder="Reason for dispute"
+                  rows={4}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg"
+                />
+                {error && <p className="text-sm text-error mt-2">{error}</p>}
+                <div className="flex gap-3 mt-4">
+                  <Button variant="secondary" onClick={() => setShowDisputeModal(false)} disabled={submitting}>Cancel</Button>
+                  <Button variant="primary" onClick={handleFlagCreditDispute} loading={submitting} disabled={!disputeReason.trim() || submitting}>Submit</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showResolveDisputeModal && selectedEntry && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-md mx-4">
+              <CardHeader><CardTitle>Resolve ledger dispute</CardTitle></CardHeader>
+              <CardContent>
+                <Select
+                  label="Outcome"
+                  value={resolveAccepted ? 'accept' : 'reject'}
+                  onChange={(e) => setResolveAccepted(e.target.value === 'accept')}
+                  options={[
+                    { value: 'accept', label: 'Accept dispute' },
+                    { value: 'reject', label: 'Reject dispute' },
+                  ]}
+                />
+                <Input
+                  label="Adjusted amount (optional)"
+                  type="number"
+                  value={resolveAdjustedAmount}
+                  onChange={(e) => setResolveAdjustedAmount(e.target.value)}
+                  className="mt-3"
+                />
+                <textarea
+                  value={resolveNotes}
+                  onChange={(e) => setResolveNotes(e.target.value)}
+                  placeholder="Notes"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg mt-3"
+                />
+                {error && <p className="text-sm text-error mt-2">{error}</p>}
+                <div className="flex gap-3 mt-4">
+                  <Button variant="secondary" onClick={() => setShowResolveDisputeModal(false)} disabled={submitting}>Cancel</Button>
+                  <Button variant="primary" onClick={handleResolveCreditDispute} loading={submitting} disabled={submitting}>Submit</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showManualEntryModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-md mx-4">
+              <CardHeader><CardTitle>Add manual ledger entry</CardTitle></CardHeader>
+              <CardContent>
+                <Select
+                  label="Client"
+                  value={manualEntryForm.clientId}
+                  onChange={(e) => setManualEntryForm((f) => ({ ...f, clientId: e.target.value }))}
+                  options={[
+                    { value: '', label: 'Select client' },
+                    ...clients.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
+                <Input
+                  label="Loan file (optional)"
+                  value={manualEntryForm.loanFile}
+                  onChange={(e) => setManualEntryForm((f) => ({ ...f, loanFile: e.target.value }))}
+                  className="mt-3"
+                />
+                <Input
+                  label="Payout amount"
+                  type="number"
+                  value={manualEntryForm.payoutAmount}
+                  onChange={(e) => setManualEntryForm((f) => ({ ...f, payoutAmount: e.target.value }))}
+                  className="mt-3"
+                />
+                <Input
+                  label="Description (optional)"
+                  value={manualEntryForm.description}
+                  onChange={(e) => setManualEntryForm((f) => ({ ...f, description: e.target.value }))}
+                  className="mt-3"
+                />
+                {error && <p className="text-sm text-error mt-2">{error}</p>}
+                <div className="flex gap-3 mt-4">
+                  <Button variant="secondary" onClick={() => setShowManualEntryModal(false)} disabled={submitting}>Cancel</Button>
+                  <Button variant="primary" onClick={handleCreateManualEntry} loading={submitting} disabled={submitting}>Create</Button>
                 </div>
               </CardContent>
             </Card>

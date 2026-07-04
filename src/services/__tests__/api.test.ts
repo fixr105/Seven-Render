@@ -177,4 +177,39 @@ describe('apiService request logical success handling', () => {
 
     expect(sessionStorage.getItem('seven_auth_token')).toBeNull();
   });
+
+  it('posts closeApplication to credit close endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ success: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.closeApplication('app-123', 'Archive notes');
+
+    const [url, requestInit] = fetchMock.mock.calls[0];
+    expect(url).toContain('/credit/loan-applications/app-123/close');
+    expect(requestInit.method).toBe('POST');
+    expect(JSON.parse(requestInit.body)).toEqual({ notes: 'Archive notes' });
+  });
+
+  it('posts credit ledger dispute flag', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ success: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.flagCreditLedgerDispute('ledger-1', 'Incorrect amount');
+
+    const [url, requestInit] = fetchMock.mock.calls[0];
+    expect(url).toContain('/credit/ledger/ledger-1/flag-dispute');
+    expect(JSON.parse(requestInit.body)).toEqual({ reason: 'Incorrect amount' });
+  });
 });
