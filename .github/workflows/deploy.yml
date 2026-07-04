@@ -45,22 +45,25 @@ jobs:
 
       - name: Smoke test same-origin API
         run: |
-          FRONTEND_URL="${{ steps.vercel-deploy.outputs.deployment-url }}"
-          if [ -z "$FRONTEND_URL" ]; then
-            FRONTEND_URL="https://seven-dashboard-seven.vercel.app"
-          fi
+          # Prefer production alias — preview URLs may be behind Vercel Deployment Protection (302).
+          FRONTEND_URL="${SMOKE_APP_URL:-https://seven-dashboard-seven.vercel.app}"
           FRONTEND_URL="${FRONTEND_URL%/}"
           echo "Waiting for deployment to settle..."
-          sleep 20
+          sleep 25
           echo "Smoke testing $FRONTEND_URL/api/health"
-          curl -sf "$FRONTEND_URL/api/health" | grep -q '"success":true' || (echo "Health check failed" && exit 1)
+          BODY=$(curl -sS "$FRONTEND_URL/api/health" || true)
+          echo "Response: $BODY"
+          echo "$BODY" | grep -q '"success":true' || (echo "Health check failed" && exit 1)
           PAN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$FRONTEND_URL/api/client/pan-lookup" -H "Content-Type: application/json" -d '{}')
-          if [ "$PAN_STATUS" = "404" ]; then
-            echo "ERROR: /api/client/pan-lookup returned 404"
+          echo "pan-lookup status: $PAN_STATUS"
+          if [ "$PAN_STATUS" = "404" ] || [ "$PAN_STATUS" = "500" ]; then
+            echo "ERROR: /api/client/pan-lookup returned $PAN_STATUS"
+            curl -sS -X POST "$FRONTEND_URL/api/client/pan-lookup" -H "Content-Type: application/json" -d '{}' || true
             exit 1
           fi
-          echo "pan-lookup route OK (status $PAN_STATUS)"
           echo "All smoke tests passed."
+        env:
+          SMOKE_APP_URL: ${{ secrets.SMOKE_FRONTEND_URL }}
 
   deploy-summary:
     name: Deploy Summary - Test Links
