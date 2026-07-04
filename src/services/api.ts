@@ -6,17 +6,12 @@
 import { defaultLogger } from '../utils/logger.js';
 import { errorTracker } from '../utils/errorTracker.js';
 
-// Ensure API_BASE_URL includes /api prefix for Vercel deployment.
-// When VITE_API_BASE_URL is unset in production, use explicit backend (avoids Vercel rewrite issues).
+// API is same-origin on Vercel (`/api` serverless). Ignore legacy Fly hosts.
 function getApiBaseUrl(): string {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
-  // In development (including E2E), use /api so Vite proxy works when VITE_API_BASE_URL is unset
-  if (!baseUrl) {
-    if (import.meta.env.DEV) {
-      return '/api';
-    }
-    // Production: same-origin /api (Vercel rewrite or hosted API on lms.sevenfincorp.com)
+  // Retired Fly backend — never call it from the SPA.
+  if (!baseUrl || /fly\.dev/i.test(baseUrl)) {
     return '/api';
   }
 
