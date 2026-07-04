@@ -1,5 +1,5 @@
 /**
- * Vercel serverless entry for the Express API.
+ * Vercel serverless entry for the Express API (.cjs so root "type":"module" does not apply).
  * Loads the pre-bundled app from express.cjs (created in vercel buildCommand).
  */
 const path = require('path');
