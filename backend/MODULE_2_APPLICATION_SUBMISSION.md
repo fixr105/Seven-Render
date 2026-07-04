@@ -186,7 +186,7 @@ tsx src/services/validation/__tests__/duplicateDetection.test.runner.ts
 **Verification:**
 - "Save as Draft" button triggers save
 - No network calls on field changes
-- No autosave functionality
+- No autosave functionality (intentionally excluded to limit n8n webhook usage)
 - Draft status set correctly
 
 ### ✅ Submit Works with Missing Non-Critical Items

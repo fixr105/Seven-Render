@@ -48,7 +48,7 @@ describe('LoanWorkflowService durability', () => {
     jest.clearAllMocks();
   });
 
-  it('reuses an existing application for the same clientSubmissionId', async () => {
+  it('reuses an existing application for the same clientSubmissionId without formData', async () => {
     mockN8nClient.fetchTable.mockResolvedValue([
       {
         id: 'rec-existing',
@@ -71,6 +71,58 @@ describe('LoanWorkflowService durability', () => {
       status: LoanStatus.DRAFT,
     });
     expect(mockN8nClient.postLoanApplication).not.toHaveBeenCalled();
+  });
+
+  it('upserts formData when existing draft matches clientSubmissionId', async () => {
+    mockN8nClient.fetchTable.mockResolvedValue([
+      {
+        id: 'rec-existing',
+        Client: 'CLIENT001',
+        'File ID': 'SF-EXISTING',
+        Status: LoanStatus.DRAFT,
+        'Client Submission ID': 'submit-123',
+        'Applicant Name': 'Old Name',
+        'Loan Product': 'LP001',
+        'Form Data': JSON.stringify({ pan: 'ABCDE1234F' }),
+      },
+    ] as never);
+    mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
+
+    const result = await service.createLoanApplication(clientUser as any, {
+      clientId: 'CLIENT001',
+      saveAsDraft: true,
+      clientSubmissionId: 'submit-123',
+      applicantName: 'Updated Name',
+      productId: 'LP001',
+      requestedLoanAmount: '600000',
+      formData: {
+        applicant_name: 'Updated Name',
+        loan_product_id: 'LP001',
+        requested_loan_amount: '600000',
+        email: 'updated@example.com',
+      },
+    });
+
+    expect(result).toEqual({
+      applicationId: 'rec-existing',
+      fileId: 'SF-EXISTING',
+      status: LoanStatus.DRAFT,
+    });
+    expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'Applicant Name': 'Updated Name',
+        'Loan Product': 'LP001',
+        'Requested Loan Amount': '600000',
+      }),
+      expect.objectContaining({
+        operationName: 'loan application draft upsert',
+      })
+    );
+
+    const posted = mockN8nClient.postLoanApplication.mock.calls[0][0];
+    const storedFormData = JSON.parse(posted['Form Data']);
+    expect(storedFormData.email).toBe('updated@example.com');
+    expect(storedFormData.pan).toBe('ABCDE1234F');
   });
 
   it('verifies persisted status for draft submission', async () => {

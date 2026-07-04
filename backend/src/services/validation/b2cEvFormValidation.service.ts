@@ -78,11 +78,6 @@ const BASE_REQUIRED_FIELDS: FieldDef[] = [
   { key: 'loan.tenureMonths', label: 'Tenure (months)', type: 'number', required: true },
   { key: 'loan.processingFee', label: 'Processing Fee', type: 'currency', required: true },
   { key: 'loan.gpsCharges', label: 'GPS Charges / IOT', type: 'currency', required: true },
-  { key: 'bank.customerName', label: 'Customer Name in Bank', type: 'text', required: true },
-  { key: 'bank.name', label: 'Bank Name', type: 'text', required: true },
-  { key: 'bank.accountNumber', label: 'Account Number', type: 'text', required: true },
-  { key: 'bank.ifscCode', label: 'IFSC Code', type: 'text', required: true },
-  { key: 'bank.branchAddress', label: 'Branch Address', type: 'text', required: true },
   { key: 'insurance.cost', label: 'Insurance Cost', type: 'currency', required: true },
   { key: 'insurance.provider', label: 'Insurance Provider', type: 'text', required: true },
   { key: 'insurance.policyNumber', label: 'Policy Number', type: 'text', required: true },
@@ -94,6 +89,16 @@ const BASE_REQUIRED_FIELDS: FieldDef[] = [
   { key: 'vehicle.downpayment', label: 'Downpayment Paid by Borrower', type: 'currency', required: true },
   { key: 'vehicle.registrationCost', label: 'Vehicle Registration Cost', type: 'currency', required: true },
 ];
+
+const COMPLIANCE_REQUIRED_FIELDS: FieldDef[] = [
+  { key: 'compliance.vkycDone', label: 'VKYC done', type: 'checkbox', required: true },
+  { key: 'compliance.loanAgreementSigned', label: 'Loan agreement signed', type: 'checkbox', required: true },
+  { key: 'compliance.enachDone', label: 'ENach done', type: 'checkbox', required: true },
+];
+
+function isComplianceValueTruthy(value: string): boolean {
+  return value === 'true' || value === 'TRUE' || value === 'True';
+}
 
 export type B2cEvValidationResult = {
   isValid: boolean;
@@ -132,7 +137,7 @@ function validateFieldFormat(field: FieldDef, value: string): string | null {
       return 'PAN must be 5 letters, 4 digits, and 1 letter (e.g. ABCDE1234F)';
     }
   }
-  if (field.key === 'bank.ifscCode' || field.key === 'dealer.ifscCode') {
+  if (field.key === 'dealer.ifscCode') {
     const normalized = value.toUpperCase();
     if (normalized.length !== 11 || !IFSC_REGEX.test(normalized)) {
       return 'IFSC must be 11 characters (e.g. HDFC0001885)';
@@ -261,6 +266,17 @@ export function validateB2cEvFormData(
         label: 'First Name',
         type: 'text',
         displayKey: 'borrower.firstName',
+      });
+    }
+  }
+
+  for (const field of COMPLIANCE_REQUIRED_FIELDS) {
+    if (!isComplianceValueTruthy(readValue(formData, field.key))) {
+      missingFields.push({
+        fieldId: field.key,
+        label: field.label,
+        type: field.type,
+        displayKey: field.key,
       });
     }
   }

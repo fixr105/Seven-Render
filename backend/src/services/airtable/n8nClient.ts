@@ -1217,10 +1217,24 @@ export class N8nClient {
     return {
       'File ID': data['File ID'] || data.fileId || '',
       Client: clientId,
-      'Applicant Name': data['Applicant Name'] || data.applicantName || '',
-      'Loan Product': data['Loan Product'] || data.loanProduct || '',
+      'Applicant Name':
+        data['Applicant Name'] ||
+        data.applicantName ||
+        parsedFormData.applicantName ||
+        parsedFormData.applicant_name ||
+        '',
+      'Loan Product':
+        data['Loan Product'] ||
+        data.loanProduct ||
+        parsedFormData.productId ||
+        parsedFormData.loan_product_id ||
+        '',
       'Requested Loan Amount':
-        data['Requested Loan Amount'] ?? data.requestedLoanAmount ?? '',
+        data['Requested Loan Amount'] ??
+        data.requestedLoanAmount ??
+        parsedFormData.requestedLoanAmount ??
+        parsedFormData.requested_loan_amount ??
+        '',
       Documents: data['Documents'] || data.documents || '',
       Status: data['Status'] || data.status || '',
       'Assigned Credit Analyst': data['Assigned Credit Analyst'] || data.assignedCreditAnalyst || '',

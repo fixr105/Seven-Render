@@ -183,18 +183,6 @@ export const B2C_EV_STAGES: B2cEvStage[] = [
     fields: SUPPORT_PAN_LOOKUP_INPUT_FIELDS,
   },
   {
-    id: 'bank',
-    title: 'Bank Details',
-    description: 'Borrower settlement account',
-    fields: [
-      { key: 'bank.customerName', label: 'Customer Name in Bank', type: 'text', required: true },
-      { key: 'bank.name', label: 'Bank Name', type: 'text', required: true },
-      { key: 'bank.accountNumber', label: 'Account Number', type: 'text', required: true },
-      { key: 'bank.ifscCode', label: 'IFSC Code', type: 'text', required: true },
-      { key: 'bank.branchAddress', label: 'Branch Address', type: 'text', required: true, colSpan: 2 },
-    ],
-  },
-  {
     id: 'geo-photos',
     title: 'Geo-tagged Photos',
     description: 'Upload photos with verified location at time of capture',
@@ -252,5 +240,12 @@ export function createInitialB2cEvFormData(): Record<string, unknown> {
     '_meta.supportPanLookup.inputHash': '',
     '_meta.supportPanLookup.completedAt': '',
     '_meta.supportPanLookup.phase': 'input',
+    'compliance.vkycDone': false,
+    'compliance.loanAgreementSigned': false,
+    'compliance.enachDone': false,
+    '_meta.kamRequests.vkyc.requestedAt': '',
+    '_meta.kamRequests.loanAgreement.requestedAt': '',
+    '_meta.kamRequests.enach.requestedAt': '',
+    '_meta.doRequest.requestedAt': '',
   };
 }

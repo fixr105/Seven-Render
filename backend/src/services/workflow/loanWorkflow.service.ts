@@ -21,6 +21,10 @@ import {
   mayApplyTargetLoanStatus,
   normalizeDynamicStatus,
 } from '../statusTracking/dynamicStatus.service.js';
+import {
+  mergeFormDataJson,
+  resolveLoanApplicationCoreFields,
+} from '../../utils/loanApplicationCoreFields.js';
 
 /**
  * Options for creating a new loan application
@@ -155,6 +159,50 @@ export class LoanWorkflowService {
     };
   }
 
+  private async upsertExistingDraftApplication(
+    existingApplication: Record<string, any>,
+    options: CreateLoanApplicationOptions
+  ): Promise<{ applicationId: string; fileId: string; status: LoanStatus }> {
+    const mergedFormData = mergeFormDataJson(existingApplication, options.formData!);
+    const coreFields = resolveLoanApplicationCoreFields(mergedFormData, existingApplication);
+    const formDataToStore: Record<string, unknown> = {
+      ...mergedFormData,
+      applicantName: options.applicantName || coreFields.applicantName,
+      productId: options.productId || coreFields.productId,
+      requestedLoanAmount: options.requestedLoanAmount ?? coreFields.requestedLoanAmount,
+    };
+
+    const applicantName = String(formDataToStore.applicantName ?? '');
+    const productId = String(formDataToStore.productId ?? '');
+    const requestedLoanAmount =
+      formDataToStore.requestedLoanAmount !== undefined &&
+      formDataToStore.requestedLoanAmount !== null &&
+      String(formDataToStore.requestedLoanAmount).trim() !== ''
+        ? String(formDataToStore.requestedLoanAmount)
+        : '';
+
+    const updatedData: Record<string, any> = {
+      ...existingApplication,
+      'Applicant Name': applicantName,
+      'Loan Product': productId,
+      'Requested Loan Amount': requestedLoanAmount,
+      'Form Data': JSON.stringify(formDataToStore),
+      'Last Updated': new Date().toISOString(),
+      Remarks: formDataToStore.Remarks ?? existingApplication['Remarks'] ?? '',
+    };
+
+    await n8nClient.postLoanApplication(updatedData, {
+      strictWriteAck: false,
+      operationName: 'loan application draft upsert',
+    });
+
+    return {
+      applicationId: String(existingApplication.id),
+      fileId: String(existingApplication['File ID'] || existingApplication.fileId || ''),
+      status: String(existingApplication.Status || existingApplication.status || LoanStatus.DRAFT) as LoanStatus,
+    };
+  }
+
   /**
    * Create new loan application
    * 
@@ -177,6 +225,9 @@ export class LoanWorkflowService {
       options.clientSubmissionId
     );
     if (existingApplication) {
+      if (options.saveAsDraft && options.formData) {
+        return this.upsertExistingDraftApplication(existingApplication, options);
+      }
       return {
         applicationId: String(existingApplication.id),
         fileId: String(existingApplication['File ID'] || existingApplication.fileId || ''),

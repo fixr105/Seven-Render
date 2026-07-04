@@ -9,7 +9,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { TextArea } from '../ui/TextArea';
-import { Stepper } from '../ui/Stepper';
+import { B2cEvWizardStepper } from './B2cEvWizardStepper';
 import { useAuth } from '../../auth/AuthContext';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useNavigation } from '../../hooks/useNavigation';
@@ -54,6 +54,17 @@ import {
 import { LoanCalculator } from './LoanCalculator';
 import { SupportPersonPanWizard } from './SupportPersonPanWizard';
 import { GeoTaggedPhotoUploads } from './GeoTaggedPhotoUploads';
+import {
+  buildComplianceKamRequestMessage,
+  COMPLIANCE_ITEMS,
+  validateComplianceForSubmit,
+  type ComplianceItemId,
+} from '../../lib/b2cEvCompliance';
+import {
+  buildDoRequestMessage,
+  isDoRequested,
+  POST_DO_LOCKED_STAGE_IDS,
+} from '../../lib/b2cEvDoRequest';
 import {
   formDataToFrozenValues,
   frozenValuesToFormDataPatch,
@@ -181,6 +192,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [supportPanLookupLoading, setSupportPanLookupLoading] = useState(false);
   const [supportPanLookupError, setSupportPanLookupError] = useState<string | null>(null);
   const [supportPanLookupCountdown, setSupportPanLookupCountdown] = useState(0);
+  const [kamRequestLoadingId, setKamRequestLoadingId] = useState<ComplianceItemId | null>(null);
+  const [doRequestLoading, setDoRequestLoading] = useState(false);
   const [clientSubmissionId] = useState(createClientSubmissionId);
   const submitInFlightRef = useRef(false);
 
@@ -201,6 +214,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
     () => getB2cEvFormCompletion(visibleStages, formState.form_data, formState.loan_product_id),
     [visibleStages, formState.form_data, formState.loan_product_id]
   );
+
+  const complianceErrors = useMemo(
+    () => validateComplianceForSubmit(formState.form_data),
+    [formState.form_data]
+  );
+
+  const canSubmitApplication =
+    completion.isComplete && Object.keys(complianceErrors).length === 0;
 
   const isLastStep = currentStep === visibleStages.length - 1;
 
@@ -249,6 +270,26 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const supportPanPhase = getSupportPanLookupPhase(formState.form_data);
   const supportNextDisabled =
     currentStage?.id === 'support-person' && supportPanPhase !== 'profile';
+
+  const geoPhotosStepIndex = useMemo(
+    () => visibleStages.findIndex((stage) => stage.id === 'geo-photos'),
+    [visibleStages]
+  );
+
+  const doRequested = isDoRequested(formState.form_data);
+
+  const lockedStepIndices = useMemo(() => {
+    if (doRequested) return [];
+    return visibleStages
+      .map((stage, index) =>
+        POST_DO_LOCKED_STAGE_IDS.includes(stage.id as (typeof POST_DO_LOCKED_STAGE_IDS)[number])
+          ? index
+          : null
+      )
+      .filter((index): index is number => index !== null);
+  }, [visibleStages, doRequested]);
+
+  const isGeoPhotosStage = currentStage?.id === 'geo-photos';
 
   const completedStepIndices = useMemo(() => {
     return visibleStages
@@ -458,6 +499,110 @@ export const B2CEvApplicationWizard: React.FC = () => {
       }
       return next;
     });
+  };
+
+  const buildFormDataPayload = () => ({
+    ...formState.form_data,
+    '_meta.formTemplate': B2C_EV_FORM_TEMPLATE_ID,
+  });
+
+  const ensureDraftSaved = async (): Promise<string> => {
+    if (!formState.loan_product_id) {
+      throw new Error('Please select a loan product before saving.');
+    }
+
+    const formDataToSend = buildFormDataPayload();
+    let draftId = editingDraftId;
+
+    if (draftId) {
+      const updateRes = await apiService.updateApplicationForm(draftId, {
+        ...formDataToSend,
+        applicant_name: formState.applicant_name,
+        loan_product_id: formState.loan_product_id,
+        requested_loan_amount: formState.requested_loan_amount,
+      });
+      if (!updateRes.success) {
+        throw new Error(updateRes.error || 'Failed to update draft');
+      }
+      return draftId;
+    }
+
+    const createRes = await apiService.createApplication({
+      applicantName: formState.applicant_name,
+      productId: formState.loan_product_id,
+      requestedLoanAmount: Number(formState.requested_loan_amount) || 0,
+      formData: formDataToSend,
+      saveAsDraft: true,
+      clientSubmissionId,
+    });
+    if (!createRes.success) {
+      throw new Error(createRes.error || 'Failed to create draft');
+    }
+
+    draftId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
+    if (!draftId) {
+      throw new Error('Draft ID missing after create');
+    }
+    setEditingDraftId(draftId);
+    return draftId;
+  };
+
+  const handleComplianceCheckboxChange = (key: string, checked: boolean) => {
+    updateFields({ [key]: checked ? 'true' : 'false' });
+  };
+
+  const handleRequestFromKam = async (itemId: ComplianceItemId) => {
+    const item = COMPLIANCE_ITEMS.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    setKamRequestLoadingId(itemId);
+    try {
+      const draftId = await ensureDraftSaved();
+      const message = buildComplianceKamRequestMessage(item, {
+        applicantName: formState.applicant_name,
+        applicationId: draftId,
+      });
+      const response = await apiService.createClientQuery(draftId, message);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to send request to KAM');
+      }
+      updateFields({
+        [item.requestedAtKey]: new Date().toISOString(),
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to send request to KAM';
+      alert(message);
+    } finally {
+      setKamRequestLoadingId(null);
+    }
+  };
+
+  const handleRequestDO = async () => {
+    if (!validateCurrentStep(false)) return;
+
+    setDoRequestLoading(true);
+    try {
+      const draftId = await ensureDraftSaved();
+      const message = buildDoRequestMessage({
+        applicantName: formState.applicant_name,
+        applicationId: draftId,
+      });
+      const response = await apiService.createClientQuery(draftId, message);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to send DO request to KAM');
+      }
+      updateFields({
+        '_meta.doRequest.requestedAt': new Date().toISOString(),
+      });
+      advanceStep();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to send DO request to KAM';
+      alert(message);
+    } finally {
+      setDoRequestLoading(false);
+    }
   };
 
   const validateCurrentStep = (saveAsDraft = false): boolean => {
@@ -695,6 +840,15 @@ export const B2CEvApplicationWizard: React.FC = () => {
       if (!kycOk) return;
     }
 
+    const nextStepIndex = currentStep + 1;
+    if (lockedStepIndices.includes(nextStepIndex)) {
+      return;
+    }
+
+    if (currentStage?.id === 'geo-photos') {
+      return;
+    }
+
     advanceStep();
   };
 
@@ -714,6 +868,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
         );
         return;
       }
+      const submitComplianceErrors = validateComplianceForSubmit(formState.form_data);
+      if (Object.keys(submitComplianceErrors).length > 0) {
+        setFieldErrors({ ...completion.errors, ...submitComplianceErrors });
+        alert(
+          `Please complete the compliance checklist before submitting:\n\n${Object.values(submitComplianceErrors).join('\n')}`
+        );
+        return;
+      }
     } else if (!formState.loan_product_id) {
       alert('Please select a loan product before saving a draft.');
       return;
@@ -721,10 +883,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
     submitInFlightRef.current = true;
     setLoading(true);
-    const formDataToSend = {
-      ...formState.form_data,
-      '_meta.formTemplate': B2C_EV_FORM_TEMPLATE_ID,
-    };
+    const formDataToSend = buildFormDataPayload();
 
     try {
       if (!saveAsDraft) {
@@ -1000,6 +1159,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
           formData={formState.form_data}
           fieldErrors={fieldErrors}
           onBatchChange={updateFields}
+          requestingComplianceItemId={kamRequestLoadingId}
+          onComplianceCheckboxChange={handleComplianceCheckboxChange}
+          onRequestFromKam={(itemId) => void handleRequestFromKam(itemId)}
         />
       );
     }
@@ -1114,8 +1276,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
       <Card className="mb-6">
         <CardContent className="p-6">
-          <Stepper
-            fitToWidth
+          <B2cEvWizardStepper
             steps={visibleStages.map((stage) => ({
               id: stage.id,
               label: stage.title,
@@ -1123,23 +1284,31 @@ export const B2CEvApplicationWizard: React.FC = () => {
             }))}
             currentStep={currentStep}
             completedSteps={completedStepIndices}
+            lockedSteps={lockedStepIndices}
             onStepClick={(index) => {
-              const targetStage = visibleStages[index];
-              if (
-                targetStage?.id === 'borrower' &&
-                index > currentStep &&
-                !isPanLookupSuccessful(formState.form_data)
-              ) {
-                return;
+              if (lockedStepIndices.includes(index)) return;
+
+              if (index > currentStep) {
+                const targetStage = visibleStages[index];
+                if (
+                  targetStage?.id === 'borrower' &&
+                  !isPanLookupSuccessful(formState.form_data)
+                ) {
+                  return;
+                }
+                if (
+                  supportPersonStepIndex >= 0 &&
+                  index > supportPersonStepIndex &&
+                  !validateSupportPersonStageAccessible(formState.form_data)
+                ) {
+                  return;
+                }
+                if (geoPhotosStepIndex >= 0 && index > geoPhotosStepIndex && !doRequested) {
+                  return;
+                }
               }
-              if (
-                supportPersonStepIndex >= 0 &&
-                index > supportPersonStepIndex &&
-                !validateSupportPersonStageAccessible(formState.form_data)
-              ) {
-                return;
-              }
-              if (index <= currentStep) setCurrentStep(index);
+
+              setCurrentStep(index);
             }}
           />
         </CardContent>
@@ -1182,15 +1351,31 @@ export const B2CEvApplicationWizard: React.FC = () => {
               type="button"
               icon={Send}
               onClick={() => void handleSubmit(false)}
-              disabled={loading || !completion.isComplete}
+              disabled={loading || !canSubmitApplication}
               data-testid="b2c-submit-application"
               title={
-                !completion.isComplete
-                  ? 'Complete all required fields before submitting'
+                !canSubmitApplication
+                  ? 'Complete all required fields and compliance checklist before submitting'
                   : undefined
               }
             >
               {loading ? 'Submitting...' : 'Submit application'}
+            </Button>
+          ) : isGeoPhotosStage ? (
+            <Button
+              type="button"
+              size="lg"
+              onClick={() => void handleRequestDO()}
+              disabled={
+                loading ||
+                doRequestLoading ||
+                panLookupLoading ||
+                supportPanLookupLoading
+              }
+              data-testid="b2c-wizard-request-do"
+              className="min-h-[52px] min-w-[12rem] px-8 text-base font-bold shadow-md"
+            >
+              {doRequestLoading ? 'Requesting DO…' : 'Request DO'}
             </Button>
           ) : (
             <Button

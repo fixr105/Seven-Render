@@ -250,6 +250,25 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
   });
 });
 
+describe('n8nClient.buildLoanApplicationPayload formData fallbacks', () => {
+  it('reads applicant, product, and amount from parsed Form Data when top-level fields are absent', () => {
+    const payload = n8nClient.buildLoanApplicationPayload({
+      'File ID': 'SF001',
+      Client: 'CL001',
+      Status: 'draft',
+      'Form Data': JSON.stringify({
+        applicant_name: 'Jane Doe',
+        loan_product_id: 'LP001',
+        requested_loan_amount: '500000',
+      }),
+    });
+
+    expect(payload['Applicant Name']).toBe('Jane Doe');
+    expect(payload['Loan Product']).toBe('LP001');
+    expect(payload['Requested Loan Amount']).toBe('500000');
+  });
+});
+
 describe('n8nClient.postUserAccount strict write acknowledgement', () => {
   beforeEach(() => {
     mockFetch.mockReset();

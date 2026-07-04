@@ -10,6 +10,9 @@ describe('GeoTaggedPhotoUploads', () => {
         formData={createInitialB2cEvFormData()}
         fieldErrors={{}}
         onBatchChange={vi.fn()}
+        requestingComplianceItemId={null}
+        onComplianceCheckboxChange={vi.fn()}
+        onRequestFromKam={vi.fn()}
       />
     );
 
@@ -19,5 +22,6 @@ describe('GeoTaggedPhotoUploads', () => {
     expect(screen.getByTestId('geo-photo-upload-withSupportPerson')).toHaveTextContent(
       'Upload photo'
     );
+    expect(screen.getByTestId('compliance-checklist')).toBeInTheDocument();
   });
 });

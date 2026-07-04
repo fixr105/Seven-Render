@@ -69,10 +69,6 @@ export function syncB2cEvComputedFields(formData: Record<string, unknown>): Reco
     next['loan.disbursalAmount'] = String(Math.max(loanAmount - processingFee - gpsCharges, 0));
   }
 
-  if (!readValue(next, 'bank.customerName') && readValue(next, 'borrower.customerName')) {
-    next['bank.customerName'] = readValue(next, 'borrower.customerName');
-  }
-
   return next;
 }
 
@@ -196,7 +192,7 @@ export function validateB2cEvStage(
       const panError = getPanValidationError(value);
       if (panError) errors[field.key] = panError;
     }
-    if (field.key === 'bank.ifscCode' || field.key === 'dealer.ifscCode') {
+    if (field.key === 'dealer.ifscCode') {
       const normalized = value.toUpperCase();
       if (normalized.length !== 11 || !IFSC_REGEX.test(normalized)) {
         errors[field.key] = 'IFSC must be 11 characters (e.g. HDFC0001885)';

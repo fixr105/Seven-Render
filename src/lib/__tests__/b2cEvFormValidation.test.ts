@@ -76,11 +76,6 @@ function buildCompleteCoApplicantForm(): Record<string, unknown> {
     'coApplicant.drivingLicense': 'DL654321',
     'coApplicant.mobile': '9876543211',
     'coApplicant.relationship': 'Spouse',
-    'bank.customerName': 'Rahul Sharma',
-    'bank.name': 'HDFC Bank',
-    'bank.accountNumber': '1234567890',
-    'bank.ifscCode': 'HDFC0001885',
-    'bank.branchAddress': 'Branch Address',
     'insurance.cost': '5000',
     'insurance.provider': 'Provider',
     'insurance.policyNumber': 'POL001',
@@ -91,6 +86,9 @@ function buildCompleteCoApplicantForm(): Record<string, unknown> {
     'vehicle.invoiceDate': '2025-01-02',
     'vehicle.downpayment': '50000',
     'vehicle.registrationCost': '2000',
+    'compliance.vkycDone': true,
+    'compliance.loanAgreementSigned': true,
+    'compliance.enachDone': true,
   };
 }
 
@@ -154,5 +152,18 @@ describe('getB2cEvFormCompletion', () => {
 
     expect(result.isComplete).toBe(false);
     expect(result.errors.loan_product_id).toBeDefined();
+  });
+
+  it('does not require compliance checklist for stage completion', () => {
+    const formData = {
+      ...buildCompleteCoApplicantForm(),
+      'compliance.vkycDone': false,
+      'compliance.loanAgreementSigned': false,
+      'compliance.enachDone': false,
+    };
+    const stages = getVisibleB2cEvStages(formData);
+    const result = getB2cEvFormCompletion(stages, formData, 'LP001');
+
+    expect(result.isComplete).toBe(true);
   });
 });

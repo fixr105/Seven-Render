@@ -22,6 +22,10 @@ import {
   assertClientProductAssigned,
 } from '../services/entitlements/clientProducts.service.js';
 import { resolveRequestedLoanAmountFromVehicleSelection } from '../services/vehicles/vehicleCatalog.service.js';
+import {
+  mergeFormDataJson,
+  resolveLoanApplicationCoreFields,
+} from '../utils/loanApplicationCoreFields.js';
 
 export class LoanController {
   /**
@@ -207,29 +211,6 @@ export class LoanController {
       // This ensures proper status setting and notifications
       const { loanWorkflowService } = await import('../services/workflow/loanWorkflow.service.js');
 
-      if (clientSubmissionId) {
-        const existing = await loanWorkflowService.findApplicationBySubmissionId(
-          req.user!.clientId!,
-          clientSubmissionId
-        );
-        if (existing) {
-          res.json({
-            success: true,
-            data: {
-              loanApplicationId: existing.id,
-              fileId: existing['File ID'] || existing.fileId,
-              status: existing.Status || existing.status,
-              warnings: validationWarnings,
-              duplicateFound: duplicateCheck ? {
-                fileId: duplicateCheck.fileId,
-                status: duplicateCheck.status,
-              } : null,
-            },
-          });
-          return;
-        }
-      }
-      
       try {
         const result = await loanWorkflowService.createLoanApplication(req.user!, {
           clientId: req.user!.clientId!,
@@ -1165,46 +1146,77 @@ export class LoanController {
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
 
-      // Parse existing Form Data and merge with incoming form data (full row-wise storage)
-      let existingFormData: Record<string, unknown> = {};
-      const rawFormData = application['Form Data'] ?? application.formData ?? application['form_data'];
-      if (rawFormData != null) {
-        try {
-          const parsed = typeof rawFormData === 'string' ? JSON.parse(rawFormData) : rawFormData;
-          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-            existingFormData = parsed as Record<string, unknown>;
-          }
-        } catch {
-          existingFormData = {};
-        }
-      }
-      const mergedFormData = { ...existingFormData, ...(formData || {}) };
+      const mergedFormData = mergeFormDataJson(application, formData || {});
+      let coreFields = resolveLoanApplicationCoreFields(mergedFormData, application);
 
-      // Update form data (preserve existing Documents for backward compatibility)
+      const existingProductId = String(application['Loan Product'] || application.loanProduct || '');
+      if (coreFields.productId && coreFields.productId !== existingProductId) {
+        await assertClientProductAssigned(req.user, coreFields.productId);
+      }
+
+      const selectedVehicle = await resolveRequestedLoanAmountFromVehicleSelection(
+        req.user,
+        coreFields.productId,
+        {
+          vehicleId:
+            mergedFormData._vehicleId ??
+            mergedFormData.vehicleId ??
+            mergedFormData['Vehicle ID'],
+          make:
+            mergedFormData._vehicleMake ??
+            mergedFormData.make ??
+            mergedFormData.Make,
+          model:
+            mergedFormData._vehicleModel ??
+            mergedFormData.model ??
+            mergedFormData.Model,
+        }
+      );
+      if (selectedVehicle) {
+        coreFields = {
+          ...coreFields,
+          requestedLoanAmount: selectedVehicle.requestedLoanAmount,
+        };
+        mergedFormData._vehicleId = selectedVehicle.vehicleId;
+        mergedFormData._vehicleMake = selectedVehicle.make;
+        mergedFormData._vehicleModel = selectedVehicle.model;
+        mergedFormData._vehicleRequestedLoanAmount = selectedVehicle.requestedLoanAmount;
+      }
+
+      const formDataToStore: Record<string, unknown> = {
+        ...mergedFormData,
+        applicantName: coreFields.applicantName,
+        productId: coreFields.productId,
+        requestedLoanAmount: coreFields.requestedLoanAmount,
+      };
+
       const updatedData: any = {
         ...application,
-        'Form Data': JSON.stringify(mergedFormData),
+        'Applicant Name': coreFields.applicantName,
+        'Loan Product': coreFields.productId,
+        'Requested Loan Amount': String(coreFields.requestedLoanAmount ?? ''),
+        'Form Data': JSON.stringify(formDataToStore),
         Remarks:
-          mergedFormData.Remarks != null
-            ? String(mergedFormData.Remarks)
+          formDataToStore.Remarks != null
+            ? String(formDataToStore.Remarks)
             : application['Remarks'] ?? '',
         'Last Updated': new Date().toISOString(),
-        'Form Config Version': formConfigVersion || '', // Module 1: Preserve or update version
+        'Form Config Version': formConfigVersion || '',
       };
 
       await n8nClient.postLoanApplication(updatedData);
 
-      // Module 0: Use admin logger helper
-      await logApplicationAction(
+      void logApplicationAction(
         req.user!,
         AdminActionType.SAVE_DRAFT,
         application['File ID'],
         'Updated draft application form data',
         { formConfigVersion }
+      ).catch((err: Error) =>
+        console.warn('[updateApplicationForm] admin log failed:', err.message)
       );
 
-      // Log to file audit
-      await n8nClient.postFileAuditLog({
+      void n8nClient.postFileAuditLog({
         id: `AUDIT-${Date.now()}`,
         'Log Entry ID': `AUDIT-${Date.now()}`,
         File: application['File ID'],
@@ -1214,13 +1226,23 @@ export class LoanController {
         'Details/Message': 'Application form data updated',
         'Target User/Role': 'client',
         Resolved: 'False',
-      });
+      }).catch((err: Error) =>
+        console.warn('[updateApplicationForm] file audit failed:', err.message)
+      );
 
       res.json({
         success: true,
         message: 'Application form updated successfully',
+        data: {
+          loanApplicationId: application.id,
+          fileId: application['File ID'] || application.fileId || application.id,
+        },
       });
     } catch (error: any) {
+      if (error instanceof ClientProductEntitlementError) {
+        res.status(error.statusCode).json(entitlementErrorBody(error));
+        return;
+      }
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to update application form',

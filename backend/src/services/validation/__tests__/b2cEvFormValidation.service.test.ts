@@ -66,11 +66,6 @@ function buildCompleteForm(): Record<string, unknown> {
     'coApplicant.drivingLicense': 'DL654321',
     'coApplicant.mobile': '9876543211',
     'coApplicant.relationship': 'Spouse',
-    'bank.customerName': 'Rahul Sharma',
-    'bank.name': 'HDFC Bank',
-    'bank.accountNumber': '1234567890',
-    'bank.ifscCode': 'HDFC0001885',
-    'bank.branchAddress': 'Branch Address',
     'insurance.cost': '5000',
     'insurance.provider': 'Provider',
     'insurance.policyNumber': 'POL001',
@@ -81,6 +76,9 @@ function buildCompleteForm(): Record<string, unknown> {
     'vehicle.invoiceDate': '2025-01-02',
     'vehicle.downpayment': '50000',
     'vehicle.registrationCost': '2000',
+    'compliance.vkycDone': true,
+    'compliance.loanAgreementSigned': true,
+    'compliance.enachDone': true,
   };
 }
 
@@ -114,5 +112,14 @@ describe('b2cEvFormValidation.service', () => {
     const result = validateB2cEvFormData(form, 'LP001');
     expect(result.isValid).toBe(false);
     expect(result.missingFields.some((f) => f.fieldId.startsWith('guarantor.'))).toBe(true);
+  });
+
+  it('requires compliance checklist items before submit', () => {
+    const form = { ...buildCompleteForm() };
+    delete form['compliance.enachDone'];
+
+    const result = validateB2cEvFormData(form, 'LP001');
+    expect(result.isValid).toBe(false);
+    expect(result.missingFields.some((f) => f.fieldId === 'compliance.enachDone')).toBe(true);
   });
 });

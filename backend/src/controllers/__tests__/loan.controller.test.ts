@@ -311,5 +311,168 @@ describe('LoanController - P0 Tests', () => {
     });
   });
 
+  describe('updateApplicationForm', () => {
+    const clientUser: AuthUser = {
+      id: 'user-1',
+      email: 'client@example.com',
+      role: UserRole.CLIENT,
+      clientId: 'CLIENT001',
+    };
+
+    beforeEach(() => {
+      (mockN8nClientInstance.postLoanApplication as jest.Mock).mockResolvedValue({ success: true } as never);
+      (mockN8nClientInstance.postFileAuditLog as jest.Mock).mockResolvedValue({ success: true } as never);
+    });
+
+    it('merges formData and syncs top-level Applicant Name, Loan Product, Requested Loan Amount', async () => {
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            Status: LoanStatus.DRAFT,
+            'Loan Product': 'LP001',
+            'Applicant Name': 'Old Name',
+            'Requested Loan Amount': '100000',
+            'Form Data': JSON.stringify({ pan: 'ABCDE1234F' }),
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: {
+          formData: {
+            applicant_name: 'Updated Name',
+            loan_product_id: 'LP001',
+            requested_loan_amount: '500000',
+          },
+        },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'Applicant Name': 'Updated Name',
+          'Loan Product': 'LP001',
+          'Requested Loan Amount': '500000',
+        })
+      );
+
+      const posted = (mockN8nClientInstance.postLoanApplication as jest.Mock).mock.calls[0][0];
+      const storedFormData = JSON.parse(posted['Form Data']);
+      expect(storedFormData.applicantName).toBe('Updated Name');
+      expect(storedFormData.productId).toBe('LP001');
+      expect(storedFormData.requestedLoanAmount).toBe('500000');
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: {
+            loanApplicationId: 'rec1',
+            fileId: 'SF20250101001',
+          },
+        })
+      );
+    });
+
+    it('returns 403 for non-client role', async () => {
+      mockRequest = {
+        user: {
+          id: 'user-2',
+          email: 'kam@example.com',
+          role: UserRole.KAM,
+        },
+        params: { id: 'rec1' },
+        body: { formData: {} },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
+    });
+
+    it('returns 404 when application belongs to another client', async () => {
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') return mockLoanApplications;
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec3' },
+        body: { formData: { applicant_name: 'Test' } },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+    });
+
+    it('returns 400 when application is not in an editable status', async () => {
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[1],
+            id: 'rec2',
+            Status: LoanStatus.UNDER_KAM_REVIEW,
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec2' },
+        body: { formData: { applicant_name: 'Test' } },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Application cannot be edited in current status',
+        })
+      );
+    });
+
+    it('returns success even when audit log webhooks reject', async () => {
+      const { logApplicationAction } = await import('../../utils/adminLogger.js');
+      (logApplicationAction as jest.Mock).mockRejectedValueOnce(new Error('admin log failed') as never);
+      (mockN8nClientInstance.postFileAuditLog as jest.Mock).mockRejectedValueOnce(
+        new Error('file audit failed') as never
+      );
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            Status: LoanStatus.DRAFT,
+            'Loan Product': 'LP001',
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: { formData: { applicant_name: 'Audit Test' } },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true })
+      );
+    });
+  });
+
 });
 

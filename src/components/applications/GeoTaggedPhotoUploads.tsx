@@ -6,6 +6,8 @@ import {
   compressImageFile,
   type B2cEvGeoPhotoSlot,
 } from '../../lib/b2cEvGeoPhotos';
+import { ComplianceChecklist } from './ComplianceChecklist';
+import type { ComplianceItemId } from '../../lib/b2cEvCompliance';
 
 function readFieldValue(formData: Record<string, unknown>, key: string): string {
   const value = formData[key];
@@ -17,12 +19,18 @@ export interface GeoTaggedPhotoUploadsProps {
   formData: Record<string, unknown>;
   fieldErrors: Record<string, string>;
   onBatchChange: (patch: Record<string, string>) => void;
+  requestingComplianceItemId: ComplianceItemId | null;
+  onComplianceCheckboxChange: (key: string, checked: boolean) => void;
+  onRequestFromKam: (itemId: ComplianceItemId) => void;
 }
 
 export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
   formData,
   fieldErrors,
   onBatchChange,
+  requestingComplianceItemId,
+  onComplianceCheckboxChange,
+  onRequestFromKam,
 }) => {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
@@ -171,6 +179,14 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
           );
         })}
       </div>
+
+      <ComplianceChecklist
+        formData={formData}
+        fieldErrors={fieldErrors}
+        requestingItemId={requestingComplianceItemId}
+        onCheckboxChange={onComplianceCheckboxChange}
+        onRequestFromKam={onRequestFromKam}
+      />
     </div>
   );
 };

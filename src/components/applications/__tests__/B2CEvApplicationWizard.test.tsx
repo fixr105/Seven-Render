@@ -15,6 +15,7 @@ vi.mock('../../../services/api', () => ({
     updateApplicationForm: vi.fn(),
     submitApplication: vi.fn(),
     validateApplicationSubmission: vi.fn(),
+    createClientQuery: vi.fn(),
   },
 }));
 

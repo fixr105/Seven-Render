@@ -209,14 +209,12 @@ describe('LoanController.createApplication entitlement', () => {
     });
 
     mockCreateLoanApplication.mockRejectedValue(new Error('persistence verify failed') as never);
-    (mockFindApplicationBySubmissionId as any)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: 'rec-existing',
-        'File ID': 'SF-EXISTING',
-        Status: 'under_kam_review',
-        'Client Submission ID': 'submit-abc',
-      });
+    (mockFindApplicationBySubmissionId as any).mockResolvedValueOnce({
+      id: 'rec-existing',
+      'File ID': 'SF-EXISTING',
+      Status: 'under_kam_review',
+      'Client Submission ID': 'submit-abc',
+    });
 
     const req = {
       user: {
