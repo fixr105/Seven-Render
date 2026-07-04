@@ -2,6 +2,9 @@
   "name": "seven-fincorp-backend",
   "version": "1.0.0",
   "description": "Seven Fincorp Loan Management & Credit Dashboard Backend API",
+  "engines": {
+    "node": "24.x"
+  },
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
