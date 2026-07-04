@@ -13,11 +13,8 @@
     "api/index.cjs": {
       "maxDuration": 60,
       "memory": 1024,
-      "includeFiles": "{api/express.cjs,api/**}"
+      "includeFiles": "api/express.cjs"
     }
-  },
-  "outputFileTracingIncludes": {
-    "api/index.cjs": ["./api/express.cjs"]
   },
   "headers": [
     {

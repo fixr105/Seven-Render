@@ -8,17 +8,23 @@ dotenv.config();
 
 // Validate JWT secret in production
 const jwtSecret = process.env.JWT_SECRET;
-if (!jwtSecret || jwtSecret === 'default-secret-change-in-production') {
-  if (process.env.NODE_ENV === 'production') {
+const isPlaceholderSecret =
+  !jwtSecret ||
+  jwtSecret === 'default-secret-change-in-production' ||
+  jwtSecret.startsWith('your-secret-key-change-in-produc') ||
+  jwtSecret.length < 32;
+
+if (isPlaceholderSecret) {
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
     throw new Error(
-      'JWT_SECRET must be set to a secure random string in production. ' +
-      'Generate one using: openssl rand -base64 32'
+      'JWT_SECRET must be set to a secure random string (min 32 chars) in production. ' +
+        'Generate one using: openssl rand -base64 32'
     );
   }
   // Allow default in development but warn
   console.warn(
     '⚠️  WARNING: Using default JWT_SECRET. This is insecure for production. ' +
-    'Set JWT_SECRET environment variable.'
+      'Set JWT_SECRET environment variable.'
   );
 }
 
