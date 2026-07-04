@@ -365,8 +365,13 @@ export const B2CEvApplicationWizard: React.FC = () => {
     const inputHash = buildPanLookupInputHash(formState.form_data);
     const cachedHash = readFieldValue(formState.form_data, '_meta.panLookup.inputHash');
     const status = readFieldValue(formState.form_data, '_meta.panLookup.status');
+    // Only skip re-fetch when we already have address autofill. n8n sometimes returns
+    // profile without address; caching that would leave address blank forever.
+    const hasAddressAutofill = Boolean(
+      readFieldValue(formState.form_data, 'borrower.address.line1')
+    );
 
-    if (status === 'success' && inputHash === cachedHash) {
+    if (status === 'success' && inputHash === cachedHash && hasAddressAutofill) {
       return true;
     }
 
