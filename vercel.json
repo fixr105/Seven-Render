@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd backend && npm ci && npm run build && cd .. && npm run build",
+  "buildCommand": "cd backend && npm ci && npx prisma generate && npm run build && npx esbuild dist/server.js --bundle --platform=node --target=node20 --format=cjs --outfile=../api/express.cjs --packages=bundle && cd .. && npm run build",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
   "installCommand": "npm install && cd backend && npm install",
@@ -10,10 +10,10 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/index.ts": {
+    "api/index.js": {
       "maxDuration": 60,
       "memory": 1024,
-      "includeFiles": "backend/dist/**"
+      "includeFiles": "api/express.cjs"
     }
   },
   "headers": [

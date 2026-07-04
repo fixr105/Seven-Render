@@ -28,7 +28,7 @@ jobs:
           grep -q "pan-lookup" backend/src/routes/client.routes.ts || exit 1
           grep -q "nbfcToolsRoutes" backend/src/routes/index.ts || exit 1
           grep -q "/nbfc/tools" backend/src/routes/index.ts || exit 1
-          test -f api/index.ts || exit 1
+          test -f api/index.js || exit 1
           echo "API entry and routes present in source"
 
       - name: Deploy to Vercel

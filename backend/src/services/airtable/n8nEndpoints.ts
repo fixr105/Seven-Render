@@ -14,11 +14,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-if (!process.env.N8N_BASE_URL) {
-  throw new Error('N8N_BASE_URL environment variable is required. Please set it in your environment configuration.');
-}
+/** Default matches production n8n host (also set in historical fly.toml). */
+const DEFAULT_N8N_BASE_URL = 'https://fixrrahul.app.n8n.cloud';
 
-const N8N_BASE_URL = process.env.N8N_BASE_URL;
+const N8N_BASE_URL = (process.env.N8N_BASE_URL || DEFAULT_N8N_BASE_URL).replace(/\/$/, '');
 
 /**
  * Airtable Table IDs from SEVEN-DASHBOARD-2.json
