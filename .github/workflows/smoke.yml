@@ -17,22 +17,19 @@ jobs:
       - name: Wait for deploy propagation
         run: sleep 90
 
-      - name: Check backend health
+      - name: Check app health (UI + API on Vercel)
         run: |
-          BACKEND_URL="${BACKEND_URL:-https://seven-render.fly.dev}"
-          echo "Checking backend at $BACKEND_URL/health"
-          curl -sf "$BACKEND_URL/health" || (echo "Backend health check failed" && exit 1)
-        env:
-          BACKEND_URL: ${{ secrets.SMOKE_BACKEND_URL }}
-
-      - name: Check frontend
-        run: |
-          FRONTEND_URL="${FRONTEND_URL:-${{ secrets.SMOKE_FRONTEND_URL }}}"
-          if [ -z "$FRONTEND_URL" ]; then
-            echo "Skipping frontend check (SMOKE_FRONTEND_URL not set)"
-          else
-            echo "Checking frontend at $FRONTEND_URL"
-            curl -sf -o /dev/null -w "%{http_code}" "$FRONTEND_URL" | grep -qE '^200|^30[0-9]' || (echo "Frontend check failed" && exit 1)
+          APP_URL="${APP_URL:-https://seven-dashboard-seven.vercel.app}"
+          APP_URL="${APP_URL%/}"
+          echo "Checking frontend at $APP_URL"
+          curl -sf -o /dev/null -w "%{http_code}" "$APP_URL" | grep -qE '^200|^30[0-9]' || (echo "Frontend check failed" && exit 1)
+          echo "Checking API at $APP_URL/api/health"
+          curl -sf "$APP_URL/api/health" | grep -q '"success":true' || (echo "API health check failed" && exit 1)
+          PAN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$APP_URL/api/client/pan-lookup" -H "Content-Type: application/json" -d '{}')
+          if [ "$PAN_STATUS" = "404" ]; then
+            echo "ERROR: /api/client/pan-lookup returned 404"
+            exit 1
           fi
+          echo "pan-lookup OK (status $PAN_STATUS)"
         env:
-          FRONTEND_URL: ${{ secrets.SMOKE_FRONTEND_URL }}
+          APP_URL: ${{ secrets.SMOKE_FRONTEND_URL }}

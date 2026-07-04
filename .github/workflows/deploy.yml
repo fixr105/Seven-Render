@@ -6,51 +6,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-backend:
-    name: Deploy Backend to Fly.io
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Fly.io CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-      
-      - name: Verify NBFC routes in source before deploy
-        run: |
-          grep -q "nbfcToolsRoutes" backend/src/routes/index.ts || exit 1
-          grep -q "/nbfc/tools" backend/src/routes/index.ts || exit 1
-          echo "NBFC routes present in source"
-
-      - name: Deploy to Fly.io
-        run: |
-          flyctl deploy --config fly.toml --app seven-render --remote-only --strategy immediate
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        timeout-minutes: 15
-
-      - name: Verify backend deployment
-        run: |
-          BACKEND_URL="https://seven-render.fly.dev"
-          echo "Waiting for Fly.io machines to finish restarting..."
-          sleep 15
-          echo "Smoke testing backend endpoints..."
-          curl -sf "$BACKEND_URL/health" | grep -q '"success":true' || (echo "Health check failed" && exit 1)
-          curl -sf "$BACKEND_URL/api/test-express" | grep -q '"success":true' || (echo "test-express failed" && exit 1)
-          curl -sf "$BACKEND_URL/api/nbfc-tools-ping" | grep -q '"ok":true' || (echo "nbfc-tools-ping failed" && exit 1)
-          RAAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BACKEND_URL/api/nbfc/tools/raad" -F "bankFile=@/dev/null;filename=test.pdf" 2>/dev/null || echo "000")
-          if [ "$RAAD_STATUS" = "404" ]; then echo "WARNING: NBFC /raad returns 404 (route may not be deployed yet)"; else echo "raad route OK (status $RAAD_STATUS)"; fi
-          echo "All backend smoke tests passed."
-
   deploy-frontend:
-    name: Deploy Frontend to Vercel
+    name: Deploy to Vercel (frontend + API)
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     outputs:
       deployment-url: ${{ steps.vercel-deploy.outputs.deployment-url }}
       preview-url: ${{ steps.vercel-deploy.outputs.preview-url }}
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +22,14 @@ jobs:
         with:
           node-version: '20'
           cache: npm
+
+      - name: Verify API routes in source before deploy
+        run: |
+          grep -q "pan-lookup" backend/src/routes/client.routes.ts || exit 1
+          grep -q "nbfcToolsRoutes" backend/src/routes/index.ts || exit 1
+          grep -q "/nbfc/tools" backend/src/routes/index.ts || exit 1
+          test -f api/index.ts || exit 1
+          echo "API entry and routes present in source"
 
       - name: Deploy to Vercel
         id: vercel-deploy
@@ -72,11 +43,30 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+      - name: Smoke test same-origin API
+        run: |
+          FRONTEND_URL="${{ steps.vercel-deploy.outputs.deployment-url }}"
+          if [ -z "$FRONTEND_URL" ]; then
+            FRONTEND_URL="https://seven-dashboard-seven.vercel.app"
+          fi
+          FRONTEND_URL="${FRONTEND_URL%/}"
+          echo "Waiting for deployment to settle..."
+          sleep 20
+          echo "Smoke testing $FRONTEND_URL/api/health"
+          curl -sf "$FRONTEND_URL/api/health" | grep -q '"success":true' || (echo "Health check failed" && exit 1)
+          PAN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$FRONTEND_URL/api/client/pan-lookup" -H "Content-Type: application/json" -d '{}')
+          if [ "$PAN_STATUS" = "404" ]; then
+            echo "ERROR: /api/client/pan-lookup returned 404"
+            exit 1
+          fi
+          echo "pan-lookup route OK (status $PAN_STATUS)"
+          echo "All smoke tests passed."
+
   deploy-summary:
     name: Deploy Summary - Test Links
     runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
-    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    needs: [deploy-frontend]
+    if: always() && needs.deploy-frontend.result == 'success'
     steps:
       - name: Post deploy test links
         run: |
@@ -88,11 +78,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|-------------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Frontend** | $FRONTEND_URL |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Backend API** | https://seven-render.fly.dev |" >> $GITHUB_STEP_SUMMARY
+          echo "| **App (UI + API)** | $FRONTEND_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| **API health** | $FRONTEND_URL/api/health |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Primary test link:** [$FRONTEND_URL]($FRONTEND_URL)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "Frontend: $FRONTEND_URL" >> $GITHUB_STEP_SUMMARY
-          echo "Backend:  https://seven-render.fly.dev"

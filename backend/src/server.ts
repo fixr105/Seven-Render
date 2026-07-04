@@ -146,8 +146,14 @@ app.use('/api', (req, res, next) => {
 // NBFC Tools: /api/nbfc/tools/raad, /api/nbfc/tools/history, etc.
 app.use('/api', routes);
 
-// Health check at root (for Fly.io health checks)
-// Full health check is available at /api/health
+// Vercel rewrites /api/* → /api serverless entry; some runtimes deliver the path
+// without the /api prefix, so also mount routes at root when on Vercel.
+if (process.env.VERCEL) {
+  app.use(routes);
+}
+
+// Health check at root (platform probes)
+// Full health check is also available at /api/health
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -167,10 +173,12 @@ app.use(handleError);
 //   dailySummaryJob.start();
 // } catch (error: any) { defaultLogger.warn('Failed to start daily summary job', { error: error.message }); }
 
-// Start server
-app.listen(PORT, () => {
-  defaultLogger.info('Server started', { port: PORT, environment: process.env.NODE_ENV || 'development' });
-});
+// Start HTTP server only for local/long-running hosts (not Vercel serverless).
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    defaultLogger.info('Server started', { port: PORT, environment: process.env.NODE_ENV || 'development' });
+  });
+}
 
 export default app;
 

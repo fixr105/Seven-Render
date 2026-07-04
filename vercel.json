@@ -1,33 +1,46 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
+  "buildCommand": "cd backend && npm ci && npm run build && cd .. && npm run build",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
-  "installCommand": "npm install",
+  "installCommand": "npm install && cd backend && npm install",
   "framework": "vite",
   "rewrites": [
-    {"source": "/api/:path*", "destination": "https://seven-render.fly.dev/api/:path*"},
-    {"source": "/(.*)", "destination": "/index.html"}
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "includeFiles": "backend/dist/**"
+    }
+  },
   "headers": [
     {
       "source": "/assets/(.*)",
       "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     },
     {
       "source": "/videos/(.*)",
       "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000"}
+        { "key": "Cache-Control", "value": "public, max-age=31536000" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        {"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"},
-        {"key": "Pragma", "value": "no-cache"},
-        {"key": "Expires", "value": "0"}
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Pragma", "value": "no-cache" },
+        { "key": "Expires", "value": "0" }
       ]
     }
   ]

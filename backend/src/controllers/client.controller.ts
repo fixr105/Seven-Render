@@ -239,7 +239,7 @@ export class ClientController {
         borrowerEmail,
       });
 
-      if (!result.success) {
+      if (result.success === false) {
         const status =
           result.code === 'VALIDATION_ERROR'
             ? 400
