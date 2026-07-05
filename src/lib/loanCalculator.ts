@@ -13,6 +13,19 @@ export interface LoanCalculatorInputs {
   tenureMonths: LoanTenureMonths;
 }
 
+export interface EmiRangeInputs {
+  upfrontPayment: number;
+  disbursementToDealer: number;
+}
+
+export interface EmiRangePreview {
+  invoiceValue: number;
+  lowestEmi: number;
+  highestEmi: number;
+  lowestProcessingFee: number;
+  highestProcessingFee: number;
+}
+
 export interface LoanFrozenValues {
   loanAmount: number;
   interestRate: number;
@@ -51,6 +64,16 @@ export function computeInvoiceValue(downpayment: number, disbursement: number): 
   return roundRupee(Math.max(0, downpayment) + Math.max(0, disbursement));
 }
 
+export function computeFinalInvoiceAmount(
+  invoiceValue: number,
+  insuranceCost: number,
+  registrationCost: number
+): number {
+  return roundRupee(
+    Math.max(0, invoiceValue) + Math.max(0, insuranceCost) + Math.max(0, registrationCost)
+  );
+}
+
 export function calculateEmi(loanAmount: number, tenureMonths: LoanTenureMonths): number {
   if (loanAmount <= 0 || tenureMonths <= 0) return 0;
 
@@ -60,6 +83,22 @@ export function calculateEmi(loanAmount: number, tenureMonths: LoanTenureMonths)
   const factor = Math.pow(1 + monthlyRate, tenureMonths);
   const emi = (loanAmount * monthlyRate * factor) / (factor - 1);
   return roundRupee(emi);
+}
+
+export function calculateEmiRangePreview(inputs: EmiRangeInputs): EmiRangePreview {
+  const preview12 = calculateLoanPreview({ ...inputs, tenureMonths: 12 });
+  const preview18 = calculateLoanPreview({ ...inputs, tenureMonths: 18 });
+
+  const emis = [preview12.emiAmount, preview18.emiAmount];
+  const processingFees = [preview12.processingFee, preview18.processingFee];
+
+  return {
+    invoiceValue: preview12.invoiceValue,
+    lowestEmi: Math.min(...emis),
+    highestEmi: Math.max(...emis),
+    lowestProcessingFee: Math.min(...processingFees),
+    highestProcessingFee: Math.max(...processingFees),
+  };
 }
 
 export function calculateLoanPreview(inputs: LoanCalculatorInputs): LoanLivePreview {

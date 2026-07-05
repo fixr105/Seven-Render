@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   calculateEmi,
+  calculateEmiRangePreview,
   calculateLoanPreview,
+  computeFinalInvoiceAmount,
   computeInvoiceValue,
   freezeLoanPreview,
   frozenValuesToFormDataPatch,
@@ -77,6 +79,68 @@ describe('loanCalculator', () => {
       disbursalAmount: preview.disbursalAmount,
     });
     expect(frozenValuesToFormDataPatch(frozen)['loan.amount']).toBe(String(frozen.loanAmount));
+  });
+
+  it('calculates EMI and processing fee ranges across 12- and 18-month tenures', () => {
+    const preview12 = calculateLoanPreview({
+      upfrontPayment: 20000,
+      disbursementToDealer: 50000,
+      tenureMonths: 12,
+    });
+    const preview18 = calculateLoanPreview({
+      upfrontPayment: 20000,
+      disbursementToDealer: 50000,
+      tenureMonths: 18,
+    });
+
+    const range = calculateEmiRangePreview({
+      upfrontPayment: 20000,
+      disbursementToDealer: 50000,
+    });
+
+    expect(range.invoiceValue).toBe(70000);
+    expect(range.lowestEmi).toBe(Math.min(preview12.emiAmount, preview18.emiAmount));
+    expect(range.highestEmi).toBe(Math.max(preview12.emiAmount, preview18.emiAmount));
+    expect(range.lowestProcessingFee).toBe(
+      Math.min(preview12.processingFee, preview18.processingFee)
+    );
+    expect(range.highestProcessingFee).toBe(
+      Math.max(preview12.processingFee, preview18.processingFee)
+    );
+  });
+
+  it('computes final invoice amount from base invoice plus insurance and registration', () => {
+    expect(computeFinalInvoiceAmount(70000, 5000, 2000)).toBe(77000);
+    expect(computeFinalInvoiceAmount(0, 0, 0)).toBe(0);
+    expect(computeFinalInvoiceAmount(65000, -100, 3000)).toBe(68000);
+  });
+
+  it('returns GPS-only baseline ranges when disbursement is zero', () => {
+    const preview12 = calculateLoanPreview({
+      upfrontPayment: 0,
+      disbursementToDealer: 0,
+      tenureMonths: 12,
+    });
+    const preview18 = calculateLoanPreview({
+      upfrontPayment: 0,
+      disbursementToDealer: 0,
+      tenureMonths: 18,
+    });
+
+    const range = calculateEmiRangePreview({
+      upfrontPayment: 0,
+      disbursementToDealer: 0,
+    });
+
+    expect(range.invoiceValue).toBe(0);
+    expect(range.lowestEmi).toBe(Math.min(preview12.emiAmount, preview18.emiAmount));
+    expect(range.highestEmi).toBe(Math.max(preview12.emiAmount, preview18.emiAmount));
+    expect(range.lowestProcessingFee).toBe(
+      Math.min(preview12.processingFee, preview18.processingFee)
+    );
+    expect(range.highestProcessingFee).toBe(
+      Math.max(preview12.processingFee, preview18.processingFee)
+    );
   });
 
   it('includes calculator snapshot keys when snapshot is provided', () => {

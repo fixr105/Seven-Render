@@ -3,7 +3,7 @@
  * All pages use this so the menu order and items are identical everywhere.
  */
 
-import { LucideIcon, Home, FileText, Users, IndianRupee, BarChart3, ClipboardList, UserCog, Building2, Link2, Wrench } from 'lucide-react';
+import { LucideIcon, Home, FileText, Users, IndianRupee, BarChart3, ClipboardList, UserCog, Building2, Link2, Wrench, Calculator } from 'lucide-react';
 
 export interface SidebarNavItem {
   id: string;
@@ -16,6 +16,7 @@ export interface SidebarNavItem {
 const baseItems: SidebarNavItem[] = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: Home, path: '/dashboard' },
   { id: 'applications', labelKey: 'nav.applications', icon: FileText, path: '/applications' },
+  { id: 'calculator', labelKey: 'nav.calculator', icon: Calculator, path: '/calculator' },
 ];
 
 /**

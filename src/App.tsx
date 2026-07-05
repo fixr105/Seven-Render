@@ -22,6 +22,7 @@ import { AdminActivityLog } from './pages/AdminActivityLog';
 import { AdminUserAccounts } from './pages/AdminUserAccounts';
 import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
 import { NBFCTools } from './pages/NBFCTools';
+import { Calculator } from './pages/Calculator';
 import { useAuth } from './auth/AuthContext';
 import { getProfileCompletion } from './auth/profileCompletion';
 import { getIsPromptDismissedForSession, getProfilePromptDismissKey, shouldShowProfilePrompt } from './auth/profilePromptSession';
@@ -127,6 +128,17 @@ function AppRoutes() {
           <ErrorBoundary>
             <ProtectedRoute allowedRoles={['client']}>
               <NewApplication />
+            </ProtectedRoute>
+          </ErrorBoundary>
+        }
+      />
+
+        <Route
+        path="/calculator"
+        element={
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['client', 'kam', 'credit_team', 'admin']}>
+              <Calculator />
             </ProtectedRoute>
           </ErrorBoundary>
         }
