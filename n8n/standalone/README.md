@@ -50,4 +50,5 @@ curl -X POST https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners1 \
 - Live n8n paths use the `1` suffix to avoid clashing with inactive SEVEN-DASHBOARD routes.
 - Loan Applications upserts on **File ID** (required for new creates).
 - Airtable `Status` on Loan Applications accepts: `Qualified`, `Submitted`, `Dealer Unresponsive`, `Under Finance Review`, `DO Issued`, `Disbursed`, `Rejected` — not internal slugs like `draft`.
-- Backend defaults in [`n8nEndpoints.ts`](../../backend/src/services/airtable/n8nEndpoints.ts) match these `*1` POST paths.
+- Backend maps slugs → Airtable labels in [`loanApplicationAirtableStatus.ts`](../../backend/src/utils/loanApplicationAirtableStatus.ts) before POST; draft saves omit `Status`.
+- Full connectivity guide: [`WEBHOOK_CONNECTIVITY.md`](../WEBHOOK_CONNECTIVITY.md).

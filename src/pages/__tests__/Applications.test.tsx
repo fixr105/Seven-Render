@@ -70,6 +70,7 @@ vi.mock('react-router-dom', async () => {
 
 import { useAuth } from '../../auth/AuthContext';
 import { useApplications } from '../../hooks/useApplications';
+import { useSearchParams } from 'react-router-dom';
 
 describe('Applications Listing Page - P0 Tests', () => {
   const mockApplications = [
@@ -103,6 +104,12 @@ describe('Applications Listing Page - P0 Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue([new URLSearchParams(), vi.fn()]);
+    (useApplications as any).mockReturnValue({
+      applications: [],
+      loading: false,
+      refetch: vi.fn(),
+    });
     (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
       user: mockClientUser,
       loading: false,
@@ -498,6 +505,53 @@ describe('Applications Listing Page - P0 Tests', () => {
         expect(screen.getByRole('option', { name: 'Allowed Product' })).toBeInTheDocument();
       });
       expect(screen.queryByRole('option', { name: 'Unassigned Product' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('URL status query params', () => {
+    it('passes statusIn from legacy ?status= param to useApplications', async () => {
+      (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue([
+        new URLSearchParams('status=pending_credit_review'),
+        vi.fn(),
+      ]);
+
+      renderWithProviders(<Applications />);
+
+      await waitFor(() => {
+        expect(useApplications).toHaveBeenCalledWith(
+          expect.objectContaining({ statusIn: 'pending_credit_review' })
+        );
+      });
+    });
+
+    it('passes sorted statusIn from ?statuses= param to useApplications', async () => {
+      (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue([
+        new URLSearchParams('statuses=pending_credit_review,in_negotiation'),
+        vi.fn(),
+      ]);
+
+      renderWithProviders(<Applications />);
+
+      await waitFor(() => {
+        expect(useApplications).toHaveBeenCalledWith(
+          expect.objectContaining({ statusIn: 'in_negotiation,pending_credit_review' })
+        );
+      });
+    });
+
+    it('prefers ?statuses= over legacy ?status= when both are present', async () => {
+      (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue([
+        new URLSearchParams('status=draft&statuses=pending_credit_review,in_negotiation'),
+        vi.fn(),
+      ]);
+
+      renderWithProviders(<Applications />);
+
+      await waitFor(() => {
+        expect(useApplications).toHaveBeenCalledWith(
+          expect.objectContaining({ statusIn: 'in_negotiation,pending_credit_review' })
+        );
+      });
     });
   });
 });

@@ -214,8 +214,22 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('POST');
     const body = JSON.parse(init.body as string);
-    expect(body.Status).toBe('qualified');
+    expect(body.Status).toBe('Qualified');
     expect(body['File ID']).toBe('SF009');
+  });
+
+  it('omits Status from POST body for draft saves (not an Airtable option)', async () => {
+    mockFetch.mockResolvedValue(responseOf(JSON.stringify({ success: true, id: 'rec-draft' })) as never);
+
+    await n8nClient.postLoanApplication({
+      'File ID': 'SF-DRAFT',
+      Client: 'CL001',
+      Status: 'draft',
+    });
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.Status).toBeUndefined();
   });
 
   it('emits structured n8n_webhook_post_start on stderr before outbound fetch', async () => {
@@ -266,6 +280,7 @@ describe('n8nClient.buildLoanApplicationPayload formData fallbacks', () => {
     expect(payload['Applicant Name']).toBe('Jane Doe');
     expect(payload['Loan Product']).toBe('LP001');
     expect(payload['Requested Loan Amount']).toBe('500000');
+    expect(payload.Status).toBeUndefined();
   });
 });
 

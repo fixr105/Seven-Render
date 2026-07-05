@@ -240,12 +240,12 @@ export const CreditDashboard: React.FC = () => {
         <CardContent>
           <div className="flex flex-wrap gap-3">
             {pendingReview > 0 && (
-              <Button variant="primary" onClick={() => navigate('/applications?status=pending_credit_review')} title={t('pages.dashboards.reviewFilesCredit')}>
+              <Button variant="primary" onClick={() => navigate('/applications?statuses=pending_credit_review,credit_query_with_kam')} title={t('pages.dashboards.reviewFilesCredit')}>
                 {t('pages.dashboards.reviewFilesCredit')} ({pendingReview})
               </Button>
             )}
             {assignableToNbfc > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=pending_credit_review')} title={t('pages.dashboards.assignToNbfc')}>
+              <Button variant="secondary" onClick={() => navigate('/applications?statuses=pending_credit_review,in_negotiation')} title={t('pages.dashboards.assignToNbfc')}>
                 {t('pages.dashboards.assignToNbfc')} ({assignableToNbfc})
               </Button>
             )}

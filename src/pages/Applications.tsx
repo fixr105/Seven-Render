@@ -173,6 +173,9 @@ export const Applications: React.FC = () => {
       setSelectedStatusKeys(
         st ? st.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) : []
       );
+    } else if (searchParams.has('status')) {
+      const single = searchParams.get('status')?.trim().toLowerCase();
+      setSelectedStatusKeys(single ? [single] : []);
     }
   }, [searchParams]);
 

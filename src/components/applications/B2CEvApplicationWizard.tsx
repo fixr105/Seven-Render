@@ -204,7 +204,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
   const [loanProductsLoading, setLoanProductsLoading] = useState(true);
   const [loanProductsError, setLoanProductsError] = useState<string | null>(null);
-  const [dealerProfile, setDealerProfile] = useState<ClientKycDealerProfile | null>(null);
+  const [, setDealerProfile] = useState<ClientKycDealerProfile | null>(null);
   const [dealerKycError, setDealerKycError] = useState<string | null>(null);
   const [dealerKycLoading, setDealerKycLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);

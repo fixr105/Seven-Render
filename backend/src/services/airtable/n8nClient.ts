@@ -13,6 +13,7 @@ import { N8nGetResponse, UserAccount } from '../../types/entities.js';
 import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';
 import { cacheService } from './cache.service.js';
 import { n8nEndpoints, getTableToGetWebhookPath } from './n8nEndpoints.js';
+import { mapLoanStatusForAirtablePost } from '../../utils/loanApplicationAirtableStatus.js';
 import { normalizeRecords } from './recordNormalizer.service.js';
 
 interface PostDataOptions {
@@ -1245,6 +1246,7 @@ export class N8nClient {
     );
     const typeOfPurchase = data['Type of Purchase'] ?? parsedFormData._typeOfPurchase ?? '';
     const remarks = data['Remarks'] ?? parsedFormData.Remarks ?? '';
+    const airtableStatus = mapLoanStatusForAirtablePost(data['Status'] ?? data.status);
 
     // Fixed key order for n8n: same format every time. No "id" — n8n uses only "File ID" for update-by-file-id.
     return {
@@ -1271,7 +1273,7 @@ export class N8nClient {
         parsedFormData['loan.amount']
       ),
       Documents: data['Documents'] || data.documents || '',
-      Status: data['Status'] || data.status || '',
+      ...(airtableStatus !== undefined ? { Status: airtableStatus } : {}),
       'Assigned Credit Analyst': data['Assigned Credit Analyst'] || data.assignedCreditAnalyst || '',
       'Assigned NBFC': data['Assigned NBFC'] || data.assignedNBFC || '',
       'Lender Decision Status': data['Lender Decision Status'] || data.lenderDecisionStatus || '',
@@ -1301,7 +1303,7 @@ export class N8nClient {
   /**
    * POST Loan Application to n8n webhook
    * 
-   * Webhook Path: /webhook/loanapplications (plural) - POST create/update operations
+   * Webhook Path: /webhook/loanapplications1 - POST create/update operations
    * Airtable Table: Loan Applications
    * 
    * Note: GET operations use /webhook/loanapplication (singular) via fetchTable('Loan Application')

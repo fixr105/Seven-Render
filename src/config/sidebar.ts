@@ -27,7 +27,6 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
       const clientItems: SidebarNavItem[] = [
         ...baseItems,
         { id: 'ledger', labelKey: 'nav.commissionLedger', icon: IndianRupee, path: '/ledger' },
-        { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, path: '/reports' },
       ];
       if (enabledModules && enabledModules.length > 0 && !enabledModules.includes('M1')) {
         return clientItems.filter((item) => item.id !== 'ledger');
@@ -57,7 +56,6 @@ export function getSidebarItemsForRole(role: string | null, enabledModules?: str
       return [
         ...baseItems,
         { id: 'tools', labelKey: 'nav.tools', icon: Wrench, path: '/nbfc/tools' },
-        { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, path: '/reports' },
       ];
     default:
       return [
