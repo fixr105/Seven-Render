@@ -1,7 +1,11 @@
 import { describe, it, expect } from '@jest/globals';
 import {
   resolveLoanApplicationCoreFields,
+  resolveLoanApplicationPromotedFields,
+  resolveDocumentsFromFormData,
+  buildPromotedApplicationRecord,
   mergeFormDataJson,
+  stripBase64GeoPhotoUrls,
 } from '../loanApplicationCoreFields.js';
 
 describe('resolveLoanApplicationCoreFields', () => {
@@ -85,6 +89,66 @@ describe('resolveLoanApplicationCoreFields', () => {
   });
 });
 
+describe('resolveLoanApplicationPromotedFields', () => {
+  it('promotes B2C EV dotted keys to top-level contact fields', () => {
+    const result = resolveLoanApplicationPromotedFields({
+      'borrower.customerName': 'RAHUL GONSALVES',
+      'borrower.mobile': '9687599179',
+      'borrower.email': 'rahul@example.com',
+      'loan.amount': '56522',
+      loan_product_id: 'LP001',
+    });
+
+    expect(result.applicantName).toBe('RAHUL GONSALVES');
+    expect(result.requestedLoanAmount).toBe('56522');
+    expect(result.productId).toBe('LP001');
+    expect(result.mobileNumber).toBe('9687599179');
+    expect(result.emailId).toBe('rahul@example.com');
+  });
+
+  it('excludes base64 geo photo URLs from Documents', () => {
+    const documents = resolveDocumentsFromFormData({
+      'geoPhotos.withSupportPerson.url': 'data:image/jpeg;base64,abc123',
+      'geoPhotos.withSupportPerson.fileName': 'photo.jpg',
+    });
+
+    expect(documents).toBe('');
+  });
+
+  it('includes https geo photo URLs in Documents', () => {
+    const documents = resolveDocumentsFromFormData({
+      'geoPhotos.withVehicle.url': 'https://cdn.example.com/vehicle.jpg',
+      'geoPhotos.withVehicle.fileName': 'vehicle.jpg',
+    });
+
+    expect(documents).toBe('withVehicle:https://cdn.example.com/vehicle.jpg|vehicle.jpg');
+  });
+});
+
+describe('buildPromotedApplicationRecord', () => {
+  it('sets existing Airtable column names on the record payload', () => {
+    const record = buildPromotedApplicationRecord(
+      { 'File ID': 'SF123', Status: 'Draft' },
+      { 'borrower.mobile': '9999999999' },
+      {
+        applicantName: 'Jane Doe',
+        productId: 'LP001',
+        requestedLoanAmount: '500000',
+        mobileNumber: '9999999999',
+        emailId: 'jane@example.com',
+        documents: '',
+      },
+      { 'Last Updated': '2026-01-01T00:00:00.000Z' }
+    );
+
+    expect(record['Applicant Name']).toBe('Jane Doe');
+    expect(record['Mobile Number']).toBe('9999999999');
+    expect(record['Email Id']).toBe('jane@example.com');
+    expect(record['Requested Loan Amount']).toBe('500000');
+    expect(record['Form Data']).toContain('borrower.mobile');
+  });
+});
+
 describe('mergeFormDataJson', () => {
   it('merges incoming form data over existing JSON', () => {
     const merged = mergeFormDataJson(
@@ -99,5 +163,33 @@ describe('mergeFormDataJson', () => {
       applicant_name: 'New',
       email: 'test@example.com',
     });
+  });
+
+  it('strips base64 geo photo URLs during merge', () => {
+    const merged = mergeFormDataJson(
+      { 'Form Data': '{}' },
+      {
+        'geoPhotos.withSupportPerson.url': 'data:image/jpeg;base64,abc',
+        'geoPhotos.withSupportPerson.fileName': 'photo.jpg',
+        'geoPhotos.withVehicle.url': 'https://cdn.example.com/vehicle.jpg',
+      }
+    );
+
+    expect(merged['geoPhotos.withSupportPerson.url']).toBeUndefined();
+    expect(merged['geoPhotos.withVehicle.url']).toBe('https://cdn.example.com/vehicle.jpg');
+  });
+});
+
+describe('stripBase64GeoPhotoUrls', () => {
+  it('removes data URLs and file names for geo photo slots', () => {
+    const sanitized = stripBase64GeoPhotoUrls({
+      'geoPhotos.atResidence.url': 'data:image/jpeg;base64,xyz',
+      'geoPhotos.atResidence.fileName': 'home.jpg',
+      'borrower.mobile': '9999999999',
+    });
+
+    expect(sanitized['geoPhotos.atResidence.url']).toBeUndefined();
+    expect(sanitized['geoPhotos.atResidence.fileName']).toBeUndefined();
+    expect(sanitized['borrower.mobile']).toBe('9999999999');
   });
 });

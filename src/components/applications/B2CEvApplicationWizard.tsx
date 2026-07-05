@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ChevronLeft, ChevronRight, Save, Send } from 'lucide-react';
@@ -68,8 +68,14 @@ import {
 import {
   formDataToFrozenValues,
   frozenValuesToFormDataPatch,
+  type LoanCalculatorSnapshot,
   type LoanFrozenValues,
 } from '../../lib/loanCalculator';
+
+type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+const FIELD_AUTO_SAVE_DEBOUNCE_MS = 1500;
+const GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS = 2000;
 
 interface WizardFormState {
   applicant_name: string;
@@ -107,17 +113,23 @@ function readFieldValue(formData: Record<string, unknown>, key: string): string 
   return String(value);
 }
 
+function isJsonBackedField(field: B2cEvFieldDef): boolean {
+  return Boolean(field.readOnly) || field.key.startsWith('borrower.');
+}
+
 function renderField(
   field: B2cEvFieldDef,
   value: string,
   error: string | undefined,
   onChange: (key: string, value: string) => void
 ): React.ReactNode {
+  const jsonBacked = isJsonBackedField(field);
   const common = {
     id: field.key,
     label: field.label,
     required: field.required,
     readOnly: field.readOnly,
+    disabled: field.readOnly,
     error,
     value,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -125,9 +137,19 @@ function renderField(
   };
 
   if (field.type === 'textarea') {
-    return <TextArea key={field.key} {...common} rows={3} />;
+    return (
+      <TextArea
+        key={field.key}
+        {...common}
+        rows={3}
+        placeholder={jsonBacked ? undefined : field.placeholder}
+      />
+    );
   }
   if (field.type === 'select' && field.options) {
+    const emptyOption = jsonBacked
+      ? { value: '', label: '' }
+      : { value: '', label: `Select ${field.label}` };
     return (
       <Select
         key={field.key}
@@ -136,8 +158,9 @@ function renderField(
         error={error}
         value={value}
         disabled={field.readOnly}
-        options={[{ value: '', label: `Select ${field.label}` }, ...field.options]}
+        options={[emptyOption, ...field.options]}
         onChange={(e) => onChange(field.key, e.target.value)}
+        data-testid={`b2c-field-${field.key.replace(/\./g, '-')}`}
       />
     );
   }
@@ -158,7 +181,7 @@ function renderField(
       key={field.key}
       {...common}
       type={inputType}
-      placeholder={field.placeholder}
+      placeholder={jsonBacked ? undefined : field.placeholder}
       data-testid={`b2c-field-${field.key.replace(/\./g, '-')}`}
     />
   );
@@ -195,7 +218,18 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [kamRequestLoadingId, setKamRequestLoadingId] = useState<ComplianceItemId | null>(null);
   const [doRequestLoading, setDoRequestLoading] = useState(false);
   const [clientSubmissionId] = useState(createClientSubmissionId);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>('idle');
   const submitInFlightRef = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const formStateRef = useRef<WizardFormState>({
+    applicant_name: '',
+    loan_product_id: '',
+    requested_loan_amount: '0',
+    form_data: createInitialB2cEvFormData(),
+  });
+  const editingDraftIdRef = useRef<string | null>(null);
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const pendingSaveChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
   const [formState, setFormState] = useState<WizardFormState>({
     applicant_name: '',
@@ -224,6 +258,22 @@ export const B2CEvApplicationWizard: React.FC = () => {
     completion.isComplete && Object.keys(complianceErrors).length === 0;
 
   const isLastStep = currentStep === visibleStages.length - 1;
+
+  useEffect(() => {
+    formStateRef.current = formState;
+  }, [formState]);
+
+  useEffect(() => {
+    editingDraftIdRef.current = editingDraftId;
+  }, [editingDraftId]);
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current != null) {
+        window.clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!panLookupLoading) {
@@ -439,7 +489,130 @@ export const B2CEvApplicationWizard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load when dealer stage is opened
   }, [currentStage?.id, currentStep]);
 
+  const buildFormDataPayloadFromState = (
+    state: WizardFormState,
+    patch?: Record<string, string>
+  ): Record<string, unknown> => ({
+    ...syncB2cEvComputedFields({ ...state.form_data, ...patch }),
+    '_meta.formTemplate': B2C_EV_FORM_TEMPLATE_ID,
+  });
+
+  const canAutoSave = (): boolean => {
+    if (submitInFlightRef.current || saveInFlightRef.current) return false;
+    if (panLookupLoading || supportPanLookupLoading) return false;
+    if (!formStateRef.current.loan_product_id) return false;
+    return true;
+  };
+
+  const persistDraft = useCallback(
+    async (
+      patch?: Record<string, string>,
+      options?: { silent?: boolean }
+    ): Promise<{ draftId: string }> => {
+      const state = formStateRef.current;
+      if (!state.loan_product_id) {
+        throw new Error('Please select a loan product before saving.');
+      }
+
+      const runSave = async (): Promise<string> => {
+        const latestState = formStateRef.current;
+        const formDataToSend = buildFormDataPayloadFromState(latestState, patch);
+        const applicantName =
+          readFieldValue(formDataToSend, 'borrower.customerName') || latestState.applicant_name;
+        const loanAmount = readFieldValue(formDataToSend, 'loan.amount').replace(/,/g, '');
+        const requestedAmount = loanAmount || latestState.requested_loan_amount;
+
+        let draftId = editingDraftIdRef.current;
+
+        if (draftId) {
+          const updateRes = await apiService.updateApplicationForm(draftId, {
+            ...formDataToSend,
+            applicant_name: applicantName,
+            loan_product_id: latestState.loan_product_id,
+            requested_loan_amount: requestedAmount,
+          });
+          if (!updateRes.success) {
+            throw new Error(updateRes.error || 'Failed to update draft');
+          }
+          return draftId;
+        }
+
+        const createRes = await apiService.createApplication({
+          applicantName,
+          productId: latestState.loan_product_id,
+          requestedLoanAmount: Number(requestedAmount) || 0,
+          formData: formDataToSend,
+          saveAsDraft: true,
+          clientSubmissionId,
+        });
+        if (!createRes.success) {
+          throw new Error(createRes.error || 'Failed to create draft');
+        }
+
+        draftId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
+        if (!draftId) {
+          throw new Error('Draft ID missing after create');
+        }
+        setEditingDraftId(draftId);
+        editingDraftIdRef.current = draftId;
+        return draftId;
+      };
+
+      const savePromise = pendingSaveChainRef.current.then(async () => {
+        if (!options?.silent) {
+          setDraftSaveStatus('saving');
+        }
+        saveInFlightRef.current = true;
+        try {
+          const draftId = await runSave();
+          if (!options?.silent) {
+            setDraftSaveStatus('saved');
+          }
+          return draftId;
+        } catch (error) {
+          if (!options?.silent) {
+            setDraftSaveStatus('error');
+          }
+          console.error('[B2CEvApplicationWizard] draft save failed:', error);
+          throw error;
+        } finally {
+          saveInFlightRef.current = false;
+        }
+      });
+
+      pendingSaveChainRef.current = savePromise.then(
+        () => undefined,
+        () => undefined
+      );
+
+      const draftId = await savePromise;
+      return { draftId };
+    },
+    [clientSubmissionId]
+  );
+
+  const ensureDraftSaved = useCallback(async (): Promise<string> => {
+    const { draftId } = await persistDraft();
+    return draftId;
+  }, [persistDraft]);
+
+  const scheduleAutoSave = useCallback(
+    (debounceMs = FIELD_AUTO_SAVE_DEBOUNCE_MS) => {
+      if (autoSaveTimerRef.current != null) {
+        window.clearTimeout(autoSaveTimerRef.current);
+      }
+      autoSaveTimerRef.current = window.setTimeout(() => {
+        autoSaveTimerRef.current = null;
+        if (!canAutoSave()) return;
+        void persistDraft(undefined, { silent: true }).catch(() => undefined);
+      }, debounceMs);
+    },
+    [persistDraft, panLookupLoading, supportPanLookupLoading]
+  );
+
   const updateField = (key: string, value: string) => {
+    if (key.startsWith('borrower.')) return;
+
     setFormState((prev) => {
       let nextFormData = { ...prev.form_data, [key]: value };
       if (key === '_meta.supportPersonType') {
@@ -478,11 +651,20 @@ export const B2CEvApplicationWizard: React.FC = () => {
       delete next[key];
       return next;
     });
+    scheduleAutoSave();
   };
 
-  const updateFields = (patch: Record<string, string>) => {
+  const updateFields = (
+    patch: Record<string, string>,
+    options?: { debounceMs?: number }
+  ) => {
+    const filteredPatch = Object.fromEntries(
+      Object.entries(patch).filter(([key]) => !key.startsWith('borrower.'))
+    );
+    if (Object.keys(filteredPatch).length === 0) return;
+
     setFormState((prev) => {
-      const nextFormData = syncB2cEvComputedFields({ ...prev.form_data, ...patch });
+      const nextFormData = syncB2cEvComputedFields({ ...prev.form_data, ...filteredPatch });
       const applicantName = readFieldValue(nextFormData, 'borrower.customerName');
       const loanAmount = readFieldValue(nextFormData, 'loan.amount').replace(/,/g, '');
       return {
@@ -494,57 +676,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
     });
     setFieldErrors((prev) => {
       const next = { ...prev };
-      for (const key of Object.keys(patch)) {
+      for (const key of Object.keys(filteredPatch)) {
         delete next[key];
       }
       return next;
     });
-  };
-
-  const buildFormDataPayload = () => ({
-    ...formState.form_data,
-    '_meta.formTemplate': B2C_EV_FORM_TEMPLATE_ID,
-  });
-
-  const ensureDraftSaved = async (): Promise<string> => {
-    if (!formState.loan_product_id) {
-      throw new Error('Please select a loan product before saving.');
-    }
-
-    const formDataToSend = buildFormDataPayload();
-    let draftId = editingDraftId;
-
-    if (draftId) {
-      const updateRes = await apiService.updateApplicationForm(draftId, {
-        ...formDataToSend,
-        applicant_name: formState.applicant_name,
-        loan_product_id: formState.loan_product_id,
-        requested_loan_amount: formState.requested_loan_amount,
-      });
-      if (!updateRes.success) {
-        throw new Error(updateRes.error || 'Failed to update draft');
-      }
-      return draftId;
-    }
-
-    const createRes = await apiService.createApplication({
-      applicantName: formState.applicant_name,
-      productId: formState.loan_product_id,
-      requestedLoanAmount: Number(formState.requested_loan_amount) || 0,
-      formData: formDataToSend,
-      saveAsDraft: true,
-      clientSubmissionId,
-    });
-    if (!createRes.success) {
-      throw new Error(createRes.error || 'Failed to create draft');
-    }
-
-    draftId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
-    if (!draftId) {
-      throw new Error('Draft ID missing after create');
-    }
-    setEditingDraftId(draftId);
-    return draftId;
+    scheduleAutoSave(options?.debounceMs ?? FIELD_AUTO_SAVE_DEBOUNCE_MS);
   };
 
   const handleComplianceCheckboxChange = (key: string, checked: boolean) => {
@@ -566,9 +703,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
       if (!response.success) {
         throw new Error(response.error || 'Failed to send request to KAM');
       }
-      updateFields({
-        [item.requestedAtKey]: new Date().toISOString(),
-      });
+      const requestedAt = new Date().toISOString();
+      await persistDraft({ [item.requestedAtKey]: requestedAt });
+      updateFields({ [item.requestedAtKey]: requestedAt });
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Failed to send request to KAM';
@@ -592,9 +729,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
       if (!response.success) {
         throw new Error(response.error || 'Failed to send DO request to KAM');
       }
-      updateFields({
-        '_meta.doRequest.requestedAt': new Date().toISOString(),
-      });
+      const requestedAt = new Date().toISOString();
+      await persistDraft({ '_meta.doRequest.requestedAt': requestedAt });
+      updateFields({ '_meta.doRequest.requestedAt': requestedAt });
       advanceStep();
     } catch (error: unknown) {
       const message =
@@ -812,6 +949,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
     if (currentStage?.id === 'product') {
       const lookupOk = await runPanLookup();
       if (!lookupOk) return;
+      try {
+        await persistDraft(undefined, { silent: true });
+      } catch (error) {
+        console.error('[B2CEvApplicationWizard] auto-save after PAN lookup failed:', error);
+      }
       advanceStep();
       return;
     }
@@ -849,6 +991,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return;
     }
 
+    try {
+      await persistDraft(undefined, { silent: true });
+    } catch (error) {
+      console.error('[B2CEvApplicationWizard] auto-save before step advance failed:', error);
+    }
+
     advanceStep();
   };
 
@@ -883,7 +1031,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
     submitInFlightRef.current = true;
     setLoading(true);
-    const formDataToSend = buildFormDataPayload();
+    const formDataToSend = buildFormDataPayloadFromState(formState);
 
     try {
       if (!saveAsDraft) {
@@ -1025,6 +1173,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 delete next.loan_product_id;
                 return next;
               });
+              scheduleAutoSave();
             }}
           />
 
@@ -1076,14 +1225,17 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return (
         <LoanCalculator
           frozenValues={frozenValues}
-          onFrozenValuesChange={(values: LoanFrozenValues | null) => {
+          onFrozenValuesChange={(
+            values: LoanFrozenValues | null,
+            snapshot?: LoanCalculatorSnapshot
+          ) => {
             setFormState((prev) => {
               const nextFormData = { ...prev.form_data };
               for (const key of Object.keys(nextFormData)) {
                 if (key.startsWith('loan.')) delete nextFormData[key];
               }
               if (values) {
-                Object.assign(nextFormData, frozenValuesToFormDataPatch(values));
+                Object.assign(nextFormData, frozenValuesToFormDataPatch(values, snapshot));
               }
               const synced = syncB2cEvComputedFields(nextFormData);
               const loanAmount = readFieldValue(synced, 'loan.amount').replace(/,/g, '');
@@ -1100,6 +1252,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
               }
               return next;
             });
+            scheduleAutoSave();
           }}
         />
       );
@@ -1158,10 +1311,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
         <GeoTaggedPhotoUploads
           formData={formState.form_data}
           fieldErrors={fieldErrors}
-          onBatchChange={updateFields}
+          onBatchChange={(patch) => updateFields(patch, { debounceMs: GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS })}
           requestingComplianceItemId={kamRequestLoadingId}
           onComplianceCheckboxChange={handleComplianceCheckboxChange}
           onRequestFromKam={(itemId) => void handleRequestFromKam(itemId)}
+          loanApplicationId={editingDraftId}
+          ensureDraftSaved={ensureDraftSaved}
         />
       );
     }
@@ -1245,10 +1400,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero
-        title={t('pages.newApplication.pageTitle')}
-        description="B2C EV manual entry — staged application"
-      />
+      <PageHero title={t('pages.newApplication.pageTitle')} />
 
       {draftLoadError && (
         <Card className="mb-4 border-error/30 bg-error/5">
@@ -1261,15 +1413,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
           <CardContent className="p-4 flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />
             <p className="text-sm text-neutral-700">{dealerKycError}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {dealerProfile && (
-        <Card className="mb-4 border-brand-primary/20 bg-brand-primary/5">
-          <CardContent className="p-4 text-sm text-neutral-700">
-            Dealer profile loaded for <strong>{dealerProfile.clientId}</strong>
-            {dealerProfile.displayLabel ? ` — ${dealerProfile.displayLabel}` : ''}
           </CardContent>
         </Card>
       )}
@@ -1311,6 +1454,17 @@ export const B2CEvApplicationWizard: React.FC = () => {
               setCurrentStep(index);
             }}
           />
+          {draftSaveStatus !== 'idle' && (
+            <p
+              className="mt-3 text-xs text-neutral-500"
+              data-testid="b2c-draft-save-status"
+              aria-live="polite"
+            >
+              {draftSaveStatus === 'saving' && 'Saving draft…'}
+              {draftSaveStatus === 'saved' && 'Draft saved'}
+              {draftSaveStatus === 'error' && 'Draft save failed — use Save draft to retry'}
+            </p>
+          )}
         </CardContent>
       </Card>
 

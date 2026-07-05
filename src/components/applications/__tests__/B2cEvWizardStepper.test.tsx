@@ -43,6 +43,43 @@ describe('B2cEvWizardStepper', () => {
     );
   });
 
+  it('groups steps 1–6 on blue backdrop and 7–8 on light green backdrop', () => {
+    render(
+      <B2cEvWizardStepper
+        steps={STEPS}
+        currentStep={3}
+        completedSteps={[0, 1, 2]}
+        lockedSteps={[6, 7]}
+        onStepClick={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('b2c-stepper-phase-do')).toHaveClass('bg-blue-50');
+    expect(screen.getByTestId('b2c-stepper-phase-get-paid')).toHaveClass('bg-green-50');
+    expect(screen.getByTestId('b2c-stepper-step-dealer')).toHaveAttribute('data-step-phase', 'do');
+    expect(screen.getByTestId('b2c-stepper-step-insurance')).toHaveAttribute(
+      'data-step-phase',
+      'get-paid'
+    );
+  });
+
+  it('shows phase hover labels on step labels without visible phase text', () => {
+    render(
+      <B2cEvWizardStepper
+        steps={STEPS}
+        currentStep={3}
+        completedSteps={[0, 1, 2]}
+        lockedSteps={[6, 7]}
+        onStepClick={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Dealer')).toHaveAttribute('title', 'DO stage');
+    expect(screen.getByText('Insurance')).toHaveAttribute('title', 'Get Paid');
+    expect(screen.queryByText('DO stage')).not.toBeInTheDocument();
+    expect(screen.queryByText('Get Paid')).not.toBeInTheDocument();
+  });
+
   it('greys out locked insurance and vehicle steps', () => {
     render(
       <B2cEvWizardStepper

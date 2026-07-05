@@ -1,0 +1,86 @@
+{
+  "name": "POST NBFC Partners (NBFCPartners)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "NBFCPartners1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-nbfcpartners",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [400, 300],
+      "webhookId": "nbfcpartners-post"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGvEp8Z1QvahwI0",
+          "mode": "list",
+          "cachedResultName": "NBFC Partners",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tblGvEp8Z1QvahwI0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.body.id }}",
+            "Lender ID": "={{ $json.body['Lender ID'] }}",
+            "Lender Name": "={{ $json.body['Lender Name'] }}",
+            "Contact Person": "={{ $json.body['Contact Person'] }}",
+            "Contact Email/Phone": "={{ $json.body['Contact Email/Phone'] }}",
+            "Active": "={{ $json.body.Active }}",
+            "Address/Region": "={{ $json.body['Address/Region'] }}"
+          },
+          "matchingColumns": ["id"]
+        },
+        "options": {}
+      },
+      "id": "airtable-nbfcpartners",
+      "name": "Airtable Upsert",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [620, 300],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "respond-nbfcpartners",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [840, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Airtable Upsert", "type": "main", "index": 0 }]]
+    },
+    "Airtable Upsert": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": []
+}

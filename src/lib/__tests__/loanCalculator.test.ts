@@ -78,4 +78,24 @@ describe('loanCalculator', () => {
     });
     expect(frozenValuesToFormDataPatch(frozen)['loan.amount']).toBe(String(frozen.loanAmount));
   });
+
+  it('includes calculator snapshot keys when snapshot is provided', () => {
+    const preview = calculateLoanPreview({
+      upfrontPayment: 10000,
+      disbursementToDealer: 40000,
+      tenureMonths: 12,
+    });
+    const frozen = freezeLoanPreview(preview);
+    const patch = frozenValuesToFormDataPatch(frozen, {
+      downpayment: 10000,
+      disbursementToDealer: 40000,
+      invoiceValue: preview.invoiceValue,
+      emiAmount: preview.emiAmount,
+    });
+
+    expect(patch['loan.calculator.downpayment']).toBe('10000');
+    expect(patch['loan.calculator.disbursementToDealer']).toBe('40000');
+    expect(patch['loan.calculator.invoiceValue']).toBe(String(preview.invoiceValue));
+    expect(patch['loan.emiAmount']).toBe(String(preview.emiAmount));
+  });
 });

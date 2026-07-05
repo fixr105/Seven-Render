@@ -91,8 +91,8 @@ export const N8N_POST_WEBHOOK_PATHS = {
   // Daily Summary Reports
   DAILY_SUMMARY: 'DAILYSUMMARY',
   
-  // File Auditing Log
-  FILE_AUDIT_LOG: 'Fileauditinglog',
+  // File Auditing Log (standalone workflow path in n8n)
+  FILE_AUDIT_LOG: 'Fileauditinglog1',
   
   // Form Categories
   FORM_CATEGORY: 'FormCategory',
@@ -109,17 +109,17 @@ export const N8N_POST_WEBHOOK_PATHS = {
   // KAM Users
   KAM_USERS: 'KAMusers',
   
-  // Loan Applications (plural for POST)
-  LOAN_APPLICATIONS: 'loanapplications',
+  // Loan Applications (standalone workflow path in n8n)
+  LOAN_APPLICATIONS: 'loanapplications1',
   
-  // Loan Products
-  LOAN_PRODUCTS: 'loanproducts',
+  // Loan Products (standalone workflow path in n8n)
+  LOAN_PRODUCTS: 'loanproducts1',
   
   // Product Documents (product-centric form config)
   PRODUCT_DOCUMENTS: 'productdocument',
   
-  // NBFC Partners
-  NBFC_PARTNERS: 'NBFCPartners',
+  // NBFC Partners (standalone workflow path in n8n)
+  NBFC_PARTNERS: 'NBFCPartners1',
   
   // User Accounts (Add User)
   ADD_USER: 'adduser',

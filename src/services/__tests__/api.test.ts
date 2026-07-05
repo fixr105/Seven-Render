@@ -73,7 +73,7 @@ describe('apiService request logical success handling', () => {
     expect(JSON.parse(requestInit.body)).toEqual({ clientSubmissionId: 'submit-456' });
   });
 
-  it('requests client vehicles from the configured API base URL', async () => {
+  it('uses same-origin /api when VITE_API_BASE_URL points at retired Fly host', async () => {
     vi.stubEnv('VITE_API_BASE_URL', 'https://seven-render.fly.dev');
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -87,7 +87,24 @@ describe('apiService request logical success handling', () => {
     await apiService.getClientVehicles('LP015');
 
     const [url] = fetchMock.mock.calls[0];
-    expect(url).toBe('https://seven-render.fly.dev/api/client/vehicles?productId=LP015');
+    expect(url).toBe('/api/client/vehicles?productId=LP015');
+  });
+
+  it('builds full API URL when VITE_API_BASE_URL is a non-Fly host', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.com');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ success: true, data: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.getClientVehicles('LP015');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.example.com/api/client/vehicles?productId=LP015');
   });
 
   it('preserves auth token when backend returns CLIENT_NOT_LINKED', async () => {

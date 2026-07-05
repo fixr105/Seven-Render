@@ -1,0 +1,88 @@
+{
+  "name": "POST File Audit Log (Fileauditinglog)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Fileauditinglog1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-fileauditinglog",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [400, 300],
+      "webhookId": "fileauditinglog-post"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblL1XJnqW3Q15ueZ",
+          "mode": "list",
+          "cachedResultName": "File Auditing Log",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tblL1XJnqW3Q15ueZ"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.body.id }}",
+            "Log Entry ID": "={{ $json.body['Log Entry ID'] }}",
+            "File": "={{ $json.body.File }}",
+            "Timestamp": "={{ $json.body.Timestamp }}",
+            "Actor": "={{ $json.body.Actor }}",
+            "Action/Event Type": "={{ $json.body['Action/Event Type'] }}",
+            "Details/Message": "={{ $json.body['Details/Message'] }}",
+            "Target User/Role": "={{ $json.body['Target User/Role'] }}",
+            "Resolved": "={{ $json.body.Resolved }}"
+          },
+          "matchingColumns": ["id"]
+        },
+        "options": {}
+      },
+      "id": "airtable-fileauditinglog",
+      "name": "Airtable Upsert",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [620, 300],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "respond-fileauditinglog",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [840, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Airtable Upsert", "type": "main", "index": 0 }]]
+    },
+    "Airtable Upsert": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": []
+}

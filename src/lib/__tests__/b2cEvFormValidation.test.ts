@@ -4,7 +4,7 @@ import {
   createInitialB2cEvFormData,
   getVisibleB2cEvStages,
 } from '../../config/forms/b2cEvFormSchema';
-import { getB2cEvFormCompletion } from '../b2cEvFormValidation';
+import { getB2cEvFormCompletion, syncB2cEvComputedFields } from '../b2cEvFormValidation';
 
 const DEALER_PATCH: Record<string, unknown> = {
   'dealer.id': 'SFDLR11030',
@@ -165,5 +165,30 @@ describe('getB2cEvFormCompletion', () => {
     const result = getB2cEvFormCompletion(stages, formData, 'LP001');
 
     expect(result.isComplete).toBe(true);
+  });
+});
+
+describe('syncB2cEvComputedFields', () => {
+  it('derives customerName from first and last name when present', () => {
+    const result = syncB2cEvComputedFields({
+      'borrower.firstName': 'RAHUL',
+      'borrower.lastName': 'GONSALVES',
+    });
+
+    expect(result['borrower.customerName']).toBe('RAHUL GONSALVES');
+  });
+
+  it('does not invent customerName when both names are absent', () => {
+    const result = syncB2cEvComputedFields({});
+
+    expect(result['borrower.customerName']).toBeUndefined();
+  });
+
+  it('preserves customerName from JSON when names are cleared', () => {
+    const result = syncB2cEvComputedFields({
+      'borrower.customerName': 'RAHUL GONSALVES',
+    });
+
+    expect(result['borrower.customerName']).toBe('RAHUL GONSALVES');
   });
 });

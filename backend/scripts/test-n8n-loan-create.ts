@@ -14,7 +14,7 @@
 import fetch from 'node-fetch';
 
 const N8N_BASE_URL = (process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud').replace(/\/$/, '');
-const POST_URL = `${N8N_BASE_URL}/webhook/loanapplications`;
+const POST_URL = `${N8N_BASE_URL}/webhook/loanapplications1`;
 const GET_URL = `${N8N_BASE_URL}/webhook/loanapplication`;
 const GET_CLIENTS_URL = `${N8N_BASE_URL}/webhook/client`;
 

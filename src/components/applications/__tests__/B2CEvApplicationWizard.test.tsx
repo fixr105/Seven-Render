@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { B2CEvApplicationWizard } from '../B2CEvApplicationWizard';
 import { apiService } from '../../../services/api';
 import { renderWithProviders, mockClientUser } from '../../../test/helpers';
+import { createInitialB2cEvFormData } from '../../../config/forms/b2cEvFormSchema';
 
 vi.mock('../../../services/api', () => ({
   apiService: {
@@ -55,12 +56,13 @@ vi.mock('../../../auth/AuthContext', async (importOriginal) => {
 });
 
 const mockNavigate = vi.fn();
+const mockUseSearchParams = vi.fn(() => [new URLSearchParams('b2cEv=1'), vi.fn()] as const);
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    useSearchParams: () => [new URLSearchParams('b2cEv=1'), vi.fn()],
+    useSearchParams: () => mockUseSearchParams(),
   };
 });
 
@@ -74,6 +76,7 @@ const fillStageOne = async (user: ReturnType<typeof userEvent.setup>) => {
 describe('B2CEvApplicationWizard submit gating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSearchParams.mockReturnValue([new URLSearchParams('b2cEv=1'), vi.fn()] as const);
     (apiService.listLoanProducts as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       data: [{ productId: 'LP001', productName: 'EV Loan' }],
@@ -198,13 +201,48 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('GONSALVES');
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeDisabled();
     expect(screen.getByTestId('b2c-field-borrower-drivingLicense')).toHaveValue('');
+    expect(screen.getByTestId('b2c-field-borrower-drivingLicense')).toBeDisabled();
+    expect(screen.queryByText('Select Gender')).not.toBeInTheDocument();
     expect(screen.getByTestId('b2c-field-borrower-address-line1')).toHaveValue(
       '107, Villa De Flores, Catholic Society, Vidhyanagar, Bhavnagar'
     );
     expect(screen.getByTestId('b2c-field-borrower-address-village')).toHaveValue('Bhavnagar');
     expect(screen.getByTestId('b2c-field-borrower-address-pincode')).toHaveValue('364002');
     expect(screen.getByText('Address')).toBeInTheDocument();
+  });
+
+  it('shows blank gender select without placeholder when PAN JSON omits gender', async () => {
+    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: true,
+      data: {
+        formDataPatch: {
+          'borrower.firstName': 'RAHUL',
+          'borrower.lastName': 'GONSALVES',
+          'borrower.customerName': 'RAHUL GONSALVES',
+        },
+        lookupAt: '2026-04-07T12:00:00.000Z',
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
+    });
+
+    expect(screen.queryByText('Select Gender')).not.toBeInTheDocument();
+    expect(screen.getByTestId('b2c-field-borrower-gender')).toBeDisabled();
+    expect(screen.getByTestId('b2c-field-borrower-gender')).toHaveValue('');
   });
 
   it('autofills dealer stage from Client KYC on mount and when opened', async () => {
@@ -285,5 +323,246 @@ describe('B2CEvApplicationWizard submit gating', () => {
     for (const [arg] of calls) {
       expect(arg?.saveAsDraft).not.toBe(false);
     }
+  });
+
+  it('auto-saves draft after debounced field edit when product is selected', async () => {
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    vi.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await user.selectOptions(screen.getByTestId('b2c-loan-product-select'), 'LP001');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1600);
+      });
+
+      expect(apiService.createApplication).toHaveBeenCalledWith(
+        expect.objectContaining({ saveAsDraft: true, productId: 'LP001' })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('persists KAM request timestamp via updateApplicationForm after createClientQuery', async () => {
+    const completeFormData = {
+      ...createInitialB2cEvFormData(),
+      '_meta.formTemplate': 'b2c_ev_v1',
+      '_meta.panLookup.status': 'success',
+      '_meta.panLookup.inputHash': 'hash',
+      '_meta.supportPersonType': 'co_applicant',
+      '_meta.supportPanLookup.phase': 'profile',
+      '_meta.supportPanLookup.status': 'success',
+      'borrower.firstName': 'RAHUL',
+      'borrower.lastName': 'GONSALVES',
+      'borrower.customerName': 'RAHUL GONSALVES',
+      'borrower.gender': 'Male',
+      'borrower.dob': '1993-04-07',
+      'borrower.fatherName': 'JOSEPH',
+      'borrower.mobile': '9687599179',
+      'borrower.email': 'rahul@example.com',
+      'borrower.pan': 'BAIPG3083L',
+      'borrower.address.line1': 'Line 1',
+      'borrower.address.village': 'Village',
+      'borrower.address.pincode': '364002',
+      'borrower.address.district': 'District',
+      'borrower.address.state': 'Gujarat',
+      'loan.amount': '56522',
+      'loan.interestRate': '35',
+      'loan.tenureMonths': '12',
+      'loan.processingFee': '4522',
+      'loan.gpsCharges': '2000',
+      'loan.processingFeePercent': '8',
+      'loan.disbursalAmount': '50000',
+      'dealer.id': 'SFDLR11030',
+      'dealer.displayLabel': 'Dealer',
+      'dealer.tradeName': 'Dealer',
+      'dealer.name': 'Dealer',
+      'dealer.contact': '7905835489',
+      'dealer.email': 'dealer@example.com',
+      'dealer.gstNumber': '09BMCPG4250M1ZY',
+      'dealer.pan': 'BMCPG4250M',
+      'dealer.ifscCode': 'HDFC0001885',
+      'coApplicant.name': 'Co App',
+      'coApplicant.dob': '1990-01-01',
+      'coApplicant.email': 'co@example.com',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.address.line1': 'Co line 1',
+      'coApplicant.address.village': 'Co village',
+      'coApplicant.address.pincode': '364002',
+      'coApplicant.address.district': 'District',
+      'coApplicant.address.state': 'Gujarat',
+      'coApplicant.drivingLicense': 'DL123',
+      'coApplicant.mobile': '9999999999',
+      'coApplicant.relationship': 'Spouse',
+      'geoPhotos.withSupportPerson.url': 'https://cdn.example.com/with-support.jpg',
+      'geoPhotos.withSupportPerson.fileName': 'with-support.jpg',
+      'geoPhotos.withSupportPerson.latitude': '21.17',
+      'geoPhotos.withSupportPerson.longitude': '72.83',
+      'geoPhotos.withVehicle.url': 'https://cdn.example.com/with-vehicle.jpg',
+      'geoPhotos.withVehicle.fileName': 'with-vehicle.jpg',
+      'geoPhotos.withVehicle.latitude': '21.17',
+      'geoPhotos.withVehicle.longitude': '72.83',
+      'geoPhotos.atResidence.url': 'https://cdn.example.com/at-residence.jpg',
+      'geoPhotos.atResidence.fileName': 'at-residence.jpg',
+      'geoPhotos.atResidence.latitude': '21.17',
+      'geoPhotos.atResidence.longitude': '72.83',
+    };
+
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('draftId=draft-geo&b2cEv=1'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-geo',
+        status: 'draft',
+        applicantName: 'RAHUL GONSALVES',
+        loanProduct: 'LP001',
+        requestedLoanAmount: '56522',
+        formData: completeFormData,
+      },
+    });
+    (apiService.createClientQuery as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-stepper-step-geo-photos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-stepper-step-geo-photos'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('compliance-request-kam-vkyc')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('compliance-request-kam-vkyc'));
+
+    await waitFor(() => {
+      expect(apiService.createClientQuery).toHaveBeenCalled();
+      expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
+        'draft-geo',
+        expect.objectContaining({
+          '_meta.kamRequests.vkyc.requestedAt': expect.any(String),
+        })
+      );
+    });
+  });
+
+  it('persists DO request timestamp via updateApplicationForm after createClientQuery', async () => {
+    const completeFormData = {
+      ...createInitialB2cEvFormData(),
+      '_meta.formTemplate': 'b2c_ev_v1',
+      '_meta.panLookup.status': 'success',
+      '_meta.panLookup.inputHash': 'hash',
+      '_meta.supportPersonType': 'co_applicant',
+      '_meta.supportPanLookup.phase': 'profile',
+      '_meta.supportPanLookup.status': 'success',
+      'borrower.firstName': 'RAHUL',
+      'borrower.lastName': 'GONSALVES',
+      'borrower.customerName': 'RAHUL GONSALVES',
+      'borrower.gender': 'Male',
+      'borrower.dob': '1993-04-07',
+      'borrower.fatherName': 'JOSEPH',
+      'borrower.mobile': '9687599179',
+      'borrower.email': 'rahul@example.com',
+      'borrower.pan': 'BAIPG3083L',
+      'borrower.address.line1': 'Line 1',
+      'borrower.address.village': 'Village',
+      'borrower.address.pincode': '364002',
+      'borrower.address.district': 'District',
+      'borrower.address.state': 'Gujarat',
+      'loan.amount': '56522',
+      'loan.interestRate': '35',
+      'loan.tenureMonths': '12',
+      'loan.processingFee': '4522',
+      'loan.gpsCharges': '2000',
+      'loan.processingFeePercent': '8',
+      'loan.disbursalAmount': '50000',
+      'dealer.id': 'SFDLR11030',
+      'dealer.displayLabel': 'Dealer',
+      'dealer.tradeName': 'Dealer',
+      'dealer.name': 'Dealer',
+      'dealer.contact': '7905835489',
+      'dealer.email': 'dealer@example.com',
+      'dealer.gstNumber': '09BMCPG4250M1ZY',
+      'dealer.pan': 'BMCPG4250M',
+      'dealer.ifscCode': 'HDFC0001885',
+      'coApplicant.name': 'Co App',
+      'coApplicant.dob': '1990-01-01',
+      'coApplicant.email': 'co@example.com',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.address.line1': 'Co line 1',
+      'coApplicant.address.village': 'Co village',
+      'coApplicant.address.pincode': '364002',
+      'coApplicant.address.district': 'District',
+      'coApplicant.address.state': 'Gujarat',
+      'coApplicant.drivingLicense': 'DL123',
+      'coApplicant.mobile': '9999999999',
+      'coApplicant.relationship': 'Spouse',
+      'geoPhotos.withSupportPerson.url': 'https://cdn.example.com/with-support.jpg',
+      'geoPhotos.withSupportPerson.fileName': 'with-support.jpg',
+      'geoPhotos.withSupportPerson.latitude': '21.17',
+      'geoPhotos.withSupportPerson.longitude': '72.83',
+      'geoPhotos.withVehicle.url': 'https://cdn.example.com/with-vehicle.jpg',
+      'geoPhotos.withVehicle.fileName': 'with-vehicle.jpg',
+      'geoPhotos.withVehicle.latitude': '21.17',
+      'geoPhotos.withVehicle.longitude': '72.83',
+      'geoPhotos.atResidence.url': 'https://cdn.example.com/at-residence.jpg',
+      'geoPhotos.atResidence.fileName': 'at-residence.jpg',
+      'geoPhotos.atResidence.latitude': '21.17',
+      'geoPhotos.atResidence.longitude': '72.83',
+    };
+
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('draftId=draft-geo&b2cEv=1'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-geo',
+        status: 'draft',
+        applicantName: 'RAHUL GONSALVES',
+        loanProduct: 'LP001',
+        requestedLoanAmount: '56522',
+        formData: completeFormData,
+      },
+    });
+    (apiService.createClientQuery as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-stepper-step-geo-photos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-stepper-step-geo-photos'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-wizard-request-do')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-request-do'));
+
+    await waitFor(() => {
+      expect(apiService.createClientQuery).toHaveBeenCalled();
+      expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
+        'draft-geo',
+        expect.objectContaining({
+          '_meta.doRequest.requestedAt': expect.any(String),
+        })
+      );
+    });
   });
 });

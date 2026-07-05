@@ -1,0 +1,110 @@
+{
+  "name": "POST Loan Applications (loanapplications)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "loanapplications1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-loanapplications",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [400, 300],
+      "webhookId": "loanapplications-post"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl85RSGR1op38O3G",
+          "mode": "list",
+          "cachedResultName": "Loan Applications",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tbl85RSGR1op38O3G"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "File ID": "={{ $json.body['File ID'] }}",
+            "Client": "={{ $json.body.Client }}",
+            "Applicant Name": "={{ $json.body['Applicant Name'] }}",
+            "Loan Product": "={{ $json.body['Loan Product'] }}",
+            "Requested Loan Amount": "={{ $json.body['Requested Loan Amount'] }}",
+            "Documents": "={{ $json.body.Documents }}",
+            "Status": "={{ $json.body.Status }}",
+            "Assigned Credit Analyst": "={{ $json.body['Assigned Credit Analyst'] }}",
+            "Assigned NBFC": "={{ $json.body['Assigned NBFC'] }}",
+            "Lender Decision Status": "={{ $json.body['Lender Decision Status'] }}",
+            "Lender Decision Date": "={{ $json.body['Lender Decision Date'] }}",
+            "Lender Decision Remarks": "={{ $json.body['Lender Decision Remarks'] }}",
+            "Approved Loan Amount": "={{ $json.body['Approved Loan Amount'] }}",
+            "AI File Summary": "={{ $json.body['AI File Summary'] }}",
+            "Form Data": "={{ $json.body['Form Data'] }}",
+            "Creation Date": "={{ $json.body['Creation Date'] }}",
+            "Submitted Date": "={{ $json.body['Submitted Date'] }}",
+            "Last Updated": "={{ $json.body['Last Updated'] }}",
+            "KAM ID": "={{ $json.body['KAM ID'] }}",
+            "Mobile Number": "={{ $json.body['Mobile Number'] }}",
+            "Email Id": "={{ $json.body['Email Id'] }}",
+            "Type of Purchase": "={{ $json.body['Type of Purchase'] }}",
+            "Remarks": "={{ $json.body.Remarks }}",
+            "Form Config Version": "={{ $json.body['Form Config Version'] }}",
+            "Needs Attention": "={{ $json.body['Needs Attention'] }}",
+            "Validation Warnings": "={{ $json.body['Validation Warnings'] }}",
+            "Client Submission ID": "={{ $json.body['Client Submission ID'] }}",
+            "MD": "={{ $json.body.MD }}",
+            "Asana Task ID": "={{ $json.body['Asana Task ID'] }}",
+            "Asana Task Link": "={{ $json.body['Asana Task Link'] }}"
+          },
+          "matchingColumns": ["File ID"]
+        },
+        "options": {}
+      },
+      "id": "airtable-loanapplications",
+      "name": "Airtable Upsert",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [620, 300],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, id: $json.id, fileId: $json.fields['File ID'] } }}",
+        "options": {}
+      },
+      "id": "respond-loanapplications",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [840, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Airtable Upsert", "type": "main", "index": 0 }]]
+    },
+    "Airtable Upsert": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": []
+}

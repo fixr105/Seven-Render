@@ -1,14 +1,19 @@
 /**
- * Frontend Tests for NewApplication Page (P0)
- * Tests dynamic form rendering and mandatory field validation
+ * Frontend Tests for LegacyNewApplication (P0)
+ * Tests dynamic form rendering and mandatory field validation on the legacy client form.
+ * NewApplication routing (client → B2C EV wizard) is covered in a separate describe block.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NewApplication } from '../NewApplication';
+import { LegacyNewApplication, NewApplication } from '../NewApplication';
 import { apiService } from '../../services/api';
-import { renderWithProviders, mockClientUser } from '../../test/helpers';
+import { renderWithProviders, mockClientUser, mockKAMUser } from '../../test/helpers';
+
+vi.mock('../../components/applications/B2CEvApplicationWizard', () => ({
+  B2CEvApplicationWizard: () => <div data-testid="b2c-ev-wizard" />,
+}));
 
 // Mock API service
 vi.mock('../../services/api', () => {
@@ -53,7 +58,7 @@ vi.mock('../../hooks/useNavigation', () => ({
   }),
 }));
 
-// Mock useAuth so NewApplication runs client flow; keep AuthProvider for TestWrapper
+// Mock useAuth for legacy form and routing tests
 vi.mock('../../auth/AuthContext', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../auth/AuthContext')>();
   return { ...actual, useAuth: vi.fn() };
@@ -151,17 +156,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
   describe('M2-FE-004: Loan Product Visibility', () => {
     it('should show assigned configured products for client', async () => {
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(),
-          setAuthUserAndToken: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       const loanProductSelect = await screen.findByTestId('loan-product-select', {}, { timeout: 15000 });
       expect(loanProductSelect).toBeInTheDocument();
@@ -177,17 +172,7 @@ describe('NewApplication Page - P0 Tests', () => {
         error: 'No loan products are assigned to your account. Please contact your KAM to allocate products.',
       });
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await waitFor(() => {
         expect(screen.getByText(/No loan products are assigned to your account/i)).toBeInTheDocument();
@@ -208,17 +193,7 @@ describe('NewApplication Page - P0 Tests', () => {
   describe('Vehicle options loading', () => {
     it('requests vehicles for the selected product and renders returned makes and models', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
 
@@ -243,17 +218,7 @@ describe('NewApplication Page - P0 Tests', () => {
         error: 'Endpoint not found: /client/vehicles?productId=LP001',
       });
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
 
@@ -286,17 +251,7 @@ describe('NewApplication Page - P0 Tests', () => {
         ],
       });
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await user.click(screen.getByTestId('generate-link-button'));
 
@@ -317,17 +272,7 @@ describe('NewApplication Page - P0 Tests', () => {
         ],
       });
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await user.click(screen.getByTestId('generate-link-button'));
       await waitFor(() => {
@@ -350,7 +295,7 @@ describe('NewApplication Page - P0 Tests', () => {
         data: [{ link: 'https://drive.google.com/drive/folders/available-1', status: '' }],
       });
 
-      renderWithProviders(<NewApplication />);
+      renderWithProviders(<LegacyNewApplication />);
 
       await user.click(screen.getByTestId('generate-link-button'));
       await waitFor(() => {
@@ -375,7 +320,7 @@ describe('NewApplication Page - P0 Tests', () => {
         data: [{ link: 'https://drive.google.com/drive/folders/available-1', status: '' }],
       });
 
-      renderWithProviders(<NewApplication />);
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await user.type(screen.getByTestId('applicant-name-input'), 'John Doe');
@@ -419,17 +364,7 @@ describe('NewApplication Page - P0 Tests', () => {
         ],
       });
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await user.click(screen.getByTestId('generate-link-button'));
       await waitFor(() => {
@@ -453,17 +388,7 @@ describe('NewApplication Page - P0 Tests', () => {
   describe('M2-FE-001: Dynamic Form Field Rendering', () => {
     it('should render form fields based on form configuration', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await waitFor(() => {
@@ -491,17 +416,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
     it('should render different field types correctly', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await waitFor(() => {
@@ -546,17 +461,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
     it('should prevent submission when mandatory fields are empty', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await waitFor(() => {
@@ -588,17 +493,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
     it.skip('should allow submission when all mandatory fields are filled', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await waitFor(() => {
         expect(apiService.getFormConfig).toHaveBeenCalled();
@@ -647,17 +542,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
     it('includes optional Remarks in createApplication payload', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await waitFor(() => {
@@ -687,17 +572,7 @@ describe('NewApplication Page - P0 Tests', () => {
 
     it('should allow saving as draft without mandatory fields', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await waitFor(() => {
@@ -731,17 +606,7 @@ describe('NewApplication Page - P0 Tests', () => {
         data: { warnings: [] },
       });
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await waitFor(() => {
@@ -769,17 +634,7 @@ describe('NewApplication Page - P0 Tests', () => {
         () => new Promise(resolve => setTimeout(() => resolve({ success: true, data: mockFormConfig }), 200))
       );
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       // While getFormConfig is in flight we may see loading
@@ -799,17 +654,7 @@ describe('NewApplication Page - P0 Tests', () => {
         error: 'Failed to load form configuration',
       });
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await selectFirstLoanProduct(user);
       await waitFor(() => {
@@ -856,22 +701,49 @@ describe('NewApplication Page - P0 Tests', () => {
         authSessionId: 'test-session',
       } as ReturnType<typeof useAuth>);
 
-      renderWithProviders(<NewApplication />, {
-        authContext: {
-          user: mockClientUser,
-          loading: false,
-          login: vi.fn(),
-          logout: vi.fn(),
-          refreshUser: vi.fn(),
-          hasRole: vi.fn(() => true),
-          signInAsTestUser: vi.fn(),
-        },
-      });
+      renderWithProviders(<LegacyNewApplication />);
 
       await waitFor(() => {
         expect(apiService.getApplication).toHaveBeenCalledWith('draft-123');
       });
     });
+  });
+});
+
+describe('NewApplication routing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+      user: mockClientUser,
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshUser: vi.fn(),
+      hasRole: vi.fn(() => true),
+      signInAsTestUser: vi.fn(),
+    });
+  });
+
+  it('routes client users to B2C EV wizard', () => {
+    renderWithProviders(<NewApplication />);
+    expect(screen.getByTestId('b2c-ev-wizard')).toBeInTheDocument();
+    expect(screen.queryByTestId('loan-product-select')).not.toBeInTheDocument();
+  });
+
+  it('routes non-client users to legacy form', () => {
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+      user: mockKAMUser,
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshUser: vi.fn(),
+      hasRole: vi.fn((role: string) => role === 'kam'),
+      signInAsTestUser: vi.fn(),
+    });
+
+    renderWithProviders(<NewApplication />);
+    expect(screen.queryByTestId('b2c-ev-wizard')).not.toBeInTheDocument();
+    expect(screen.getByTestId('loan-product-select')).toBeInTheDocument();
   });
 });
 

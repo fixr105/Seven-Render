@@ -100,10 +100,18 @@ export function freezeLoanPreview(preview: LoanLivePreview): LoanFrozenValues {
   };
 }
 
+export interface LoanCalculatorSnapshot {
+  downpayment: number;
+  disbursementToDealer: number;
+  invoiceValue: number;
+  emiAmount: number;
+}
+
 export function frozenValuesToFormDataPatch(
-  frozen: LoanFrozenValues
+  frozen: LoanFrozenValues,
+  snapshot?: LoanCalculatorSnapshot
 ): Record<string, string> {
-  return {
+  const patch: Record<string, string> = {
     'loan.amount': String(frozen.loanAmount),
     'loan.interestRate': String(frozen.interestRate),
     'loan.tenureMonths': String(frozen.tenureMonths),
@@ -112,6 +120,15 @@ export function frozenValuesToFormDataPatch(
     'loan.processingFeePercent': String(frozen.processingFeePct),
     'loan.disbursalAmount': String(frozen.disbursalAmount),
   };
+
+  if (snapshot) {
+    patch['loan.calculator.downpayment'] = String(snapshot.downpayment);
+    patch['loan.calculator.disbursementToDealer'] = String(snapshot.disbursementToDealer);
+    patch['loan.calculator.invoiceValue'] = String(snapshot.invoiceValue);
+    patch['loan.emiAmount'] = String(snapshot.emiAmount);
+  }
+
+  return patch;
 }
 
 export function formDataToFrozenValues(

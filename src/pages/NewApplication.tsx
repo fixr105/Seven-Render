@@ -111,7 +111,7 @@ const normalizeProductId = (value: unknown): string => String(value ?? '').trim(
 const createClientSubmissionId = (): string =>
   `submit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-const LegacyNewApplication: React.FC = () => {
+export const LegacyNewApplication: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

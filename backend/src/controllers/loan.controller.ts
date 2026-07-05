@@ -23,8 +23,9 @@ import {
 } from '../services/entitlements/clientProducts.service.js';
 import { resolveRequestedLoanAmountFromVehicleSelection } from '../services/vehicles/vehicleCatalog.service.js';
 import {
+  buildPromotedApplicationRecord,
   mergeFormDataJson,
-  resolveLoanApplicationCoreFields,
+  resolveLoanApplicationPromotedFields,
 } from '../utils/loanApplicationCoreFields.js';
 
 export class LoanController {
@@ -1147,16 +1148,16 @@ export class LoanController {
       }
 
       const mergedFormData = mergeFormDataJson(application, formData || {});
-      let coreFields = resolveLoanApplicationCoreFields(mergedFormData, application);
+      let promotedFields = resolveLoanApplicationPromotedFields(mergedFormData, application);
 
       const existingProductId = String(application['Loan Product'] || application.loanProduct || '');
-      if (coreFields.productId && coreFields.productId !== existingProductId) {
-        await assertClientProductAssigned(req.user, coreFields.productId);
+      if (promotedFields.productId && promotedFields.productId !== existingProductId) {
+        await assertClientProductAssigned(req.user, promotedFields.productId);
       }
 
       const selectedVehicle = await resolveRequestedLoanAmountFromVehicleSelection(
         req.user,
-        coreFields.productId,
+        promotedFields.productId,
         {
           vehicleId:
             mergedFormData._vehicleId ??
@@ -1173,8 +1174,8 @@ export class LoanController {
         }
       );
       if (selectedVehicle) {
-        coreFields = {
-          ...coreFields,
+        promotedFields = {
+          ...promotedFields,
           requestedLoanAmount: selectedVehicle.requestedLoanAmount,
         };
         mergedFormData._vehicleId = selectedVehicle.vehicleId;
@@ -1185,24 +1186,15 @@ export class LoanController {
 
       const formDataToStore: Record<string, unknown> = {
         ...mergedFormData,
-        applicantName: coreFields.applicantName,
-        productId: coreFields.productId,
-        requestedLoanAmount: coreFields.requestedLoanAmount,
+        applicantName: promotedFields.applicantName,
+        productId: promotedFields.productId,
+        requestedLoanAmount: promotedFields.requestedLoanAmount,
       };
 
-      const updatedData: any = {
-        ...application,
-        'Applicant Name': coreFields.applicantName,
-        'Loan Product': coreFields.productId,
-        'Requested Loan Amount': String(coreFields.requestedLoanAmount ?? ''),
-        'Form Data': JSON.stringify(formDataToStore),
-        Remarks:
-          formDataToStore.Remarks != null
-            ? String(formDataToStore.Remarks)
-            : application['Remarks'] ?? '',
+      const updatedData = buildPromotedApplicationRecord(application, formDataToStore, promotedFields, {
         'Last Updated': new Date().toISOString(),
         'Form Config Version': formConfigVersion || '',
-      };
+      });
 
       await n8nClient.postLoanApplication(updatedData);
 

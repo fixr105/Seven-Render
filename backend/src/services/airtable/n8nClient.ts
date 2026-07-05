@@ -1187,6 +1187,26 @@ export class N8nClient {
     if (formData == null || (typeof formData === 'string' && formData.trim() === '')) {
       formData = '';
     }
+
+    const firstNonEmpty = (...values: unknown[]): string => {
+      for (const value of values) {
+        if (value === undefined || value === null) continue;
+        const str = String(value).trim();
+        if (str !== '') return str;
+      }
+      return '';
+    };
+
+    const resolveRequestedLoanAmount = (...values: unknown[]): string | number => {
+      for (const value of values) {
+        if (value === undefined || value === null || value === '') continue;
+        if (typeof value === 'number') return value;
+        const str = String(value).trim();
+        if (str !== '') return str;
+      }
+      return '';
+    };
+
     // Client: single string (client record id)
     const rawClient = data['Client'] ?? data.client ?? '';
     const clientId =
@@ -1208,8 +1228,21 @@ export class N8nClient {
           ? String((rawKamId as any).id ?? (rawKamId as any)['KAM ID']).trim()
           : '';
     const md = data['MD'] ?? data.md ?? '';
-    const mobileNumber = data['Mobile Number'] ?? parsedFormData._mobileNumber ?? '';
-    const emailId = data['Email Id'] ?? data['Email ID'] ?? parsedFormData._email ?? '';
+    const mobileNumber = firstNonEmpty(
+      data['Mobile Number'],
+      data.mobileNumber,
+      parsedFormData._mobileNumber,
+      parsedFormData['borrower.mobile'],
+      parsedFormData['_meta.panLookup.mobileNumber']
+    );
+    const emailId = firstNonEmpty(
+      data['Email Id'],
+      data['Email ID'],
+      data.emailId,
+      parsedFormData._email,
+      parsedFormData['borrower.email'],
+      parsedFormData['_meta.panLookup.borrowerEmail']
+    );
     const typeOfPurchase = data['Type of Purchase'] ?? parsedFormData._typeOfPurchase ?? '';
     const remarks = data['Remarks'] ?? parsedFormData.Remarks ?? '';
 
@@ -1217,24 +1250,26 @@ export class N8nClient {
     return {
       'File ID': data['File ID'] || data.fileId || '',
       Client: clientId,
-      'Applicant Name':
-        data['Applicant Name'] ||
-        data.applicantName ||
-        parsedFormData.applicantName ||
-        parsedFormData.applicant_name ||
-        '',
+      'Applicant Name': firstNonEmpty(
+        data['Applicant Name'],
+        data.applicantName,
+        parsedFormData.applicantName,
+        parsedFormData.applicant_name,
+        parsedFormData['borrower.customerName']
+      ),
       'Loan Product':
         data['Loan Product'] ||
         data.loanProduct ||
         parsedFormData.productId ||
         parsedFormData.loan_product_id ||
         '',
-      'Requested Loan Amount':
-        data['Requested Loan Amount'] ??
-        data.requestedLoanAmount ??
-        parsedFormData.requestedLoanAmount ??
-        parsedFormData.requested_loan_amount ??
-        '',
+      'Requested Loan Amount': resolveRequestedLoanAmount(
+        data['Requested Loan Amount'],
+        data.requestedLoanAmount,
+        parsedFormData.requestedLoanAmount,
+        parsedFormData.requested_loan_amount,
+        parsedFormData['loan.amount']
+      ),
       Documents: data['Documents'] || data.documents || '',
       Status: data['Status'] || data.status || '',
       'Assigned Credit Analyst': data['Assigned Credit Analyst'] || data.assignedCreditAnalyst || '',

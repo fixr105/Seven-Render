@@ -18,9 +18,9 @@ Backend resolves via `n8nClient.fetchTable('Client KYC')` and filters by logged-
 
 ## Lookup
 
-1. **Client ID** — matches `Clients.Client ID` from login (`resolveClientRecord`)
-2. **Login Email** — fallback match on `Login Email` column
-3. Only rows with `Status = Active` (or blank) are returned
+1. **Client ID only** — must exactly match `Clients.Client ID` from login (`resolveClientRecord`). User Account id and login email are not used as fallback keys.
+2. Only rows with `Status = Active` (or blank) are returned
+3. If the user is not linked in Clients, `/client/kyc` returns `401` (`CLIENT_NOT_LINKED`)
 
 ## CSV templates
 

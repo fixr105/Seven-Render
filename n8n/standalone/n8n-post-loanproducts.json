@@ -1,0 +1,85 @@
+{
+  "name": "POST Loan Products (loanproducts)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "loanproducts1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-loanproducts",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [400, 300],
+      "webhookId": "loanproducts-post"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblVukvj8kn5gWBta",
+          "mode": "list",
+          "cachedResultName": "Loan Products",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tblVukvj8kn5gWBta"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.body.id }}",
+            "Product ID": "={{ $json.body['Product ID'] }}",
+            "Product Name": "={{ $json.body['Product Name'] }}",
+            "Description": "={{ $json.body.Description }}",
+            "Active": "={{ $json.body.Active }}",
+            "Required Documents/Fields": "={{ $json.body['Required Documents/Fields'] }}"
+          },
+          "matchingColumns": ["id"]
+        },
+        "options": {}
+      },
+      "id": "airtable-loanproducts",
+      "name": "Airtable Upsert",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [620, 300],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "respond-loanproducts",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [840, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Airtable Upsert", "type": "main", "index": 0 }]]
+    },
+    "Airtable Upsert": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": []
+}

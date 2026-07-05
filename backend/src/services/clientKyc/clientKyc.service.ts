@@ -47,27 +47,6 @@ function readBoolean(record: Record<string, unknown>, keys: string[]): boolean {
   return false;
 }
 
-function normalizeEmail(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function emailMatchesRecord(loginEmail: string, record: Record<string, unknown>): boolean {
-  const normalizedLogin = normalizeEmail(loginEmail);
-  if (!normalizedLogin) return false;
-
-  const recordEmail = readString(record, ['Login Email', 'loginEmail']);
-  if (recordEmail && normalizeEmail(recordEmail) === normalizedLogin) return true;
-
-  const contact = readString(record, ['Contact Email / Phone', 'Contact Email/Phone', 'contactEmailPhone']);
-  if (!contact) return false;
-
-  const contactLower = contact.toLowerCase();
-  if (contactLower.includes(normalizedLogin)) return true;
-
-  const beforePipe = contact.split('|')[0]?.trim().toLowerCase();
-  return beforePipe === normalizedLogin;
-}
-
 function clientIdMatchesRecord(lookupId: string, record: Record<string, unknown>): boolean {
   const normalizedLookupId = lookupId.trim();
   if (!normalizedLookupId) return false;
@@ -86,11 +65,6 @@ function isActiveRecord(record: Record<string, unknown>): boolean {
   if (!status) return true;
   if (status === 'active') return true;
   return status !== 'inactive' && status !== 'pending kyc';
-}
-
-function collectLookupIds(user: AuthUser, resolvedClientId: string): string[] {
-  const candidates = [resolvedClientId, user.clientId, user.id];
-  return [...new Set(candidates.map((id) => String(id ?? '').trim()).filter(Boolean))];
 }
 
 function buildDisplayLabel(record: Record<string, unknown>): string {
@@ -137,37 +111,32 @@ export function normalizeClientKycRecord(record: Record<string, unknown>): Clien
 
 export function findClientKycRecord(
   records: Record<string, unknown>[],
-  lookupIds: string[],
-  loginEmail: string
+  clientId: string
 ): Record<string, unknown> | null {
+  const normalizedClientId = clientId.trim();
+  if (!normalizedClientId) return null;
+
   const activeRecords = records.filter(isActiveRecord);
-
-  for (const lookupId of lookupIds) {
-    const byClientId = activeRecords.find((record) => clientIdMatchesRecord(lookupId, record));
-    if (byClientId) return byClientId;
-  }
-
-  const byEmail = activeRecords.find((record) => emailMatchesRecord(loginEmail, record));
-  return byEmail ?? null;
+  return (
+    activeRecords.find((record) => clientIdMatchesRecord(normalizedClientId, record)) ?? null
+  );
 }
 
 export async function getClientKycForUser(user: AuthUser): Promise<ClientKycDealerProfile | null> {
+  const { clientId } = await resolveClientRecord(user);
+
   const records = (await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.CLIENT_KYC, true)) as Record<
     string,
     unknown
   >[];
 
-  let resolvedClientId = '';
-  try {
-    const { clientId } = await resolveClientRecord(user);
-    resolvedClientId = clientId;
-  } catch {
-    // Client may still have a Client KYC row matched by login email or user id.
-  }
+  const match = findClientKycRecord(records, clientId);
+  if (!match) return null;
 
-  const lookupIds = collectLookupIds(user, resolvedClientId);
-  const match = findClientKycRecord(records, lookupIds, user.email || '');
-  return match ? normalizeClientKycRecord(match) : null;
+  const profile = normalizeClientKycRecord(match);
+  if (profile.clientId !== clientId) return null;
+
+  return profile;
 }
 
 export function clientKycToFormDataPatch(profile: ClientKycDealerProfile): Record<string, unknown> {

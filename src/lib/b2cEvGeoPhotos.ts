@@ -105,6 +105,11 @@ export async function captureGeolocation(): Promise<{ latitude: number; longitud
 }
 
 export async function compressImageFile(file: File, maxWidth = 1280): Promise<string> {
+  const blob = await compressImageFileToBlob(file, maxWidth);
+  return readBlobAsDataUrl(blob);
+}
+
+export async function compressImageFileToBlob(file: File, maxWidth = 1280): Promise<Blob> {
   const dataUrl = await readFileAsDataUrl(file);
   const image = await loadImage(dataUrl);
   const scale = image.width > maxWidth ? maxWidth / image.width : 1;
@@ -119,7 +124,29 @@ export async function compressImageFile(file: File, maxWidth = 1280): Promise<st
     throw new Error('Unable to process image');
   }
   context.drawImage(image, 0, 0, width, height);
-  return canvas.toDataURL('image/jpeg', 0.82);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('Unable to process image'));
+          return;
+        }
+        resolve(blob);
+      },
+      'image/jpeg',
+      0.82
+    );
+  });
+}
+
+function readBlobAsDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Failed to read processed image'));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {

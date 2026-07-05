@@ -25,6 +25,7 @@ import queriesRoutes from './queries.routes.js';
 import notificationsRoutes from './notifications.routes.js';
 import productsRoutes from './products.routes.js';
 import usersRoutes from './users.routes.js';
+import documentsRoutes from './documents.routes.js';
 import publicRoutes from './public.routes.js';
 
 const router = Router();
@@ -231,6 +232,7 @@ router.use('/public', publicRoutes);
 
 // Mount route modules with rate limiting
 router.use('/client', apiRateLimiter, clientRoutes);
+router.use('/documents', apiRateLimiter, documentsRoutes);
 router.use('/loan-applications', apiRateLimiter, loanRoutes);
 router.use('/kam', apiRateLimiter, kamRoutes);
 router.use('/credit', apiRateLimiter, creditRoutes);

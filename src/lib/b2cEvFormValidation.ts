@@ -59,7 +59,12 @@ export function syncB2cEvComputedFields(formData: Record<string, unknown>): Reco
   const next = { ...formData };
   const firstName = readValue(next, 'borrower.firstName');
   const lastName = readValue(next, 'borrower.lastName');
-  next['borrower.customerName'] = [firstName, lastName].filter(Boolean).join(' ').trim();
+  const existingCustomerName = readValue(next, 'borrower.customerName');
+  if (firstName || lastName) {
+    next['borrower.customerName'] = [firstName, lastName].filter(Boolean).join(' ').trim();
+  } else if (!existingCustomerName) {
+    delete next['borrower.customerName'];
+  }
 
   const loanAmount = Number(String(next['loan.amount'] ?? '').replace(/,/g, '')) || 0;
   const processingFee = Number(String(next['loan.processingFee'] ?? '').replace(/,/g, '')) || 0;

@@ -22,8 +22,9 @@ import {
   normalizeDynamicStatus,
 } from '../statusTracking/dynamicStatus.service.js';
 import {
+  buildPromotedApplicationRecord,
   mergeFormDataJson,
-  resolveLoanApplicationCoreFields,
+  resolveLoanApplicationPromotedFields,
 } from '../../utils/loanApplicationCoreFields.js';
 
 /**
@@ -164,32 +165,24 @@ export class LoanWorkflowService {
     options: CreateLoanApplicationOptions
   ): Promise<{ applicationId: string; fileId: string; status: LoanStatus }> {
     const mergedFormData = mergeFormDataJson(existingApplication, options.formData!);
-    const coreFields = resolveLoanApplicationCoreFields(mergedFormData, existingApplication);
+    const promotedFields = resolveLoanApplicationPromotedFields(mergedFormData, existingApplication);
     const formDataToStore: Record<string, unknown> = {
       ...mergedFormData,
-      applicantName: options.applicantName || coreFields.applicantName,
-      productId: options.productId || coreFields.productId,
-      requestedLoanAmount: options.requestedLoanAmount ?? coreFields.requestedLoanAmount,
+      applicantName: options.applicantName || promotedFields.applicantName,
+      productId: options.productId || promotedFields.productId,
+      requestedLoanAmount: options.requestedLoanAmount ?? promotedFields.requestedLoanAmount,
     };
 
-    const applicantName = String(formDataToStore.applicantName ?? '');
-    const productId = String(formDataToStore.productId ?? '');
-    const requestedLoanAmount =
-      formDataToStore.requestedLoanAmount !== undefined &&
-      formDataToStore.requestedLoanAmount !== null &&
-      String(formDataToStore.requestedLoanAmount).trim() !== ''
-        ? String(formDataToStore.requestedLoanAmount)
-        : '';
+    const resolvedPromoted = resolveLoanApplicationPromotedFields(formDataToStore, existingApplication);
 
-    const updatedData: Record<string, any> = {
-      ...existingApplication,
-      'Applicant Name': applicantName,
-      'Loan Product': productId,
-      'Requested Loan Amount': requestedLoanAmount,
-      'Form Data': JSON.stringify(formDataToStore),
-      'Last Updated': new Date().toISOString(),
-      Remarks: formDataToStore.Remarks ?? existingApplication['Remarks'] ?? '',
-    };
+    const updatedData = buildPromotedApplicationRecord(
+      existingApplication,
+      formDataToStore,
+      resolvedPromoted,
+      {
+        'Last Updated': new Date().toISOString(),
+      }
+    );
 
     await n8nClient.postLoanApplication(updatedData, {
       strictWriteAck: false,
@@ -254,37 +247,37 @@ export class LoanWorkflowService {
       options.metadata?.formConfigVersion ??
       await getLatestFormConfigVersion(options.clientId).catch(() => null);
 
-    // Create application data
-    const applicationData: any = {
+    const formDataInput = options.formData ?? {};
+    const promotedFields = resolveLoanApplicationPromotedFields(formDataInput);
+    const formDataToStore: Record<string, unknown> = {
+      ...formDataInput,
+      applicantName: options.applicantName || promotedFields.applicantName,
+      productId: options.productId || promotedFields.productId,
+      requestedLoanAmount: options.requestedLoanAmount ?? promotedFields.requestedLoanAmount,
+    };
+    const resolvedPromoted = resolveLoanApplicationPromotedFields(formDataToStore);
+
+    const applicationData = buildPromotedApplicationRecord({}, formDataToStore, resolvedPromoted, {
       id: applicationId,
       'File ID': fileId,
       Client: options.clientId,
-      'Applicant Name': options.applicantName || '',
-      'Loan Product': options.productId || '',
-      'Requested Loan Amount':
-        options.requestedLoanAmount !== undefined &&
-        options.requestedLoanAmount !== null &&
-        String(options.requestedLoanAmount).trim() !== ''
-          ? String(options.requestedLoanAmount)
-          : '',
       Status: status,
       'Creation Date': new Date().toISOString().split('T')[0],
       'Last Updated': new Date().toISOString(),
-      // Full form data (row-wise) from controller; persist as-is
-      'Form Data': options.formData ? JSON.stringify(options.formData) : '',
       'Form Config Version': formConfigVersion || '',
-      Documents: options.documents || '',
       'Client Submission ID': options.clientSubmissionId || '',
       'Needs Attention': options.metadata?.needsAttention ? 'True' : 'False',
       'Validation Warnings': options.metadata?.validationWarnings?.length
         ? JSON.stringify(options.metadata.validationWarnings)
         : '',
-      Remarks: options.formData?.Remarks ?? '',
-    };
+    });
 
-    // Add submitted date if not a draft
     if (!options.saveAsDraft) {
       applicationData['Submitted Date'] = new Date().toISOString().split('T')[0];
+    }
+
+    if (options.documents) {
+      applicationData.Documents = options.documents;
     }
 
     // Create application via Loan Files webhook

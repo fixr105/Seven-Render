@@ -5,7 +5,7 @@
 
 import fetch from 'node-fetch';
 
-const WEBHOOK_URL = process.env.N8N_POST_LOAN_PRODUCTS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/loanproducts';
+const WEBHOOK_URL = process.env.N8N_POST_LOAN_PRODUCTS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/loanproducts1';
 
 // Loan products to create
 const loanProducts = [

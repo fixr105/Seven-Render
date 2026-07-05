@@ -1,6 +1,6 @@
 Column Name,Airtable Field Type,Required,Lookup Key,Form Data Key,Auto-fill Stage,Description
 Client ID,Single line text,Yes,Yes,dealer.linkedClientId,Dealer,Foreign key to Clients.Client ID. Primary key used by GET /client/kyc after login resolves clientId from JWT.
-Login Email,Email,Yes,Yes (fallback),dealer.loginEmail,Dealer,Fallback lookup when Client ID is missing. Must match the dealer User Account login email or Clients Contact Email/Phone.
+Login Email,Email,Yes,No,dealer.loginEmail,Dealer,Reference only — must match the logged-in dealer email. KYC lookup uses Client ID from Clients table only.
 Status,Single select (Active|Inactive|Pending KYC),Yes,No,,,Only Active rows are returned for auto-fill.
 KYC Verified,Checkbox,No,No,_meta.dealerKycVerified,Dealer,Whether dealer KYC has been verified by ops.
 KYC Verified Date,Date,No,No,_meta.dealerKycVerifiedDate,Dealer,Date KYC was last verified.

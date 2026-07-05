@@ -962,6 +962,42 @@ class ApiService {
   }
 
   /**
+   * Upload a document to OneDrive and return a share link for storage in Form Data / Documents.
+   */
+  async uploadDocument(input: {
+    file: Blob;
+    fileName: string;
+    fieldId: string;
+    loanApplicationId?: string;
+    folderPath?: string;
+  }): Promise<
+    ApiResponse<{
+      fieldId: string;
+      fileName: string;
+      shareLink: string;
+      fileId: string;
+      webUrl: string;
+    }>
+  > {
+    const formData = new FormData();
+    formData.append('file', input.file, input.fileName);
+    formData.append('fieldId', input.fieldId);
+    formData.append('fileName', input.fileName);
+    if (input.loanApplicationId) {
+      formData.append('loanApplicationId', input.loanApplicationId);
+    }
+    if (input.folderPath) {
+      formData.append('folderPath', input.folderPath);
+    }
+
+    return this.request('/documents/upload', {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  }
+
+  /**
    * Submit application for review
    */
   async submitApplication(

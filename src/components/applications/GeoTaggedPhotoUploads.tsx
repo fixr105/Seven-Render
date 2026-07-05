@@ -3,11 +3,12 @@ import { Button } from '../ui/Button';
 import {
   B2C_EV_GEO_PHOTO_SLOTS,
   captureGeolocation,
-  compressImageFile,
+  compressImageFileToBlob,
   type B2cEvGeoPhotoSlot,
 } from '../../lib/b2cEvGeoPhotos';
 import { ComplianceChecklist } from './ComplianceChecklist';
 import type { ComplianceItemId } from '../../lib/b2cEvCompliance';
+import { apiService } from '../../services/api';
 
 function readFieldValue(formData: Record<string, unknown>, key: string): string {
   const value = formData[key];
@@ -22,6 +23,8 @@ export interface GeoTaggedPhotoUploadsProps {
   requestingComplianceItemId: ComplianceItemId | null;
   onComplianceCheckboxChange: (key: string, checked: boolean) => void;
   onRequestFromKam: (itemId: ComplianceItemId) => void;
+  loanApplicationId?: string | null;
+  ensureDraftSaved?: () => Promise<string>;
 }
 
 export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
@@ -31,6 +34,8 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
   requestingComplianceItemId,
   onComplianceCheckboxChange,
   onRequestFromKam,
+  loanApplicationId,
+  ensureDraftSaved,
 }) => {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
@@ -58,14 +63,30 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
     setSlotError(null);
 
     try {
-      const [location, dataUrl] = await Promise.all([
+      const [location, imageBlob] = await Promise.all([
         captureGeolocation(),
-        compressImageFile(file),
+        compressImageFileToBlob(file),
       ]);
 
+      let applicationId = loanApplicationId?.trim() || '';
+      if (!applicationId && ensureDraftSaved) {
+        applicationId = await ensureDraftSaved();
+      }
+
+      const uploadResponse = await apiService.uploadDocument({
+        file: imageBlob,
+        fileName: file.name,
+        fieldId: slot.id,
+        loanApplicationId: applicationId || undefined,
+      });
+
+      if (!uploadResponse.success || !uploadResponse.data?.shareLink) {
+        throw new Error(uploadResponse.error || 'Failed to upload geo tagged photo');
+      }
+
       onBatchChange({
-        [slot.urlKey]: dataUrl,
-        [slot.fileNameKey]: file.name,
+        [slot.urlKey]: uploadResponse.data.shareLink,
+        [slot.fileNameKey]: uploadResponse.data.fileName || file.name,
         [slot.latitudeKey]: String(location.latitude),
         [slot.longitudeKey]: String(location.longitude),
         [slot.capturedAtKey]: new Date().toISOString(),

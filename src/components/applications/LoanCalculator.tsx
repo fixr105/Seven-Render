@@ -6,6 +6,7 @@ import {
   calculateLoanPreview,
   freezeLoanPreview,
   parseMoneyInput,
+  type LoanCalculatorSnapshot,
   type LoanFrozenValues,
   type LoanTenureMonths,
 } from '../../lib/loanCalculator';
@@ -23,7 +24,7 @@ function formatRupee(value: number): string {
 
 interface LoanCalculatorStage1Props {
   frozenValues: LoanFrozenValues | null;
-  onFreeze: (values: LoanFrozenValues) => void;
+  onFreeze: (values: LoanFrozenValues, snapshot: LoanCalculatorSnapshot) => void;
   onUnfreeze: () => void;
 }
 
@@ -49,7 +50,12 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   const preview = useMemo(() => calculateLoanPreview(inputs), [inputs]);
 
   const handleFreeze = () => {
-    onFreeze(freezeLoanPreview(preview));
+    onFreeze(freezeLoanPreview(preview), {
+      downpayment: inputs.upfrontPayment,
+      disbursementToDealer: inputs.disbursementToDealer,
+      invoiceValue: preview.invoiceValue,
+      emiAmount: preview.emiAmount,
+    });
   };
 
   const invoiceDisplay =
@@ -232,7 +238,10 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
 
 export interface LoanCalculatorProps {
   frozenValues: LoanFrozenValues | null;
-  onFrozenValuesChange: (values: LoanFrozenValues | null) => void;
+  onFrozenValuesChange: (
+    values: LoanFrozenValues | null,
+    snapshot?: LoanCalculatorSnapshot
+  ) => void;
 }
 
 /**
@@ -254,7 +263,7 @@ export const LoanCalculator: React.FC<LoanCalculatorProps> = ({
       </p>
       <LoanCalculatorStage1
         frozenValues={frozenValues}
-        onFreeze={(values) => onFrozenValuesChange(values)}
+        onFreeze={(values, snapshot) => onFrozenValuesChange(values, snapshot)}
         onUnfreeze={() => onFrozenValuesChange(null)}
       />
       <div className="border-t border-neutral-200 pt-8">

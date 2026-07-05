@@ -78,8 +78,8 @@ const webhookTests = [
     }
   },
   {
-    name: '6. FILEAUDITLOGGING (File Audit Log)',
-    url: `${BASE_URL}/FILEAUDITLOGGING`,
+    name: '6. Fileauditinglog1 (File Audit Log)',
+    url: `${BASE_URL}/Fileauditinglog1`,
     data: {
       id: 'AUDIT-TEST-' + Date.now(),
       'Log Entry ID': 'AUDIT-TEST-' + Date.now(),
@@ -135,8 +135,8 @@ const webhookTests = [
     }
   },
   {
-    name: '10. applications (Loan Applications)',
-    url: `${BASE_URL}/applications`,
+    name: '10. loanapplications1 (Loan Applications)',
+    url: `${BASE_URL}/loanapplications1`,
     data: {
       id: 'APP-TEST-' + Date.now(),
       'File ID': 'SF' + new Date().getFullYear() + String(Date.now()).slice(-6),
@@ -145,7 +145,7 @@ const webhookTests = [
       'Loan Product': 'Home Loan',
       'Requested Loan Amount': '5000000',
       'Documents': 'Aadhar, PAN, Salary Slip',
-      'Status': 'draft',
+      'Status': 'Submitted',
       'Assigned Credit Analyst': '',
       'Assigned NBFC': '',
       'Lender Decision Status': '',
@@ -176,8 +176,8 @@ const webhookTests = [
     }
   },
   {
-    name: '12. loadprod (Loan Products)',
-    url: `${BASE_URL}/loadprod`,
+    name: '12. loanproducts1 (Loan Products)',
+    url: `${BASE_URL}/loanproducts1`,
     data: {
       id: 'PROD-TEST-' + Date.now(),
       'Product ID': 'PROD-TEST-' + Date.now(),
@@ -188,8 +188,8 @@ const webhookTests = [
     }
   },
   {
-    name: '13. NBFC (NBFC Partners)',
-    url: `${BASE_URL}/NBFC`,
+    name: '13. NBFCPartners1 (NBFC Partners)',
+    url: `${BASE_URL}/NBFCPartners1`,
     data: {
       id: 'NBFC-TEST-' + Date.now(),
       'Lender ID': 'NBFC-TEST-' + Date.now(),
