@@ -782,13 +782,22 @@ export const B2CEvApplicationWizard: React.FC = () => {
         applicantName: formState.applicant_name,
         applicationId: draftId,
       });
-      const response = await apiService.createClientQuery(draftId, message);
+      const response = await apiService.createClientQuery(draftId, {
+        message,
+        requestKind: 'b2c_compliance',
+        itemId,
+      });
       if (!response.success) {
         throw new Error(response.error || 'Failed to send request to KAM');
       }
       const requestedAt = new Date().toISOString();
-      await persistDraft({ [item.requestedAtKey]: requestedAt });
-      updateFields({ [item.requestedAtKey]: requestedAt });
+      const queryId = response.data?.queryId || '';
+      const patch: Record<string, unknown> = { [item.requestedAtKey]: requestedAt };
+      if (queryId) {
+        patch[item.queryIdKey] = queryId;
+      }
+      await persistDraft(patch);
+      updateFields(patch);
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Failed to send request to KAM';
@@ -808,13 +817,21 @@ export const B2CEvApplicationWizard: React.FC = () => {
         applicantName: formState.applicant_name,
         applicationId: draftId,
       });
-      const response = await apiService.createClientQuery(draftId, message);
+      const response = await apiService.createClientQuery(draftId, {
+        message,
+        requestKind: 'b2c_do',
+      });
       if (!response.success) {
         throw new Error(response.error || 'Failed to send DO request to KAM');
       }
       const requestedAt = new Date().toISOString();
-      await persistDraft({ '_meta.doRequest.requestedAt': requestedAt });
-      updateFields({ '_meta.doRequest.requestedAt': requestedAt });
+      const queryId = response.data?.queryId || '';
+      const patch: Record<string, unknown> = { '_meta.doRequest.requestedAt': requestedAt };
+      if (queryId) {
+        patch['_meta.doRequest.queryId'] = queryId;
+      }
+      await persistDraft(patch);
+      updateFields(patch);
       advanceStep();
     } catch (error: unknown) {
       const message =

@@ -18,8 +18,8 @@ Maps backend POST routes to `apiService` methods and UI usage. Updated as part o
 | `POST /loan-applications/:id/form` | `updateApplicationForm` | NewApplication (draft resume) | Fixed |
 | `POST /loan-applications/:id/submit` | `submitApplication` | NewApplication (draft resume) | Fixed |
 | `POST /loan-applications/:id/withdraw` | `withdrawApplication` | ApplicationDetail | Fixed |
-| `POST /loan-applications/:id/queries` | `createClientQuery` | ApplicationDetail | Fixed |
-| `POST /loan-applications/:id/queries/:queryId/reply` | `replyToQuery` | ApplicationDetail | OK |
+| `POST /loan-applications/:id/queries` | `createClientQuery` | ApplicationDetail, B2CEvApplicationWizard (stage 6 compliance/DO) | Fixed — typed `requestKind`/`itemId`, returns `queryId` |
+| `POST /loan-applications/:id/queries/:queryId/reply` | `replyToQuery` | ApplicationDetail | OK — supports optional `b2cFulfillment` for KAM compliance/DO actions in query threads |
 | `POST /loan-applications/:id/queries/:queryId/resolve` | `resolveQuery` | ApplicationDetail | OK |
 | **KAM** | | | |
 | `POST /kam/clients` | `createClient` | Clients | OK |

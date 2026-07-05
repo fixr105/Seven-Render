@@ -596,7 +596,10 @@ describe('B2CEvApplicationWizard submit gating', () => {
         formData: completeFormData,
       },
     });
-    (apiService.createClientQuery as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+    (apiService.createClientQuery as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { queryId: 'QUERY-VKYC-1' },
+    });
 
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
@@ -614,11 +617,18 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await user.click(screen.getByTestId('compliance-request-kam-vkyc'));
 
     await waitFor(() => {
-      expect(apiService.createClientQuery).toHaveBeenCalled();
+      expect(apiService.createClientQuery).toHaveBeenCalledWith(
+        'draft-geo',
+        expect.objectContaining({
+          requestKind: 'b2c_compliance',
+          itemId: 'vkyc',
+        })
+      );
       expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
         'draft-geo',
         expect.objectContaining({
           '_meta.kamRequests.vkyc.requestedAt': expect.any(String),
+          '_meta.kamRequests.vkyc.queryId': 'QUERY-VKYC-1',
         })
       );
     });
@@ -705,7 +715,10 @@ describe('B2CEvApplicationWizard submit gating', () => {
         formData: completeFormData,
       },
     });
-    (apiService.createClientQuery as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+    (apiService.createClientQuery as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { queryId: 'QUERY-DO-1' },
+    });
 
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
@@ -723,11 +736,15 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await user.click(screen.getByTestId('b2c-wizard-request-do'));
 
     await waitFor(() => {
-      expect(apiService.createClientQuery).toHaveBeenCalled();
+      expect(apiService.createClientQuery).toHaveBeenCalledWith(
+        'draft-geo',
+        expect.objectContaining({ requestKind: 'b2c_do' })
+      );
       expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
         'draft-geo',
         expect.objectContaining({
           '_meta.doRequest.requestedAt': expect.any(String),
+          '_meta.doRequest.queryId': 'QUERY-DO-1',
         })
       );
     });

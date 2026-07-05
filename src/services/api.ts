@@ -112,6 +112,21 @@ export interface DashboardSummary {
     applicationId?: string;
     message: string;
   }>;
+  ledgerDisputes?: Array<{
+    id: string;
+    client: string;
+    amount: number;
+    status: string;
+  }>;
+  pendingB2cActions?: Array<{
+    applicationId: string;
+    fileId: string;
+    applicantName?: string;
+    type: 'compliance' | 'do';
+    itemId?: 'vkyc' | 'loanAgreement' | 'enach';
+    label: string;
+    requestedAt: string;
+  }>;
   payoutRequests?: Array<{
     id: string;
     amount: number;
@@ -869,10 +884,17 @@ class ApiService {
   /**
    * Create a new query (client only - client raises query to KAM)
    */
-  async createClientQuery(applicationId: string, message: string): Promise<ApiResponse> {
-    return this.request(`/loan-applications/${applicationId}/queries`, {
+  async createClientQuery(
+    applicationId: string,
+    payload: {
+      message: string;
+      requestKind?: 'b2c_compliance' | 'b2c_do';
+      itemId?: 'vkyc' | 'loanAgreement' | 'enach';
+    }
+  ): Promise<ApiResponse<{ queryId: string }>> {
+    return this.request<{ queryId: string }>(`/loan-applications/${applicationId}/queries`, {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify(payload),
     });
   }
 
@@ -882,11 +904,21 @@ class ApiService {
   async replyToQuery(
     applicationId: string,
     queryId: string,
-    message: string
+    message: string,
+    options?: {
+      b2cFulfillment?: {
+        action: 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill';
+        itemId?: 'vkyc' | 'loanAgreement' | 'enach';
+      };
+    }
   ): Promise<ApiResponse> {
     return this.request(`/loan-applications/${applicationId}/queries/${queryId}/reply`, {
       method: 'POST',
-      body: JSON.stringify({ message, reply: message }),
+      body: JSON.stringify({
+        message,
+        reply: message,
+        b2cFulfillment: options?.b2cFulfillment,
+      }),
     });
   }
 
@@ -1411,6 +1443,66 @@ class ApiService {
     return this.request<string[]>(`/kam/clients/${clientId}/assigned-products`, {
       method: 'PUT',
       body: JSON.stringify({ productIds }),
+    });
+  }
+
+  async getKAMClientKyc(clientId: string): Promise<ApiResponse<ClientKycDealerProfile>> {
+    return this.request<ClientKycDealerProfile>(`/kam/clients/${clientId}/kyc`);
+  }
+
+  async getKAMClientFormConfig(
+    clientId: string,
+    productId: string
+  ): Promise<ApiResponse<Array<Record<string, unknown>>>> {
+    return this.request<Array<Record<string, unknown>>>(
+      `/kam/clients/${clientId}/form-config?productId=${encodeURIComponent(productId)}`
+    );
+  }
+
+  async getKAMClientConfiguredProducts(clientId: string): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>(`/kam/clients/${clientId}/configured-products`);
+  }
+
+  async getKAMClientVehicles(
+    clientId: string,
+    productId: string
+  ): Promise<ApiResponse<Array<Record<string, unknown>>>> {
+    return this.request<Array<Record<string, unknown>>>(
+      `/kam/clients/${clientId}/vehicles?productId=${encodeURIComponent(productId)}`
+    );
+  }
+
+  async getKAMClientLinkPool(clientId: string): Promise<ApiResponse<Array<string | ClientLinkPoolItem>>> {
+    return this.request<Array<string | ClientLinkPoolItem>>(`/kam/clients/${clientId}/link-pool`);
+  }
+
+  async kamPanLookup(
+    applicationId: string,
+    body: Record<string, unknown>
+  ): Promise<ApiResponse<{ formDataPatch: Record<string, string>; lookupAt: string }>> {
+    return this.request(`/kam/loan-applications/${applicationId}/pan-lookup`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async kamB2cComplianceAction(
+    applicationId: string,
+    body: { itemId: 'vkyc' | 'loanAgreement' | 'enach'; action: 'fulfill' | 'unmark' | 'clear_request' }
+  ): Promise<ApiResponse> {
+    return this.request(`/kam/loan-applications/${applicationId}/b2c/compliance`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async kamB2cDoRequestAction(
+    applicationId: string,
+    body: { action: 'fulfill'; notes?: string }
+  ): Promise<ApiResponse> {
+    return this.request(`/kam/loan-applications/${applicationId}/b2c/do-request`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     });
   }
 

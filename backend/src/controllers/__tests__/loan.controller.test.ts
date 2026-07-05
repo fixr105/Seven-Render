@@ -54,6 +54,7 @@ jest.mock('../../services/rbac/rbacFilter.service.js', () => ({
 jest.mock('../../services/queries/query.service.js', () => ({
   queryService: {
     createQueryReply: jest.fn(async () => {}),
+    resolveQuery: jest.fn(async () => {}),
   },
 }));
 
@@ -533,6 +534,65 @@ describe('LoanController - P0 Tests', () => {
         expect.objectContaining({
           Status: LoanStatus.PENDING_CREDIT_REVIEW,
         })
+      );
+    });
+  });
+
+  describe('replyToQuery — KAM B2C client query response', () => {
+    it('replies to client on client_query_b2c_compliance_vkyc (not credit_team)', async () => {
+      const { queryService } = await import('../../services/queries/query.service.js');
+      const kamUser: AuthUser = {
+        id: 'kam-1',
+        email: 'kam@test.local',
+        role: UserRole.KAM,
+        kamId: 'recKAM001',
+      };
+
+      mockRequest = {
+        user: kamUser,
+        params: { id: 'rec-app-1', queryId: 'QUERY-B2C-1' },
+        body: { message: 'VKYC completed' },
+      };
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [
+            {
+              id: 'rec-app-1',
+              'File ID': 'SF-B2C-1',
+              Client: 'CLIENT001',
+              Status: LoanStatus.UNDER_KAM_REVIEW,
+              'Form Data': JSON.stringify({ '_meta.formTemplate': 'b2c_ev_v1' }),
+            },
+          ];
+        }
+        if (tableName === 'File Auditing Log') {
+          return [
+            {
+              id: 'QUERY-B2C-1',
+              File: 'SF-B2C-1',
+              'Target User/Role': 'kam',
+              'Action/Event Type': 'client_query_b2c_compliance_vkyc',
+              Actor: 'client@test.local',
+            },
+          ];
+        }
+        return [];
+      });
+
+      await controller.replyToQuery(mockRequest as Request, mockResponse as Response);
+
+      expect(queryService.createQueryReply).toHaveBeenCalledWith(
+        'QUERY-B2C-1',
+        'SF-B2C-1',
+        'CLIENT001',
+        'kam@test.local',
+        'kam',
+        expect.any(String),
+        'client'
+      );
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true })
       );
     });
   });

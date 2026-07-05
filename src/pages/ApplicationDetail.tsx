@@ -22,6 +22,15 @@ import {
   applyApplicationStatusChange,
   statusRequiresDisbursementFields,
 } from '../lib/applicationStatusMutations';
+import { mergeFormDataPatch } from '../lib/mergeFormDataPatch';
+import { isB2cEvFormTemplate } from '../lib/b2cEvFormTemplate';
+import { B2cEvApplicationReview } from '../components/applications/review/B2cEvApplicationReview';
+import { B2cEvKamEditModal } from '../components/applications/review/B2cEvKamEditModal';
+import {
+  B2cClientQueryThreadActions,
+  getB2cThreadTitle,
+} from '../components/applications/queries/B2cClientQueryThreadActions';
+import { isUnresolvedB2cClientQuery, isResolvableB2cClientQuery } from '../lib/b2cEvQueryActions';
 
 const WITHDRAWABLE_CLIENT_STATUSES = new Set(['draft', 'under_kam_review', 'query_with_client']);
 
@@ -150,6 +159,7 @@ export const ApplicationDetail: React.FC = () => {
   const [applicationStatuses, setApplicationStatuses] = useState<Array<{ key: string; label: string }>>([]);
   const [loadingApplicationStatuses, setLoadingApplicationStatuses] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showB2cEditModal, setShowB2cEditModal] = useState(false);
   const [editFormData, setEditFormData] = useState<Record<string, string>>({});
   const [editRemarks, setEditRemarks] = useState('');
   const [editNotes, setEditNotes] = useState('');
@@ -565,7 +575,7 @@ export const ApplicationDetail: React.FC = () => {
     try {
       let response;
       if (userRole === 'client') {
-        response = await apiService.createClientQuery(id, queryMessage.trim());
+        response = await apiService.createClientQuery(id, { message: queryMessage.trim() });
       } else if (userRole === 'kam') {
         response = await apiService.raiseQueryToClient(id, {
           message: queryMessage.trim(),
@@ -767,6 +777,10 @@ export const ApplicationDetail: React.FC = () => {
 
   const handleOpenKamEdit = () => {
     const formDataToShow = parseApplicationFormData();
+    if (isB2cEvFormTemplate(formDataToShow)) {
+      setShowB2cEditModal(true);
+      return;
+    }
     const editable: Record<string, string> = {};
     Object.entries(formDataToShow).forEach(([key, value]) => {
       if (key.startsWith('_')) return;
@@ -782,10 +796,12 @@ export const ApplicationDetail: React.FC = () => {
     if (!id) return;
     setSubmittingKamEdit(true);
     try {
-      const formData: Record<string, unknown> = { ...editFormData };
+      const existingFormData = parseApplicationFormData();
+      const patch: Record<string, unknown> = { ...editFormData };
       if (editRemarks.trim()) {
-        formData.Remarks = editRemarks.trim();
+        patch.Remarks = editRemarks.trim();
       }
+      const formData = mergeFormDataPatch(existingFormData, patch);
       const response = await apiService.editApplication(id, {
         formData,
         notes: editNotes.trim() || undefined,
@@ -1521,18 +1537,34 @@ export const ApplicationDetail: React.FC = () => {
             </CardHeader>
             <CardContent>
               {(() => {
+                const formDataToShow = parseApplicationFormData();
+                if (isB2cEvFormTemplate(formDataToShow) && id) {
+                  const appRecord = application as unknown as Record<string, unknown>;
+                  const clientId =
+                    String(appRecord.client ?? appRecord.clientId ?? appRecord['Client'] ?? '').trim() ||
+                    undefined;
+                  return (
+                    <B2cEvApplicationReview
+                      formData={formDataToShow}
+                      applicationId={id}
+                      clientId={clientId}
+                      userRole={userRole}
+                      onUpdated={() => void fetchApplicationDetails()}
+                    />
+                  );
+                }
                 const rawForm = (application as unknown as Record<string, unknown>).form_data ?? (application as unknown as Record<string, unknown>).formData ?? (application as unknown as Record<string, unknown>)['Form Data'];
-                let formDataToShow: Record<string, unknown> = {};
-                if (rawForm != null) {
+                let legacyFormData: Record<string, unknown> = formDataToShow;
+                if (rawForm != null && Object.keys(formDataToShow).length === 0) {
                   if (typeof rawForm === 'string') {
                     try {
                       const parsed = JSON.parse(rawForm);
-                      formDataToShow = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
+                      legacyFormData = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
                     } catch {
-                      formDataToShow = {};
+                      legacyFormData = {};
                     }
                   } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
-                    formDataToShow = rawForm as Record<string, unknown>;
+                    legacyFormData = rawForm as Record<string, unknown>;
                   }
                 }
                 const getDisplayKey = (k: string) => {
@@ -1541,19 +1573,19 @@ export const ApplicationDetail: React.FC = () => {
                   if (/^field-/.test(k) && fieldIdToLabel[k]) return fieldIdToLabel[k];
                   return k.replace(/_/g, ' ');
                 };
-                const entries = Object.entries(formDataToShow).filter(
+                const entries = Object.entries(legacyFormData).filter(
                   ([k]) =>
                     k !== '_documentsFolderLink' &&
                     k !== '_documentsFolderShareAcknowledged' &&
                     k !== 'Remarks'
                 );
-                const folderLink = formDataToShow._documentsFolderLink;
-                const folderShareAck = formDataToShow._documentsFolderShareAcknowledged;
+                const folderLink = legacyFormData._documentsFolderLink;
+                const folderShareAck = legacyFormData._documentsFolderShareAcknowledged;
                 const folderShareAckYes =
                   folderShareAck === true ||
                   folderShareAck === 'true' ||
                   folderShareAck === 'yes';
-                return (!formDataToShow || Object.keys(formDataToShow).length === 0) ? (
+                return (!legacyFormData || Object.keys(legacyFormData).length === 0) ? (
                   <p className="text-center text-neutral-500 py-6">{t('pages.applicationDetail.noFormData')}</p>
                 ) : (
                   <div className="space-y-3">
@@ -1613,6 +1645,20 @@ export const ApplicationDetail: React.FC = () => {
                 <p className="text-center text-neutral-500 py-8">{t('pages.applicationDetail.noQueries')}</p>
               ) : (
                 <div className="space-y-6">
+                  {/* Alert for unresolved B2C client requests (KAM) */}
+                  {userRole === 'kam' && (() => {
+                    const pendingB2c = queries.filter((q: any) => isUnresolvedB2cClientQuery(q));
+                    return pendingB2c.length > 0 ? (
+                      <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4">
+                        <p className="text-sm font-medium text-neutral-900">
+                          {pendingB2c.length} client {pendingB2c.length === 1 ? 'request' : 'requests'} awaiting your response
+                        </p>
+                        <p className="mt-1 text-xs text-neutral-600">
+                          Use the actions below each request thread to mark compliance or DO as processed.
+                        </p>
+                      </div>
+                    ) : null;
+                  })()}
                   {/* Alert for unresolved credit queries (KAM) */}
                   {userRole === 'kam' && (() => {
                     const awaitingKamFromCredit = queries.filter((q: any) => {
@@ -1710,15 +1756,23 @@ export const ApplicationDetail: React.FC = () => {
                       })),
                     ].sort((a, b) => (a.timestamp && b.timestamp ? new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() : 0));
 
+                    const b2cThreadTitle = getB2cThreadTitle(rootQuery);
+
                     return (
                     <div
                       key={thread.rootQuery.id}
                       className={`border rounded-lg p-4 ${
                         awaitingKAMResponse && userRole === 'credit_team'
                           ? 'border-warning bg-warning/5'
+                          : isUnresolvedB2cClientQuery(thread) && userRole === 'kam'
+                            ? 'border-warning bg-warning/5'
                           : 'border-neutral-200'
                       }`}
+                      data-testid={`query-thread-${thread.rootQuery.id}`}
                     >
+                      {b2cThreadTitle && (
+                        <p className="mb-2 text-sm font-semibold text-neutral-900">{b2cThreadTitle}</p>
+                      )}
                       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <span className="text-xs text-neutral-500">
                           {t('pages.applicationDetail.toRecipient')}: {rootQuery.targetUserRole === 'client' ? t('roles.client') : rootQuery.targetUserRole === 'kam' ? t('roles.kam') : (rootQuery.targetUserRole || '—')}
@@ -1740,7 +1794,10 @@ export const ApplicationDetail: React.FC = () => {
                             actor &&
                             actor.includes('@') &&
                             actorLower === userEmail;
-                          const canResolve = isAuthor;
+                          const canStaffResolveB2c =
+                            (userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') &&
+                            isResolvableB2cClientQuery(rootQuery);
+                          const canResolve = isAuthor || canStaffResolveB2c;
                           return canResolve ? (
                             <Button
                               variant="secondary"
@@ -1754,6 +1811,19 @@ export const ApplicationDetail: React.FC = () => {
                           ) : null;
                         })()}
                       </div>
+
+                      <B2cClientQueryThreadActions
+                        applicationId={id!}
+                        queryId={thread.rootQuery.id}
+                        rootQuery={rootQuery}
+                        formData={parseApplicationFormData()}
+                        userRole={userRole}
+                        isResolved={thread.isResolved}
+                        onUpdated={() => {
+                          void fetchQueries();
+                          void fetchApplicationDetails();
+                        }}
+                      />
 
                       {/* Chat thread: sequential messages */}
                       <div className="space-y-3 mb-4">
@@ -2494,8 +2564,8 @@ export const ApplicationDetail: React.FC = () => {
         </ModalFooter>
       </Modal>
 
-      {/* KAM Edit Application Modal */}
-      {canEditApplication && (
+      {/* KAM Edit Application Modal (legacy forms) */}
+      {canEditApplication && !isB2cEvFormTemplate(parseApplicationFormData()) && (
         <Modal
           isOpen={showEditModal}
           onClose={() => setShowEditModal(false)}
@@ -2549,6 +2619,17 @@ export const ApplicationDetail: React.FC = () => {
             </Button>
           </ModalFooter>
         </Modal>
+      )}
+
+      {canEditApplication && id && isB2cEvFormTemplate(parseApplicationFormData()) && (
+        <B2cEvKamEditModal
+          isOpen={showB2cEditModal}
+          applicationId={id}
+          formData={parseApplicationFormData()}
+          remarks={String(parseApplicationFormData().Remarks ?? (application as { remarks?: string })?.remarks ?? '')}
+          onClose={() => setShowB2cEditModal(false)}
+          onSaved={() => void Promise.all([fetchApplicationDetails(), fetchStatusHistory()])}
+        />
       )}
 
       <Modal

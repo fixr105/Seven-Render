@@ -9,7 +9,7 @@ Operational checklist for Key Account Managers from client setup through forward
 | Onboard client | Clients → Onboard Client → `POST /kam/clients` | Yes |
 | Enable modules | Clients → Modules → `PATCH /kam/clients/:id/modules` | Yes |
 | Assign loan products | Clients → Assign Products → `PUT /kam/clients/:id/assigned-products` | Yes |
-| Form configuration | Credit Team owns `/form-configuration`; KAM uses product assignment | By design |
+| Form configuration | Credit Team owns `/form-configuration`; KAM views read-only config on Clients → Form config (`GET /kam/clients/:id/form-config`) | Yes |
 | Client login smoke | Client sees assigned products on New Application | Manual / e2e |
 
 ## Phase 1 — Triage & monitoring
@@ -19,6 +19,8 @@ Operational checklist for Key Account Managers from client setup through forward
 | Dashboard counts | `GET /kam/dashboard` | Yes |
 | Pending review alerts | KAM Dashboard action center | Yes |
 | Pending credit queries | Dashboard pending-queries card | Yes |
+| B2C EV pending actions | Dashboard B2C actions card (`pendingB2cActions`) | Yes |
+| Ledger disputes | Dashboard ledger disputes card (`ledgerDisputes`) | Yes |
 | Applications list + filters | Applications page + URL filters | Yes |
 | Notifications | Bell + `useNotifications` | Depends on n8n webhook |
 | Open application detail | List / dashboard links | Yes |
@@ -29,6 +31,9 @@ Operational checklist for Key Account Managers from client setup through forward
 |--------|----------|----------|
 | Application summary | Application detail | Yes |
 | Form data / checklist | Application Information card | Yes |
+| B2C EV staged review | Application Detail → `B2cEvApplicationReview` (geo photos, compliance, CIBIL) | Yes |
+| View client dealer KYC | Application Detail → Dealer KYC panel (`GET /kam/clients/:id/kyc`) | Yes |
+| Fulfill B2C compliance / DO | Application Detail → Mark complete / Mark DO processed | Yes |
 | Documents | Documents list (view/download) | Yes |
 | AI summary | Generate AI Summary button | Yes |
 | Status history | Status timeline / audit log | Yes |

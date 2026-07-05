@@ -341,7 +341,8 @@ export class QueryService {
 
   /**
    * Resolve a query and create resolution log entry.
-   * Only the query author can resolve, regardless of role.
+   * Query author can always resolve. KAM/credit/admin may resolve B2C client→KAM queries
+   * when RBAC access was already verified by the controller.
    */
   async resolveQuery(
     queryId: string,
@@ -349,7 +350,7 @@ export class QueryService {
     clientId: string,
     resolvedBy: string,
     resolutionMessage?: string,
-    _resolverRole?: string
+    resolverRole?: string
   ): Promise<void> {
     const auditLogs = await n8nClient.fetchTable('File Auditing Log');
     const query = auditLogs.find((q: any) => q.id === queryId);
@@ -360,7 +361,18 @@ export class QueryService {
 
     const queryActor = (query.Actor || '').trim().toLowerCase();
     const resolverEmail = (resolvedBy || '').trim().toLowerCase();
-    if (queryActor && resolverEmail !== queryActor) {
+    const isAuthor = !queryActor || resolverEmail === queryActor;
+
+    const { isResolvableB2cClientQuery, canPerformB2cFulfillment } = await import(
+      './b2cEvQueryFulfillment.service.js'
+    );
+    const actionEventType = query['Action/Event Type'] || query.actionEventType || '';
+    const targetUserRole = query['Target User/Role'] || query.targetUserRole || '';
+    const canStaffResolveB2c =
+      canPerformB2cFulfillment(resolverRole || '') &&
+      isResolvableB2cClientQuery(actionEventType, targetUserRole);
+
+    if (!isAuthor && !canStaffResolveB2c) {
       throw new Error('Only the query author can resolve this query');
     }
 

@@ -22,7 +22,15 @@ router.get('/clients/:id/assigned-products', kamController.getAssignedProducts.b
 router.put('/clients/:id/assigned-products', kamController.assignProductsToClient.bind(kamController));
 router.get('/clients/:id/form-mappings', kamController.getFormMappings.bind(kamController));
 router.post('/clients/:id/form-mappings', kamController.createFormMapping.bind(kamController));
+router.get('/clients/:id/kyc', kamController.getClientKyc.bind(kamController));
+router.get('/clients/:id/form-config', kamController.getClientFormConfig.bind(kamController));
+router.get('/clients/:id/configured-products', kamController.getClientConfiguredProducts.bind(kamController));
+router.get('/clients/:id/vehicles', kamController.getClientVehicles.bind(kamController));
+router.get('/clients/:id/link-pool', kamController.getClientLinkPool.bind(kamController));
 router.get('/loan-applications', kamController.listApplications.bind(kamController));
+router.post('/loan-applications/:id/pan-lookup', kamController.lookupApplicationPan.bind(kamController));
+router.post('/loan-applications/:id/b2c/compliance', kamController.b2cComplianceAction.bind(kamController));
+router.post('/loan-applications/:id/b2c/do-request', kamController.b2cDoRequestAction.bind(kamController));
 router.post('/loan-applications/:id/edit', kamController.editApplication.bind(kamController));
 router.post('/loan-applications/:id/status', kamController.updateStatus.bind(kamController));
 router.post('/loan-applications/:id/queries', kamController.raiseQuery.bind(kamController));

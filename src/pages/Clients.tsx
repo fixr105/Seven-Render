@@ -10,7 +10,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Eye, UserPlus, RefreshCw, Copy, Check, Package, Settings } from 'lucide-react';
+import { Eye, UserPlus, RefreshCw, Copy, Check, Package, Settings, FileText } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useApplications } from '../hooks/useApplications';
 import { useNotifications } from '../hooks/useNotifications';
@@ -84,6 +84,10 @@ export const Clients: React.FC = () => {
   const [commissionRateEdit, setCommissionRateEdit] = useState('1.0');
   const [savingProducts, setSavingProducts] = useState(false);
   const [savingModules, setSavingModules] = useState(false);
+  const [showFormConfigModal, setShowFormConfigModal] = useState(false);
+  const [formConfigProductId, setFormConfigProductId] = useState('');
+  const [formConfigCategories, setFormConfigCategories] = useState<Array<Record<string, unknown>>>([]);
+  const [loadingFormConfig, setLoadingFormConfig] = useState(false);
 
   const MODULE_OPTIONS = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'];
 
@@ -251,6 +255,68 @@ export const Clients: React.FC = () => {
       console.warn('[Clients] Assign KAM modal opened but user is not credit_team:', userRole);
     }
   }, [showAssignModal, userRole]);
+
+  const openFormConfigModal = async (client: Client) => {
+    setSelectedClient(client);
+    setShowFormConfigModal(true);
+    setFormConfigProductId('');
+    setFormConfigCategories([]);
+    try {
+      const [productsRes, assignedRes] = await Promise.all([
+        apiService.listLoanProducts(true),
+        userRole === 'kam'
+          ? apiService.getKAMClientConfiguredProducts(client.id)
+          : apiService.getClientAssignedProducts(client.id),
+      ]);
+      if (productsRes.success && productsRes.data) {
+        const assignedIds = assignedRes.success && assignedRes.data ? assignedRes.data : [];
+        const allProducts = productsRes.data.map(
+          (p: { productId?: string; id?: string; productName?: string; name?: string }) => ({
+            id: String(p.productId ?? p.id ?? ''),
+            name: String(p.productName ?? p.name ?? p.id),
+          })
+        );
+        setLoanProducts(
+          assignedIds.length > 0
+            ? allProducts.filter((p) => assignedIds.includes(p.id))
+            : allProducts
+        );
+      }
+      if (assignedRes.success && assignedRes.data?.length) {
+        const firstProductId = String(assignedRes.data[0]);
+        setFormConfigProductId(firstProductId);
+        await loadFormConfigForClient(client.id, firstProductId);
+      }
+    } catch {
+      setFormConfigCategories([]);
+    }
+  };
+
+  const loadFormConfigForClient = async (clientId: string, productId: string) => {
+    if (!productId) {
+      setFormConfigCategories([]);
+      return;
+    }
+    setLoadingFormConfig(true);
+    try {
+      const res =
+        userRole === 'kam'
+          ? await apiService.getKAMClientFormConfig(clientId, productId)
+          : await apiService.getProductFormConfigEdit(productId);
+      if (res.success && res.data) {
+        const categories = Array.isArray(res.data)
+          ? res.data
+          : (res.data as { categories?: Array<Record<string, unknown>> }).categories ?? [];
+        setFormConfigCategories(categories as Array<Record<string, unknown>>);
+      } else {
+        setFormConfigCategories([]);
+      }
+    } catch {
+      setFormConfigCategories([]);
+    } finally {
+      setLoadingFormConfig(false);
+    }
+  };
 
   const openProductsModal = async (client: Client) => {
     setSelectedClient(client);
@@ -424,6 +490,16 @@ export const Clients: React.FC = () => {
           >
             {t('common.viewFiles')}
           </Button>
+          {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={FileText}
+              onClick={() => void openFormConfigModal(row)}
+            >
+              Form config
+            </Button>
+          )}
           {userRole === 'kam' && (
             <>
               <Button
@@ -957,6 +1033,70 @@ export const Clients: React.FC = () => {
           </Button>
           <Button variant="primary" onClick={handleSaveModules} loading={savingModules} disabled={savingModules}>
             Save
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        isOpen={showFormConfigModal}
+        onClose={() => setShowFormConfigModal(false)}
+        size="lg"
+      >
+        <ModalHeader onClose={() => setShowFormConfigModal(false)}>
+          Form configuration (read-only)
+        </ModalHeader>
+        <ModalBody>
+          <p className="mb-4 text-sm text-neutral-600">
+            Client: <strong>{selectedClient?.company_name}</strong>
+          </p>
+          <Select
+            label="Loan product"
+            options={[
+              { value: '', label: 'Select product' },
+              ...loanProducts.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+            value={formConfigProductId}
+            onChange={(e) => {
+              const productId = e.target.value;
+              setFormConfigProductId(productId);
+              if (selectedClient && productId) {
+                void loadFormConfigForClient(selectedClient.id, productId);
+              }
+            }}
+          />
+          <div className="mt-4 max-h-80 space-y-4 overflow-y-auto">
+            {loadingFormConfig ? (
+              <p className="text-sm text-neutral-500">Loading form config…</p>
+            ) : formConfigCategories.length === 0 ? (
+              <p className="text-sm text-neutral-500">No form categories for this product.</p>
+            ) : (
+              formConfigCategories.map((category, index) => {
+                const name = String(
+                  category.categoryName ?? category['Category Name'] ?? category.categoryId ?? `Category ${index + 1}`
+                );
+                const fields = (category.fields as Array<Record<string, unknown>> | undefined) ?? [];
+                return (
+                  <div key={`${name}-${index}`} className="rounded-lg border border-neutral-200 p-3">
+                    <p className="text-sm font-semibold text-neutral-900">{name}</p>
+                    <ul className="mt-2 space-y-1">
+                      {fields.map((field, fieldIndex) => (
+                        <li key={fieldIndex} className="text-sm text-neutral-600">
+                          {String(field.label ?? field.fieldLabel ?? field['Field Label'] ?? field.fieldId ?? 'Field')}
+                          {(field.isRequired || field.isMandatory || field['Is Mandatory'] === 'true') && (
+                            <span className="ml-1 text-error">*</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowFormConfigModal(false)}>
+            {t('common.cancel')}
           </Button>
         </ModalFooter>
       </Modal>

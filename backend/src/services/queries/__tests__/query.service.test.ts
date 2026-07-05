@@ -69,6 +69,26 @@ describe('QueryService.resolveQuery', () => {
     }));
   });
 
+  it('allows KAM to resolve B2C client query targeted at kam', async () => {
+    mockFetchTable.mockResolvedValue([
+      {
+        ...mockQuery,
+        'Action/Event Type': 'client_query_b2c_compliance_vkyc',
+      },
+    ]);
+
+    await queryService.resolveQuery(
+      'QUERY-123',
+      'file-1',
+      'client-1',
+      'kam@example.com',
+      'Fulfilled',
+      'kam'
+    );
+
+    expect(mockPostFileAuditLog).toHaveBeenCalledTimes(2);
+  });
+
   it('throws when KAM tries to resolve Credit\'s query (not author)', async () => {
     mockFetchTable.mockResolvedValue([{ ...mockQuery, Actor: 'credit@example.com' }]);
 

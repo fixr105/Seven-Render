@@ -244,8 +244,13 @@ export function createInitialB2cEvFormData(): Record<string, unknown> {
     'compliance.loanAgreementSigned': false,
     'compliance.enachDone': false,
     '_meta.kamRequests.vkyc.requestedAt': '',
+    '_meta.kamRequests.vkyc.queryId': '',
     '_meta.kamRequests.loanAgreement.requestedAt': '',
+    '_meta.kamRequests.loanAgreement.queryId': '',
     '_meta.kamRequests.enach.requestedAt': '',
+    '_meta.kamRequests.enach.queryId': '',
     '_meta.doRequest.requestedAt': '',
+    '_meta.doRequest.queryId': '',
+    '_meta.doRequest.fulfilledAt': '',
   };
 }

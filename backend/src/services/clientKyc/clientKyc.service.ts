@@ -124,17 +124,23 @@ export function findClientKycRecord(
 
 export async function getClientKycForUser(user: AuthUser): Promise<ClientKycDealerProfile | null> {
   const { clientId } = await resolveClientRecord(user);
+  return getClientKycForClientId(clientId);
+}
+
+export async function getClientKycForClientId(clientId: string): Promise<ClientKycDealerProfile | null> {
+  const normalizedClientId = clientId.trim();
+  if (!normalizedClientId) return null;
 
   const records = (await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.CLIENT_KYC, true)) as Record<
     string,
     unknown
   >[];
 
-  const match = findClientKycRecord(records, clientId);
+  const match = findClientKycRecord(records, normalizedClientId);
   if (!match) return null;
 
   const profile = normalizeClientKycRecord(match);
-  if (profile.clientId !== clientId) return null;
+  if (profile.clientId !== normalizedClientId) return null;
 
   return profile;
 }

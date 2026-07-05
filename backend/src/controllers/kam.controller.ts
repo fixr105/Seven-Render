@@ -21,6 +21,13 @@ import {
   assertValidStatusTransition,
   KamAccessError,
 } from '../utils/kamApplicationAccess.js';
+import {
+  assertKAMCanAccessClient,
+  KamClientAccessError,
+  resolveBusinessClientId,
+  syntheticClientAuthUser,
+} from '../utils/kamClientAccess.js';
+import { scanApplicationsForPendingB2cActions } from '../services/b2cEv/b2cEvKamActions.service.js';
 
 /** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
 const FORWARDED_STATUSES: string[] = [
@@ -295,6 +302,9 @@ export class KAMController {
           filesByStage,
           pendingQuestionsFromCredit: pendingQuestions,
           ledgerDisputes,
+          pendingB2cActions: scanApplicationsForPendingB2cActions(
+            clientApplications as Record<string, unknown>[]
+          ),
         },
       });
     } catch (error: any) {
@@ -1240,15 +1250,30 @@ export class KAMController {
         return;
       }
 
-      // Transform form data to checklist format when provided
       let formDataToStore: string | undefined = application['Form Data'];
       if (formData && Object.keys(formData).length > 0) {
-        const productId = application['Loan Product'] || application.loanProduct || '';
-        const { transformFormDataToChecklistFormat } = await import('../services/formConfig/formDataToChecklistTransformer.js');
-        const transformed = productId
-          ? await transformFormDataToChecklistFormat(productId, formData as Record<string, unknown>)
-          : formData;
-        formDataToStore = JSON.stringify(transformed);
+        const { mergeFormDataPatch, parseFormDataField } = await import('../utils/mergeFormDataPatch.js');
+        const { isB2cEvFormTemplate } = await import(
+          '../services/validation/b2cEvFormValidation.service.js'
+        );
+        const existingFormData = parseFormDataField(application['Form Data']);
+        const mergedFormData = mergeFormDataPatch(
+          existingFormData,
+          formData as Record<string, unknown>
+        );
+
+        if (isB2cEvFormTemplate(existingFormData) || isB2cEvFormTemplate(mergedFormData)) {
+          formDataToStore = JSON.stringify(mergedFormData);
+        } else {
+          const productId = application['Loan Product'] || application.loanProduct || '';
+          const { transformFormDataToChecklistFormat } = await import(
+            '../services/formConfig/formDataToChecklistTransformer.js'
+          );
+          const transformed = productId
+            ? await transformFormDataToChecklistFormat(productId, mergedFormData)
+            : mergedFormData;
+          formDataToStore = JSON.stringify(transformed);
+        }
       }
 
       const remarks =
@@ -1569,6 +1594,319 @@ export class KAMController {
         success: false,
         error: error.message || 'Failed to update status',
       });
+    }
+  }
+
+  /**
+   * GET /kam/clients/:id/kyc
+   */
+  async getClientKyc(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const client = await assertKAMCanAccessClient(req.user, req.params.id);
+      const clientId = resolveBusinessClientId(client);
+      const { getClientKycForClientId, clientKycToFormDataPatch } = await import(
+        '../services/clientKyc/clientKyc.service.js'
+      );
+      const profile = await getClientKycForClientId(clientId);
+      if (!profile) {
+        res.status(404).json({
+          success: false,
+          error: 'No active Client KYC record found for this client.',
+          code: 'CLIENT_KYC_NOT_FOUND',
+        });
+        return;
+      }
+      res.json({
+        success: true,
+        data: { ...profile, formDataPatch: clientKycToFormDataPatch(profile) },
+      });
+    } catch (error: unknown) {
+      if (error instanceof KamClientAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to fetch client KYC';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * GET /kam/clients/:id/form-config?productId=
+   */
+  async getClientFormConfig(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const client = await assertKAMCanAccessClient(req.user, req.params.id);
+      const productId = String(req.query.productId ?? '').trim();
+      if (!productId) {
+        res.json({ success: true, data: [] });
+        return;
+      }
+      const clientUser = syntheticClientAuthUser(client);
+      const { assertClientProductAssigned } = await import(
+        '../services/entitlements/clientProducts.service.js'
+      );
+      await assertClientProductAssigned(clientUser, productId);
+      const { getFormConfigForProduct } = await import(
+        '../services/formConfig/productFormConfig.service.js'
+      );
+      const { getSimpleFormConfig } = await import('../services/formConfig/simpleFormConfig.service.js');
+      let config = await getFormConfigForProduct(productId);
+      let categoriesArray = config.categories;
+      if (categoriesArray.length === 0) {
+        config = await getSimpleFormConfig(resolveBusinessClientId(client), productId);
+        categoriesArray = config.categories;
+      }
+      res.json({ success: true, data: categoriesArray });
+    } catch (error: unknown) {
+      if (error instanceof KamClientAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to fetch form config';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * GET /kam/clients/:id/configured-products
+   */
+  async getClientConfiguredProducts(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const client = await assertKAMCanAccessClient(req.user, req.params.id);
+      const clientUser = syntheticClientAuthUser(client);
+      const { resolveClientAssignedProducts } = await import(
+        '../services/entitlements/clientProducts.service.js'
+      );
+      const { assignedProductIds } = await resolveClientAssignedProducts(clientUser);
+      res.json({ success: true, data: assignedProductIds });
+    } catch (error: unknown) {
+      if (error instanceof KamClientAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to fetch products';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * GET /kam/clients/:id/vehicles?productId=
+   */
+  async getClientVehicles(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const client = await assertKAMCanAccessClient(req.user, req.params.id);
+      const productId = String(req.query.productId ?? '').trim();
+      if (!productId) {
+        res.status(400).json({ success: false, error: 'productId is required' });
+        return;
+      }
+      const clientUser = syntheticClientAuthUser(client);
+      const { getClientVehicleOptions } = await import('../services/vehicles/vehicleCatalog.service.js');
+      const options = await getClientVehicleOptions(clientUser, productId);
+      res.json({ success: true, data: options });
+    } catch (error: unknown) {
+      if (error instanceof KamClientAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to fetch vehicles';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * GET /kam/clients/:id/link-pool (view-only)
+   */
+  async getClientLinkPool(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      await assertKAMCanAccessClient(req.user, req.params.id);
+      const { clientController } = await import('./client.controller.js');
+      return clientController.getLinkPool(req, res);
+    } catch (error: unknown) {
+      if (error instanceof KamClientAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to fetch link pool';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * POST /kam/loan-applications/:id/pan-lookup
+   */
+  async lookupApplicationPan(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const { id } = req.params;
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = findLoanApplicationByParamId(applications, id);
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+      await assertKAMCanMutateApplication(req.user, application);
+
+      const { lookupBorrowerByPan } = await import('../services/panLookup/panLookup.service.js');
+      const { parsePanLookupTarget } = await import('../services/panLookup/panLookup.mapper.js');
+      const mobileNumber = String(req.body?.mobileNumber ?? '').trim();
+      const panNumber = String(req.body?.panNumber ?? '').trim();
+      const fullName = String(req.body?.fullName ?? '').trim();
+      const borrowerEmailRaw = req.body?.borrowerEmail ?? req.body?.recipientEmail;
+      const borrowerEmail =
+        borrowerEmailRaw == null || borrowerEmailRaw === ''
+          ? null
+          : String(borrowerEmailRaw).trim();
+      const target = parsePanLookupTarget(req.body?.target);
+
+      const result = await lookupBorrowerByPan({
+        mobileNumber,
+        panNumber,
+        fullName,
+        borrowerEmail,
+        target,
+      });
+
+      if (result.success === false) {
+        const status =
+          result.code === 'VALIDATION_ERROR' ? 400 : result.code === 'WEBHOOK_ERROR' ? 502 : 422;
+        res.status(status).json({ success: false, error: result.error, code: result.code });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: { formDataPatch: result.formDataPatch, lookupAt: result.lookupAt },
+      });
+    } catch (error: unknown) {
+      if (error instanceof KamAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to lookup PAN';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * POST /kam/loan-applications/:id/b2c/compliance
+   */
+  async b2cComplianceAction(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const { id } = req.params;
+      const itemId = req.body?.itemId as 'vkyc' | 'loanAgreement' | 'enach';
+      const action = req.body?.action as 'fulfill' | 'unmark' | 'clear_request';
+      if (!itemId || !action) {
+        res.status(400).json({ success: false, error: 'itemId and action are required' });
+        return;
+      }
+
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = findLoanApplicationByParamId(applications, id);
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+      await assertKAMCanMutateApplication(req.user, application);
+
+      const {
+        buildCompliancePatch,
+        formatComplianceAuditMessage,
+        getApplicationFormData,
+        persistApplicationFormData,
+      } = await import('../services/b2cEv/kamB2cFulfillment.service.js');
+
+      const existing = getApplicationFormData(application);
+      const merged = buildCompliancePatch(existing, itemId, action);
+      const auditMessage = formatComplianceAuditMessage(itemId, action);
+      await persistApplicationFormData(application, merged, req.user, auditMessage);
+
+      res.json({ success: true, message: 'Compliance updated' });
+    } catch (error: unknown) {
+      if (error instanceof KamAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to update compliance';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * POST /kam/loan-applications/:id/b2c/do-request
+   */
+  async b2cDoRequestAction(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+      const { id } = req.params;
+      const action = req.body?.action as string;
+      if (action !== 'fulfill') {
+        res.status(400).json({ success: false, error: 'Only fulfill action is supported' });
+        return;
+      }
+
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = findLoanApplicationByParamId(applications, id);
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+      await assertKAMCanMutateApplication(req.user, application);
+
+      const {
+        buildDoFulfillPatch,
+        getApplicationFormData,
+        persistApplicationFormData,
+      } = await import('../services/b2cEv/kamB2cFulfillment.service.js');
+
+      const existing = getApplicationFormData(application);
+      const notes = typeof req.body?.notes === 'string' ? req.body.notes : undefined;
+      const merged = buildDoFulfillPatch(existing, notes);
+      await persistApplicationFormData(
+        application,
+        merged,
+        req.user,
+        'KAM marked Disbursement Order (DO) as processed'
+      );
+
+      res.json({ success: true, message: 'DO request marked processed' });
+    } catch (error: unknown) {
+      if (error instanceof KamAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to update DO request';
+      res.status(500).json({ success: false, error: message });
     }
   }
 }

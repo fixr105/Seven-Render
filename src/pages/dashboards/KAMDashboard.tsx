@@ -36,7 +36,9 @@ export const KAMDashboard: React.FC = () => {
     clients: ClientWithMetrics[];
     summary: Summary | null;
     pendingQueries: Array<{ id: string; fileId: string; applicationId?: string; message: string }>;
-  }>({ clients: [], summary: null, pendingQueries: [] });
+    ledgerDisputes: NonNullable<DashboardSummary['ledgerDisputes']>;
+    pendingB2cActions: NonNullable<DashboardSummary['pendingB2cActions']>;
+  }>({ clients: [], summary: null, pendingQueries: [], ledgerDisputes: [], pendingB2cActions: [] });
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
 
@@ -51,13 +53,27 @@ export const KAMDashboard: React.FC = () => {
           clients: data.clients ?? [],
           summary: data.summary ?? null,
           pendingQueries: data.pendingQuestionsFromCredit ?? [],
+          ledgerDisputes: data.ledgerDisputes ?? [],
+          pendingB2cActions: data.pendingB2cActions ?? [],
         });
       } else {
-        setDashboardData({ clients: [], summary: null, pendingQueries: [] });
+        setDashboardData({
+          clients: [],
+          summary: null,
+          pendingQueries: [],
+          ledgerDisputes: [],
+          pendingB2cActions: [],
+        });
         setDashboardError(res.error ?? 'Failed to load dashboard');
       }
     } catch (e: any) {
-      setDashboardData({ clients: [], summary: null, pendingQueries: [] });
+      setDashboardData({
+        clients: [],
+        summary: null,
+        pendingQueries: [],
+        ledgerDisputes: [],
+        pendingB2cActions: [],
+      });
       setDashboardError(e?.message ?? 'Failed to load dashboard');
     } finally {
       setDashboardLoading(false);
@@ -74,7 +90,7 @@ export const KAMDashboard: React.FC = () => {
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
-  const { clients, summary, pendingQueries } = dashboardData;
+  const { clients, summary, pendingQueries, ledgerDisputes, pendingB2cActions } = dashboardData;
   const totalClients = summary?.totalClients ?? clients.length;
   const totalFiles = summary?.totalFiles ?? clients.reduce((s, c) => s + c.totalFiles, 0);
   const pendingReview = summary?.pendingReview ?? 0;
@@ -128,6 +144,68 @@ export const KAMDashboard: React.FC = () => {
                       — {String(q.message).slice(0, 80)}{String(q.message).length > 80 ? '…' : ''}
                     </span>
                   )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {!dashboardLoading && pendingB2cActions.length > 0 && (
+        <Card id="pending-b2c-actions" className="mb-6 border-brand-primary/20 bg-brand-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-brand-primary" />
+              B2C EV actions needed
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {pendingB2cActions.map((action, index) => (
+                <li key={`${action.applicationId}-${action.type}-${action.itemId ?? index}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetId = action.applicationId || action.fileId;
+                      if (targetId) navigate(`/applications/${targetId}#b2c-compliance`);
+                    }}
+                    className="text-sm font-medium text-brand-primary hover:underline"
+                  >
+                    {action.fileId || action.applicationId}
+                  </button>
+                  <span className="ml-2 text-sm text-neutral-600">
+                    — {action.label}
+                    {action.applicantName ? ` (${action.applicantName})` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {!dashboardLoading && ledgerDisputes.length > 0 && (
+        <Card className="mb-6 border-error/20 bg-error/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-error" />
+              Ledger disputes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {ledgerDisputes.map((dispute) => (
+                <li key={dispute.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/ledger?clientId=${encodeURIComponent(dispute.client)}`)}
+                    className="text-sm font-medium text-brand-primary hover:underline"
+                  >
+                    Client {dispute.client}
+                  </button>
+                  <span className="ml-2 text-sm text-neutral-600">
+                    — ₹{dispute.amount.toLocaleString('en-IN')} ({dispute.status})
+                  </span>
                 </li>
               ))}
             </ul>

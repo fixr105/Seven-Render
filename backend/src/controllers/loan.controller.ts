@@ -601,7 +601,7 @@ export class LoanController {
       }
 
       const { id } = req.params;
-      const { message } = req.body;
+      const { message, requestKind, itemId } = req.body;
       const queryMessage = typeof message === 'string' ? message.trim() : '';
 
       if (!queryMessage) {
@@ -623,6 +623,18 @@ export class LoanController {
         return;
       }
 
+      const {
+        buildB2cClientQueryActionEventType,
+        isComplianceItemId,
+      } = await import('../services/queries/b2cEvQueryFulfillment.service.js');
+
+      const typedItemId =
+        typeof itemId === 'string' && isComplianceItemId(itemId) ? itemId : undefined;
+      const actionEventType = buildB2cClientQueryActionEventType(
+        typeof requestKind === 'string' ? requestKind : undefined,
+        typedItemId
+      );
+
       const { queryService } = await import('../services/queries/query.service.js');
       const queryId = await queryService.createQuery(
         application['File ID'],
@@ -631,7 +643,7 @@ export class LoanController {
         'client',
         queryMessage,
         'kam',
-        'client_query'
+        actionEventType
       );
 
       await logApplicationAction(
@@ -645,6 +657,7 @@ export class LoanController {
       res.json({
         success: true,
         message: 'Query raised successfully',
+        data: { queryId },
       });
     } catch (error: any) {
       res.status(500).json({
@@ -782,7 +795,7 @@ export class LoanController {
   async replyToQuery(req: Request, res: Response): Promise<void> {
     try {
       const { id, queryId } = req.params;
-      const { message: bodyMessage, reply, newDocs, answers } = req.body;
+      const { message: bodyMessage, reply, newDocs, answers, b2cFulfillment } = req.body;
       const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
 
       const applications = await n8nClient.fetchTable('Loan Application');
@@ -806,13 +819,53 @@ export class LoanController {
         return;
       }
 
-      const hasContent = message.trim() || (answers && Object.keys(answers).length > 0) || (newDocs && newDocs.length > 0);
+      const role = (req.user!.role || '').toLowerCase();
+      const {
+        buildB2cFulfillmentPatch,
+        buildB2cFulfillmentReplyMessage,
+        canPerformB2cFulfillment,
+        getQueryReplyTarget,
+        isB2cClientQueryActionEventType,
+        isComplianceItemId,
+        isB2cFulfillmentAction,
+      } = await import('../services/queries/b2cEvQueryFulfillment.service.js');
+      const { mergeFormDataPatch, parseFormDataField } = await import('../utils/mergeFormDataPatch.js');
+
+      const fulfillmentAction =
+        b2cFulfillment && typeof b2cFulfillment === 'object' && typeof b2cFulfillment.action === 'string' && isB2cFulfillmentAction(b2cFulfillment.action)
+          ? b2cFulfillment.action
+          : undefined;
+      const fulfillmentItemId =
+        b2cFulfillment && typeof b2cFulfillment.itemId === 'string' && isComplianceItemId(b2cFulfillment.itemId)
+          ? b2cFulfillment.itemId
+          : undefined;
+
+      const hasFulfillment =
+        !!fulfillmentAction &&
+        canPerformB2cFulfillment(role) &&
+        isB2cClientQueryActionEventType(rootQuery['Action/Event Type'] || '');
+
+      const hasContent =
+        message.trim() ||
+        (answers && Object.keys(answers).length > 0) ||
+        (newDocs && newDocs.length > 0) ||
+        hasFulfillment;
+
       if (!hasContent) {
-        res.status(400).json({ success: false, error: 'Message, answers, or new documents are required' });
+        res.status(400).json({ success: false, error: 'Message, answers, new documents, or b2cFulfillment are required' });
         return;
       }
 
-      const role = (req.user!.role || '').toLowerCase();
+      if (hasFulfillment && fulfillmentAction) {
+        const patch = buildB2cFulfillmentPatch(fulfillmentAction, fulfillmentItemId);
+        const existingFormData = parseFormDataField(application['Form Data']);
+        const mergedFormData = mergeFormDataPatch(existingFormData, patch);
+        await n8nClient.postLoanApplication({
+          ...application,
+          'Form Data': JSON.stringify(mergedFormData),
+          'Last Updated': new Date().toISOString(),
+        });
+      }
 
       if (role === 'client') {
         if (answers) {
@@ -856,10 +909,24 @@ export class LoanController {
         }
       }
 
-      const targetRole = (rootQuery['Target User/Role'] || '').toLowerCase().trim();
-      const replyTarget = targetRole === 'client' ? 'kam' : targetRole === 'kam' ? 'credit_team' : (rootQuery['Target User/Role'] || 'kam');
+      const rootActionType = rootQuery['Action/Event Type'] || '';
+      const replyTarget = getQueryReplyTarget(
+        {
+          actionEventType: rootActionType,
+          targetUserRole: rootQuery['Target User/Role'] || '',
+          actor: rootQuery.Actor || '',
+        },
+        role
+      );
+
+      const fulfillmentReplyText =
+        hasFulfillment && fulfillmentAction
+          ? buildB2cFulfillmentReplyMessage(fulfillmentAction, fulfillmentItemId)
+          : '';
+
       const replyMessage = [
         message.trim(),
+        fulfillmentReplyText,
         answers && Object.keys(answers).length ? `Answers provided: ${Object.keys(answers).join(', ')}` : '',
         newDocs?.length ? `New documents uploaded: ${newDocs.length}` : '',
       ].filter(Boolean).join('. ') || 'Response submitted.';
@@ -874,6 +941,17 @@ export class LoanController {
         replyMessage,
         replyTarget
       );
+
+      if (hasFulfillment) {
+        await queryService.resolveQuery(
+          queryId,
+          application['File ID'],
+          application.Client,
+          req.user!.email,
+          fulfillmentReplyText || 'B2C request fulfilled',
+          req.user!.role
+        );
+      }
 
       if (role === 'client' && normalizeDynamicStatus(application.Status) === LoanStatus.QUERY_WITH_CLIENT) {
         await n8nClient.postLoanApplication({

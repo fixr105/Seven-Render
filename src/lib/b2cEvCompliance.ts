@@ -5,6 +5,7 @@ export interface ComplianceItem {
   label: string;
   checkboxKey: string;
   requestedAtKey: string;
+  queryIdKey: string;
   requestLabel: string;
 }
 
@@ -14,6 +15,7 @@ export const COMPLIANCE_ITEMS: ComplianceItem[] = [
     label: 'VKYC done',
     checkboxKey: 'compliance.vkycDone',
     requestedAtKey: '_meta.kamRequests.vkyc.requestedAt',
+    queryIdKey: '_meta.kamRequests.vkyc.queryId',
     requestLabel: 'VKYC',
   },
   {
@@ -21,6 +23,7 @@ export const COMPLIANCE_ITEMS: ComplianceItem[] = [
     label: 'Loan agreement signed',
     checkboxKey: 'compliance.loanAgreementSigned',
     requestedAtKey: '_meta.kamRequests.loanAgreement.requestedAt',
+    queryIdKey: '_meta.kamRequests.loanAgreement.queryId',
     requestLabel: 'loan agreement signing',
   },
   {
@@ -28,6 +31,7 @@ export const COMPLIANCE_ITEMS: ComplianceItem[] = [
     label: 'ENach done',
     checkboxKey: 'compliance.enachDone',
     requestedAtKey: '_meta.kamRequests.enach.requestedAt',
+    queryIdKey: '_meta.kamRequests.enach.queryId',
     requestLabel: 'eNACH setup',
   },
 ];

@@ -149,7 +149,8 @@ Before deploying sync changes:
 | Create form mapping | POSTCLIENTFORMMAPPING, POSTLOG | Client Form Mapping, Form Categories, Form Fields | — | form config |
 | Payout request | COMISSIONLEDGER, POSTLOG | Commission Ledger | Credit | getClientLedger |
 | NBFC decision | loanapplications | Loan Application | — | listApplications |
-| Assign NBFCs | loanapplications, Fileauditinglog, POSTLOG | Loan Application | NBFC | listApplications |
+| KAM B2C compliance fulfill | `POST /kam/loan-applications/:id/b2c/compliance` | loanapplications, Fileauditinglog, POSTLOG | — | getApplication |
+| KAM B2C DO fulfill | `POST /kam/loan-applications/:id/b2c/do-request` | loanapplications, Fileauditinglog, POSTLOG | — | getApplication |
 
 ---
 
