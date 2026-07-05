@@ -352,7 +352,6 @@ export const Ledger: React.FC = () => {
     >
       <div className="space-y-6">
         <PageHero
-          title={t('pages.ledger.title')}
           description={t('pages.ledger.description')}
         />
         {/* KAM: Client selector */}

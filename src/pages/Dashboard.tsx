@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -77,12 +76,19 @@ export const Dashboard: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
+  const pageTitle =
+    userRole === 'client'
+      ? t('pages.dashboard.welcomeBack', {
+          name: getUserDisplayName() || t('pages.dashboard.welcomeFallback'),
+        })
+      : t('pages.dashboard.pageTitle');
+
   return (
     <MainLayout
       sidebarItems={sidebarItems}
       activeItem={activeItem}
       onItemClick={handleNavigation}
-      pageTitle={t('pages.dashboard.pageTitle')}
+      pageTitle={pageTitle}
       userRole={getRoleDisplayName()}
       userName={getUserDisplayName()}
       notificationCount={unreadCount}
@@ -90,15 +96,6 @@ export const Dashboard: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      {userRole === 'client' ? (
-        <PageHero
-          title={t('pages.dashboard.welcomeBack', {
-            name: getUserDisplayName() || t('pages.dashboard.welcomeFallback'),
-          })}
-        />
-      ) : (
-        <PageHero title={t('pages.dashboard.title')} />
-      )}
       {renderDashboard()}
     </MainLayout>
   );

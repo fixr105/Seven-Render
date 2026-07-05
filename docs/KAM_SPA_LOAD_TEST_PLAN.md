@@ -16,7 +16,7 @@
 | **Applications**     | `useApplications`  | Loaded                 | Loaded                 |
 | **Clients**          | `listClients`      | **Empty**              | **Loaded**             |
 | **Form Configuration**| `listClients`, `listLoanProducts` | **Empty** | **Loaded**     |
-| **Reports**          | `listDailySummaries` | N/A (KAM gets Access Restricted) | No fetch, Access Restricted OK |
+| **Reports**          | `listDailySummaries` | KAM allowed (requireCreditOrKAM) | Reports page loads |
 
 We also confirm that a **full reload (F5)** still works as a baseline.
 

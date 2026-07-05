@@ -45,6 +45,18 @@ jest.mock('../../services/statusTracking/statusHistory.service.js', () => ({
   recordStatusChange: jest.fn(async () => {}),
 }));
 
+jest.mock('../../services/rbac/rbacFilter.service.js', () => ({
+  rbacFilterService: {
+    filterLoanApplications: jest.fn(async (apps: unknown[]) => apps),
+  },
+}));
+
+jest.mock('../../services/queries/query.service.js', () => ({
+  queryService: {
+    createQueryReply: jest.fn(async () => {}),
+  },
+}));
+
 jest.mock('../../services/workflow/loanWorkflow.service.js', () => ({
   loanWorkflowService: {
     submitExistingLoanApplication: jest.fn(async () => ({
@@ -470,6 +482,57 @@ describe('LoanController - P0 Tests', () => {
 
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: true })
+      );
+    });
+  });
+
+  describe('replyToQuery — KAM credit query response', () => {
+    it('transitions credit_query_with_kam to pending_credit_review when KAM replies', async () => {
+      const kamUser: AuthUser = {
+        id: 'kam-1',
+        email: 'kam@test.local',
+        role: UserRole.KAM,
+        kamId: 'recKAM001',
+      };
+
+      mockRequest = {
+        user: kamUser,
+        params: { id: 'rec-app-1', queryId: 'QUERY-1' },
+        body: { message: 'Here is the clarification' },
+      };
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [
+            {
+              id: 'rec-app-1',
+              'File ID': 'SF-CREDIT-Q',
+              Client: 'CLIENT001',
+              Status: LoanStatus.CREDIT_QUERY_WITH_KAM,
+            },
+          ];
+        }
+        if (tableName === 'File Auditing Log') {
+          return [
+            {
+              id: 'QUERY-1',
+              File: 'SF-CREDIT-Q',
+              'Target User/Role': 'kam',
+            },
+          ];
+        }
+        return [];
+      });
+
+      await controller.replyToQuery(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true })
+      );
+      expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          Status: LoanStatus.PENDING_CREDIT_REVIEW,
+        })
       );
     });
   });

@@ -91,3 +91,15 @@ export function getStatusColor(status: string): 'success' | 'error' | 'warning' 
   if (key.includes('query')) return 'warning';
   return 'neutral';
 }
+
+/** KAM-allowed next statuses per current status (mirrors backend state machine). */
+const KAM_STATUS_TRANSITIONS: Record<string, LoanStatus[]> = {
+  under_kam_review: ['query_with_client', 'pending_credit_review'],
+  query_with_client: ['under_kam_review', 'pending_credit_review'],
+  credit_query_with_kam: ['pending_credit_review'],
+};
+
+export function getAllowedNextStatusesForKam(currentStatus: string): LoanStatus[] {
+  const key = normalizeStatus(currentStatus);
+  return KAM_STATUS_TRANSITIONS[key] ?? [];
+}

@@ -104,6 +104,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
           'borrower.address.pincode': '364002',
           'borrower.address.district': 'Bhavnagar',
           'borrower.address.state': 'Gujarat',
+          '_meta.panLookup.cibilScore': '620',
         },
         lookupAt: '2026-04-07T12:00:00.000Z',
       },
@@ -201,10 +202,10 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('GONSALVES');
-    expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeDisabled();
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).not.toBeDisabled();
     expect(screen.getByTestId('b2c-field-borrower-drivingLicense')).toHaveValue('');
-    expect(screen.getByTestId('b2c-field-borrower-drivingLicense')).toBeDisabled();
-    expect(screen.queryByText('Select Gender')).not.toBeInTheDocument();
+    expect(screen.getByTestId('b2c-field-borrower-drivingLicense')).not.toBeDisabled();
+    expect(screen.getByTestId('b2c-field-borrower-pan')).toBeDisabled();
     expect(screen.getByTestId('b2c-field-borrower-address-line1')).toHaveValue(
       '107, Villa De Flores, Catholic Society, Vidhyanagar, Bhavnagar'
     );
@@ -213,7 +214,57 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByText('Address')).toBeInTheDocument();
   });
 
-  it('shows blank gender select without placeholder when PAN JSON omits gender', async () => {
+  it('shows CIBIL probability bar on borrower step without displaying the numeric score', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cibil-probability-bar')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Chances with co applicant')).toBeInTheDocument();
+    expect(screen.queryByText('620')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\b620\b/);
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
+    });
+  });
+
+  it('allows editing autofilled borrower fields and recomputes customer name', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
+    });
+
+    const firstNameInput = screen.getByTestId('b2c-field-borrower-firstName');
+    await user.clear(firstNameInput);
+    await user.type(firstNameInput, 'AMIT');
+
+    expect(firstNameInput).toHaveValue('AMIT');
+    expect(screen.getByTestId('b2c-field-borrower-customerName')).toHaveValue('AMIT GONSALVES');
+    expect(screen.getByTestId('b2c-field-borrower-pan')).toBeDisabled();
+  });
+
+  it('shows gender select placeholder when PAN JSON omits gender', async () => {
     (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: true,
       data: {
@@ -240,8 +291,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
     });
 
-    expect(screen.queryByText('Select Gender')).not.toBeInTheDocument();
-    expect(screen.getByTestId('b2c-field-borrower-gender')).toBeDisabled();
+    expect(screen.queryByText('Select Gender')).toBeInTheDocument();
+    expect(screen.getByTestId('b2c-field-borrower-gender')).not.toBeDisabled();
     expect(screen.getByTestId('b2c-field-borrower-gender')).toHaveValue('');
   });
 

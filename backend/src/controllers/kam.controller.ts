@@ -16,6 +16,11 @@ import {
   isCanonicalLoanStatusKey,
   normalizeDynamicStatus,
 } from '../services/statusTracking/dynamicStatus.service.js';
+import {
+  assertKAMCanMutateApplication,
+  assertValidStatusTransition,
+  KamAccessError,
+} from '../utils/kamApplicationAccess.js';
 
 /** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
 const FORWARDED_STATUSES: string[] = [
@@ -189,21 +194,11 @@ export class KAMController {
 
       // Normalize app.Client (Airtable linked-record array/object or multiple field names) so client metrics match RBAC visibility.
       // clientIdSet must use the same fields as getKAMManagedClientIds (id, Client ID, ID) so app↔client mapping is consistent.
-      const normalizeAppClient = (app: any): string | null => {
-        const raw = app.Client ?? app['Client'] ?? app['Client ID'] ?? app.clientId;
-        if (raw == null) return null;
-        if (Array.isArray(raw)) return raw[0] != null ? String(raw[0]) : null;
-        if (typeof raw === 'object' && raw !== null) {
-          const id = (raw as any).id ?? (raw as any).ID ?? (raw as any)['Client ID'];
-          return id != null ? String(id) : null;
-        }
-        return String(raw);
-      };
       const clientIdSet = (c: any) => [c.id, c['Client ID'], c['ID']].filter(Boolean).map(String);
       const appsForClientFilter = (c: any, app: any) => {
-        const appClient = normalizeAppClient(app);
+        const appClientRaw = app.Client ?? app['Client'] ?? app['Client ID'] ?? app.clientId;
         const ids = clientIdSet(c);
-        return appClient != null && ids.some((id) => matchIds(appClient, id));
+        return ids.some((id) => matchIds(appClientRaw, id));
       };
       if (clientApplications.length > 0 && managedClients.length > 0) {
         const sampleApp = clientApplications[0];
@@ -755,6 +750,14 @@ export class KAMController {
         return;
       }
 
+      const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
+      const managedIds = await rbacFilterService.getKAMManagedClientIds(req.user!.kamId!);
+      const clientRecordId = client.id || client['Client ID'] || id;
+      if (!managedIds.some((mid) => matchIds(mid, clientRecordId))) {
+        res.status(403).json({ success: false, error: 'Client not managed by you' });
+        return;
+      }
+
       // Update client record
       const updateData: any = {
         ...client,
@@ -1176,7 +1179,7 @@ export class KAMController {
 
       if (clientId) {
         applications = applications.filter((app: any) =>
-          String(app.Client || app['Client'] || '') === String(clientId)
+          matchIds(String(app.Client || app['Client'] || ''), String(clientId))
         );
       }
 
@@ -1207,19 +1210,28 @@ export class KAMController {
     try {
       const { id } = req.params;
       const { formData, notes } = req.body;
-      // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
 
-      // Check if in KAM review stage
+      try {
+        await assertKAMCanMutateApplication(req.user!, application);
+      } catch (err) {
+        if (err instanceof KamAccessError) {
+          res.status(err.statusCode).json({ success: false, error: err.message });
+          return;
+        }
+        throw err;
+      }
+
+      const statusKey = normalizeDynamicStatus(application.Status ?? '');
       if (
-        application.Status !== LoanStatus.UNDER_KAM_REVIEW &&
-        application.Status !== LoanStatus.QUERY_WITH_CLIENT
+        statusKey !== LoanStatus.UNDER_KAM_REVIEW &&
+        statusKey !== LoanStatus.QUERY_WITH_CLIENT
       ) {
         res.status(400).json({
           success: false,
@@ -1300,26 +1312,51 @@ export class KAMController {
     try {
       const { id } = req.params;
       const message = req.body.message ?? req.body.query ?? '';
-      const { fieldsRequested, documentsRequested, allowsClientToEdit } = req.body;
+      const { fieldsRequested, documentsRequested } = req.body;
       if (!message || !String(message).trim()) {
         res.status(400).json({ success: false, error: 'Message is required' });
         return;
       }
-      // Fetch only Loan Application table
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => app.id === id);
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
 
-      // Update status
+      try {
+        await assertKAMCanMutateApplication(req.user!, application);
+        assertValidStatusTransition(
+          application.Status,
+          LoanStatus.QUERY_WITH_CLIENT,
+          req.user!.role
+        );
+      } catch (err) {
+        if (err instanceof KamAccessError) {
+          res.status(err.statusCode).json({ success: false, error: err.message });
+          return;
+        }
+        throw err;
+      }
+
+      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
+      const newStatus = LoanStatus.QUERY_WITH_CLIENT;
+
       await n8nClient.postLoanApplication({
         ...application,
-        Status: LoanStatus.QUERY_WITH_CLIENT,
+        Status: newStatus,
         'Last Updated': new Date().toISOString(),
       });
+
+      const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+      await recordStatusChange(
+        req.user!,
+        application['File ID'],
+        previousStatus,
+        newStatus,
+        String(message).trim()
+      );
 
       // Build query message
       const queryMessage = [
@@ -1383,14 +1420,21 @@ export class KAMController {
 
       // Find application by ID or File ID
       const applications = await n8nClient.fetchTable('Loan Application');
-      const application = applications.find((app) => 
-        app.id === id || 
-        app['File ID'] === id
-      );
+      const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
+      }
+
+      try {
+        await assertKAMCanMutateApplication(req.user!, application);
+      } catch (err) {
+        if (err instanceof KamAccessError) {
+          res.status(err.statusCode).json({ success: false, error: err.message });
+          return;
+        }
+        throw err;
       }
 
       const fileId = application['File ID'] || application.id;
@@ -1412,7 +1456,14 @@ export class KAMController {
       });
     } catch (error: any) {
       console.error('[forwardToCredit] Error:', error);
-      res.status(500).json({
+      const statusCode =
+        error instanceof KamAccessError
+          ? error.statusCode
+          : error.message?.includes('Invalid status transition') ||
+              error.message?.includes('not configured')
+            ? 400
+            : 500;
+      res.status(statusCode).json({
         success: false,
         error: error.message || 'Failed to forward application',
       });
@@ -1458,6 +1509,16 @@ export class KAMController {
           error: 'Invalid or unsupported loan status',
         });
         return;
+      }
+
+      try {
+        assertValidStatusTransition(previousStatus, newStatus, req.user!.role);
+      } catch (err) {
+        if (err instanceof KamAccessError) {
+          res.status(err.statusCode).json({ success: false, error: err.message });
+          return;
+        }
+        throw err;
       }
 
       await n8nClient.postLoanApplication({

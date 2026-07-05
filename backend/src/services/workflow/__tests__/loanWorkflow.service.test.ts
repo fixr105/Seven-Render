@@ -31,6 +31,17 @@ jest.mock('../../formConfigVersioning.js', () => ({
   getLatestFormConfigVersion: jest.fn().mockResolvedValue(null as never),
 }));
 
+jest.mock('../../../utils/kamApplicationAccess.js', () => ({
+  assertKAMCanMutateApplication: jest.fn().mockResolvedValue(undefined as never),
+}));
+
+jest.mock('../../statusTracking/dynamicStatus.service.js', () => ({
+  normalizeDynamicStatus: (raw: string) => String(raw || '').trim().toLowerCase(),
+  mayApplyTargetLoanStatus: jest.fn().mockResolvedValue(true as never),
+  getApplicationProductStatuses: jest.fn(),
+  getAllowedStatusesFromProduct: jest.fn(),
+}));
+
 describe('LoanWorkflowService durability', () => {
   const service = new LoanWorkflowService();
   const mockN8nClient = n8nClient as unknown as {
@@ -240,6 +251,42 @@ describe('LoanWorkflowService durability', () => {
       expect.objectContaining({
         strictWriteAck: false,
         operationName: 'loan application create',
+      })
+    );
+  });
+
+  it('forwardToCreditTeam updates status to pending_credit_review for KAM', async () => {
+    const kamUser = {
+      id: 'kam-1',
+      email: 'kam@test.local',
+      role: UserRole.KAM,
+      kamId: 'recKAM001',
+    };
+
+    mockN8nClient.fetchTable.mockImplementation(async (tableName: string) => {
+      if (tableName === 'Loan Application') {
+        return [
+          {
+            id: 'rec-fwd',
+            'File ID': 'SF-FWD',
+            Client: 'CLIENT001',
+            Status: LoanStatus.UNDER_KAM_REVIEW,
+          },
+        ] as never;
+      }
+      if (tableName === 'Credit Team Users') return [] as never;
+      return [] as never;
+    });
+    mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
+
+    await service.forwardToCreditTeam(kamUser as never, {
+      fileId: 'rec-fwd',
+      notes: 'Ready for credit review',
+    });
+
+    expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Status: LoanStatus.PENDING_CREDIT_REVIEW,
       })
     );
   });

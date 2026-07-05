@@ -33,7 +33,7 @@ describe('panLookup.mapper', () => {
     expect(normalizeWebhookMobile('919876543377')).toBe('9876543377');
   });
 
-  it('maps webhook output to borrower patch and excludes cibil from patch', () => {
+  it('maps webhook output to borrower patch with cibil in meta only', () => {
     const patch = mapPanLookupOutputToFormDataPatch({
       first_name: 'RAHUL',
       last_name: 'GONSALVES',
@@ -57,9 +57,10 @@ describe('panLookup.mapper', () => {
       'borrower.mobile': '9876543377',
       'borrower.email': 'rahul@example.com',
       'borrower.pan': 'BAIPG3083L',
+      '_meta.panLookup.cibilScore': '731',
     });
     expect(patch).not.toHaveProperty('cibil_score');
-    expect(patch).not.toHaveProperty('_meta.cibilScore');
+    expect(patch).not.toHaveProperty('borrower.cibil');
   });
 
   it('returns empty patch fields for missing values', () => {
@@ -92,10 +93,11 @@ describe('panLookup.mapper', () => {
     expect(patch['borrower.address.pincode']).toBe('364002');
     expect(patch['borrower.address.district']).toBe('Bhavnagar');
     expect(patch['borrower.address.state']).toBe('Gujarat');
+    expect(patch['_meta.panLookup.cibilScore']).toBe('731');
     expect(patch).not.toHaveProperty('cibil_score');
   });
 
-  it('parses webhook payload with address fields in output wrapper', () => {
+  it('parses webhook output with address fields in output wrapper', () => {
     const output = parseWebhookOutput([
       {
         output: {
@@ -128,10 +130,11 @@ describe('panLookup.mapper', () => {
     expect(patch['borrower.address.pincode']).toBe('364002');
     expect(patch['borrower.address.district']).toBe('Bhavnagar');
     expect(patch['borrower.address.state']).toBe('Gujarat');
+    expect(patch['_meta.panLookup.cibilScore']).toBe('731');
     expect(patch).not.toHaveProperty('cibil_score');
   });
 
-  it('maps webhook output to co-applicant patch with single name field', () => {
+  it('parses webhook payload with address fields in output wrapper', () => {
     const patch = mapPanLookupOutputToFormDataPatch(
       {
         first_name: 'PRIYA',

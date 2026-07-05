@@ -329,8 +329,10 @@ export class LedgerController {
       // Fetch only Commission Ledger table
       let ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
 
-      // Filter by client
-      ledgerEntries = ledgerEntries.filter((entry) => entry.Client === clientId);
+      // Filter by client (matchIds handles Client ID format variations)
+      ledgerEntries = ledgerEntries.filter((entry) =>
+        matchIds(entry.Client ?? entry['Client'] ?? '', clientId as string)
+      );
 
       // Sort by date (oldest first for correct running balance)
       ledgerEntries.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));

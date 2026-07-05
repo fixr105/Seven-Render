@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { DataTable, Column } from '../components/ui/DataTable';
@@ -274,12 +273,10 @@ export const AdminUserAccounts: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="p-6">
-        <PageHero title={t('pages.adminUserAccounts.title')} />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              {t('pages.adminUserAccounts.title')}
+              <Users className="w-5 h-5" aria-hidden />
             </CardTitle>
             <div className="flex gap-2">
               <Button variant="primary" size="sm" icon={Plus} onClick={openCreateModal}>

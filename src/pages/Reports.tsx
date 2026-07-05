@@ -271,7 +271,6 @@ export const Reports: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
           <PageHero
-            title={t('pages.reports.title')}
             description={t('pages.reports.description')}
           />
           <div className="flex flex-wrap gap-1 border-b border-neutral-200">

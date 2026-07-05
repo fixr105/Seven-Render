@@ -201,44 +201,41 @@ export class QueriesController {
   async resolveQuery(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Fetch only File Auditing Log table
+      const { resolutionMessage, fileId: bodyFileId } = req.body ?? {};
+
       const allAuditLogs = await n8nClient.fetchTable('File Auditing Log');
-      
-      // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
       const auditLogs = await rbacFilterService.filterFileAuditLog(allAuditLogs, req.user!);
-      
-      // Find query entry
+
       const queryEntry = auditLogs.find((q: any) => q.id === id);
-      
       if (!queryEntry) {
-        res.status(404).json({
-          success: false,
-          error: 'Query not found',
-        });
+        res.status(404).json({ success: false, error: 'Query not found' });
         return;
       }
 
-      const currentContent = queryEntry['Details/Message'] || queryEntry.Content || '';
-      const updatedContent = updateQueryStatus(currentContent, 'resolved');
-
-      // Update entry
-      await n8nClient.postFileAuditLog({
-        ...queryEntry,
-        'Details/Message': updatedContent,
-        Resolved: 'True',
-      });
+      const fileId = String(bodyFileId ?? queryEntry.File ?? queryEntry['File ID'] ?? '');
+      const { queryService } = await import('../services/queries/query.service.js');
+      await queryService.resolveQuery(
+        id,
+        fileId,
+        '',
+        req.user!.email,
+        resolutionMessage,
+        req.user!.role
+      );
 
       res.json({
         success: true,
         data: {
           id,
           status: 'resolved',
-          message: parseQueryContent(updatedContent).message,
+          message: resolutionMessage ?? 'Query resolved',
         },
       });
     } catch (error: any) {
-      res.status(500).json({
+      const statusCode =
+        error.message?.includes('Only the query author') ? 403 : 500;
+      res.status(statusCode).json({
         success: false,
         error: error.message || 'Failed to resolve query',
       });

@@ -11,7 +11,12 @@
 
 import { n8nClient } from '../airtable/n8nClient.js';
 import { LoanStatus, UserRole } from '../../config/constants.js';
-import { normalizeToCanonicalStatus } from '../statusTracking/statusStateMachine.js';
+import {
+  normalizeToCanonicalStatus,
+  toUserRole,
+  validateTransition,
+} from '../statusTracking/statusStateMachine.js';
+import { assertKAMCanMutateApplication } from '../../utils/kamApplicationAccess.js';
 import { recordStatusChange } from '../statusTracking/statusHistory.service.js';
 import { centralizedLogger } from '../logging/centralizedLogger.service.js';
 import { AuthUser } from '../../types/auth.js';
@@ -440,8 +445,14 @@ export class LoanWorkflowService {
       throw new Error(`Application not found: ${options.fileId}`);
     }
 
-    const previousStatus = application.Status as LoanStatus;
+    await assertKAMCanMutateApplication(user, application);
+
+    const previousStatus = normalizeToCanonicalStatus(
+      normalizeDynamicStatus(application.Status)
+    );
     const newStatus = LoanStatus.PENDING_CREDIT_REVIEW;
+
+    validateTransition(previousStatus, newStatus, toUserRole(user.role));
 
     if (!(await mayApplyTargetLoanStatus(application, newStatus))) {
       throw new Error('Target status is not configured in Loan Products Applicable Statuses');

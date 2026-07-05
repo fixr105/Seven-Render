@@ -56,14 +56,16 @@ test.describe('KAM SPA load (isPageReload-removal)', () => {
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/unauthorized/);
 
-    // --- 3.5 Clients → Reports (SPA, sidebar) ---
+    // --- 3.5 Clients → Reports (SPA, sidebar) — KAM has access per Reports.tsx ---
     await page.goto('/clients');
     await page.waitForLoadState('networkidle');
     await nav.getByRole('button', { name: 'Reports' }).click();
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
 
-    await expect(page.getByText('Access Restricted')).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByText(/Reports|Daily Summary|Generate Report/i).first()
+    ).toBeVisible({ timeout: 15000 });
 
     // --- 3.6 Reports → Dashboard (SPA, full circle) ---
     await nav.getByRole('button', { name: 'Dashboard' }).click();

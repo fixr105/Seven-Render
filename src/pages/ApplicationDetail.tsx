@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -18,7 +17,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
-import { getBusinessStatusOptions, getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
+import { getBusinessStatusOptions, getAllowedNextStatusesForKam, getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
 import {
   applyApplicationStatusChange,
   statusRequiresDisbursementFields,
@@ -101,8 +100,14 @@ export const ApplicationDetail: React.FC = () => {
   const [, _setAuditLogs] = useState<unknown[]>([]);
   const [, _setKamEdits] = useState<unknown[]>([]);
   const [showQueryModal, setShowQueryModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardNotes, setForwardNotes] = useState('');
+  const [forwardCreditAnalystId, setForwardCreditAnalystId] = useState('');
+  const [creditTeamUsers, setCreditTeamUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [queryMessage, setQueryMessage] = useState('');
+  const [queryFieldsRequested, setQueryFieldsRequested] = useState('');
+  const [queryDocumentsRequested, setQueryDocumentsRequested] = useState('');
+  const [showStatusModal, setShowStatusModal] = useState(false);
   const [responseMessage, setResponseMessage] = useState('');
   const [selectedQuery, setSelectedQuery] = useState<Query | null>(null);
   const [newStatus, setNewStatus] = useState('');
@@ -144,6 +149,11 @@ export const ApplicationDetail: React.FC = () => {
   const [fieldIdToLabel, setFieldIdToLabel] = useState<Record<string, string>>({});
   const [applicationStatuses, setApplicationStatuses] = useState<Array<{ key: string; label: string }>>([]);
   const [loadingApplicationStatuses, setLoadingApplicationStatuses] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState<Record<string, string>>({});
+  const [editRemarks, setEditRemarks] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [submittingKamEdit, setSubmittingKamEdit] = useState(false);
   const QUERY_EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
   /** Map old file values to human-readable for display */
@@ -541,6 +551,12 @@ export const ApplicationDetail: React.FC = () => {
     }
   };
 
+  const parseCsvList = (raw: string): string[] =>
+    raw
+      .split(/[,;\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
   const handleRaiseQuery = async () => {
     if (!queryMessage.trim() || !id) return;
     if (userRole !== 'kam' && userRole !== 'credit_team' && userRole !== 'client') return;
@@ -551,7 +567,11 @@ export const ApplicationDetail: React.FC = () => {
       if (userRole === 'client') {
         response = await apiService.createClientQuery(id, queryMessage.trim());
       } else if (userRole === 'kam') {
-        response = await apiService.raiseQueryToClient(id, queryMessage);
+        response = await apiService.raiseQueryToClient(id, {
+          message: queryMessage.trim(),
+          fieldsRequested: parseCsvList(queryFieldsRequested),
+          documentsRequested: parseCsvList(queryDocumentsRequested),
+        });
       } else {
         response = await apiService.raiseQueryToKAM(id, queryMessage);
       }
@@ -559,6 +579,8 @@ export const ApplicationDetail: React.FC = () => {
       if (response.success) {
         setShowQueryModal(false);
         setQueryMessage('');
+        setQueryFieldsRequested('');
+        setQueryDocumentsRequested('');
         fetchQueries();
         fetchApplicationDetails();
       } else {
@@ -722,15 +744,79 @@ export const ApplicationDetail: React.FC = () => {
     }
   };
 
+  const parseApplicationFormData = (): Record<string, unknown> => {
+    if (!application) return {};
+    const rawForm =
+      (application as unknown as Record<string, unknown>).form_data ??
+      (application as unknown as Record<string, unknown>).formData ??
+      (application as unknown as Record<string, unknown>)['Form Data'];
+    if (rawForm == null) return {};
+    if (typeof rawForm === 'string') {
+      try {
+        const parsed = JSON.parse(rawForm);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+    if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+      return rawForm as Record<string, unknown>;
+    }
+    return {};
+  };
+
+  const handleOpenKamEdit = () => {
+    const formDataToShow = parseApplicationFormData();
+    const editable: Record<string, string> = {};
+    Object.entries(formDataToShow).forEach(([key, value]) => {
+      if (key.startsWith('_')) return;
+      editable[key] = value == null ? '' : String(value);
+    });
+    setEditFormData(editable);
+    setEditRemarks(String(formDataToShow.Remarks ?? (application as any)?.remarks ?? ''));
+    setEditNotes('');
+    setShowEditModal(true);
+  };
+
+  const handleSaveKamEdit = async () => {
+    if (!id) return;
+    setSubmittingKamEdit(true);
+    try {
+      const formData: Record<string, unknown> = { ...editFormData };
+      if (editRemarks.trim()) {
+        formData.Remarks = editRemarks.trim();
+      }
+      const response = await apiService.editApplication(id, {
+        formData,
+        notes: editNotes.trim() || undefined,
+      });
+      if (response.success) {
+        setShowEditModal(false);
+        await Promise.all([fetchApplicationDetails(), fetchStatusHistory()]);
+        alert('Application updated successfully.');
+      } else {
+        throw new Error(response.error || 'Failed to update application');
+      }
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Failed to update application');
+    } finally {
+      setSubmittingKamEdit(false);
+    }
+  };
+
   const handleForwardToCredit = async () => {
     if (!id) return;
-    const notes = window.prompt('Optional notes for credit team:') ?? '';
-    if (!window.confirm('Forward this application to the credit team?')) return;
 
     setForwardingToCredit(true);
     try {
-      const response = await apiService.forwardToCredit(id, { notes: notes.trim() || undefined });
+      const response = await apiService.forwardToCredit(id, {
+        notes: forwardNotes.trim() || undefined,
+        assignedCreditAnalystId: forwardCreditAnalystId.trim() || undefined,
+      });
       if (response.success) {
+        setShowForwardModal(false);
+        setForwardNotes('');
+        setForwardCreditAnalystId('');
         await Promise.all([fetchApplicationDetails(), fetchStatusHistory()]);
         alert('Application forwarded to credit team.');
       } else {
@@ -741,6 +827,12 @@ export const ApplicationDetail: React.FC = () => {
     } finally {
       setForwardingToCredit(false);
     }
+  };
+
+  const openForwardModal = () => {
+    setForwardNotes('');
+    setForwardCreditAnalystId('');
+    setShowForwardModal(true);
   };
 
   const handleWithdrawApplication = async () => {
@@ -811,7 +903,11 @@ export const ApplicationDetail: React.FC = () => {
 
   const applicationStatusKey = normalizeStatus(application?.status || application?.Status || '');
   const canForwardToCredit =
-    userRole === 'kam' && applicationStatusKey === 'under_kam_review';
+    userRole === 'kam' &&
+    (applicationStatusKey === 'under_kam_review' || applicationStatusKey === 'query_with_client');
+  const canEditApplication =
+    userRole === 'kam' &&
+    (applicationStatusKey === 'under_kam_review' || applicationStatusKey === 'query_with_client');
   const canWithdrawApplication =
     userRole === 'client' && WITHDRAWABLE_CLIENT_STATUSES.has(applicationStatusKey);
   const canRecordOfflineNbfcDecision =
@@ -819,6 +915,29 @@ export const ApplicationDetail: React.FC = () => {
     applicationStatusKey === 'sent_to_nbfc' &&
     !application?.lenderDecisionStatus &&
     !application?.lender_decision_status;
+
+  useEffect(() => {
+    if (
+      userRole === 'kam' &&
+      (applicationStatusKey === 'under_kam_review' || applicationStatusKey === 'query_with_client')
+    ) {
+      apiService.listCreditTeamUsers().then((res) => {
+        if (res.success && res.data) {
+          setCreditTeamUsers(
+            res.data
+              .filter((u: { status?: string; active?: boolean }) => {
+                const s = String(u.status ?? '').toLowerCase();
+                return s === 'active' || u.active !== false;
+              })
+              .map((u: { id: string; creditTeamId?: string; name?: string; email?: string }) => ({
+                id: String(u.creditTeamId ?? u.id),
+                name: String(u.name ?? u.email ?? u.id),
+              }))
+          );
+        }
+      }).catch(() => setCreditTeamUsers([]));
+    }
+  }, [userRole, applicationStatusKey]);
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
@@ -828,6 +947,10 @@ export const ApplicationDetail: React.FC = () => {
       value: statusEntry.key,
       label: statusEntry.label || getStatusDisplayNameForViewer(statusEntry.key, userRole || ''),
     }));
+    if (userRole === 'kam' && application) {
+      const allowed = new Set(getAllowedNextStatusesForKam(applicationStatusKey));
+      return allOptions.filter((opt) => allowed.has(normalizeStatus(opt.value)));
+    }
     return allOptions;
   })();
   const statusDropdownDisabled = !loadingApplicationStatuses && statusOptions.length === 0;
@@ -900,7 +1023,6 @@ export const ApplicationDetail: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title={pageTitle} />
       <PageHeader
         onBack={() => {
           if (window.history.length > 1) {
@@ -914,6 +1036,11 @@ export const ApplicationDetail: React.FC = () => {
             <Button variant="tertiary" icon={RefreshCw} onClick={handleRefresh} disabled={refreshing} loading={refreshing}>
               {t('common.refresh')}
             </Button>
+            {canEditApplication && (
+              <Button variant="secondary" icon={Edit} onClick={handleOpenKamEdit}>
+                Edit Application
+              </Button>
+            )}
             {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') && (
               <Button
                 variant="primary"
@@ -927,7 +1054,7 @@ export const ApplicationDetail: React.FC = () => {
               <Button
                 variant="secondary"
                 icon={Send}
-                onClick={handleForwardToCredit}
+                onClick={openForwardModal}
                 disabled={forwardingToCredit}
                 loading={forwardingToCredit}
               >
@@ -1486,6 +1613,29 @@ export const ApplicationDetail: React.FC = () => {
                 <p className="text-center text-neutral-500 py-8">{t('pages.applicationDetail.noQueries')}</p>
               ) : (
                 <div className="space-y-6">
+                  {/* Alert for unresolved credit queries (KAM) */}
+                  {userRole === 'kam' && (() => {
+                    const awaitingKamFromCredit = queries.filter((q: any) => {
+                      const isCreditQuery =
+                        q.rootQuery?.targetUserRole === 'kam' &&
+                        (q.rootQuery?.actionEventType === 'credit_query' ||
+                          q.rootQuery?.actionEventType === 'query_raised' ||
+                          q.rootQuery?.actor?.toLowerCase().includes('credit'));
+                      const hasKamReply = (q.replies || []).some(
+                        (r: any) =>
+                          r.targetUserRole === 'credit_team' ||
+                          (r.actor || '').toLowerCase().includes('kam')
+                      );
+                      return !q.isResolved && isCreditQuery && !hasKamReply;
+                    });
+                    return awaitingKamFromCredit.length > 0 ? (
+                      <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4">
+                        <p className="text-sm font-medium text-neutral-900">
+                          {awaitingKamFromCredit.length} credit {awaitingKamFromCredit.length === 1 ? 'query' : 'queries'} awaiting your response
+                        </p>
+                      </div>
+                    ) : null;
+                  })()}
                   {/* Alert for unresolved queries (credit team only) */}
                   {userRole === 'credit_team' && (() => {
                     const awaitingQueries = queries.filter((q: any) => {
@@ -2108,6 +2258,53 @@ export const ApplicationDetail: React.FC = () => {
         </Modal>
       )}
 
+      {/* Forward to Credit Modal (KAM) */}
+      {canForwardToCredit && (
+        <Modal
+          isOpen={showForwardModal}
+          onClose={() => setShowForwardModal(false)}
+          size="md"
+        >
+          <ModalHeader onClose={() => setShowForwardModal(false)}>
+            Forward to Credit
+          </ModalHeader>
+          <ModalBody>
+            <div className="space-y-4">
+              <TextArea
+                label="Notes for credit team (optional)"
+                value={forwardNotes}
+                onChange={(e) => setForwardNotes(e.target.value)}
+                rows={4}
+              />
+              {creditTeamUsers.length > 0 && (
+                <Select
+                  label="Assign credit analyst (optional)"
+                  value={forwardCreditAnalystId}
+                  onChange={(e) => setForwardCreditAnalystId(e.target.value)}
+                  options={[
+                    { value: '', label: '— No specific analyst —' },
+                    ...creditTeamUsers.map((u) => ({ value: u.id, label: u.name })),
+                  ]}
+                />
+              )}
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setShowForwardModal(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleForwardToCredit}
+              disabled={forwardingToCredit}
+              loading={forwardingToCredit}
+            >
+              Forward to Credit
+            </Button>
+          </ModalFooter>
+        </Modal>
+      )}
+
       {/* Raise Query Modal */}
       <Modal
         testId="query-modal"
@@ -2115,6 +2312,8 @@ export const ApplicationDetail: React.FC = () => {
         onClose={() => {
           setShowQueryModal(false);
           setQueryMessage('');
+          setQueryFieldsRequested('');
+          setQueryDocumentsRequested('');
         }}
         size="md"
       >
@@ -2122,14 +2321,32 @@ export const ApplicationDetail: React.FC = () => {
           {t('pages.applicationDetail.raiseQuery')}
         </ModalHeader>
         <ModalBody>
-          <TextArea
-            label={t('pages.applicationDetail.queryMessage')}
-            placeholder={t('pages.applicationDetail.queryPlaceholder')}
-            value={queryMessage}
-            onChange={(e) => setQueryMessage(e.target.value)}
-            required
-            rows={6}
-          />
+          <div className="space-y-4">
+            <TextArea
+              label={t('pages.applicationDetail.queryMessage')}
+              placeholder={t('pages.applicationDetail.queryPlaceholder')}
+              value={queryMessage}
+              onChange={(e) => setQueryMessage(e.target.value)}
+              required
+              rows={5}
+            />
+            {userRole === 'kam' && (
+              <>
+                <Input
+                  label="Fields requested (comma-separated)"
+                  placeholder="e.g. PAN, Annual income"
+                  value={queryFieldsRequested}
+                  onChange={(e) => setQueryFieldsRequested(e.target.value)}
+                />
+                <Input
+                  label="Documents requested (comma-separated)"
+                  placeholder="e.g. Bank statement, Salary slips"
+                  value={queryDocumentsRequested}
+                  onChange={(e) => setQueryDocumentsRequested(e.target.value)}
+                />
+              </>
+            )}
+          </div>
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" onClick={() => setShowQueryModal(false)}>
@@ -2276,6 +2493,63 @@ export const ApplicationDetail: React.FC = () => {
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* KAM Edit Application Modal */}
+      {canEditApplication && (
+        <Modal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          size="lg"
+        >
+          <ModalHeader onClose={() => setShowEditModal(false)}>
+            Edit Application
+          </ModalHeader>
+          <ModalBody>
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+              {Object.keys(editFormData).length === 0 ? (
+                <p className="text-sm text-neutral-500">No editable form fields found.</p>
+              ) : (
+                Object.entries(editFormData).map(([key, value]) => (
+                  <Input
+                    key={key}
+                    label={key.replace(/_/g, ' ')}
+                    value={value}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
+                  />
+                ))
+              )}
+              <TextArea
+                label="Remarks"
+                value={editRemarks}
+                onChange={(e) => setEditRemarks(e.target.value)}
+                rows={2}
+              />
+              <TextArea
+                label="Edit notes (audit log)"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                rows={2}
+                placeholder="Reason for edit (optional)"
+              />
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setShowEditModal(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveKamEdit}
+              disabled={submittingKamEdit}
+              loading={submittingKamEdit}
+            >
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </Modal>
+      )}
 
       <Modal
         isOpen={showOfflineNbfcModal}

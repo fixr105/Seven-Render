@@ -50,10 +50,7 @@ function getStatusVariantBrand(status: string): 'neutral' | 'primary' {
 }
 
 function formatStatus(app: LoanApplication, role: RecentApplicationsRole): string {
-  if (role === 'client') {
-    return getStatusDisplayNameForViewer(app.status, 'client');
-  }
-  return app.status;
+  return getStatusDisplayNameForViewer(app.status, role === 'credit' ? 'credit_team' : role);
 }
 
 function mapToTableData(applications: LoanApplication[], role: RecentApplicationsRole): ApplicationRow[] {

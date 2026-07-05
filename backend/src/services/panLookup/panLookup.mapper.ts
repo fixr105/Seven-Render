@@ -217,7 +217,7 @@ export function mapPanLookupOutputToFormDataPatch(
     if (pincode) patch['borrower.address.pincode'] = pincode;
     if (district) patch['borrower.address.district'] = district;
     if (state) patch['borrower.address.state'] = state;
-    return patch;
+    return { ...patch, ...mapCibilScoreToMetaPatch(extractCibilScore(record)) };
   }
 
   const displayName =
@@ -239,4 +239,22 @@ export function mapPanLookupOutputToFormDataPatch(
 
 export function hasBorrowerPatchData(patch: Record<string, string>): boolean {
   return Object.keys(patch).length > 0;
+}
+
+export function extractCibilScore(record: Record<string, unknown>): string {
+  return readFirstStringFlexible(record, [
+    'cibil_score',
+    'cibilScore',
+    'CIBIL_Score',
+    'CIBIL Score',
+    'cibil',
+  ]);
+}
+
+export function mapCibilScoreToMetaPatch(score: string): Record<string, string> {
+  const trimmed = score.trim();
+  if (!trimmed) return {};
+  const numeric = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(numeric) || numeric < 0) return {};
+  return { '_meta.panLookup.cibilScore': String(numeric) };
 }

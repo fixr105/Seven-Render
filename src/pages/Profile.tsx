@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -131,7 +130,6 @@ export const Profile: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="max-w-2xl mx-auto space-y-6">
-        <PageHero title={t('pages.profile.title')} />
         <Card>
           <CardHeader>
             <CardTitle>{t('pages.profile.profileInformation')}</CardTitle>

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -11,7 +10,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Eye, UserPlus, RefreshCw, Copy, Check } from 'lucide-react';
+import { Eye, UserPlus, RefreshCw, Copy, Check, Package, Settings } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useApplications } from '../hooks/useApplications';
 import { useNotifications } from '../hooks/useNotifications';
@@ -77,6 +76,16 @@ export const Clients: React.FC = () => {
   });
   const [onboardSuccess, setOnboardSuccess] = useState<{ email: string; tempPassword?: string } | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
+  const [showProductsModal, setShowProductsModal] = useState(false);
+  const [showModulesModal, setShowModulesModal] = useState(false);
+  const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [modulesSelection, setModulesSelection] = useState<string[]>(['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+  const [commissionRateEdit, setCommissionRateEdit] = useState('1.0');
+  const [savingProducts, setSavingProducts] = useState(false);
+  const [savingModules, setSavingModules] = useState(false);
+
+  const MODULE_OPTIONS = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'];
 
   const sidebarItems = useSidebarItems();
 
@@ -243,6 +252,91 @@ export const Clients: React.FC = () => {
     }
   }, [showAssignModal, userRole]);
 
+  const openProductsModal = async (client: Client) => {
+    setSelectedClient(client);
+    setShowProductsModal(true);
+    try {
+      const [productsRes, assignedRes] = await Promise.all([
+        apiService.listLoanProducts(true),
+        apiService.getClientAssignedProducts(client.id),
+      ]);
+      if (productsRes.success && productsRes.data) {
+        setLoanProducts(
+          productsRes.data.map((p: { productId?: string; id?: string; productName?: string; name?: string }) => ({
+            id: String(p.productId ?? p.id ?? ''),
+            name: String(p.productName ?? p.name ?? p.id),
+          }))
+        );
+      }
+      if (assignedRes.success && assignedRes.data) {
+        setSelectedProductIds(assignedRes.data);
+      } else {
+        setSelectedProductIds([]);
+      }
+    } catch {
+      setSelectedProductIds([]);
+    }
+  };
+
+  const handleSaveProducts = async () => {
+    if (!selectedClient) return;
+    setSavingProducts(true);
+    try {
+      const res = await apiService.assignProductsToClient(selectedClient.id, selectedProductIds);
+      if (res.success) {
+        setShowProductsModal(false);
+        alert('Products assigned successfully.');
+      } else {
+        throw new Error(res.error || 'Failed to assign products');
+      }
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to assign products');
+    } finally {
+      setSavingProducts(false);
+    }
+  };
+
+  const openModulesModal = async (client: Client) => {
+    setSelectedClient(client);
+    setShowModulesModal(true);
+    setModulesSelection(['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+    setCommissionRateEdit('1.0');
+    try {
+      const res = await apiService.getKAMClient(client.id);
+      if (res.success && res.data) {
+        if (res.data.enabledModules?.length) {
+          setModulesSelection(res.data.enabledModules);
+        }
+        if (res.data.commissionRate != null && !Number.isNaN(res.data.commissionRate)) {
+          setCommissionRateEdit(String(res.data.commissionRate));
+        }
+      }
+    } catch {
+      // keep defaults
+    }
+  };
+
+  const handleSaveModules = async () => {
+    if (!selectedClient) return;
+    setSavingModules(true);
+    try {
+      const res = await apiService.updateClientModules(selectedClient.id, {
+        enabledModules: modulesSelection,
+        commissionRate: parseFloat(commissionRateEdit) || 1.0,
+      });
+      if (res.success) {
+        setShowModulesModal(false);
+        alert('Client settings updated.');
+      } else {
+        throw new Error(res.error || 'Failed to update client');
+      }
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to update client');
+    } finally {
+      setSavingModules(false);
+    }
+  };
+
   const filteredClients = clientsWithCounts.filter(client => {
     // Search filter
     const matchesSearch = searchQuery === '' ||
@@ -330,6 +424,26 @@ export const Clients: React.FC = () => {
           >
             {t('common.viewFiles')}
           </Button>
+          {userRole === 'kam' && (
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={Package}
+                onClick={() => openProductsModal(row)}
+              >
+                Assign Products
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={Settings}
+                onClick={() => openModulesModal(row)}
+              >
+                Modules
+              </Button>
+            </>
+          )}
           {userRole === 'credit_team' && (
             <Button
               size="sm"
@@ -363,7 +477,6 @@ export const Clients: React.FC = () => {
       onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
-        <PageHero title={t('pages.clients.title')} />
       {import.meta.env.DEV && debugInfo && (
         <Card className="mb-4 border-2 border-brand-primary">
           <CardContent className="p-3">
@@ -753,6 +866,97 @@ export const Clients: React.FC = () => {
             loading={submitting}
           >
             {selectedKAMId ? t('common.assign') : t('common.unassign')}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Assign Products Modal (KAM) */}
+      <Modal
+        isOpen={showProductsModal}
+        onClose={() => setShowProductsModal(false)}
+        size="md"
+      >
+        <ModalHeader onClose={() => setShowProductsModal(false)}>
+          Assign Loan Products
+        </ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-neutral-600 mb-4">
+            Client: <strong>{selectedClient?.company_name}</strong>
+          </p>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {loanProducts.length === 0 ? (
+              <p className="text-sm text-neutral-500">No loan products available.</p>
+            ) : (
+              loanProducts.map((product) => (
+                <label key={product.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedProductIds.includes(product.id)}
+                    onChange={(e) => {
+                      setSelectedProductIds((prev) =>
+                        e.target.checked
+                          ? [...prev, product.id]
+                          : prev.filter((id) => id !== product.id)
+                      );
+                    }}
+                  />
+                  {product.name}
+                </label>
+              ))
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowProductsModal(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="primary" onClick={handleSaveProducts} loading={savingProducts} disabled={savingProducts}>
+            Save
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Client Modules Modal (KAM) */}
+      <Modal
+        isOpen={showModulesModal}
+        onClose={() => setShowModulesModal(false)}
+        size="md"
+      >
+        <ModalHeader onClose={() => setShowModulesModal(false)}>
+          Client Modules & Commission
+        </ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-neutral-600 mb-4">
+            Client: <strong>{selectedClient?.company_name}</strong>
+          </p>
+          <div className="space-y-3">
+            {MODULE_OPTIONS.map((mod) => (
+              <label key={mod} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={modulesSelection.includes(mod)}
+                  onChange={(e) => {
+                    setModulesSelection((prev) =>
+                      e.target.checked ? [...prev, mod] : prev.filter((m) => m !== mod)
+                    );
+                  }}
+                />
+                {mod}
+              </label>
+            ))}
+            <Input
+              label="Commission rate (%)"
+              value={commissionRateEdit}
+              onChange={(e) => setCommissionRateEdit(e.target.value)}
+            />
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowModulesModal(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="primary" onClick={handleSaveModules} loading={savingModules} disabled={savingModules}>
+            Save
           </Button>
         </ModalFooter>
       </Modal>

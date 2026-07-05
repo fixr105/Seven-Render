@@ -173,9 +173,6 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
     };
   }
 
-  // CIBIL is intentionally discarded — reserved for a future feature.
-  delete output.cibil_score;
-
   const target = input.target ?? 'borrower';
   const formDataPatch = mapPanLookupOutputToFormDataPatch(output, target);
   if (!hasBorrowerPatchData(formDataPatch)) {

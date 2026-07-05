@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -1020,7 +1019,6 @@ export const LegacyNewApplication: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title={t('pages.newApplication.pageTitle')} />
       {draftLoading && (
         <Card className="mb-4">
           <CardContent className="p-4 text-sm text-neutral-600">Loading draft application…</CardContent>

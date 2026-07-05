@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -13,6 +12,7 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
+import { Input } from '../components/ui/Input';
 import { Plus, Eye, MessageSquare, RefreshCw, FileText, X, Edit } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
@@ -86,6 +86,8 @@ export const Applications: React.FC = () => {
   const [showQueryModal, setShowQueryModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<any | null>(null);
   const [queryMessage, setQueryMessage] = useState('');
+  const [queryFieldsRequested, setQueryFieldsRequested] = useState('');
+  const [queryDocumentsRequested, setQueryDocumentsRequested] = useState('');
   const [queryCounts, setQueryCounts] = useState<Record<string, { unresolved: number; lastActivity: string | null }>>({});
   const [loadingQueryCounts, setLoadingQueryCounts] = useState(false);
   const [submittingQuery, setSubmittingQuery] = useState(false);
@@ -196,9 +198,9 @@ export const Applications: React.FC = () => {
     [setSearchParams]
   );
 
-  // Fetch query counts for applications (only for credit_team)
+  // Fetch query counts for applications (KAM and credit_team)
   useEffect(() => {
-    if (userRole === 'credit_team' && applications.length > 0 && !loading && !loadingQueryCounts) {
+    if ((userRole === 'credit_team' || userRole === 'kam') && applications.length > 0 && !loading && !loadingQueryCounts) {
       fetchQueryCounts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -414,6 +416,12 @@ export const Applications: React.FC = () => {
     }
   };
 
+  const parseCsvList = (raw: string): string[] =>
+    raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
   const handleRaiseQuery = async () => {
     if (!selectedApplication || !queryMessage.trim()) return;
     if (userRole !== 'credit_team' && userRole !== 'kam') return;
@@ -422,10 +430,16 @@ export const Applications: React.FC = () => {
       const response =
         userRole === 'credit_team'
           ? await apiService.raiseQueryToKAM(selectedApplication.id, queryMessage.trim())
-          : await apiService.raiseQueryToClient(selectedApplication.id, queryMessage.trim());
+          : await apiService.raiseQueryToClient(selectedApplication.id, {
+              message: queryMessage.trim(),
+              fieldsRequested: parseCsvList(queryFieldsRequested),
+              documentsRequested: parseCsvList(queryDocumentsRequested),
+            });
       if (response?.success) {
         setShowQueryModal(false);
         setQueryMessage('');
+        setQueryFieldsRequested('');
+        setQueryDocumentsRequested('');
         setSelectedApplication(null);
         refetch();
       } else {
@@ -452,7 +466,7 @@ export const Applications: React.FC = () => {
       render: (value, row) => (
         <div className="flex items-center gap-2">
           <Badge variant={getStatusColor(row.rawStatus ?? '')}>{String(value)}</Badge>
-          {userRole === 'credit_team' && row.unresolvedQueryCount > 0 && (
+          {(userRole === 'credit_team' || userRole === 'kam') && row.unresolvedQueryCount > 0 && (
             <Badge variant="warning" className="text-xs">
               {t('pages.applications.queryCount', { count: row.unresolvedQueryCount })}
             </Badge>
@@ -528,7 +542,6 @@ export const Applications: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title={t('pages.applications.title')} />
       {/* Loading State */}
       {loading && (
         <Card className="mb-6">
@@ -622,9 +635,11 @@ export const Applications: React.FC = () => {
               >
                 {loading ? t('common.loading') : t('common.refresh')}
               </Button>
-              <Button variant="primary" icon={Plus} onClick={() => navigate('/applications/new')}>
-                {t('pages.applications.newApplication')}
-              </Button>
+              {userRole === 'client' && (
+                <Button variant="primary" icon={Plus} onClick={() => navigate('/applications/new')}>
+                  {t('pages.applications.newApplication')}
+                </Button>
+              )}
             </div>
           </div>
           <div className="flex flex-col gap-3 pt-3 mt-1 border-t border-neutral-200">
@@ -778,6 +793,8 @@ export const Applications: React.FC = () => {
                           const n = new URLSearchParams(prev);
                           n.delete('productId');
                           n.delete('statuses');
+                          n.delete('status');
+                          n.delete('clientId');
                           return n;
                         }, { replace: true });
                       }}
@@ -818,7 +835,7 @@ export const Applications: React.FC = () => {
             }}
             rowTestId="application-row"
             getRowClassName={(row) => {
-              if (userRole === 'credit_team' && row.hasUnresolvedQueries) {
+              if ((userRole === 'credit_team' || userRole === 'kam') && row.hasUnresolvedQueries) {
                 return 'bg-warning/5 border-l-4 border-warning';
               }
               return '';
@@ -862,6 +879,22 @@ export const Applications: React.FC = () => {
               required
               rows={6}
             />
+            {userRole === 'kam' && (
+              <>
+                <Input
+                  label="Fields requested (comma-separated)"
+                  placeholder="e.g. PAN, Annual income"
+                  value={queryFieldsRequested}
+                  onChange={(e) => setQueryFieldsRequested(e.target.value)}
+                />
+                <Input
+                  label="Documents requested (comma-separated)"
+                  placeholder="e.g. Bank statement, Salary slips"
+                  value={queryDocumentsRequested}
+                  onChange={(e) => setQueryDocumentsRequested(e.target.value)}
+                />
+              </>
+            )}
           </div>
         </ModalBody>
         <ModalFooter>
@@ -870,6 +903,8 @@ export const Applications: React.FC = () => {
             onClick={() => {
               setShowQueryModal(false);
               setQueryMessage('');
+              setQueryFieldsRequested('');
+              setQueryDocumentsRequested('');
               setSelectedApplication(null);
             }}
           >

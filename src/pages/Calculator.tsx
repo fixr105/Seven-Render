@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
-import { PageHero } from '../components/layout/PageHero';
 import { Card, CardContent } from '../components/ui/Card';
 import { EmiRangeCalculator } from '../components/calculator/EmiRangeCalculator';
 import { useAuth } from '../auth/AuthContext';
@@ -37,7 +36,6 @@ export const Calculator: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title={t('pages.calculator.title')} />
       <Card>
         <CardContent className="p-6">
           <EmiRangeCalculator />

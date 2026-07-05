@@ -1137,11 +1137,15 @@ class ApiService {
    */
   async updateClientModules(
     clientId: string,
-    modules: Record<string, boolean>
+    payload: { enabledModules?: string[]; commissionRate?: number; modules?: Record<string, boolean> }
   ): Promise<ApiResponse> {
+    const body =
+      payload.enabledModules != null
+        ? { enabledModules: payload.enabledModules, commissionRate: payload.commissionRate }
+        : { modules: payload.modules };
     return this.request(`/kam/clients/${clientId}/modules`, {
       method: 'PATCH',
-      body: JSON.stringify({ modules }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -1368,7 +1372,7 @@ class ApiService {
    */
   async editApplication(
     applicationId: string,
-    updates: Partial<LoanApplication>
+    updates: { formData?: Record<string, unknown>; notes?: string }
   ): Promise<ApiResponse> {
     return this.request(`/kam/loan-applications/${applicationId}/edit`, {
       method: 'POST',
@@ -1377,15 +1381,58 @@ class ApiService {
   }
 
   /**
+   * Get client details (KAM) — modules, commission rate, etc.
+   */
+  async getKAMClient(clientId: string): Promise<
+    ApiResponse<{
+      id: string;
+      clientId?: string;
+      enabledModules?: string[];
+      commissionRate?: number | null;
+    }>
+  > {
+    return this.request(`/kam/clients/${clientId}`);
+  }
+
+  /**
+   * Get assigned loan products for a client (KAM)
+   */
+  async getClientAssignedProducts(clientId: string): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>(`/kam/clients/${clientId}/assigned-products`);
+  }
+
+  /**
+   * Assign loan products to a client (KAM)
+   */
+  async assignProductsToClient(
+    clientId: string,
+    productIds: string[]
+  ): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>(`/kam/clients/${clientId}/assigned-products`, {
+      method: 'PUT',
+      body: JSON.stringify({ productIds }),
+    });
+  }
+
+  /**
    * Raise query to client (KAM)
    */
   async raiseQueryToClient(
     applicationId: string,
-    query: string
+    payload: {
+      message: string;
+      fieldsRequested?: string[];
+      documentsRequested?: string[];
+    }
   ): Promise<ApiResponse> {
     return this.request(`/kam/loan-applications/${applicationId}/queries`, {
       method: 'POST',
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({
+        message: payload.message,
+        query: payload.message,
+        fieldsRequested: payload.fieldsRequested,
+        documentsRequested: payload.documentsRequested,
+      }),
     });
   }
 

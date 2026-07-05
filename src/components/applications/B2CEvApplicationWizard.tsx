@@ -3,13 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ChevronLeft, ChevronRight, Save, Send } from 'lucide-react';
 import { MainLayout } from '../layout/MainLayout';
-import { PageHero } from '../layout/PageHero';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { TextArea } from '../ui/TextArea';
-import { B2cEvWizardStepper } from './B2cEvWizardStepper';
+import { parseCibilScore } from '../../lib/b2cEvCibilProbability';
 import { useAuth } from '../../auth/AuthContext';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useNavigation } from '../../hooks/useNavigation';
@@ -54,6 +53,8 @@ import {
 import { LoanCalculator } from './LoanCalculator';
 import { SupportPersonPanWizard } from './SupportPersonPanWizard';
 import { GeoTaggedPhotoUploads } from './GeoTaggedPhotoUploads';
+import { B2cEvWizardStepper } from './B2cEvWizardStepper';
+import { CibilProbabilityBar } from './CibilProbabilityBar';
 import {
   buildComplianceKamRequestMessage,
   COMPLIANCE_ITEMS,
@@ -114,7 +115,7 @@ function readFieldValue(formData: Record<string, unknown>, key: string): string 
 }
 
 function isJsonBackedField(field: B2cEvFieldDef): boolean {
-  return Boolean(field.readOnly) || field.key.startsWith('borrower.');
+  return Boolean(field.readOnly);
 }
 
 function renderField(
@@ -611,8 +612,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
   );
 
   const updateField = (key: string, value: string) => {
-    if (key.startsWith('borrower.')) return;
-
     setFormState((prev) => {
       let nextFormData = { ...prev.form_data, [key]: value };
       if (key === '_meta.supportPersonType') {
@@ -658,13 +657,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
     patch: Record<string, string>,
     options?: { debounceMs?: number }
   ) => {
-    const filteredPatch = Object.fromEntries(
-      Object.entries(patch).filter(([key]) => !key.startsWith('borrower.'))
-    );
-    if (Object.keys(filteredPatch).length === 0) return;
+    if (Object.keys(patch).length === 0) return;
 
     setFormState((prev) => {
-      const nextFormData = syncB2cEvComputedFields({ ...prev.form_data, ...filteredPatch });
+      const nextFormData = syncB2cEvComputedFields({ ...prev.form_data, ...patch });
       const applicantName = readFieldValue(nextFormData, 'borrower.customerName');
       const loanAmount = readFieldValue(nextFormData, 'loan.amount').replace(/,/g, '');
       return {
@@ -676,7 +672,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     });
     setFieldErrors((prev) => {
       const next = { ...prev };
-      for (const key of Object.keys(filteredPatch)) {
+      for (const key of Object.keys(patch)) {
         delete next[key];
       }
       return next;
@@ -1400,8 +1396,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <PageHero title={t('pages.newApplication.pageTitle')} />
-
       {draftLoadError && (
         <Card className="mb-4 border-error/30 bg-error/5">
           <CardContent className="p-4 text-sm text-error">{draftLoadError}</CardContent>
@@ -1467,6 +1461,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {currentStage?.id === 'borrower' && (
+        <CibilProbabilityBar
+          cibilScore={parseCibilScore(formState.form_data['_meta.panLookup.cibilScore'])}
+        />
+      )}
 
       <Card className="mb-6">
         <CardHeader>

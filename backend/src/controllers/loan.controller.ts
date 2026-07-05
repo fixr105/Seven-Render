@@ -875,12 +875,39 @@ export class LoanController {
         replyTarget
       );
 
-      if (role === 'client' && application.Status === 'query_with_client') {
+      if (role === 'client' && normalizeDynamicStatus(application.Status) === LoanStatus.QUERY_WITH_CLIENT) {
         await n8nClient.postLoanApplication({
           ...application,
           Status: LoanStatus.UNDER_KAM_REVIEW,
           'Last Updated': new Date().toISOString(),
         });
+        const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+        await recordStatusChange(
+          req.user!,
+          application['File ID'],
+          LoanStatus.QUERY_WITH_CLIENT,
+          LoanStatus.UNDER_KAM_REVIEW,
+          'Client responded to query'
+        );
+      }
+
+      if (
+        role === 'kam' &&
+        normalizeDynamicStatus(application.Status) === LoanStatus.CREDIT_QUERY_WITH_KAM
+      ) {
+        await n8nClient.postLoanApplication({
+          ...application,
+          Status: LoanStatus.PENDING_CREDIT_REVIEW,
+          'Last Updated': new Date().toISOString(),
+        });
+        const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
+        await recordStatusChange(
+          req.user!,
+          application['File ID'],
+          LoanStatus.CREDIT_QUERY_WITH_KAM,
+          LoanStatus.PENDING_CREDIT_REVIEW,
+          'KAM responded to credit query'
+        );
       }
 
       await n8nClient.postAdminActivityLog({

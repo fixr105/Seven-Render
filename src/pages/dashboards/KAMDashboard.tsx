@@ -5,16 +5,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import {
-  Users,
   Clock,
   ArrowRight,
   Plus,
   AlertCircle,
   RefreshCw,
   Sparkles,
-  FileText,
-  TrendingUp,
-  Percent,
+  Users,
 } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
 import { apiService } from '../../services/api';
@@ -80,74 +77,12 @@ export const KAMDashboard: React.FC = () => {
   const { clients, summary, pendingQueries } = dashboardData;
   const totalClients = summary?.totalClients ?? clients.length;
   const totalFiles = summary?.totalFiles ?? clients.reduce((s, c) => s + c.totalFiles, 0);
-  const filesLast30Days = summary?.filesLast30Days ?? clients.reduce((s, c) => s + c.filesLast30Days, 0);
   const pendingReview = summary?.pendingReview ?? 0;
   const awaitingResponse = summary?.awaitingResponse ?? 0;
   const forwarded = summary?.forwarded ?? 0;
-  const approvalRate = summary?.approvalRate ?? null;
 
   return (
     <>
-      {/* Your clients – summary tiles (client-first) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">{t('pages.dashboards.yourClients')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{totalClients}</p>
-              <p className="text-xs text-neutral-500 mt-1">{t('pages.dashboards.managedClients')}</p>
-            </div>
-            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
-              <Users className="w-6 h-6 text-brand-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">{t('pages.dashboards.totalFiles')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{totalFiles}</p>
-              <p className="text-xs text-neutral-500 mt-1">{t('pages.dashboards.allTime')}</p>
-            </div>
-            <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center">
-              <FileText className="w-6 h-6 text-brand-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">{t('pages.dashboards.filesUploaded')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{filesLast30Days}</p>
-              <p className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                {t('pages.dashboards.last30Days')}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-info/10 rounded-full flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-info" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-neutral-500">{t('pages.dashboards.performance')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">
-                {approvalRate !== null ? `${approvalRate}%` : '—'}
-              </p>
-              <p className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
-                <Percent className="w-3 h-3" />
-                {t('pages.dashboards.approvalRate')}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
-              <Percent className="w-6 h-6 text-success" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* New files highlight */}
       {pendingReview > 0 && (
         <Card className="mb-6 border-warning/30 bg-warning/5">
@@ -155,7 +90,7 @@ export const KAMDashboard: React.FC = () => {
             <p className="text-sm text-neutral-800">
               You have {pendingReview} new file{pendingReview !== 1 ? 's' : ''} from clients awaiting your review.
             </p>
-            <Button variant="secondary" size="sm" onClick={() => navigate('/applications?status=pending_kam_review')}>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/applications?statuses=under_kam_review')}>
               {t('pages.dashboards.reviewNewFiles')}
             </Button>
           </CardContent>
@@ -283,12 +218,12 @@ export const KAMDashboard: React.FC = () => {
               {t('pages.dashboards.onboardNewClient')}
             </Button>
             {pendingReview > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=pending_kam_review')} title={t('pages.dashboards.reviewNewFiles')}>
+              <Button variant="secondary" onClick={() => navigate('/applications?statuses=under_kam_review')} title={t('pages.dashboards.reviewNewFiles')}>
                 {t('pages.dashboards.reviewNewFiles')} ({pendingReview})
               </Button>
             )}
             {awaitingResponse > 0 && (
-              <Button variant="secondary" onClick={() => navigate('/applications?status=kam_query_raised')} title={t('pages.dashboards.filesAwaitingClient')}>
+              <Button variant="secondary" onClick={() => navigate('/applications?statuses=query_with_client')} title={t('pages.dashboards.filesAwaitingClient')}>
                 {t('pages.dashboards.filesAwaitingClient')} ({awaitingResponse})
               </Button>
             )}

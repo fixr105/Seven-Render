@@ -7,7 +7,7 @@ import {
 } from '../b2cEvPanLookup';
 
 describe('b2cEvPanLookup', () => {
-  it('maps webhook output without cibil fields', () => {
+  it('maps webhook output with cibil stored in meta only', () => {
     const patch = mapPanLookupOutputToFormDataPatch({
       first_name: 'RAHUL',
       last_name: 'GONSALVES',
@@ -15,7 +15,9 @@ describe('b2cEvPanLookup', () => {
     });
     expect(patch['borrower.firstName']).toBe('RAHUL');
     expect(patch['borrower.lastName']).toBe('GONSALVES');
-    expect(Object.keys(patch).some((key) => key.includes('cibil'))).toBe(false);
+    expect(patch['_meta.panLookup.cibilScore']).toBe('731');
+    expect(patch).not.toHaveProperty('cibil_score');
+    expect(patch).not.toHaveProperty('borrower.cibil');
   });
 
   it('builds stable input hash from lookup fields', () => {
@@ -28,13 +30,15 @@ describe('b2cEvPanLookup', () => {
     expect(hash).toBe('9687599179|BAIPG3083L|RAHUL YADAV|');
   });
 
-  it('clears borrower fields before re-applying lookup patch', () => {
+  it('clears borrower fields and cibil meta before re-applying lookup patch', () => {
     const cleared = clearBorrowerFields({
       'borrower.firstName': 'Old',
       'borrower.pan': 'OLDPAN1234A',
+      '_meta.panLookup.cibilScore': '700',
       'dealer.id': 'SFDLR11030',
     });
     expect(cleared['borrower.firstName']).toBeUndefined();
+    expect(cleared['_meta.panLookup.cibilScore']).toBeUndefined();
     expect(cleared['dealer.id']).toBe('SFDLR11030');
   });
 
@@ -52,7 +56,7 @@ describe('b2cEvPanLookup', () => {
     expect(patch['borrower.address.line1']).toContain('Villa De Flores');
     expect(patch['borrower.address.village']).toBe('Bhavnagar');
     expect(patch['borrower.address.pincode']).toBe('364002');
-    expect(Object.keys(patch).some((key) => key.includes('cibil'))).toBe(false);
+    expect(patch['_meta.panLookup.cibilScore']).toBe('731');
   });
 
   it('maps address fields with mixed-case live n8n keys', () => {
