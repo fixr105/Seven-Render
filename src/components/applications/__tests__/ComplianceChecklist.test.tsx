@@ -40,6 +40,24 @@ describe('ComplianceChecklist', () => {
     expect(onRequestFromKam).toHaveBeenCalledWith('enach');
   });
 
+  it('disables loan agreement request button when checkbox is checked', () => {
+    render(
+      <ComplianceChecklist
+        formData={{
+          ...createInitialB2cEvFormData(),
+          'compliance.loanAgreementSigned': true,
+        }}
+        fieldErrors={{}}
+        requestingItemId={null}
+        onCheckboxChange={vi.fn()}
+        onRequestFromKam={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('compliance-request-kam-loanAgreement')).toBeDisabled();
+    expect(screen.getByTestId('compliance-request-kam-vkyc')).not.toBeDisabled();
+  });
+
   it('disables request button after item was requested', () => {
     render(
       <ComplianceChecklist

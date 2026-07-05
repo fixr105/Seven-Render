@@ -21,6 +21,17 @@ vi.mock('../../../lib/b2cEvGeoPhotos', async (importOriginal) => {
 });
 
 describe('GeoTaggedPhotoUploads', () => {
+  const baseProps = {
+    fieldErrors: {},
+    onBatchChange: vi.fn(),
+    requestingComplianceItemId: null as const,
+    onComplianceCheckboxChange: vi.fn(),
+    onRequestFromKam: vi.fn(),
+    usedWebhookLinks: new Set<string>(),
+    onDocumentFieldChange: vi.fn(),
+    onFolderLinkConsumed: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (apiService.uploadDocument as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -38,12 +49,8 @@ describe('GeoTaggedPhotoUploads', () => {
   it('renders three geo photo upload slots', () => {
     render(
       <GeoTaggedPhotoUploads
+        {...baseProps}
         formData={createInitialB2cEvFormData()}
-        fieldErrors={{}}
-        onBatchChange={vi.fn()}
-        requestingComplianceItemId={null}
-        onComplianceCheckboxChange={vi.fn()}
-        onRequestFromKam={vi.fn()}
       />
     );
 
@@ -54,6 +61,7 @@ describe('GeoTaggedPhotoUploads', () => {
       'Upload photo'
     );
     expect(screen.getByTestId('compliance-checklist')).toBeInTheDocument();
+    expect(screen.getByTestId('b2c-documents-section')).toBeInTheDocument();
   });
 
   it('uploads photo via documents API and stores share link in form patch', async () => {
@@ -62,12 +70,9 @@ describe('GeoTaggedPhotoUploads', () => {
 
     render(
       <GeoTaggedPhotoUploads
+        {...baseProps}
         formData={createInitialB2cEvFormData()}
-        fieldErrors={{}}
         onBatchChange={onBatchChange}
-        requestingComplianceItemId={null}
-        onComplianceCheckboxChange={vi.fn()}
-        onRequestFromKam={vi.fn()}
         loanApplicationId="draft-geo"
       />
     );

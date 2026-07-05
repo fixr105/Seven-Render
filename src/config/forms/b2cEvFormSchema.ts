@@ -74,7 +74,7 @@ const supportPersonFields = (prefix: 'coApplicant' | 'guarantor', relationOption
   { key: `${prefix}.address.pincode`, label: 'Pincode', type: 'text', required: true },
   { key: `${prefix}.address.district`, label: 'District', type: 'text', required: true },
   { key: `${prefix}.address.state`, label: 'State', type: 'text', required: true },
-  { key: `${prefix}.drivingLicense`, label: 'Driving Licence', type: 'text', required: true },
+  { key: `${prefix}.drivingLicense`, label: 'Driving Licence', type: 'text', required: prefix === 'guarantor' },
   { key: `${prefix}.mobile`, label: 'Mobile', type: 'tel', required: true },
   {
     key: `${prefix}.relationship`,

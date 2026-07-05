@@ -39,7 +39,7 @@ const CO_APPLICANT_FIELDS: FieldDef[] = [
   { key: 'coApplicant.address.pincode', label: 'Pincode', type: 'text', required: true },
   { key: 'coApplicant.address.district', label: 'District', type: 'text', required: true },
   { key: 'coApplicant.address.state', label: 'State', type: 'text', required: true },
-  { key: 'coApplicant.drivingLicense', label: 'Driving Licence', type: 'text', required: true },
+  { key: 'coApplicant.drivingLicense', label: 'Driving Licence', type: 'text', required: false },
   { key: 'coApplicant.mobile', label: 'Mobile', type: 'tel', required: true },
   { key: 'coApplicant.relationship', label: 'Relationship with Borrower', type: 'select', required: true },
 ];

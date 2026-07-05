@@ -347,6 +347,122 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('b2c-field-dealer-contact')).toHaveValue('7905835489');
   });
 
+  it('shows manual co-applicant profile when PAN lookup returns no results and advances to geo photos', async () => {
+    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockImplementation(async (args) => {
+      if (args.target === 'coApplicant' || args.target === 'guarantor') {
+        return {
+          success: false,
+          error: 'PAN lookup returned no co-applicant details',
+        };
+      }
+      return {
+        success: true,
+        data: {
+          formDataPatch: {
+            'borrower.firstName': 'RAHUL',
+            'borrower.lastName': 'GONSALVES',
+            'borrower.customerName': 'RAHUL GONSALVES',
+            'borrower.gender': 'Male',
+            'borrower.dob': '1993-04-07',
+            'borrower.fatherName': 'JOSEPH GONSALVES',
+            'borrower.mobile': '9687599179',
+            'borrower.email': 'rahul@example.com',
+            'borrower.pan': 'BAIPG3083L',
+            'borrower.address.line1': '107, Villa De Flores',
+            'borrower.address.village': 'Bhavnagar',
+            'borrower.address.pincode': '364002',
+            'borrower.address.district': 'Bhavnagar',
+            'borrower.address.state': 'Gujarat',
+          },
+          lookupAt: '2026-04-07T12:00:00.000Z',
+        },
+      };
+    });
+
+    (apiService.getClientKyc as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        clientId: 'USER-1',
+        displayLabel: 'Dealer',
+        formDataPatch: {
+          'dealer.id': 'SFDLR11030',
+          'dealer.displayLabel': 'Ajay Enterprises',
+          'dealer.tradeName': 'Ajay Enterprises',
+          'dealer.name': 'Ajay Enterprises',
+          'dealer.contact': '7905835489',
+          'dealer.email': 'dealer@example.com',
+          'dealer.gstNumber': '09BMCPG4250M1ZY',
+          'dealer.pan': 'BMCPG4250M',
+          'dealer.ifscCode': 'HDFC0001885',
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await user.type(screen.getByTestId('loan-calc-downpayment'), '15000');
+    await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
+    await user.click(screen.getByTestId('loan-calc-freeze'));
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-dealer-id')).toHaveValue('SFDLR11030');
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('support-person-co_applicant')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('support-person-co_applicant'));
+    await user.type(screen.getByTestId('b2c-field-_meta-supportPanLookup-mobileNumber'), '9876543211');
+    await user.type(screen.getByTestId('b2c-field-_meta-supportPanLookup-panNumber'), 'FGHIJ5678K');
+    await user.type(screen.getByTestId('b2c-field-_meta-supportPanLookup-fullName'), 'PRIYA SHARMA');
+    await user.click(screen.getByTestId('b2c-support-pan-verify'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('support-pan-phase-profile')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('support-pan-profile-message')).toHaveTextContent(
+      /PAN verification returned no results/i
+    );
+    expect(screen.getByTestId('b2c-field-coApplicant-name')).toHaveValue('PRIYA SHARMA');
+    expect(screen.getByTestId('b2c-field-coApplicant-pan')).toHaveValue('FGHIJ5678K');
+
+    await user.type(screen.getByTestId('b2c-field-coApplicant-dob'), '1992-02-02');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-email'), 'priya@example.com');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-address-line1'), '12 Main Street');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-address-village'), 'Delhi');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-address-pincode'), '110001');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-address-district'), 'Delhi');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-address-state'), 'Delhi');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-drivingLicense'), 'DL654321');
+    await user.selectOptions(screen.getByTestId('b2c-field-coApplicant-relationship'), 'Spouse');
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-stepper-step-geo-photos')).toBeInTheDocument();
+      expect(screen.queryByTestId('support-pan-phase-profile')).not.toBeInTheDocument();
+    });
+  });
+
   it('does not show Submit until the last step', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);

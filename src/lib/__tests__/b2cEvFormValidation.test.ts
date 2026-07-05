@@ -136,6 +136,28 @@ describe('getB2cEvFormCompletion', () => {
     expect(result.missingByStage.some((s) => s.stageId === 'support-person')).toBe(true);
   });
 
+  it('does not require co-applicant driving license', () => {
+    const formData = buildCompleteCoApplicantForm();
+    delete formData['coApplicant.drivingLicense'];
+    const stages = getVisibleB2cEvStages(formData);
+    const result = getB2cEvFormCompletion(stages, formData, 'LP001');
+
+    expect(result.isComplete).toBe(true);
+    expect(result.errors['coApplicant.drivingLicense']).toBeUndefined();
+  });
+
+  it('returns complete for manual co-applicant profile after PAN lookup had no results', () => {
+    const formData = {
+      ...buildCompleteCoApplicantForm(),
+      '_meta.supportPanLookup.status': 'manual',
+    };
+    const stages = getVisibleB2cEvStages(formData);
+    const result = getB2cEvFormCompletion(stages, formData, 'LP001');
+
+    expect(result.isComplete).toBe(true);
+    expect(result.missingByStage).toHaveLength(0);
+  });
+
   it('flags missing dealer KYC fields', () => {
     const formData = createInitialB2cEvFormData();
     const stages = getVisibleB2cEvStages(formData);

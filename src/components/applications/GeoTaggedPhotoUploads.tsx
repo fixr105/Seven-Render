@@ -7,7 +7,9 @@ import {
   type B2cEvGeoPhotoSlot,
 } from '../../lib/b2cEvGeoPhotos';
 import { ComplianceChecklist } from './ComplianceChecklist';
+import { B2cEvDocumentsSection } from './B2cEvDocumentsSection';
 import type { ComplianceItemId } from '../../lib/b2cEvCompliance';
+import type { FormConfigCategory } from '../../lib/b2cEvDocuments';
 import { apiService } from '../../services/api';
 
 function readFieldValue(formData: Record<string, unknown>, key: string): string {
@@ -25,6 +27,11 @@ export interface GeoTaggedPhotoUploadsProps {
   onRequestFromKam: (itemId: ComplianceItemId) => void;
   loanApplicationId?: string | null;
   ensureDraftSaved?: () => Promise<string>;
+  formConfig?: FormConfigCategory[];
+  formConfigLoading?: boolean;
+  usedWebhookLinks: Set<string>;
+  onDocumentFieldChange: (key: string, value: string) => void;
+  onFolderLinkConsumed: (link: string) => void;
 }
 
 export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
@@ -36,6 +43,11 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
   onRequestFromKam,
   loanApplicationId,
   ensureDraftSaved,
+  formConfig = [],
+  formConfigLoading = false,
+  usedWebhookLinks,
+  onDocumentFieldChange,
+  onFolderLinkConsumed,
 }) => {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
@@ -207,6 +219,16 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
         requestingItemId={requestingComplianceItemId}
         onCheckboxChange={onComplianceCheckboxChange}
         onRequestFromKam={onRequestFromKam}
+      />
+
+      <B2cEvDocumentsSection
+        formData={formData}
+        formConfig={formConfig}
+        fieldErrors={fieldErrors}
+        usedWebhookLinks={usedWebhookLinks}
+        onFieldChange={onDocumentFieldChange}
+        onFolderLinkConsumed={onFolderLinkConsumed}
+        formConfigLoading={formConfigLoading}
       />
     </div>
   );

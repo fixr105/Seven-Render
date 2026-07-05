@@ -75,7 +75,11 @@ export const ComplianceChecklist: React.FC<ComplianceChecklistProps> = ({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  disabled={isRequesting || isRequested}
+                  disabled={
+                    isRequesting ||
+                    isRequested ||
+                    (item.id === 'loanAgreement' && checked)
+                  }
                   data-testid={`compliance-request-kam-${item.id}`}
                   onClick={() => onRequestFromKam(item.id)}
                 >

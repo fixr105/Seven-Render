@@ -8,7 +8,11 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { TextArea } from '../ui/TextArea';
-import { parseCibilScore } from '../../lib/b2cEvCibilProbability';
+import {
+  persistUsedClientWebhookLinks,
+  readUsedClientWebhookLinks,
+  type FormConfigCategory,
+} from '../../lib/b2cEvDocuments';
 import { useAuth } from '../../auth/AuthContext';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useNavigation } from '../../hooks/useNavigation';
@@ -46,6 +50,7 @@ import {
   clearSupportPersonProfileFields,
   getSupportPanLookupPayload,
   getSupportPanLookupPhase,
+  applySupportPersonManualProfilePhase,
   shouldRefetchSupportPanLookup,
   SUPPORT_PAN_LOOKUP_FIELD_KEYS,
   SUPPORT_PAN_LOOKUP_TIMEOUT_SECONDS,
@@ -77,6 +82,28 @@ type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const FIELD_AUTO_SAVE_DEBOUNCE_MS = 1500;
 const GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS = 2000;
+
+/** 1-indexed `step` or `stage` id from URL — for QA jumps (e.g. step=6 → geo-photos). */
+export function parseWizardStepJumpParam(
+  params: URLSearchParams,
+  visibleStages: B2cEvStage[]
+): number | null {
+  const stageId = params.get('stage')?.trim();
+  if (stageId) {
+    const byStage = visibleStages.findIndex((stage) => stage.id === stageId);
+    if (byStage >= 0) return byStage;
+  }
+
+  const stepRaw = params.get('step')?.trim();
+  if (!stepRaw) return null;
+
+  const stepNumber = Number.parseInt(stepRaw, 10);
+  if (!Number.isFinite(stepNumber) || stepNumber < 1) return null;
+
+  const index = stepNumber - 1;
+  if (index >= visibleStages.length) return visibleStages.length - 1;
+  return index;
+}
 
 interface WizardFormState {
   applicant_name: string;
@@ -193,6 +220,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const draftIdParam = searchParams.get('draftId');
+  const wizardStepParam = searchParams.get('step');
+  const wizardStageParam = searchParams.get('stage');
   const { user } = useAuth();
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
@@ -218,6 +247,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [supportPanLookupCountdown, setSupportPanLookupCountdown] = useState(0);
   const [kamRequestLoadingId, setKamRequestLoadingId] = useState<ComplianceItemId | null>(null);
   const [doRequestLoading, setDoRequestLoading] = useState(false);
+  const [productFormConfig, setProductFormConfig] = useState<FormConfigCategory[]>([]);
+  const [productFormConfigLoading, setProductFormConfigLoading] = useState(false);
+  const [usedWebhookLinks, setUsedWebhookLinks] = useState<Set<string>>(() =>
+    readUsedClientWebhookLinks()
+  );
   const [clientSubmissionId] = useState(createClientSubmissionId);
   const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>('idle');
   const submitInFlightRef = useRef(false);
@@ -246,8 +280,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const currentStage = visibleStages[currentStep] ?? visibleStages[0];
 
   const completion = useMemo(
-    () => getB2cEvFormCompletion(visibleStages, formState.form_data, formState.loan_product_id),
-    [visibleStages, formState.form_data, formState.loan_product_id]
+    () =>
+      getB2cEvFormCompletion(visibleStages, formState.form_data, formState.loan_product_id, {
+        formConfig: productFormConfig,
+      }),
+    [visibleStages, formState.form_data, formState.loan_product_id, productFormConfig]
   );
 
   const complianceErrors = useMemo(
@@ -267,6 +304,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
   useEffect(() => {
     editingDraftIdRef.current = editingDraftId;
   }, [editingDraftId]);
+
+  useEffect(() => {
+    if (!wizardStepParam && !wizardStageParam) return;
+    const targetIndex = parseWizardStepJumpParam(searchParams, visibleStages);
+    if (targetIndex != null) {
+      setCurrentStep(targetIndex);
+    }
+  }, [wizardStepParam, wizardStageParam, visibleStages, searchParams, draftLoading]);
 
   useEffect(() => {
     return () => {
@@ -348,12 +393,54 @@ export const B2CEvApplicationWizard: React.FC = () => {
         const { errors } = getB2cEvFormCompletion(
           [stage],
           formState.form_data,
-          formState.loan_product_id
+          formState.loan_product_id,
+          { formConfig: productFormConfig }
         );
         return Object.keys(errors).length === 0 ? index : null;
       })
       .filter((index): index is number => index !== null);
-  }, [visibleStages, formState.form_data, formState.loan_product_id]);
+  }, [visibleStages, formState.form_data, formState.loan_product_id, productFormConfig]);
+
+  useEffect(() => {
+    const productId = formState.loan_product_id.trim();
+    if (!productId) {
+      setProductFormConfig([]);
+      return;
+    }
+
+    let cancelled = false;
+    setProductFormConfigLoading(true);
+    void apiService.getFormConfig(productId).then((response) => {
+      if (cancelled) return;
+      if (response.success && Array.isArray(response.data)) {
+        setProductFormConfig(response.data as FormConfigCategory[]);
+      } else {
+        setProductFormConfig([]);
+      }
+      setProductFormConfigLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formState.loan_product_id]);
+
+  const handleFolderLinkConsumed = useCallback((link: string) => {
+    setUsedWebhookLinks((prev) => {
+      const next = new Set(prev);
+      next.add(link);
+      persistUsedClientWebhookLinks(next);
+      return next;
+    });
+    setFormState((prev) => ({
+      ...prev,
+      form_data: {
+        ...prev.form_data,
+        '_meta.documentsFolderLink.consumedAt': new Date().toISOString(),
+        '_meta.documentsFolderLink.consumedLink': link,
+      },
+    }));
+  }, []);
 
   const applyDealerPatch = (patch: Record<string, unknown>) => {
     setFormState((prev) => ({
@@ -742,6 +829,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     const errors = validateB2cEvStage(currentStage, formState.form_data, {
       loanProductId: formState.loan_product_id,
       saveAsDraft,
+      formConfig: productFormConfig,
     });
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -852,6 +940,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
     const payload = getSupportPanLookupPayload(formState.form_data);
     if (!payload) return false;
 
+    const prefix = payload.target;
+    if (prefix !== 'coApplicant' && prefix !== 'guarantor') return false;
+
     const inputHash = buildSupportPanLookupInputHash(formState.form_data);
     if (!shouldRefetchSupportPanLookup(formState.form_data)) {
       setFormState((prev) => ({
@@ -884,25 +975,19 @@ export const B2CEvApplicationWizard: React.FC = () => {
       });
 
       if (!response.success || !response.data?.formDataPatch) {
-        const message =
+        setSupportPanLookupError(
           response.error ||
-          'Could not fetch support person details. Please verify PAN and try again.';
-        setSupportPanLookupError(message);
+            'PAN verification returned no results. Enter the details manually below.'
+        );
         setFormState((prev) => ({
           ...prev,
-          form_data: {
-            ...prev.form_data,
-            '_meta.supportPanLookup.status': 'failed',
-            '_meta.supportPanLookup.phase': 'input',
-          },
+          form_data: syncB2cEvComputedFields(
+            applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash)
+          ),
         }));
-        return false;
+        return true;
       }
 
-      const prefix = payload.target;
-      if (prefix !== 'coApplicant' && prefix !== 'guarantor') {
-        return false;
-      }
       setFormState((prev) => {
         const cleared = clearSupportPersonProfileFields(prev.form_data, prefix);
         const patched = syncB2cEvComputedFields({
@@ -920,20 +1005,18 @@ export const B2CEvApplicationWizard: React.FC = () => {
       });
       return true;
     } catch (error: unknown) {
-      const message =
+      setSupportPanLookupError(
         error instanceof Error
           ? error.message
-          : 'Could not fetch support person details. Please verify PAN and try again.';
-      setSupportPanLookupError(message);
+          : 'PAN verification returned no results. Enter the details manually below.'
+      );
       setFormState((prev) => ({
         ...prev,
-        form_data: {
-          ...prev.form_data,
-          '_meta.supportPanLookup.status': 'failed',
-          '_meta.supportPanLookup.phase': 'input',
-        },
+        form_data: syncB2cEvComputedFields(
+          applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash)
+        ),
       }));
-      return false;
+      return true;
     } finally {
       setSupportPanLookupLoading(false);
     }
@@ -1313,6 +1396,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
           onRequestFromKam={(itemId) => void handleRequestFromKam(itemId)}
           loanApplicationId={editingDraftId}
           ensureDraftSaved={ensureDraftSaved}
+          formConfig={productFormConfig}
+          formConfigLoading={productFormConfigLoading}
+          usedWebhookLinks={usedWebhookLinks}
+          onDocumentFieldChange={updateField}
+          onFolderLinkConsumed={handleFolderLinkConsumed}
         />
       );
     }

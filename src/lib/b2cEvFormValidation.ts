@@ -1,14 +1,14 @@
 import { getPanValidationError } from '../utils/panValidation';
 import { isValidEmailFormat, parseIndianMobile } from '../utils/basicApplicationFieldsValidation';
 import type { B2cEvStage, SupportPersonType } from '../config/forms/b2cEvFormSchema';
-import { getSupportPersonProfileFields } from '../config/forms/b2cEvFormSchema';
+import { B2C_EV_STAGES, getSupportPersonProfileFields } from '../config/forms/b2cEvFormSchema';
 import { isPanLookupSuccessful } from './b2cEvPanLookup';
 import {
   getSupportPanLookupPhase,
-  isSupportPanLookupSuccessful,
   SUPPORT_PAN_LOOKUP_FIELD_KEYS,
 } from './b2cEvSupportPanLookup';
 import { validateGeoPhotosStage } from './b2cEvGeoPhotos';
+import { validateB2cEvDocumentsStage, type FormConfigCategory } from './b2cEvDocuments';
 
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
@@ -80,7 +80,11 @@ export function syncB2cEvComputedFields(formData: Record<string, unknown>): Reco
 export function validateB2cEvStage(
   stage: B2cEvStage,
   formData: Record<string, unknown>,
-  options: { loanProductId?: string; saveAsDraft?: boolean } = {}
+  options: {
+    loanProductId?: string;
+    saveAsDraft?: boolean;
+    formConfig?: FormConfigCategory[];
+  } = {}
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   if (options.saveAsDraft) return errors;
@@ -137,12 +141,6 @@ export function validateB2cEvStage(
       return errors;
     }
 
-    if (!isSupportPanLookupSuccessful(formData)) {
-      errors['_meta.supportPanLookup.status'] =
-        'Support person details must be verified with PAN before continuing';
-      return errors;
-    }
-
     const profileFields = getSupportPersonProfileFields(supportType as SupportPersonType);
     for (const field of profileFields) {
       const value = readValue(formData, field.key);
@@ -170,7 +168,11 @@ export function validateB2cEvStage(
   }
 
   if (stage.id === 'geo-photos') {
-    return validateGeoPhotosStage(formData);
+    const errors = validateGeoPhotosStage(formData);
+    if (options.formConfig && options.formConfig.length > 0) {
+      Object.assign(errors, validateB2cEvDocumentsStage(formData, options.formConfig));
+    }
+    return errors;
   }
 
   if (stage.id === 'review') return errors;
@@ -211,11 +213,12 @@ export function validateB2cEvStage(
 export function validateB2cEvForm(
   stages: B2cEvStage[],
   formData: Record<string, unknown>,
-  loanProductId: string
+  loanProductId: string,
+  options: { formConfig?: FormConfigCategory[] } = {}
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const stage of stages) {
-    Object.assign(errors, validateB2cEvStage(stage, formData, { loanProductId }));
+    Object.assign(errors, validateB2cEvStage(stage, formData, { loanProductId, ...options }));
     if (stage.id === 'dealer') {
       Object.assign(errors, validateDealerPopulated(formData));
     }
@@ -229,14 +232,15 @@ export function validateB2cEvForm(
 export function getB2cEvFormCompletion(
   stages: B2cEvStage[],
   formData: Record<string, unknown>,
-  loanProductId: string
+  loanProductId: string,
+  options: { formConfig?: FormConfigCategory[] } = {}
 ): B2cEvFormCompletion {
-  const errors = validateB2cEvForm(stages, formData, loanProductId);
+  const errors = validateB2cEvForm(stages, formData, loanProductId, options);
   const missingByStage: B2cEvFormCompletion['missingByStage'] = [];
 
   for (const stage of stages) {
     if (stage.id === 'review') continue;
-    const stageErrors = validateB2cEvStage(stage, formData, { loanProductId });
+    const stageErrors = validateB2cEvStage(stage, formData, { loanProductId, ...options });
     if (stage.id === 'dealer') {
       Object.assign(stageErrors, validateDealerPopulated(formData));
     }
@@ -275,9 +279,9 @@ export function validateBorrowerStageAccessible(formData: Record<string, unknown
 }
 
 export function validateSupportPersonStageAccessible(formData: Record<string, unknown>): boolean {
-  return (
-    getSupportPanLookupPhase(formData) === 'profile' && isSupportPanLookupSuccessful(formData)
-  );
+  const stage = B2C_EV_STAGES.find((item) => item.id === 'support-person');
+  if (!stage) return true;
+  return Object.keys(validateB2cEvStage(stage, formData)).length === 0;
 }
 
 export function validateSupportPanLookupInput(

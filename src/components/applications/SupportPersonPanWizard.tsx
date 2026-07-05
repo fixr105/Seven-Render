@@ -11,6 +11,7 @@ import {
 } from '../../config/forms/b2cEvFormSchema';
 import {
   getSupportPanLookupPhase,
+  isSupportPanLookupManual,
   SUPPORT_PAN_LOOKUP_FIELD_KEYS,
 } from '../../lib/b2cEvSupportPanLookup';
 
@@ -113,10 +114,13 @@ export const SupportPersonPanWizard: React.FC<SupportPersonPanWizardProps> = ({
   }
 
   if (phase === 'profile') {
+    const manualEntry = isSupportPanLookupManual(formData);
     return (
       <div className="space-y-6" data-testid="support-pan-phase-profile">
-        <p className="text-sm text-neutral-600">
-          Details loaded from PAN verification. Review and complete any missing fields before continuing.
+        <p className="text-sm text-neutral-600" data-testid="support-pan-profile-message">
+          {manualEntry
+            ? 'PAN verification returned no results. Enter address and other details manually, then continue.'
+            : 'Details loaded from PAN verification. Review and complete any missing fields before continuing.'}
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {profileFields.map((field) => (

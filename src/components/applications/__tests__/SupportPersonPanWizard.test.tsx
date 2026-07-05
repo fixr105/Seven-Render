@@ -71,6 +71,32 @@ describe('SupportPersonPanWizard', () => {
     expect(screen.getByTestId('b2c-field-coApplicant-relationship')).toBeInTheDocument();
   });
 
+  it('shows manual entry message when PAN lookup had no results', () => {
+    render(
+      <SupportPersonPanWizard
+        formData={{
+          ...createInitialB2cEvFormData(),
+          '_meta.supportPersonType': 'co_applicant',
+          '_meta.supportPanLookup.phase': 'profile',
+          '_meta.supportPanLookup.status': 'manual',
+          'coApplicant.name': 'PRIYA SHARMA',
+          'coApplicant.pan': 'FGHIJ5678K',
+        }}
+        fieldErrors={{}}
+        loading={false}
+        loadingMessage=""
+        lookupError={null}
+        onFieldChange={vi.fn()}
+        onSupportTypeChange={vi.fn()}
+        onVerify={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('support-pan-profile-message')).toHaveTextContent(
+      /PAN verification returned no results/i
+    );
+  });
+
   it('calls onVerify when Verify PAN is clicked', async () => {
     const user = userEvent.setup();
     const onVerify = vi.fn();
