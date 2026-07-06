@@ -1,5 +1,5 @@
 import type { SupportPersonType } from '../config/forms/b2cEvFormSchema';
-import type { PanLookupFieldPrefix } from './b2cEvPanLookup';
+import { hasMeaningfulSupportPersonAutofill, type PanLookupFieldPrefix } from './b2cEvPanLookup';
 
 export const SUPPORT_PAN_LOOKUP_TIMEOUT_SECONDS = 120;
 
@@ -74,35 +74,6 @@ export function isSupportPanLookupProfileReady(formData: Record<string, unknown>
   return status === 'success' || status === 'manual';
 }
 
-function normalizeIndianMobile(value: string): string {
-  let digits = value.replace(/\D/g, '');
-  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
-  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
-  return digits;
-}
-
-/** Seed profile fields from PAN lookup inputs when verification returns no results. */
-export function buildSupportPersonManualProfilePatch(
-  formData: Record<string, unknown>,
-  prefix: 'coApplicant' | 'guarantor'
-): Record<string, string> {
-  const patch: Record<string, string> = {};
-  const fullName = readString(formData['_meta.supportPanLookup.fullName']);
-  const pan = readString(formData['_meta.supportPanLookup.panNumber'])
-    .replace(/\s+/g, '')
-    .replace(/-/g, '')
-    .toUpperCase();
-  const mobile = normalizeIndianMobile(readString(formData['_meta.supportPanLookup.mobileNumber']));
-  const email = readString(formData['_meta.supportPanLookup.email']);
-
-  if (fullName) patch[`${prefix}.name`] = fullName;
-  if (pan) patch[`${prefix}.pan`] = pan;
-  if (mobile) patch[`${prefix}.mobile`] = mobile;
-  if (email) patch[`${prefix}.email`] = email;
-
-  return patch;
-}
-
 export function applySupportPersonManualProfilePhase(
   formData: Record<string, unknown>,
   prefix: 'coApplicant' | 'guarantor',
@@ -111,13 +82,14 @@ export function applySupportPersonManualProfilePhase(
   const cleared = clearSupportPersonProfileFields(formData, prefix);
   return {
     ...cleared,
-    ...buildSupportPersonManualProfilePatch(cleared, prefix),
     '_meta.supportPanLookup.status': 'manual',
     '_meta.supportPanLookup.inputHash': inputHash,
     '_meta.supportPanLookup.completedAt': new Date().toISOString(),
     '_meta.supportPanLookup.phase': 'profile',
   };
 }
+
+export { hasMeaningfulSupportPersonAutofill };
 
 export function getSupportPanLookupPhase(formData: Record<string, unknown>): SupportPanLookupPhase {
   const phase = readString(formData['_meta.supportPanLookup.phase']);
@@ -149,12 +121,6 @@ export function getSupportPanLookupPayload(formData: Record<string, unknown>): {
 export function shouldRefetchSupportPanLookup(formData: Record<string, unknown>): boolean {
   if (!isSupportPanLookupProfileReady(formData)) return true;
 
-  const type = readString(formData['_meta.supportPersonType']);
-  const prefix = getSupportPersonFieldPrefix(type as SupportPersonType);
-  if (!prefix) return true;
-
   const cachedHash = readString(formData['_meta.supportPanLookup.inputHash']);
-  if (buildSupportPanLookupInputHash(formData) !== cachedHash) return true;
-
-  return !readString(formData[`${prefix}.address.line1`]);
+  return buildSupportPanLookupInputHash(formData) !== cachedHash;
 }

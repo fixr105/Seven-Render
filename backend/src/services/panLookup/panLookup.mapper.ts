@@ -238,7 +238,20 @@ export function mapPanLookupOutputToFormDataPatch(
 }
 
 export function hasBorrowerPatchData(patch: Record<string, string>): boolean {
-  return Object.keys(patch).length > 0;
+  return Boolean(
+    patch['borrower.firstName']?.trim() ||
+      patch['borrower.customerName']?.trim() ||
+      patch['borrower.address.line1']?.trim()
+  );
+}
+
+export function hasSupportPersonPatchData(
+  patch: Record<string, string>,
+  prefix: 'coApplicant' | 'guarantor'
+): boolean {
+  return Boolean(
+    patch[`${prefix}.name`]?.trim() || patch[`${prefix}.address.line1`]?.trim()
+  );
 }
 
 export function extractCibilScore(record: Record<string, unknown>): string {

@@ -41,11 +41,15 @@ import {
   buildPanLookupInputHash,
   clearBorrowerFields,
   getPanLookupPayload,
+  hasMeaningfulBorrowerAutofill,
+  hasMeaningfulSupportPersonAutofill,
   isPanLookupManual,
   isPanLookupProfileReady,
+  isPanLookupSuccessful,
   migratePanLookupDraftFields,
   PAN_LOOKUP_FIELD_KEYS,
   PAN_LOOKUP_TIMEOUT_SECONDS,
+  shouldRefetchPanLookup,
 } from '../../lib/b2cEvPanLookup';
 import {
   buildSupportPanLookupInputHash,
@@ -85,6 +89,8 @@ type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const FIELD_AUTO_SAVE_DEBOUNCE_MS = 1500;
 const GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS = 2000;
+const PAN_MANUAL_FAILURE_MESSAGE =
+  'PAN verification returned no results. Enter all details manually below.';
 
 /** 1-indexed `step` or `stage` id from URL — for QA jumps (e.g. step=6 → geo-photos). */
 export function parseWizardStepJumpParam(
@@ -144,7 +150,10 @@ function readFieldValue(formData: Record<string, unknown>, key: string): string 
   return String(value);
 }
 
-function isJsonBackedField(field: B2cEvFieldDef): boolean {
+function isFieldReadOnly(field: B2cEvFieldDef, formData: Record<string, unknown>): boolean {
+  if (field.key === 'borrower.pan' && isPanLookupManual(formData)) {
+    return false;
+  }
   return Boolean(field.readOnly);
 }
 
@@ -152,15 +161,16 @@ function renderField(
   field: B2cEvFieldDef,
   value: string,
   error: string | undefined,
-  onChange: (key: string, value: string) => void
+  onChange: (key: string, value: string) => void,
+  formData: Record<string, unknown>
 ): React.ReactNode {
-  const jsonBacked = isJsonBackedField(field);
+  const readOnly = isFieldReadOnly(field, formData);
   const common = {
     id: field.key,
     label: field.label,
     required: field.required,
-    readOnly: field.readOnly,
-    disabled: field.readOnly,
+    readOnly,
+    disabled: readOnly,
     error,
     value,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -173,12 +183,12 @@ function renderField(
         key={field.key}
         {...common}
         rows={3}
-        placeholder={jsonBacked ? undefined : field.placeholder}
+        placeholder={readOnly ? undefined : field.placeholder}
       />
     );
   }
   if (field.type === 'select' && field.options) {
-    const emptyOption = jsonBacked
+    const emptyOption = readOnly
       ? { value: '', label: '' }
       : { value: '', label: `Select ${field.label}` };
     return (
@@ -188,7 +198,7 @@ function renderField(
         required={field.required}
         error={error}
         value={value}
-        disabled={field.readOnly}
+        disabled={readOnly}
         options={[emptyOption, ...field.options]}
         onChange={(e) => onChange(field.key, e.target.value)}
         data-testid={`b2c-field-${field.key.replace(/\./g, '-')}`}
@@ -212,7 +222,7 @@ function renderField(
       key={field.key}
       {...common}
       type={inputType}
-      placeholder={jsonBacked ? undefined : field.placeholder}
+      placeholder={readOnly ? undefined : field.placeholder}
       data-testid={`b2c-field-${field.key.replace(/\./g, '-')}`}
     />
   );
@@ -861,24 +871,22 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   const runPanLookup = async (): Promise<boolean> => {
     const inputHash = buildPanLookupInputHash(formState.form_data);
-    const cachedHash = readFieldValue(formState.form_data, '_meta.panLookup.inputHash');
-    const status = readFieldValue(formState.form_data, '_meta.panLookup.status');
-    // Only skip re-fetch when we already have address autofill. n8n sometimes returns
-    // profile without address; caching that would leave address blank forever.
-    const hasAddressAutofill = Boolean(
-      readFieldValue(formState.form_data, 'borrower.address.line1')
-    );
 
-    if (status === 'manual' && inputHash === cachedHash) {
-      return true;
-    }
-
-    if (status === 'success' && inputHash === cachedHash && hasAddressAutofill) {
+    if (!shouldRefetchPanLookup(formState.form_data)) {
       return true;
     }
 
     setPanLookupLoading(true);
     setPanLookupError(null);
+
+    const applyManualFailure = (message: string) => {
+      setPanLookupError(message);
+      setFormState((prev) => ({
+        ...prev,
+        form_data: applyBorrowerManualProfilePhase(prev.form_data, inputHash),
+      }));
+      return true;
+    };
 
     try {
       const payload = getPanLookupPayload(formState.form_data);
@@ -890,21 +898,13 @@ export const B2CEvApplicationWizard: React.FC = () => {
       });
 
       if (!response.success || !response.data?.formDataPatch) {
-        const message =
-          response.error ||
-          'PAN verification returned no results. Enter borrower details manually on the next step.';
-        setPanLookupError(message);
-        setFormState((prev) => {
-          const patched = syncB2cEvComputedFields(
-            applyBorrowerManualProfilePhase(prev.form_data, inputHash)
-          );
-          return {
-            ...prev,
-            applicant_name: readFieldValue(patched, 'borrower.customerName'),
-            form_data: patched,
-          };
-        });
-        return true;
+        return applyManualFailure(
+          response.error || PAN_MANUAL_FAILURE_MESSAGE
+        );
+      }
+
+      if (!hasMeaningfulBorrowerAutofill(response.data.formDataPatch)) {
+        return applyManualFailure(PAN_MANUAL_FAILURE_MESSAGE);
       }
 
       setFormState((prev) => {
@@ -925,21 +925,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return true;
     } catch (error: unknown) {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'PAN verification returned no results. Enter borrower details manually on the next step.';
-      setPanLookupError(message);
-      setFormState((prev) => {
-        const patched = syncB2cEvComputedFields(
-          applyBorrowerManualProfilePhase(prev.form_data, inputHash)
-        );
-        return {
-          ...prev,
-          applicant_name: readFieldValue(patched, 'borrower.customerName'),
-          form_data: patched,
-        };
-      });
-      return true;
+        error instanceof Error ? error.message : PAN_MANUAL_FAILURE_MESSAGE;
+      return applyManualFailure(message);
     } finally {
       setPanLookupLoading(false);
     }
@@ -1006,15 +993,19 @@ export const B2CEvApplicationWizard: React.FC = () => {
       });
 
       if (!response.success || !response.data?.formDataPatch) {
-        setSupportPanLookupError(
-          response.error ||
-            'PAN verification returned no results. Enter the details manually below.'
-        );
+        setSupportPanLookupError(response.error || PAN_MANUAL_FAILURE_MESSAGE);
         setFormState((prev) => ({
           ...prev,
-          form_data: syncB2cEvComputedFields(
-            applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash)
-          ),
+          form_data: applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash),
+        }));
+        return true;
+      }
+
+      if (!hasMeaningfulSupportPersonAutofill(response.data.formDataPatch, prefix)) {
+        setSupportPanLookupError(PAN_MANUAL_FAILURE_MESSAGE);
+        setFormState((prev) => ({
+          ...prev,
+          form_data: applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash),
         }));
         return true;
       }
@@ -1037,15 +1028,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return true;
     } catch (error: unknown) {
       setSupportPanLookupError(
-        error instanceof Error
-          ? error.message
-          : 'PAN verification returned no results. Enter the details manually below.'
+        error instanceof Error ? error.message : PAN_MANUAL_FAILURE_MESSAGE
       );
       setFormState((prev) => ({
         ...prev,
-        form_data: syncB2cEvComputedFields(
-          applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash)
-        ),
+        form_data: applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash),
       }));
       return true;
     } finally {
@@ -1296,7 +1283,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
                     field,
                     readFieldValue(formState.form_data, field.key),
                     fieldErrors[field.key],
-                    updateField
+                    updateField,
+                    formState.form_data
                   )}
                 </div>
               ))}
@@ -1449,8 +1437,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       <div className="space-y-6">
         {stage.id === 'borrower' && isPanLookupManual(formState.form_data) && (
           <p className="text-sm text-neutral-600" data-testid="borrower-pan-manual-message">
-            PAN verification returned no results. Enter address and other details manually, then
-            continue.
+            {PAN_MANUAL_FAILURE_MESSAGE}
           </p>
         )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1460,7 +1447,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 field,
                 readFieldValue(formState.form_data, field.key),
                 fieldErrors[field.key],
-                updateField
+                updateField,
+                formState.form_data
               )}
             </div>
           ))}
@@ -1475,7 +1463,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
                     field,
                     readFieldValue(formState.form_data, field.key),
                     fieldErrors[field.key],
-                    updateField
+                    updateField,
+                    formState.form_data
                   )}
                 </div>
               ))}
@@ -1589,7 +1578,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
       {currentStage?.id === 'borrower' && (
         <CibilProbabilityBar
-          cibilScore={getBorrowerCibilScoreFromFormData(formState.form_data)}
+          cibilScore={
+            isPanLookupSuccessful(formState.form_data)
+              ? getBorrowerCibilScoreFromFormData(formState.form_data)
+              : null
+          }
         />
       )}
 

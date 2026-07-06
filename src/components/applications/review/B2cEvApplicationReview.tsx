@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { getVisibleB2cEvStages } from '../../../config/forms/b2cEvFormSchema';
 import { getBorrowerCibilScoreFromFormData } from '../../../lib/b2cEvCibilProbability';
+import { isPanLookupSuccessful } from '../../../lib/b2cEvPanLookup';
 import { CibilProbabilityBar } from '../CibilProbabilityBar';
 import { B2cEvGeoPhotoReview } from './B2cEvGeoPhotoReview';
 import { B2cEvSupportPersonReview } from './B2cEvSupportPersonReview';
@@ -36,7 +37,9 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
   const stages = useMemo(() => getVisibleB2cEvStages(formData), [formData]);
   const [openStageId, setOpenStageId] = useState<string | null>(stages[0]?.id ?? null);
 
-  const cibilScore = getBorrowerCibilScoreFromFormData(formData);
+  const cibilScore = isPanLookupSuccessful(formData)
+    ? getBorrowerCibilScoreFromFormData(formData)
+    : null;
 
   return (
     <div className="space-y-4" data-testid="b2c-ev-application-review">

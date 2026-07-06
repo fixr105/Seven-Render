@@ -1,5 +1,6 @@
 import {
   hasBorrowerPatchData,
+  hasSupportPersonPatchData,
   mapPanLookupOutputToFormDataPatch,
   parseWebhookOutput,
   type PanLookupFieldPrefix,
@@ -175,7 +176,11 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
 
   const target = input.target ?? 'borrower';
   const formDataPatch = mapPanLookupOutputToFormDataPatch(output, target);
-  if (!hasBorrowerPatchData(formDataPatch)) {
+  const hasMeaningfulData =
+    target === 'borrower'
+      ? hasBorrowerPatchData(formDataPatch)
+      : hasSupportPersonPatchData(formDataPatch, target);
+  if (!hasMeaningfulData) {
     const emptyLabel =
       target === 'borrower' ? 'borrower' : target === 'coApplicant' ? 'co-applicant' : 'guarantor';
     return {

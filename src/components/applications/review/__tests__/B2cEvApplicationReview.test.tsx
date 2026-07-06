@@ -22,6 +22,7 @@ const baseFormData = {
   '_meta.supportPersonType': 'none',
   'borrower.firstName': 'Ajay',
   'borrower.lastName': 'Kumar',
+  '_meta.panLookup.status': 'success',
   '_meta.panLookup.cibilScore': '720',
   'borrower.mobile': '9876543210',
   'loan.amount': '500000',

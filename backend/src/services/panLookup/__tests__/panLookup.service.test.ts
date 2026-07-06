@@ -1,6 +1,8 @@
 import { describe, it, expect } from '@jest/globals';
 import {
   convertDobToIsoDate,
+  hasBorrowerPatchData,
+  hasSupportPersonPatchData,
   mapPanLookupOutputToFormDataPatch,
   normalizeWebhookMobile,
   parseWebhookOutput,
@@ -72,6 +74,16 @@ describe('panLookup.mapper', () => {
     expect(patch['borrower.firstName']).toBe('RAHUL');
     expect(patch['borrower.fatherName']).toBeUndefined();
     expect(patch['borrower.mobile']).toBeUndefined();
+  });
+
+  it('treats cibil-only patch as not meaningful borrower data', () => {
+    const patch = mapPanLookupOutputToFormDataPatch({ cibil_score: '731' });
+    expect(hasBorrowerPatchData(patch)).toBe(false);
+  });
+
+  it('treats pan-only co-applicant patch as not meaningful support data', () => {
+    const patch = mapPanLookupOutputToFormDataPatch({ pan_card: 'FGHIJ5678K' }, 'coApplicant');
+    expect(hasSupportPersonPatchData(patch, 'coApplicant')).toBe(false);
   });
 
   it('maps address fields from n8n output keys', () => {

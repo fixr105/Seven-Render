@@ -119,7 +119,7 @@ export const SupportPersonPanWizard: React.FC<SupportPersonPanWizardProps> = ({
       <div className="space-y-6" data-testid="support-pan-phase-profile">
         <p className="text-sm text-neutral-600" data-testid="support-pan-profile-message">
           {manualEntry
-            ? 'PAN verification returned no results. Enter address and other details manually, then continue.'
+            ? 'PAN verification returned no results. Enter all details manually below.'
             : 'Details loaded from PAN verification. Review and complete any missing fields before continuing.'}
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

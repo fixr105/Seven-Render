@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyBorrowerManualProfilePhase,
-  buildBorrowerManualProfilePatch,
   buildPanLookupInputHash,
   clearBorrowerFields,
+  hasMeaningfulBorrowerAutofill,
   isPanLookupManual,
   mapPanLookupOutputToFormDataPatch,
   migratePanLookupDraftFields,
+  shouldRefetchPanLookup,
 } from '../b2cEvPanLookup';
 import { createInitialB2cEvFormData } from '../../config/forms/b2cEvFormSchema';
 
@@ -105,38 +106,42 @@ describe('b2cEvPanLookup', () => {
     expect(patch['guarantor.mobile']).toBe('9876543210');
   });
 
-  it('seeds borrower profile fields from PAN lookup inputs', () => {
-    const formData = {
-      ...createInitialB2cEvFormData(),
-      '_meta.panLookup.mobileNumber': '9687599179',
-      '_meta.panLookup.panNumber': 'BAIPG3083L',
-      '_meta.panLookup.fullName': 'RAHUL YADAV',
-      '_meta.panLookup.borrowerEmail': 'rahul@example.com',
-    };
-
-    expect(buildBorrowerManualProfilePatch(formData)).toEqual({
-      'borrower.firstName': 'RAHUL',
-      'borrower.lastName': 'YADAV',
-      'borrower.customerName': 'RAHUL YADAV',
-      'borrower.pan': 'BAIPG3083L',
-      'borrower.mobile': '9687599179',
-      'borrower.email': 'rahul@example.com',
-    });
+  it('detects meaningful borrower autofill', () => {
+    expect(hasMeaningfulBorrowerAutofill({ 'borrower.firstName': 'RAHUL' })).toBe(true);
+    expect(hasMeaningfulBorrowerAutofill({ 'borrower.customerName': 'RAHUL YADAV' })).toBe(true);
+    expect(hasMeaningfulBorrowerAutofill({ 'borrower.address.line1': '12 Main St' })).toBe(true);
+    expect(hasMeaningfulBorrowerAutofill({ '_meta.panLookup.cibilScore': '731' })).toBe(false);
   });
 
-  it('enters manual borrower profile phase with status manual', () => {
+  it('does not refetch when manual with same hash and no address', () => {
     const formData = {
       ...createInitialB2cEvFormData(),
       '_meta.panLookup.mobileNumber': '9687599179',
       '_meta.panLookup.panNumber': 'BAIPG3083L',
       '_meta.panLookup.fullName': 'RAHUL YADAV',
+      '_meta.panLookup.status': 'manual',
+      '_meta.panLookup.inputHash': '9687599179|BAIPG3083L|RAHUL YADAV|',
+    };
+
+    expect(shouldRefetchPanLookup(formData)).toBe(false);
+  });
+
+  it('enters manual borrower profile phase with meta only and no prefill', () => {
+    const formData = {
+      ...createInitialB2cEvFormData(),
+      '_meta.panLookup.mobileNumber': '9687599179',
+      '_meta.panLookup.panNumber': 'BAIPG3083L',
+      '_meta.panLookup.fullName': 'RAHUL YADAV',
+      'borrower.firstName': 'Old',
+      'borrower.pan': 'OLDPAN1234A',
     };
 
     const next = applyBorrowerManualProfilePhase(formData, 'hash-1');
 
     expect(next['_meta.panLookup.status']).toBe('manual');
-    expect(next['borrower.firstName']).toBe('RAHUL');
-    expect(next['borrower.lastName']).toBe('YADAV');
+    expect(next['_meta.panLookup.inputHash']).toBe('hash-1');
+    expect(next['borrower.firstName']).toBeUndefined();
+    expect(next['borrower.pan']).toBeUndefined();
     expect(isPanLookupManual(next)).toBe(true);
   });
 });

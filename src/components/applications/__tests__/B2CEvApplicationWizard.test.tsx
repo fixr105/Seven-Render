@@ -175,16 +175,22 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('b2c-pan-lookup-error')).toBeInTheDocument();
+      expect(screen.getByTestId('borrower-pan-manual-message')).toBeInTheDocument();
     });
+
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('');
+    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('');
+    expect(screen.getByTestId('b2c-field-borrower-pan')).toHaveValue('');
+    expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
+    expect(apiService.lookupBorrowerPan).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
       expect(screen.getByTestId('borrower-pan-manual-message')).toBeInTheDocument();
     });
-
-    expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
-    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('YADAV');
-    expect(screen.getByTestId('b2c-field-borrower-pan')).toHaveValue('BAIPG3083L');
+    expect(apiService.lookupBorrowerPan).toHaveBeenCalledTimes(1);
   });
 
   it('autofills borrower profile and address on a single stage after successful PAN lookup', async () => {
@@ -452,9 +458,12 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('support-pan-profile-message')).toHaveTextContent(
       /PAN verification returned no results/i
     );
-    expect(screen.getByTestId('b2c-field-coApplicant-name')).toHaveValue('PRIYA SHARMA');
-    expect(screen.getByTestId('b2c-field-coApplicant-pan')).toHaveValue('FGHIJ5678K');
+    expect(screen.getByTestId('b2c-field-coApplicant-name')).toHaveValue('');
+    expect(screen.getByTestId('b2c-field-coApplicant-pan')).toHaveValue('');
 
+    await user.type(screen.getByTestId('b2c-field-coApplicant-name'), 'PRIYA SHARMA');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-pan'), 'FGHIJ5678K');
+    await user.type(screen.getByTestId('b2c-field-coApplicant-mobile'), '9876543211');
     await user.type(screen.getByTestId('b2c-field-coApplicant-dob'), '1992-02-02');
     await user.type(screen.getByTestId('b2c-field-coApplicant-email'), 'priya@example.com');
     await user.type(screen.getByTestId('b2c-field-coApplicant-address-line1'), '12 Main Street');
