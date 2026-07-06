@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Bell, Menu, User, LogOut } from 'lucide-react';
+import { Bell, Menu, User, LogOut, Smartphone } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { Notification } from '../../hooks/useNotifications';
 import { formatRelativeTime } from '../../utils/dateFormatter';
 import { apiService } from '../../services/api';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { useAddToHomeScreen } from '../../hooks/useAddToHomeScreen';
+import { AddToHomeScreenModal } from '../AddToHomeScreenModal';
 
 interface TopBarProps {
   title: string;
@@ -36,6 +38,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnreadTools, setHasUnreadTools] = useState(false);
+  const [addToHomeScreenMode, setAddToHomeScreenMode] = useState<
+    'ios-instructions' | 'android-instructions' | 'unavailable' | null
+  >(null);
+  const { canInstall, promptInstall } = useAddToHomeScreen();
 
   const fetchToolsUnread = useCallback(async () => {
     if (user?.role !== 'nbfc') return;
@@ -59,6 +65,14 @@ export const TopBar: React.FC<TopBarProps> = ({
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleAddToHomeScreen = async () => {
+    setShowProfileMenu(false);
+    const result = await promptInstall();
+    if (result === 'ios-instructions' || result === 'android-instructions' || result === 'unavailable') {
+      setAddToHomeScreenMode(result);
+    }
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -251,6 +265,15 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <User className="w-4 h-4" />
                     {t('topbar.profile')}
                   </button>
+                  {canInstall && (
+                    <button
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                      onClick={() => void handleAddToHomeScreen()}
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      {t('topbar.addToHomeScreen')}
+                    </button>
+                  )}
                   <button
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-error hover:bg-neutral-50 transition-colors"
                     onClick={() => {
@@ -267,6 +290,11 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
         </div>
       </div>
+      <AddToHomeScreenModal
+        isOpen={addToHomeScreenMode !== null}
+        onClose={() => setAddToHomeScreenMode(null)}
+        mode={addToHomeScreenMode ?? 'unavailable'}
+      />
     </header>
   );
 };

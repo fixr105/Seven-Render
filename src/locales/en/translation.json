@@ -26,6 +26,13 @@
     "invalidNotificationLink": "Invalid notification link",
     "userMenu": "User menu",
     "profile": "Profile",
+    "addToHomeScreen": "Add to Home Screen",
+    "addToHomeScreenIosStep1": "Tap the Share button in Safari's toolbar.",
+    "addToHomeScreenIosStep2": "Scroll down and tap \"Add to Home Screen\".",
+    "addToHomeScreenIosStep3": "Tap \"Add\" to save Seven Fincorp as an app on your device.",
+    "addToHomeScreenAndroidStep1": "Open the browser menu (⋮) in Chrome.",
+    "addToHomeScreenAndroidStep2": "Tap \"Install app\" or \"Add to Home screen\".",
+    "addToHomeScreenUnavailable": "Your browser does not support installing this site as an app. Try opening it in Safari (iOS) or Chrome (Android).",
     "logout": "Logout"
   },
   "footer": {
