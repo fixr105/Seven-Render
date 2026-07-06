@@ -3,33 +3,31 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '../../../i18n';
 import { EmiRangeCalculator } from '../EmiRangeCalculator';
-import { calculateEmiRangePreview } from '../../../lib/loanCalculator';
+import { calculateLoanPreview } from '../../../lib/loanCalculator';
 
 describe('EmiRangeCalculator', () => {
   it('shows disclaimer and GPS-only baseline before user enters disbursement', () => {
     render(<EmiRangeCalculator />);
 
-    const baseline = calculateEmiRangePreview({
+    const baseline = calculateLoanPreview({
       upfrontPayment: 0,
       disbursementToDealer: 0,
+      tenureMonths: 12,
     });
 
     expect(screen.getByTestId('emi-range-disclaimer')).toBeInTheDocument();
-    expect(screen.getByTestId('emi-range-lowest-emi')).toHaveTextContent(
-      `₹${baseline.lowestEmi.toLocaleString('en-IN')}`
+    expect(screen.getByTestId('emi-range-emi')).toHaveTextContent(
+      `₹${baseline.emiAmount.toLocaleString('en-IN')}`
     );
-    expect(screen.getByTestId('emi-range-highest-emi')).toHaveTextContent(
-      `₹${baseline.highestEmi.toLocaleString('en-IN')}`
+    expect(screen.getByTestId('emi-range-processing-fee')).toHaveTextContent(
+      `₹${baseline.processingFee.toLocaleString('en-IN')}`
     );
-    expect(screen.getByTestId('emi-range-lowest-processing-fee')).toHaveTextContent(
-      `₹${baseline.lowestProcessingFee.toLocaleString('en-IN')}`
-    );
-    expect(screen.getByTestId('emi-range-highest-processing-fee')).toHaveTextContent(
-      `₹${baseline.highestProcessingFee.toLocaleString('en-IN')}`
+    expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent(
+      `₹${baseline.gpsCharges.toLocaleString('en-IN')}`
     );
   });
 
-  it('computes invoice value and EMI/processing fee ranges from inputs', async () => {
+  it('computes invoice value and loan preview from inputs', async () => {
     const user = userEvent.setup();
     render(<EmiRangeCalculator />);
 
@@ -38,24 +36,53 @@ describe('EmiRangeCalculator', () => {
 
     expect(screen.getByTestId('emi-range-invoice')).toHaveValue('70000');
 
-    const expected = calculateEmiRangePreview({
+    const expected = calculateLoanPreview({
       upfrontPayment: 20000,
       disbursementToDealer: 50000,
+      tenureMonths: 12,
     });
 
     const container = within(screen.getByTestId('emi-range-calculator'));
-    expect(container.getByTestId('emi-range-lowest-emi')).toHaveTextContent(
-      `₹${expected.lowestEmi.toLocaleString('en-IN')}`
+    expect(container.getByTestId('emi-range-emi')).toHaveTextContent(
+      `₹${expected.emiAmount.toLocaleString('en-IN')}`
     );
-    expect(container.getByTestId('emi-range-highest-emi')).toHaveTextContent(
-      `₹${expected.highestEmi.toLocaleString('en-IN')}`
+    expect(container.getByTestId('emi-range-processing-fee')).toHaveTextContent(
+      `₹${expected.processingFee.toLocaleString('en-IN')}`
     );
-    expect(container.getByTestId('emi-range-lowest-processing-fee')).toHaveTextContent(
-      `₹${expected.lowestProcessingFee.toLocaleString('en-IN')}`
+    expect(container.getByTestId('emi-range-iot-cost')).toHaveTextContent(
+      `₹${expected.gpsCharges.toLocaleString('en-IN')}`
     );
-    expect(container.getByTestId('emi-range-highest-processing-fee')).toHaveTextContent(
-      `₹${expected.highestProcessingFee.toLocaleString('en-IN')}`
+  });
+
+  it('updates values dynamically when tenure changes', async () => {
+    const user = userEvent.setup();
+    render(<EmiRangeCalculator />);
+
+    await user.type(screen.getByTestId('emi-range-disbursement'), '50000');
+
+    const preview12 = calculateLoanPreview({
+      upfrontPayment: 0,
+      disbursementToDealer: 50000,
+      tenureMonths: 12,
+    });
+    const preview18 = calculateLoanPreview({
+      upfrontPayment: 0,
+      disbursementToDealer: 50000,
+      tenureMonths: 18,
+    });
+
+    expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent('₹2,000');
+    expect(screen.getByTestId('emi-range-emi')).toHaveTextContent(
+      `₹${preview12.emiAmount.toLocaleString('en-IN')}`
     );
+
+    await user.selectOptions(screen.getByTestId('emi-range-tenure'), '18');
+
+    expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent('₹2,500');
+    expect(screen.getByTestId('emi-range-emi')).toHaveTextContent(
+      `₹${preview18.emiAmount.toLocaleString('en-IN')}`
+    );
+    expect(screen.getByTestId('emi-range-tenure-preview')).toHaveTextContent('18 months');
   });
 
   it('does not show percentage fields', () => {

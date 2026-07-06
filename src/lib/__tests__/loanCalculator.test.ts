@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildLoanMathBreakdown,
   calculateEmi,
   calculateEmiRangePreview,
   calculateLoanPreview,
@@ -141,6 +142,22 @@ describe('loanCalculator', () => {
     expect(range.highestProcessingFee).toBe(
       Math.max(preview12.processingFee, preview18.processingFee)
     );
+  });
+
+  it('builds a math breakdown from frozen values including IOT', () => {
+    const preview = calculateLoanPreview({
+      upfrontPayment: 20000,
+      disbursementToDealer: 50000,
+      tenureMonths: 12,
+    });
+    const frozen = freezeLoanPreview(preview);
+    const breakdown = buildLoanMathBreakdown(frozen);
+
+    expect(breakdown.gpsCharges).toBe(2000);
+    expect(breakdown.loanAmount).toBe(
+      breakdown.disbursalAmount + breakdown.processingFee + breakdown.gpsCharges
+    );
+    expect(breakdown.emiAmount).toBe(calculateEmi(frozen.loanAmount, 12));
   });
 
   it('includes calculator snapshot keys when snapshot is provided', () => {

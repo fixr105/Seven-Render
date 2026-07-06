@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import {
+  buildLoanMathBreakdown,
   calculateLoanPreview,
   freezeLoanPreview,
   parseMoneyInput,
@@ -36,7 +37,15 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   const isFrozen = frozenValues != null;
   const [downpayment, setDownpayment] = useState('');
   const [disbursementToDealer, setDisbursementToDealer] = useState('');
-  const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(12);
+  const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(
+    frozenValues?.tenureMonths ?? 12
+  );
+
+  useEffect(() => {
+    if (frozenValues?.tenureMonths) {
+      setTenureMonths(frozenValues.tenureMonths);
+    }
+  }, [frozenValues?.tenureMonths]);
 
   const inputs = useMemo(
     () => ({
@@ -176,6 +185,7 @@ interface LoanCalculatorStage2Props {
 const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValues }) => {
   const hasFrozen = frozenValues != null;
   const placeholder = hasFrozen ? undefined : EMPTY_PLACEHOLDER;
+  const mathBreakdown = hasFrozen ? buildLoanMathBreakdown(frozenValues) : null;
 
   const fields: Array<{ label: string; value: string; testId: string; required?: boolean }> = [
     {
@@ -232,6 +242,39 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
           />
         ))}
       </div>
+
+      {mathBreakdown && (
+        <div
+          className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"
+          data-testid="loan-form-math-breakdown"
+        >
+          <h4 className="mb-3 text-sm font-semibold text-neutral-900">Calculation breakdown</h4>
+          <dl className="space-y-2 text-sm text-neutral-700">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <dt>IOT/GPS charges ({mathBreakdown.tenureMonths} months)</dt>
+              <dd className="font-medium text-neutral-900" data-testid="loan-form-math-iot">
+                {formatRupee(mathBreakdown.gpsCharges)}
+              </dd>
+            </div>
+            <div className="border-t border-neutral-200 pt-2">
+              <p className="text-xs text-neutral-500">Loan amount composition</p>
+              <p className="mt-1 font-medium text-neutral-900" data-testid="loan-form-math-equation">
+                {formatRupee(mathBreakdown.loanAmount)} = {formatRupee(mathBreakdown.disbursalAmount)}{' '}
+                + {formatRupee(mathBreakdown.processingFee)} + {formatRupee(mathBreakdown.gpsCharges)}
+              </p>
+              <p className="mt-1 text-xs text-neutral-600">
+                Disbursal to dealer + Processing fee (8%) + IOT/GPS
+              </p>
+            </div>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-t border-neutral-200 pt-2">
+              <dt>EMI @ 35% p.a.</dt>
+              <dd className="font-medium text-neutral-900" data-testid="loan-form-math-emi">
+                {formatRupee(mathBreakdown.emiAmount)}/month for {mathBreakdown.tenureMonths} months
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
     </div>
   );
 };

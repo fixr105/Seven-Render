@@ -45,6 +45,11 @@ describe('LoanCalculator', () => {
 
     expect(screen.getByTestId('loan-form-amount')).toHaveValue(String(snapshot.loanAmount));
     expect(screen.getByTestId('loan-form-tenure')).toHaveValue(String(snapshot.tenureMonths));
+    expect(screen.getByTestId('loan-form-math-breakdown')).toBeInTheDocument();
+    expect(screen.getByTestId('loan-form-math-iot')).toHaveTextContent('₹2,000');
+    expect(screen.getByTestId('loan-form-math-equation')).toHaveTextContent(
+      `₹${snapshot.loanAmount.toLocaleString('en-IN')}`
+    );
     expect(screen.queryByTestId('loan-form-interest')).not.toBeInTheDocument();
     expect(screen.queryByTestId('loan-form-processing-fee-pct')).not.toBeInTheDocument();
     expect(screen.getByTestId('loan-form-amount')).toBeDisabled();
@@ -75,6 +80,17 @@ describe('LoanCalculator', () => {
     expect(stage1.queryByText('Processing Fee %')).not.toBeInTheDocument();
     expect(stage1.queryByText('Processing Fee ₹')).not.toBeInTheDocument();
     expect(stage1.queryByText('Disbursal Amount')).not.toBeInTheDocument();
+  });
+
+  it('updates live preview when tenure changes to 18 months', async () => {
+    const user = userEvent.setup();
+    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+
+    await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
+    await user.selectOptions(screen.getByTestId('loan-calc-tenure'), '18');
+
+    expect(screen.getByTestId('loan-calc-preview-gps')).toHaveTextContent('₹2,500');
+    expect(screen.getByTestId('loan-calc-preview-tenure')).toHaveTextContent('18 months');
   });
 
   it('unfreezes on Edit so stage 1 is editable again', async () => {

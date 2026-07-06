@@ -1,11 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import {
-  calculateEmiRangePreview,
+  calculateLoanPreview,
   computeFinalInvoiceAmount,
   parseMoneyInput,
+  type LoanTenureMonths,
 } from '../../lib/loanCalculator';
+
+const TENURE_OPTIONS = [
+  { value: '12', label: '12 months' },
+  { value: '18', label: '18 months' },
+];
 
 type Stage2Tab = 'insurance' | 'registration';
 
@@ -17,6 +24,7 @@ export const EmiRangeCalculator: React.FC = () => {
   const { t } = useTranslation();
   const [downpayment, setDownpayment] = useState('');
   const [disbursementToDealer, setDisbursementToDealer] = useState('');
+  const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(12);
   const [activeStage2Tab, setActiveStage2Tab] = useState<Stage2Tab>('insurance');
   const [insuranceCost, setInsuranceCost] = useState('');
   const [registrationCost, setRegistrationCost] = useState('');
@@ -25,20 +33,21 @@ export const EmiRangeCalculator: React.FC = () => {
     () => ({
       upfrontPayment: parseMoneyInput(downpayment),
       disbursementToDealer: parseMoneyInput(disbursementToDealer),
+      tenureMonths,
     }),
-    [downpayment, disbursementToDealer]
+    [downpayment, disbursementToDealer, tenureMonths]
   );
 
-  const range = useMemo(() => calculateEmiRangePreview(inputs), [inputs]);
+  const preview = useMemo(() => calculateLoanPreview(inputs), [inputs]);
 
   const insuranceAmount = parseMoneyInput(insuranceCost);
   const registrationAmount = parseMoneyInput(registrationCost);
   const finalInvoiceAmount = useMemo(
-    () => computeFinalInvoiceAmount(range.invoiceValue, insuranceAmount, registrationAmount),
-    [range.invoiceValue, insuranceAmount, registrationAmount]
+    () => computeFinalInvoiceAmount(preview.invoiceValue, insuranceAmount, registrationAmount),
+    [preview.invoiceValue, insuranceAmount, registrationAmount]
   );
 
-  const invoiceDisplay = range.invoiceValue > 0 ? String(range.invoiceValue) : '';
+  const invoiceDisplay = preview.invoiceValue > 0 ? String(preview.invoiceValue) : '';
   const finalInvoiceDisplay = finalInvoiceAmount > 0 ? String(finalInvoiceAmount) : '';
 
   const stage2Tabs: Array<{ id: Stage2Tab; label: string }> = [
@@ -87,6 +96,13 @@ export const EmiRangeCalculator: React.FC = () => {
             data-testid="emi-range-invoice"
             className="bg-neutral-100 text-neutral-700"
           />
+          <Select
+            label={t('pages.calculator.tenure')}
+            value={String(tenureMonths)}
+            options={TENURE_OPTIONS}
+            onChange={(e) => setTenureMonths(e.target.value === '18' ? 18 : 12)}
+            data-testid="emi-range-tenure"
+          />
         </div>
 
         <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
@@ -95,33 +111,45 @@ export const EmiRangeCalculator: React.FC = () => {
           </h4>
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.lowestEmi')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-lowest-emi">
-                {formatRupee(range.lowestEmi)}
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.loanAmount')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-loan-amount">
+                {formatRupee(preview.loanAmount)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.highestEmi')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-highest-emi">
-                {formatRupee(range.highestEmi)}
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.tenure')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-tenure-preview">
+                {preview.tenureMonths} {t('pages.calculator.months')}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.lowestProcessingFee')}</dt>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.iotCost')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-iot-cost">
+                {formatRupee(preview.gpsCharges)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.processingFee')}</dt>
               <dd
                 className="text-sm font-medium text-neutral-900"
-                data-testid="emi-range-lowest-processing-fee"
+                data-testid="emi-range-processing-fee"
               >
-                {formatRupee(range.lowestProcessingFee)}
+                {formatRupee(preview.processingFee)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.highestProcessingFee')}</dt>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.emiAmount')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-emi">
+                {formatRupee(preview.emiAmount)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.disbursalAmount')}</dt>
               <dd
                 className="text-sm font-medium text-neutral-900"
-                data-testid="emi-range-highest-processing-fee"
+                data-testid="emi-range-disbursal"
               >
-                {formatRupee(range.highestProcessingFee)}
+                {formatRupee(preview.disbursalAmount)}
               </dd>
             </div>
           </dl>

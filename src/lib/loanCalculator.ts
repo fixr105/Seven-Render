@@ -127,6 +127,26 @@ export function calculateLoanPreview(inputs: LoanCalculatorInputs): LoanLivePrev
   };
 }
 
+export interface LoanMathBreakdown {
+  tenureMonths: LoanTenureMonths;
+  loanAmount: number;
+  processingFee: number;
+  gpsCharges: number;
+  disbursalAmount: number;
+  emiAmount: number;
+}
+
+export function buildLoanMathBreakdown(frozen: LoanFrozenValues): LoanMathBreakdown {
+  return {
+    tenureMonths: frozen.tenureMonths,
+    loanAmount: frozen.loanAmount,
+    processingFee: frozen.processingFee,
+    gpsCharges: frozen.gpsCharges,
+    disbursalAmount: frozen.disbursalAmount,
+    emiAmount: calculateEmi(frozen.loanAmount, frozen.tenureMonths),
+  };
+}
+
 export function freezeLoanPreview(preview: LoanLivePreview): LoanFrozenValues {
   return {
     loanAmount: preview.loanAmount,
