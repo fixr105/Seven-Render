@@ -318,6 +318,21 @@ export const B2CEvApplicationWizard: React.FC = () => {
     editingDraftIdRef.current = editingDraftId;
   }, [editingDraftId]);
 
+  const cancelScheduledAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current != null) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+  }, []);
+
+  const commitFormState = useCallback((updater: (prev: WizardFormState) => WizardFormState) => {
+    setFormState((prev) => {
+      const next = updater(prev);
+      formStateRef.current = next;
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     if (!wizardStepParam && !wizardStageParam) return;
     const targetIndex = parseWizardStepJumpParam(searchParams, visibleStages);
@@ -560,7 +575,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
             : String(app.loanProduct || app.loan_product || '');
 
         setEditingDraftId(draftIdParam);
-        setFormState({
+        const nextFormState: WizardFormState = {
           applicant_name: app.applicant_name || app.applicantName || '',
           loan_product_id: productId,
           requested_loan_amount: String(app.requested_loan_amount ?? app.requestedLoanAmount ?? '0'),
@@ -570,7 +585,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
               ...parsedFormData,
             })
           ),
-        });
+        };
+        formStateRef.current = nextFormState;
+        setFormState(nextFormState);
         if (!isDealerKycPopulated(parsedFormData)) {
           await loadDealerKyc(parsedFormData);
         }
@@ -712,7 +729,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   );
 
   const updateField = (key: string, value: string) => {
-    setFormState((prev) => {
+    commitFormState((prev) => {
       let nextFormData = { ...prev.form_data, [key]: value };
       if (key === '_meta.supportPersonType') {
         nextFormData = clearSupportPersonFields(nextFormData, value as SupportPersonType);
@@ -759,7 +776,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   ) => {
     if (Object.keys(patch).length === 0) return;
 
-    setFormState((prev) => {
+    commitFormState((prev) => {
       const nextFormData = syncB2cEvComputedFields({ ...prev.form_data, ...patch });
       const applicantName = readFieldValue(nextFormData, 'borrower.customerName');
       const loanAmount = readFieldValue(nextFormData, 'loan.amount').replace(/,/g, '');
@@ -870,9 +887,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
   };
 
   const runPanLookup = async (): Promise<boolean> => {
-    const inputHash = buildPanLookupInputHash(formState.form_data);
+    cancelScheduledAutoSave();
+    const currentFormData = formStateRef.current.form_data;
+    const inputHash = buildPanLookupInputHash(currentFormData);
 
-    if (!shouldRefetchPanLookup(formState.form_data)) {
+    if (!shouldRefetchPanLookup(currentFormData)) {
       return true;
     }
 
@@ -881,7 +900,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
     const applyManualFailure = (message: string) => {
       setPanLookupError(message);
-      setFormState((prev) => ({
+      commitFormState((prev) => ({
         ...prev,
         form_data: applyBorrowerManualProfilePhase(prev.form_data, inputHash),
       }));
@@ -889,7 +908,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     };
 
     try {
-      const payload = getPanLookupPayload(formState.form_data);
+      const payload = getPanLookupPayload(formStateRef.current.form_data);
       const response = await apiService.lookupBorrowerPan({
         mobileNumber: payload.mobileNumber,
         panNumber: payload.panNumber,
@@ -907,7 +926,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
         return applyManualFailure(PAN_MANUAL_FAILURE_MESSAGE);
       }
 
-      setFormState((prev) => {
+      commitFormState((prev) => {
         const cleared = clearBorrowerFields(prev.form_data);
         const patched = syncB2cEvComputedFields({
           ...cleared,
@@ -949,21 +968,22 @@ export const B2CEvApplicationWizard: React.FC = () => {
   };
 
   const runSupportPanLookup = async (): Promise<boolean> => {
-    const inputErrors = validateSupportPanLookupInput(formState.form_data);
+    cancelScheduledAutoSave();
+    const inputErrors = validateSupportPanLookupInput(formStateRef.current.form_data);
     if (Object.keys(inputErrors).length > 0) {
       setFieldErrors(inputErrors);
       return false;
     }
 
-    const payload = getSupportPanLookupPayload(formState.form_data);
+    const payload = getSupportPanLookupPayload(formStateRef.current.form_data);
     if (!payload) return false;
 
     const prefix = payload.target;
     if (prefix !== 'coApplicant' && prefix !== 'guarantor') return false;
 
-    const inputHash = buildSupportPanLookupInputHash(formState.form_data);
-    if (!shouldRefetchSupportPanLookup(formState.form_data)) {
-      setFormState((prev) => ({
+    const inputHash = buildSupportPanLookupInputHash(formStateRef.current.form_data);
+    if (!shouldRefetchSupportPanLookup(formStateRef.current.form_data)) {
+      commitFormState((prev) => ({
         ...prev,
         form_data: {
           ...prev.form_data,
@@ -975,7 +995,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
     setSupportPanLookupLoading(true);
     setSupportPanLookupError(null);
-    setFormState((prev) => ({
+    commitFormState((prev) => ({
       ...prev,
       form_data: {
         ...prev.form_data,
@@ -994,7 +1014,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
       if (!response.success || !response.data?.formDataPatch) {
         setSupportPanLookupError(response.error || PAN_MANUAL_FAILURE_MESSAGE);
-        setFormState((prev) => ({
+        commitFormState((prev) => ({
           ...prev,
           form_data: applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash),
         }));
@@ -1003,14 +1023,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
       if (!hasMeaningfulSupportPersonAutofill(response.data.formDataPatch, prefix)) {
         setSupportPanLookupError(PAN_MANUAL_FAILURE_MESSAGE);
-        setFormState((prev) => ({
+        commitFormState((prev) => ({
           ...prev,
           form_data: applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash),
         }));
         return true;
       }
 
-      setFormState((prev) => {
+      commitFormState((prev) => {
         const cleared = clearSupportPersonProfileFields(prev.form_data, prefix);
         const patched = syncB2cEvComputedFields({
           ...cleared,
@@ -1030,7 +1050,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       setSupportPanLookupError(
         error instanceof Error ? error.message : PAN_MANUAL_FAILURE_MESSAGE
       );
-      setFormState((prev) => ({
+      commitFormState((prev) => ({
         ...prev,
         form_data: applySupportPersonManualProfilePhase(prev.form_data, prefix, inputHash),
       }));
@@ -1066,7 +1086,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }
 
     const nextStage = visibleStages[currentStep + 1];
-    if (nextStage?.id === 'borrower' && !isPanLookupProfileReady(formState.form_data)) {
+    if (nextStage?.id === 'borrower' && !isPanLookupProfileReady(formStateRef.current.form_data)) {
       setFieldErrors({
         '_meta.panLookup.status':
           'Borrower details must be verified on the Loan Product step before continuing',
