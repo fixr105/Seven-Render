@@ -14,7 +14,6 @@ import {
   isFileOptionChecked,
   isValidDocumentsFolderLink,
   normalizeLinkPoolItem,
-  persistUsedClientWebhookLinks,
   toStoredFileOptionValue,
   type FormConfigCategory,
 } from '../../lib/b2cEvDocuments';

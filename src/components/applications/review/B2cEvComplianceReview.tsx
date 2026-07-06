@@ -4,7 +4,6 @@ import {
   isComplianceChecked,
   isComplianceItemRequested,
 } from '../../../lib/b2cEvCompliance';
-import { isDoRequested } from '../../../lib/b2cEvDoRequest';
 import { extractPendingB2cActions } from '../../../lib/b2cEvKamActions';
 
 function readString(value: unknown): string {

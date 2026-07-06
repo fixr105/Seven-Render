@@ -8,11 +8,6 @@ import { B2cEvSupportPersonReview } from './B2cEvSupportPersonReview';
 import { B2cEvComplianceReview } from './B2cEvComplianceReview';
 import { KamClientKycPanel } from './KamClientKycPanel';
 
-function readString(value: unknown): string {
-  if (value == null) return '';
-  return String(value).trim();
-}
-
 function formatFieldValue(value: unknown): string {
   if (value == null || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -29,10 +24,10 @@ export interface B2cEvApplicationReviewProps {
 
 export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
   formData,
-  applicationId,
+  applicationId: _applicationId,
   clientId,
   userRole,
-  onUpdated,
+  onUpdated: _onUpdated,
 }) => {
   const stages = useMemo(() => getVisibleB2cEvStages(formData), [formData]);
   const [openStageId, setOpenStageId] = useState<string | null>(stages[0]?.id ?? null);

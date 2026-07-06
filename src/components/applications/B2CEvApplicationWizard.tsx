@@ -822,7 +822,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       }
       const requestedAt = new Date().toISOString();
       const queryId = response.data?.queryId || '';
-      const patch: Record<string, unknown> = { [item.requestedAtKey]: requestedAt };
+      const patch: Record<string, string> = { [item.requestedAtKey]: requestedAt };
       if (queryId) {
         patch[item.queryIdKey] = queryId;
       }
@@ -856,7 +856,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       }
       const requestedAt = new Date().toISOString();
       const queryId = response.data?.queryId || '';
-      const patch: Record<string, unknown> = { '_meta.doRequest.requestedAt': requestedAt };
+      const patch: Record<string, string> = { '_meta.doRequest.requestedAt': requestedAt };
       if (queryId) {
         patch['_meta.doRequest.queryId'] = queryId;
       }

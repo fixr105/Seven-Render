@@ -17,7 +17,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
-import { getBusinessStatusOptions, getAllowedNextStatusesForKam, getStatusDisplayNameForViewer, normalizeStatus } from '../lib/statusUtils';
+import { getBusinessStatusOptions, getAllowedNextStatusesForKam, getStatusDisplayNameForViewer, normalizeStatus, type LoanStatus } from '../lib/statusUtils';
 import {
   applyApplicationStatusChange,
   statusRequiresDisbursementFields,
@@ -965,7 +965,7 @@ export const ApplicationDetail: React.FC = () => {
     }));
     if (userRole === 'kam' && application) {
       const allowed = new Set(getAllowedNextStatusesForKam(applicationStatusKey));
-      return allOptions.filter((opt) => allowed.has(normalizeStatus(opt.value)));
+      return allOptions.filter((opt) => allowed.has(normalizeStatus(opt.value) as LoanStatus));
     }
     return allOptions;
   })();
