@@ -22,6 +22,7 @@ import {
   assertClientProductAssigned,
 } from '../services/entitlements/clientProducts.service.js';
 import { resolveRequestedLoanAmountFromVehicleSelection } from '../services/vehicles/vehicleCatalog.service.js';
+import { resolveApplicationRecordStatus, resolveStoredApplicationStatus } from '../utils/loanApplicationAirtableStatus.js';
 import {
   buildPromotedApplicationRecord,
   mergeFormDataJson,
@@ -478,8 +479,8 @@ export class LoanController {
           product: product?.['Product Name'] ?? app['Loan Product'] ?? app.loanProduct,
           productId: app['Loan Product'] || app.loanProduct,
           requestedAmount: app['Requested Loan Amount'] || app.requestedLoanAmount,
-          status: normalizeDynamicStatus(app.Status ?? app.status ?? ''),
-          Status: normalizeDynamicStatus(app.Status ?? app.status ?? ''),
+          status: resolveStoredApplicationStatus(app.Status ?? app.status),
+          Status: resolveStoredApplicationStatus(app.Status ?? app.status),
           creationDate: app['Creation Date'] || app['Created At'] || app.creationDate,
           submittedDate: app['Submitted Date'] || app.submittedDate,
           lastUpdated: app['Last Updated'] || app.updatedAt || app.lastUpdated,
@@ -625,13 +626,16 @@ export class LoanController {
 
       const {
         buildB2cClientQueryActionEventType,
+        buildB2cClientRequestFormPatch,
         isComplianceItemId,
       } = await import('../services/queries/b2cEvQueryFulfillment.service.js');
 
       const typedItemId =
         typeof itemId === 'string' && isComplianceItemId(itemId) ? itemId : undefined;
+      const normalizedRequestKind =
+        requestKind === 'b2c_compliance' || requestKind === 'b2c_do' ? requestKind : undefined;
       const actionEventType = buildB2cClientQueryActionEventType(
-        typeof requestKind === 'string' ? requestKind : undefined,
+        normalizedRequestKind,
         typedItemId
       );
 
@@ -646,6 +650,21 @@ export class LoanController {
         actionEventType
       );
 
+      let formDataPatchApplied = false;
+      if (normalizedRequestKind) {
+        const patch = buildB2cClientRequestFormPatch(normalizedRequestKind, {
+          itemId: typedItemId,
+          queryId,
+        });
+        const mergedFormData = mergeFormDataJson(application, patch);
+        await n8nClient.postLoanApplication({
+          ...application,
+          'Form Data': JSON.stringify(mergedFormData),
+          'Last Updated': new Date().toISOString(),
+        });
+        formDataPatchApplied = true;
+      }
+
       await logApplicationAction(
         req.user!,
         AdminActionType.RAISE_QUERY,
@@ -657,7 +676,7 @@ export class LoanController {
       res.json({
         success: true,
         message: 'Query raised successfully',
-        data: { queryId },
+        data: { queryId, formDataPatchApplied },
       });
     } catch (error: any) {
       res.status(500).json({
@@ -953,7 +972,7 @@ export class LoanController {
         );
       }
 
-      if (role === 'client' && normalizeDynamicStatus(application.Status) === LoanStatus.QUERY_WITH_CLIENT) {
+      if (role === 'client' && resolveApplicationRecordStatus(application) === LoanStatus.QUERY_WITH_CLIENT) {
         await n8nClient.postLoanApplication({
           ...application,
           Status: LoanStatus.UNDER_KAM_REVIEW,
@@ -971,7 +990,7 @@ export class LoanController {
 
       if (
         role === 'kam' &&
-        normalizeDynamicStatus(application.Status) === LoanStatus.CREDIT_QUERY_WITH_KAM
+        resolveApplicationRecordStatus(application) === LoanStatus.CREDIT_QUERY_WITH_KAM
       ) {
         await n8nClient.postLoanApplication({
           ...application,
@@ -1146,7 +1165,7 @@ export class LoanController {
         console.log(`[getApplication] No form data for application ${application.id} (File ID: ${application['File ID']}) source: ${formDataSource}`);
       }
 
-      const normalizedStatus = normalizeDynamicStatus(application.Status ?? '');
+      const normalizedStatus = resolveApplicationRecordStatus(application);
       const productStatuses = await getApplicationProductStatuses(application as Record<string, any>);
       const allowedNextStatuses = getAllowedStatusesFromProduct(
         application as Record<string, any>,
@@ -1231,10 +1250,12 @@ export class LoanController {
         return;
       }
 
+      const applicationStatus = resolveApplicationRecordStatus(application);
+
       // Only allow updates in DRAFT or QUERY_WITH_CLIENT status
       if (
-        application.Status !== LoanStatus.DRAFT &&
-        application.Status !== LoanStatus.QUERY_WITH_CLIENT
+        applicationStatus !== LoanStatus.DRAFT &&
+        applicationStatus !== LoanStatus.QUERY_WITH_CLIENT
       ) {
         res.status(400).json({
           success: false,
@@ -1246,7 +1267,7 @@ export class LoanController {
       // Module 1: For drafts, preserve existing form config version or update to latest
       // Submitted files keep their frozen version
       let formConfigVersion = application['Form Config Version'] || application.formConfigVersion;
-      if (!formConfigVersion && application.Status === LoanStatus.DRAFT) {
+      if (!formConfigVersion && applicationStatus === LoanStatus.DRAFT) {
         // Draft without version - get latest
         const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
@@ -1381,9 +1402,11 @@ export class LoanController {
         return;
       }
 
+      const applicationStatus = resolveApplicationRecordStatus(application);
+
       if (
-        application.Status !== LoanStatus.DRAFT &&
-        application.Status !== LoanStatus.QUERY_WITH_CLIENT
+        applicationStatus !== LoanStatus.DRAFT &&
+        applicationStatus !== LoanStatus.QUERY_WITH_CLIENT
       ) {
         res.status(400).json({
           success: false,

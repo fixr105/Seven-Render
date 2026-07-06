@@ -16,12 +16,12 @@ const getEnvVar = (key: string, fallback: string): string => {
 
 export const TEST_USERS = {
   client: {
-    email: getEnvVar('E2E_CLIENT_USERNAME', 'sagar@sevenfincorp.email'),
+    email: getEnvVar('E2E_CLIENT_USERNAME', 'vadukavsk@gmail.com'),
     password: getEnvVar('E2E_CLIENT_PASSWORD', 'pass@123'),
     role: 'client',
   },
   kam: {
-    email: getEnvVar('E2E_KAM_USERNAME', 'sagar@sevenfincorp.email'),
+    email: getEnvVar('E2E_KAM_USERNAME', 'Anya@sevenfincorp.email'),
     password: getEnvVar('E2E_KAM_PASSWORD', 'pass@123'),
     role: 'kam',
   },

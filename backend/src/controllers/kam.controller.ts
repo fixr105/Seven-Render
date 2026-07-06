@@ -28,6 +28,7 @@ import {
   syntheticClientAuthUser,
 } from '../utils/kamClientAccess.js';
 import { scanApplicationsForPendingB2cActions } from '../services/b2cEv/b2cEvKamActions.service.js';
+import { resolveApplicationRecordStatus } from '../utils/loanApplicationAirtableStatus.js';
 
 /** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
 const FORWARDED_STATUSES: string[] = [
@@ -1238,7 +1239,7 @@ export class KAMController {
         throw err;
       }
 
-      const statusKey = normalizeDynamicStatus(application.Status ?? '');
+      const statusKey = resolveApplicationRecordStatus(application);
       if (
         statusKey !== LoanStatus.UNDER_KAM_REVIEW &&
         statusKey !== LoanStatus.QUERY_WITH_CLIENT
@@ -1365,7 +1366,7 @@ export class KAMController {
         throw err;
       }
 
-      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
+      const previousStatus = resolveApplicationRecordStatus(application);
       const newStatus = LoanStatus.QUERY_WITH_CLIENT;
 
       await n8nClient.postLoanApplication({
@@ -1526,7 +1527,7 @@ export class KAMController {
       }
 
       const { recordStatusChange } = await import('../services/statusTracking/statusHistory.service.js');
-      const previousStatus = normalizeDynamicStatus(application.Status ?? '');
+      const previousStatus = resolveApplicationRecordStatus(application);
       const newStatus = normalizeDynamicStatus(newStatusRaw);
       if (!isCanonicalLoanStatusKey(newStatus)) {
         res.status(400).json({

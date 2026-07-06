@@ -26,6 +26,7 @@ import {
   mayApplyTargetLoanStatus,
   normalizeDynamicStatus,
 } from '../statusTracking/dynamicStatus.service.js';
+import { resolveApplicationRecordStatus } from '../../utils/loanApplicationAirtableStatus.js';
 import {
   buildPromotedApplicationRecord,
   mergeFormDataJson,
@@ -86,22 +87,17 @@ export class LoanWorkflowService {
 
         if (found) {
           if (options.expectedStatus) {
-            const statusRaw = String(found.Status || found.status || '').trim();
-            let status = statusRaw;
-            let expected = options.expectedStatus;
-            try {
-              status = normalizeToCanonicalStatus(statusRaw);
-              expected = normalizeToCanonicalStatus(options.expectedStatus);
-            } catch {
-              // Keep literal comparison when Airtable stores a non-canonical label.
-            }
+            const status = resolveApplicationRecordStatus(found as Record<string, unknown>);
+            const expected = resolveApplicationRecordStatus({
+              Status: options.expectedStatus,
+            });
             if (status !== expected) {
               if (attempt < 5) {
                 await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
                 continue;
               }
               throw new Error(
-                `Loan application persisted with unexpected status ${statusRaw || '(empty)'}; expected ${options.expectedStatus}`
+                `Loan application persisted with unexpected status ${String(found.Status ?? found.status ?? '(empty)')}; expected ${options.expectedStatus}`
               );
             }
           }
@@ -290,8 +286,9 @@ export class LoanWorkflowService {
       strictWriteAck: false,
       operationName: 'loan application create',
     });
+    let persistedRecord: Record<string, unknown> | null = null;
     try {
-      await this.verifyLoanApplicationPersisted({
+      persistedRecord = await this.verifyLoanApplicationPersisted({
         fileId,
         clientSubmissionId: options.clientSubmissionId,
         expectedStatus: status,
@@ -351,7 +348,7 @@ export class LoanWorkflowService {
     }
 
     return {
-      applicationId,
+      applicationId: String(persistedRecord?.id ?? applicationId),
       fileId,
       status,
     };
@@ -447,9 +444,7 @@ export class LoanWorkflowService {
 
     await assertKAMCanMutateApplication(user, application);
 
-    const previousStatus = normalizeToCanonicalStatus(
-      normalizeDynamicStatus(application.Status)
-    );
+    const previousStatus = resolveApplicationRecordStatus(application);
     const newStatus = LoanStatus.PENDING_CREDIT_REVIEW;
 
     validateTransition(previousStatus, newStatus, toUserRole(user.role));

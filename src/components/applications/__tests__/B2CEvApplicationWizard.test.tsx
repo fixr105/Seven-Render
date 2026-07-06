@@ -10,6 +10,7 @@ vi.mock('../../../services/api', () => ({
   apiService: {
     listLoanProducts: vi.fn(),
     getClientKyc: vi.fn(),
+    getFormConfig: vi.fn(),
     lookupBorrowerPan: vi.fn(),
     getApplication: vi.fn(),
     createApplication: vi.fn(),
@@ -84,6 +85,10 @@ describe('B2CEvApplicationWizard submit gating', () => {
     (apiService.getClientKyc as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: false,
       error: 'Not found',
+    });
+    (apiService.getFormConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: [],
     });
     (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,

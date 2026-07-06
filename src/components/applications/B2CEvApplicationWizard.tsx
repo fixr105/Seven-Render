@@ -60,6 +60,7 @@ import { SupportPersonPanWizard } from './SupportPersonPanWizard';
 import { GeoTaggedPhotoUploads } from './GeoTaggedPhotoUploads';
 import { B2cEvWizardStepper } from './B2cEvWizardStepper';
 import { CibilProbabilityBar } from './CibilProbabilityBar';
+import { parseCibilScore } from '../../lib/b2cEvCibilProbability';
 import {
   buildComplianceKamRequestMessage,
   COMPLIANCE_ITEMS,

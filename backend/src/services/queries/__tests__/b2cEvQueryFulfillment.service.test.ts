@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   buildB2cClientQueryActionEventType,
+  buildB2cClientRequestFormPatch,
   buildB2cFulfillmentPatch,
   buildB2cFulfillmentReplyMessage,
   getQueryReplyTarget,
@@ -24,6 +25,23 @@ describe('b2cEvQueryFulfillment.service', () => {
 
     const doPatch = buildB2cFulfillmentPatch('do_fulfill');
     expect(doPatch['_meta.doRequest.fulfilledAt']).toBeTruthy();
+  });
+
+  it('builds client request form patches for compliance and DO', () => {
+    const vkycPatch = buildB2cClientRequestFormPatch('b2c_compliance', {
+      itemId: 'vkyc',
+      queryId: 'QUERY-1',
+      requestedAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(vkycPatch['_meta.kamRequests.vkyc.requestedAt']).toBe('2026-01-01T00:00:00.000Z');
+    expect(vkycPatch['_meta.kamRequests.vkyc.queryId']).toBe('QUERY-1');
+
+    const doPatch = buildB2cClientRequestFormPatch('b2c_do', {
+      queryId: 'QUERY-DO',
+      requestedAt: '2026-01-02T00:00:00.000Z',
+    });
+    expect(doPatch['_meta.doRequest.requestedAt']).toBe('2026-01-02T00:00:00.000Z');
+    expect(doPatch['_meta.doRequest.queryId']).toBe('QUERY-DO');
   });
 
   it('routes KAM replies on client B2C queries back to client', () => {

@@ -2,6 +2,8 @@
  * Server-side extraction of pending B2C EV actions from form_data (dashboard triage).
  */
 
+import { resolveApplicationRecordStatus } from '../../utils/loanApplicationAirtableStatus.js';
+
 type ComplianceItemId = 'vkyc' | 'loanAgreement' | 'enach';
 
 const COMPLIANCE_ITEMS: Array<{
@@ -104,7 +106,7 @@ export function scanApplicationsForPendingB2cActions(
   const rows: PendingB2cActionRow[] = [];
 
   for (const app of applications) {
-    const status = readString(app.Status ?? app.status).toLowerCase();
+    const status = resolveApplicationRecordStatus(app);
     if (!activeStatuses.has(status)) continue;
 
     const rawForm = app['Form Data'] ?? app.formData ?? app.form_data;

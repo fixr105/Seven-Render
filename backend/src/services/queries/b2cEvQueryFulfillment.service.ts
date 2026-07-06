@@ -169,6 +169,33 @@ export function getQueryReplyTarget(
   return rootQuery.targetUserRole || 'kam';
 }
 
+export function buildB2cClientRequestFormPatch(
+  requestKind: B2cRequestKind,
+  options?: { itemId?: ComplianceItemId; queryId?: string; requestedAt?: string }
+): Record<string, unknown> {
+  const requestedAt = options?.requestedAt ?? new Date().toISOString();
+  const queryId = options?.queryId?.trim() ?? '';
+
+  if (requestKind === 'b2c_do') {
+    const patch: Record<string, unknown> = { '_meta.doRequest.requestedAt': requestedAt };
+    if (queryId) patch['_meta.doRequest.queryId'] = queryId;
+    return patch;
+  }
+
+  if (requestKind === 'b2c_compliance') {
+    if (!options?.itemId || !isComplianceItemId(options.itemId)) {
+      throw new Error('itemId is required for b2c_compliance requests');
+    }
+    const config = COMPLIANCE_CONFIG[options.itemId];
+    const patch: Record<string, unknown> = { [config.requestedAtKey]: requestedAt };
+    if (queryId) patch[config.queryIdKey] = queryId;
+    return patch;
+  }
+
+  const _exhaustive: never = requestKind;
+  throw new Error(`Unsupported request kind: ${_exhaustive}`);
+}
+
 export function buildB2cFulfillmentPatch(
   action: B2cFulfillmentAction,
   itemId?: ComplianceItemId

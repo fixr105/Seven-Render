@@ -47,12 +47,20 @@ jest.mock('../../services/statusTracking/statusHistory.service.js', () => ({
 
 jest.mock('../../services/rbac/rbacFilter.service.js', () => ({
   rbacFilterService: {
-    filterLoanApplications: jest.fn(async (apps: unknown[]) => apps),
+    filterLoanApplications: jest.fn(async (apps: unknown[], user: { role?: string; clientId?: string }) => {
+      if (user?.role === 'client' && user.clientId) {
+        return (apps as Array<{ Client?: string }>).filter(
+          (app) => app.Client === user.clientId
+        );
+      }
+      return apps;
+    }),
   },
 }));
 
 jest.mock('../../services/queries/query.service.js', () => ({
   queryService: {
+    createQuery: jest.fn(async () => 'QUERY-DO-1'),
     createQueryReply: jest.fn(async () => {}),
     resolveQuery: jest.fn(async () => {}),
   },
@@ -236,6 +244,47 @@ describe('LoanController - P0 Tests', () => {
       expect(responseCall.error).toMatch(/Missing required field|documents folder link/i);
       expect(responseCall.missingFields).toBeDefined();
       expect(responseCall.missingFields!.length).toBeGreaterThan(0);
+    });
+
+    it('does not reject submit solely due to missing Status column', async () => {
+      const clientUser: AuthUser = {
+        id: 'user-1',
+        email: 'Sagar@gmail.com',
+        role: UserRole.CLIENT,
+        clientId: 'CLIENT001',
+      };
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Product Documents') return mockProductDocuments;
+        if (tableName === 'Form Fields') return mockFormFields;
+        if (tableName === 'Client Form Mapping') return mockClientFormMapping;
+        if (tableName === 'Form Categories') return mockFormCategories;
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            'Loan Product': 'PROD001',
+            Status: undefined,
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: {},
+      };
+
+      await controller.submitApplication(mockRequest as Request, mockResponse as Response);
+
+      const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
+        success: boolean;
+        error?: string;
+      };
+      if (!responseCall.success) {
+        expect(responseCall.error).not.toBe('Application cannot be submitted in current status');
+      }
     });
 
     it('should accept submission with all mandatory fields filled', async () => {
@@ -454,6 +503,34 @@ describe('LoanController - P0 Tests', () => {
       );
     });
 
+    it('allows update when Status column is missing (Airtable draft omit)', async () => {
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            'Loan Product': 'LP001',
+            'Form Data': JSON.stringify({ pan: 'ABCDE1234F' }),
+            Status: undefined,
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: { formData: { '_meta.doRequest.requestedAt': '2026-01-01T00:00:00.000Z' } },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true })
+      );
+      expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalled();
+    });
+
     it('returns success even when audit log webhooks reject', async () => {
       const { logApplicationAction } = await import('../../utils/adminLogger.js');
       (logApplicationAction as jest.Mock).mockRejectedValueOnce(new Error('admin log failed') as never);
@@ -593,6 +670,58 @@ describe('LoanController - P0 Tests', () => {
       );
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: true })
+      );
+    });
+  });
+
+  describe('createClientQuery — B2C metadata', () => {
+    it('persists DO request metadata when requestKind is b2c_do', async () => {
+      const { queryService } = await import('../../services/queries/query.service.js');
+      jest.mocked(queryService.createQuery).mockResolvedValue('QUERY-DO-1');
+
+      const clientUser: AuthUser = {
+        id: 'user-1',
+        email: 'client@example.com',
+        role: UserRole.CLIENT,
+        clientId: 'CLIENT001',
+      };
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            'Form Data': JSON.stringify({ '_meta.formTemplate': 'b2c_ev_v1' }),
+            Status: undefined,
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: {
+          message: 'Please process Disbursement Order (DO) for test.',
+          requestKind: 'b2c_do',
+        },
+      };
+
+      await controller.createClientQuery(mockRequest as Request, mockResponse as Response);
+
+      expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'Form Data': expect.stringContaining('_meta.doRequest.requestedAt'),
+        })
+      );
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            queryId: 'QUERY-DO-1',
+            formDataPatchApplied: true,
+          }),
+        })
       );
     });
   });

@@ -7,8 +7,11 @@ End-to-end Playwright tests covering the full loan application lifecycle across 
 - **Backend and frontend running:** Playwright `webServer` in `playwright.config.ts` starts both automatically. For local runs, ensure:
   - Frontend: `npm run dev` (or Playwright starts it)
   - Backend: `cd backend && npm run dev` (or Playwright starts it)
-- **Test user:** `sagar@sevenfincorp.email` / `pass@123` with access to all four roles (Client, KAM, Credit, NBFC)
-- **Environment:** Override credentials via `E2E_CLIENT_USERNAME`, `E2E_CLIENT_PASSWORD`, etc. (see [e2e/helpers/auth.ts](helpers/auth.ts))
+- **Test users (defaults in [e2e/helpers/auth.ts](helpers/auth.ts)):**
+  - **Client (B2C EV):** `vadukavsk@gmail.com` / `pass@123` — Meghasri Corporation, product LP012
+  - **KAM (Meghasri assigned):** `Anya@sevenfincorp.email` / `pass@123`
+  - **Note:** `sagar@sevenfincorp.email` is a KAM account only; do not use it as the default client for B2C EV flows.
+- **Environment:** Override credentials via `E2E_CLIENT_USERNAME`, `E2E_CLIENT_PASSWORD`, etc.
 
 ## Running the Tests
 

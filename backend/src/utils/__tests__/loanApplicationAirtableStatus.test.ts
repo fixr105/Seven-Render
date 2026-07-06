@@ -1,7 +1,14 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
+import { LoanStatus } from '../../config/constants.js';
+
+jest.mock('../../services/statusTracking/dynamicStatus.service.js', () => ({
+  normalizeDynamicStatus: jest.fn((status: string) => status),
+}));
+
 import {
   mapLoanStatusForAirtablePost,
   LOAN_APPLICATION_AIRTABLE_STATUS_LABELS,
+  resolveStoredApplicationStatus,
 } from '../loanApplicationAirtableStatus.js';
 
 describe('mapLoanStatusForAirtablePost', () => {
@@ -38,5 +45,21 @@ describe('mapLoanStatusForAirtablePost', () => {
     expect(mapLoanStatusForAirtablePost('')).toBeUndefined();
     expect(mapLoanStatusForAirtablePost(null)).toBeUndefined();
     expect(mapLoanStatusForAirtablePost('not_a_real_status')).toBeUndefined();
+  });
+});
+
+describe('resolveStoredApplicationStatus', () => {
+  it('treats empty and missing Status as draft', () => {
+    expect(resolveStoredApplicationStatus(undefined)).toBe(LoanStatus.DRAFT);
+    expect(resolveStoredApplicationStatus('')).toBe(LoanStatus.DRAFT);
+    expect(resolveStoredApplicationStatus('   ')).toBe(LoanStatus.DRAFT);
+  });
+
+  it('maps Airtable labels and internal slugs to canonical status', () => {
+    expect(resolveStoredApplicationStatus('Submitted')).toBe(LoanStatus.UNDER_KAM_REVIEW);
+    expect(resolveStoredApplicationStatus('under_kam_review')).toBe(LoanStatus.UNDER_KAM_REVIEW);
+    expect(resolveStoredApplicationStatus('Under Finance Review')).toBe(
+      LoanStatus.PENDING_CREDIT_REVIEW
+    );
   });
 });

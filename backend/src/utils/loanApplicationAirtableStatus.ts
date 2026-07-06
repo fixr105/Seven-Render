@@ -6,6 +6,10 @@
 
 import { LoanStatus } from '../config/constants.js';
 import { normalizeApplicableStatusKey } from '../services/products/loanProductStatuses.service.js';
+import { normalizeDynamicStatus } from '../services/statusTracking/dynamicStatus.service.js';
+import { normalizeToCanonicalStatus } from '../services/statusTracking/statusStateMachine.js';
+
+const CANONICAL_STATUS_SET = new Set<string>(Object.values(LoanStatus));
 
 /** Valid Airtable Loan Applications Status column values (Seven Dashboard base). */
 export const LOAN_APPLICATION_AIRTABLE_STATUS_LABELS = [
@@ -39,6 +43,20 @@ const CANONICAL_TO_AIRTABLE_LABEL: Record<LoanStatus, LoanApplicationAirtableSta
     [LoanStatus.CLOSED]: 'Disbursed',
   };
 
+/** Primary canonical status for each Airtable label (workflow path, not every alias). */
+const AIRTABLE_LABEL_TO_CANONICAL: Record<
+  LoanApplicationAirtableStatusLabel,
+  LoanStatus
+> = {
+  Qualified: LoanStatus.IN_NEGOTIATION,
+  Submitted: LoanStatus.UNDER_KAM_REVIEW,
+  'Dealer Unresponsive': LoanStatus.QUERY_WITH_CLIENT,
+  'Under Finance Review': LoanStatus.PENDING_CREDIT_REVIEW,
+  'DO Issued': LoanStatus.SENT_TO_NBFC,
+  Disbursed: LoanStatus.DISBURSED,
+  Rejected: LoanStatus.REJECTED,
+};
+
 function normalizeAirtableLabel(raw: string): string {
   return raw.trim().replace(/^\s+DO Issued$/i, 'DO Issued');
 }
@@ -71,4 +89,36 @@ export function mapLoanStatusForAirtablePost(raw: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Resolve Status read from n8n/Airtable into canonical LoanStatus.
+ * Empty/missing Status means draft (Airtable omits Status on draft saves).
+ */
+export function resolveStoredApplicationStatus(raw: unknown): LoanStatus {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return LoanStatus.DRAFT;
+
+  const normalizedLabel = normalizeAirtableLabel(trimmed);
+  if (AIRTABLE_LABEL_SET.has(normalizedLabel)) {
+    return AIRTABLE_LABEL_TO_CANONICAL[normalizedLabel as LoanApplicationAirtableStatusLabel];
+  }
+
+  const dynamic = normalizeDynamicStatus(trimmed);
+  if (!dynamic) return LoanStatus.DRAFT;
+
+  try {
+    return normalizeToCanonicalStatus(dynamic);
+  } catch {
+    if (CANONICAL_STATUS_SET.has(dynamic)) {
+      return dynamic as LoanStatus;
+    }
+    return LoanStatus.DRAFT;
+  }
+}
+
+export function resolveApplicationRecordStatus(
+  application: Record<string, unknown>
+): LoanStatus {
+  return resolveStoredApplicationStatus(application.Status ?? application.status);
 }
