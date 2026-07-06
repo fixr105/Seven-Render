@@ -2,7 +2,7 @@ import { getPanValidationError } from '../utils/panValidation';
 import { isValidEmailFormat, parseIndianMobile } from '../utils/basicApplicationFieldsValidation';
 import type { B2cEvStage, SupportPersonType } from '../config/forms/b2cEvFormSchema';
 import { B2C_EV_STAGES, getSupportPersonProfileFields } from '../config/forms/b2cEvFormSchema';
-import { isPanLookupSuccessful } from './b2cEvPanLookup';
+import { isPanLookupProfileReady } from './b2cEvPanLookup';
 import {
   getSupportPanLookupPhase,
   SUPPORT_PAN_LOOKUP_FIELD_KEYS,
@@ -121,7 +121,7 @@ export function validateB2cEvStage(
     return errors;
   }
 
-  if (stage.id === 'borrower' && !isPanLookupSuccessful(formData)) {
+  if (stage.id === 'borrower' && !isPanLookupProfileReady(formData)) {
     errors['_meta.panLookup.status'] =
       'Borrower details must be verified on the Loan Product step before continuing';
     return errors;
@@ -275,7 +275,7 @@ export function getB2cEvFormCompletion(
 }
 
 export function validateBorrowerStageAccessible(formData: Record<string, unknown>): boolean {
-  return isPanLookupSuccessful(formData);
+  return isPanLookupProfileReady(formData);
 }
 
 export function validateSupportPersonStageAccessible(formData: Record<string, unknown>): boolean {

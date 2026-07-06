@@ -13,7 +13,7 @@ export const PAN_LOOKUP_FIELD_KEYS = [
   '_meta.panLookup.borrowerEmail',
 ] as const;
 
-export type PanLookupStatus = 'pending' | 'success' | 'failed';
+export type PanLookupStatus = 'pending' | 'success' | 'failed' | 'manual';
 
 export interface PanLookupWebhookOutput {
   first_name?: string;
@@ -218,6 +218,66 @@ export function isPanLookupSuccessful(formData: Record<string, unknown>): boolea
   return readString(formData['_meta.panLookup.status']) === 'success';
 }
 
+export function isPanLookupManual(formData: Record<string, unknown>): boolean {
+  return readString(formData['_meta.panLookup.status']) === 'manual';
+}
+
+export function isPanLookupProfileReady(formData: Record<string, unknown>): boolean {
+  const status = readString(formData['_meta.panLookup.status']);
+  return status === 'success' || status === 'manual';
+}
+
+function normalizeIndianMobile(value: string): string {
+  let digits = value.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
+
+/** Seed borrower profile fields from PAN lookup inputs when verification returns no results. */
+export function buildBorrowerManualProfilePatch(
+  formData: Record<string, unknown>
+): Record<string, string> {
+  const patch: Record<string, string> = {};
+  const fullName = readString(formData['_meta.panLookup.fullName']);
+  const pan = readString(formData['_meta.panLookup.panNumber'])
+    .replace(/\s+/g, '')
+    .replace(/-/g, '')
+    .toUpperCase();
+  const mobile = normalizeIndianMobile(readString(formData['_meta.panLookup.mobileNumber']));
+  const email = readString(formData['_meta.panLookup.borrowerEmail']);
+
+  if (fullName) {
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      patch['borrower.firstName'] = parts[0]!;
+      patch['borrower.lastName'] = parts.slice(1).join(' ');
+    } else {
+      patch['borrower.firstName'] = fullName;
+    }
+    patch['borrower.customerName'] = fullName;
+  }
+  if (pan) patch['borrower.pan'] = pan;
+  if (mobile) patch['borrower.mobile'] = mobile;
+  if (email && isValidEmailFormat(email)) patch['borrower.email'] = email;
+
+  return patch;
+}
+
+export function applyBorrowerManualProfilePhase(
+  formData: Record<string, unknown>,
+  inputHash: string
+): Record<string, unknown> {
+  const cleared = clearBorrowerFields(formData);
+  return {
+    ...cleared,
+    ...buildBorrowerManualProfilePatch(cleared),
+    '_meta.panLookup.status': 'manual',
+    '_meta.panLookup.inputHash': inputHash,
+    '_meta.panLookup.completedAt': new Date().toISOString(),
+  };
+}
+
 /** Migrate legacy draft key recipientEmail → borrowerEmail. */
 export function migratePanLookupDraftFields(
   formData: Record<string, unknown>
@@ -249,10 +309,11 @@ export function getPanLookupPayload(formData: Record<string, unknown>): {
   };
 }
 
-export function shouldRefetchPanLookup(
-  formData: Record<string, unknown>,
-  cachedHash: string | undefined
-): boolean {
-  if (!isPanLookupSuccessful(formData)) return true;
-  return buildPanLookupInputHash(formData) !== (cachedHash ?? '');
+export function shouldRefetchPanLookup(formData: Record<string, unknown>): boolean {
+  if (!isPanLookupProfileReady(formData)) return true;
+
+  const cachedHash = readString(formData['_meta.panLookup.inputHash']);
+  if (buildPanLookupInputHash(formData) !== cachedHash) return true;
+
+  return !readString(formData['borrower.address.line1']);
 }

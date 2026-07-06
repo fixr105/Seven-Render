@@ -37,10 +37,12 @@ import {
   validateSupportPersonStageAccessible,
 } from '../../lib/b2cEvFormValidation';
 import {
+  applyBorrowerManualProfilePhase,
   buildPanLookupInputHash,
   clearBorrowerFields,
   getPanLookupPayload,
-  isPanLookupSuccessful,
+  isPanLookupManual,
+  isPanLookupProfileReady,
   migratePanLookupDraftFields,
   PAN_LOOKUP_FIELD_KEYS,
   PAN_LOOKUP_TIMEOUT_SECONDS,
@@ -60,7 +62,7 @@ import { SupportPersonPanWizard } from './SupportPersonPanWizard';
 import { GeoTaggedPhotoUploads } from './GeoTaggedPhotoUploads';
 import { B2cEvWizardStepper } from './B2cEvWizardStepper';
 import { CibilProbabilityBar } from './CibilProbabilityBar';
-import { parseCibilScore } from '../../lib/b2cEvCibilProbability';
+import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
 import {
   buildComplianceKamRequestMessage,
   COMPLIANCE_ITEMS,
@@ -867,6 +869,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
       readFieldValue(formState.form_data, 'borrower.address.line1')
     );
 
+    if (status === 'manual' && inputHash === cachedHash) {
+      return true;
+    }
+
     if (status === 'success' && inputHash === cachedHash && hasAddressAutofill) {
       return true;
     }
@@ -885,16 +891,20 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
       if (!response.success || !response.data?.formDataPatch) {
         const message =
-          response.error || 'Could not fetch borrower details. Please verify PAN and try again.';
+          response.error ||
+          'PAN verification returned no results. Enter borrower details manually on the next step.';
         setPanLookupError(message);
-        setFormState((prev) => ({
-          ...prev,
-          form_data: {
-            ...prev.form_data,
-            '_meta.panLookup.status': 'failed',
-          },
-        }));
-        return false;
+        setFormState((prev) => {
+          const patched = syncB2cEvComputedFields(
+            applyBorrowerManualProfilePhase(prev.form_data, inputHash)
+          );
+          return {
+            ...prev,
+            applicant_name: readFieldValue(patched, 'borrower.customerName'),
+            form_data: patched,
+          };
+        });
+        return true;
       }
 
       setFormState((prev) => {
@@ -917,16 +927,19 @@ export const B2CEvApplicationWizard: React.FC = () => {
       const message =
         error instanceof Error
           ? error.message
-          : 'Could not fetch borrower details. Please verify PAN and try again.';
+          : 'PAN verification returned no results. Enter borrower details manually on the next step.';
       setPanLookupError(message);
-      setFormState((prev) => ({
-        ...prev,
-        form_data: {
-          ...prev.form_data,
-          '_meta.panLookup.status': 'failed',
-        },
-      }));
-      return false;
+      setFormState((prev) => {
+        const patched = syncB2cEvComputedFields(
+          applyBorrowerManualProfilePhase(prev.form_data, inputHash)
+        );
+        return {
+          ...prev,
+          applicant_name: readFieldValue(patched, 'borrower.customerName'),
+          form_data: patched,
+        };
+      });
+      return true;
     } finally {
       setPanLookupLoading(false);
     }
@@ -1066,7 +1079,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }
 
     const nextStage = visibleStages[currentStep + 1];
-    if (nextStage?.id === 'borrower' && !isPanLookupSuccessful(formState.form_data)) {
+    if (nextStage?.id === 'borrower' && !isPanLookupProfileReady(formState.form_data)) {
       setFieldErrors({
         '_meta.panLookup.status':
           'Borrower details must be verified on the Loan Product step before continuing',
@@ -1303,7 +1316,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       );
     }
 
-    if (stage.id === 'borrower' && !isPanLookupSuccessful(formState.form_data)) {
+    if (stage.id === 'borrower' && !isPanLookupProfileReady(formState.form_data)) {
       return (
         <div className="space-y-4">
           <p className="text-sm text-neutral-600">
@@ -1434,6 +1447,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
     return (
       <div className="space-y-6">
+        {stage.id === 'borrower' && isPanLookupManual(formState.form_data) && (
+          <p className="text-sm text-neutral-600" data-testid="borrower-pan-manual-message">
+            PAN verification returned no results. Enter address and other details manually, then
+            continue.
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {profileFields.map((field) => (
             <div key={field.key} className={field.colSpan === 2 ? 'md:col-span-2' : ''}>
@@ -1535,7 +1554,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 const targetStage = visibleStages[index];
                 if (
                   targetStage?.id === 'borrower' &&
-                  !isPanLookupSuccessful(formState.form_data)
+                  !isPanLookupProfileReady(formState.form_data)
                 ) {
                   return;
                 }
@@ -1570,7 +1589,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
       {currentStage?.id === 'borrower' && (
         <CibilProbabilityBar
-          cibilScore={parseCibilScore(formState.form_data['_meta.panLookup.cibilScore'])}
+          cibilScore={getBorrowerCibilScoreFromFormData(formState.form_data)}
         />
       )}
 

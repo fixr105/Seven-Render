@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { getVisibleB2cEvStages } from '../../../config/forms/b2cEvFormSchema';
+import { getBorrowerCibilScoreFromFormData } from '../../../lib/b2cEvCibilProbability';
 import { CibilProbabilityBar } from '../CibilProbabilityBar';
 import { B2cEvGeoPhotoReview } from './B2cEvGeoPhotoReview';
 import { B2cEvSupportPersonReview } from './B2cEvSupportPersonReview';
@@ -35,15 +36,11 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
   const stages = useMemo(() => getVisibleB2cEvStages(formData), [formData]);
   const [openStageId, setOpenStageId] = useState<string | null>(stages[0]?.id ?? null);
 
-  const cibilRaw = formData['borrower.cibilScore'];
-  const cibilScore =
-    cibilRaw == null || cibilRaw === ''
-      ? null
-      : Number(String(cibilRaw).replace(/,/g, ''));
+  const cibilScore = getBorrowerCibilScoreFromFormData(formData);
 
   return (
     <div className="space-y-4" data-testid="b2c-ev-application-review">
-      {cibilScore != null && !Number.isNaN(cibilScore) && (
+      {cibilScore != null && (
         <CibilProbabilityBar cibilScore={cibilScore} />
       )}
 

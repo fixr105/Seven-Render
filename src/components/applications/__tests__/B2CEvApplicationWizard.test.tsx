@@ -158,7 +158,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(apiService.submitApplication).not.toHaveBeenCalled();
   });
 
-  it('does not advance past stage 1 when PAN lookup fails', async () => {
+  it('advances to manual borrower profile when PAN lookup returns no results', async () => {
     (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: false,
       error: 'PAN lookup returned no borrower details',
@@ -178,8 +178,13 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('b2c-pan-lookup-error')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
-    expect(screen.queryByTestId('b2c-field-borrower-firstName')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('borrower-pan-manual-message')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
+    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('YADAV');
+    expect(screen.getByTestId('b2c-field-borrower-pan')).toHaveValue('BAIPG3083L');
   });
 
   it('autofills borrower profile and address on a single stage after successful PAN lookup', async () => {

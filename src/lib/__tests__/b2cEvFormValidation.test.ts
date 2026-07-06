@@ -158,6 +158,18 @@ describe('getB2cEvFormCompletion', () => {
     expect(result.missingByStage).toHaveLength(0);
   });
 
+  it('returns complete for manual borrower profile after PAN lookup had no results', () => {
+    const formData = {
+      ...buildCompleteCoApplicantForm(),
+      '_meta.panLookup.status': 'manual',
+    };
+    const stages = getVisibleB2cEvStages(formData);
+    const result = getB2cEvFormCompletion(stages, formData, 'LP001');
+
+    expect(result.isComplete).toBe(true);
+    expect(result.missingByStage).toHaveLength(0);
+  });
+
   it('flags missing dealer KYC fields', () => {
     const formData = createInitialB2cEvFormData();
     const stages = getVisibleB2cEvStages(formData);

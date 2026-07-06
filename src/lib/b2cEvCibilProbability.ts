@@ -12,6 +12,16 @@ export function parseCibilScore(raw: unknown): number | null {
   return numeric;
 }
 
+/** Read borrower CIBIL from PAN lookup meta, with legacy field fallback. */
+export function getBorrowerCibilScoreFromFormData(
+  formData: Record<string, unknown>
+): number | null {
+  return (
+    parseCibilScore(formData['_meta.panLookup.cibilScore']) ??
+    parseCibilScore(formData['borrower.cibilScore'])
+  );
+}
+
 export function getCibilProbabilityTier(score: number): CibilProbabilityTier {
   if (score <= 575) return 'almost_none';
   if (score <= 630) return 'co_applicant';

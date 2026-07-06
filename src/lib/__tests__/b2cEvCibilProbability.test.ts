@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  getBorrowerCibilScoreFromFormData,
   getCibilMarkerPercent,
   getCibilProbabilityLabel,
   getCibilProbabilityTier,
@@ -38,6 +39,31 @@ describe('getCibilProbabilityLabel', () => {
     expect(getCibilProbabilityLabel('co_applicant')).toBe('Chances with co applicant');
     expect(getCibilProbabilityLabel('chances')).toBe('Chances');
     expect(getCibilProbabilityLabel('full')).toBe('90% chance');
+  });
+});
+
+describe('getBorrowerCibilScoreFromFormData', () => {
+  it('reads score from PAN lookup meta', () => {
+    expect(
+      getBorrowerCibilScoreFromFormData({ '_meta.panLookup.cibilScore': '620' })
+    ).toBe(620);
+  });
+
+  it('falls back to legacy borrower.cibilScore field', () => {
+    expect(getBorrowerCibilScoreFromFormData({ 'borrower.cibilScore': '720' })).toBe(720);
+  });
+
+  it('prefers PAN lookup meta over legacy field', () => {
+    expect(
+      getBorrowerCibilScoreFromFormData({
+        '_meta.panLookup.cibilScore': '620',
+        'borrower.cibilScore': '720',
+      })
+    ).toBe(620);
+  });
+
+  it('returns null when no score is stored', () => {
+    expect(getBorrowerCibilScoreFromFormData({})).toBeNull();
   });
 });
 
