@@ -76,6 +76,7 @@ export const Clients: React.FC = () => {
   });
   const [onboardSuccess, setOnboardSuccess] = useState<{ email: string; tempPassword?: string } | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
   const [showProductsModal, setShowProductsModal] = useState(false);
   const [showModulesModal, setShowModulesModal] = useState(false);
   const [loanProducts, setLoanProducts] = useState<Array<{ id: string; name: string }>>([]);
@@ -183,10 +184,33 @@ export const Clients: React.FC = () => {
     }));
   }, [clients, applications]);
 
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) {
+      setPhoneError('');
+      return true;
+    }
+    if (!/^\d{10}$/.test(phone)) {
+      setPhoneError(t('pages.clients.phoneInvalid'));
+      return false;
+    }
+    setPhoneError('');
+    return true;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setNewClient({ ...newClient, phone: digitsOnly });
+    if (phoneError) validatePhone(digitsOnly);
+  };
+
   const handleOnboardClient = async () => {
     
     if (!newClient.company_name || !newClient.contact_person || !newClient.email) {
-      alert('Please fill in all required fields');
+      alert(t('pages.clients.fillRequiredFields'));
+      return;
+    }
+
+    if (!validatePhone(newClient.phone)) {
       return;
     }
 
@@ -486,7 +510,7 @@ export const Clients: React.FC = () => {
             size="sm"
             variant="secondary"
             icon={Eye}
-            onClick={() => navigate(`/applications?clientId=${row.id}`)}
+            onClick={() => navigate(`/applications?clientId=${encodeURIComponent(row.clientId ?? row.id)}`)}
           >
             {t('common.viewFiles')}
           </Button>
@@ -693,6 +717,7 @@ export const Clients: React.FC = () => {
         isOpen={showOnboardModal}
         onClose={() => {
           setShowOnboardModal(false);
+          setPhoneError('');
           setNewClient({
             company_name: '',
             contact_person: '',
@@ -737,7 +762,11 @@ export const Clients: React.FC = () => {
               label={t('common.phoneNumber')}
               placeholder={t('pages.clients.phonePlaceholder')}
               value={newClient.phone}
-              onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+              onChange={handlePhoneChange}
+              onBlur={() => validatePhone(newClient.phone)}
+              error={phoneError}
+              inputMode="numeric"
+              maxLength={10}
             />
             <Input
               type="number"

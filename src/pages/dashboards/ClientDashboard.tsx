@@ -232,7 +232,7 @@ export const ClientDashboard: React.FC = () => {
 
   // Calculate stats
   const totalApplications = applications.length;
-  const pendingReview = applications.filter(a => a.status === 'pending_kam_review' || a.status === 'kam_query_raised').length;
+  const pendingReview = applications.filter((a) => a.status === 'under_kam_review').length;
 
   const displayProducts = loanProducts.filter((p) => configuredProductIds.has(p.id));
 
@@ -259,7 +259,9 @@ export const ClientDashboard: React.FC = () => {
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
               <p className="text-sm text-neutral-500">{t('pages.dashboards.totalApplications')}</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">{totalApplications}</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
+                {loading ? '…' : totalApplications}
+              </p>
               <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.recentActivity')}</p>
             </div>
             <div className={statIconWrap}>
@@ -272,7 +274,9 @@ export const ClientDashboard: React.FC = () => {
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
               <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">{pendingReview}</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
+                {loading ? '…' : pendingReview}
+              </p>
               <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.readyForReview')}</p>
             </div>
             <div className={statIconWrap}>
@@ -286,7 +290,11 @@ export const ClientDashboard: React.FC = () => {
             <div className="min-w-0 pr-3">
               <p className="text-sm text-neutral-500">{t('pages.dashboards.commissionBalance')}</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-                ₹{ledgerLoading ? '0.0' : (balance / 1000).toFixed(1)}K
+                {ledgerLoading ? (
+                  <span className="text-sm font-normal text-neutral-400">{t('common.loading')}</span>
+                ) : (
+                  `₹${(balance / 1000).toFixed(1)}K`
+                )}
               </p>
               {lastLedgerHint && (
                 <p className="mt-2 text-xs text-neutral-500 line-clamp-2">{lastLedgerHint}</p>

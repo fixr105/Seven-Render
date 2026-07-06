@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -6,9 +6,11 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { FileText, Clock, IndianRupee, AlertCircle, Send, Sparkles, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
+import { useApplicationQueryCounts } from '../../hooks/useApplicationQueryCounts';
 import { useLedger } from '../../hooks/useLedger';
 import { apiService } from '../../services/api';
 import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
+import { sortApplicationsByUnresolvedQueries } from '../../utils/applicationQuerySort';
 
 interface SlaPastDueItem {
   fileId: string;
@@ -21,7 +23,20 @@ export const CreditDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { applications, loading } = useApplications();
-  const { payoutRequests } = useLedger();
+  const { queryCounts } = useApplicationQueryCounts(applications, {
+    enabled: !loading && applications.length > 0,
+  });
+  const sortedApplications = useMemo(
+    () =>
+      sortApplicationsByUnresolvedQueries(
+        applications,
+        queryCounts,
+        (app) => app.id,
+        (app) => app.updated_at || app.created_at
+      ),
+    [applications, queryCounts]
+  );
+  const { payoutRequests, loading: ledgerLoading } = useLedger();
   const [slaPastDue, setSlaPastDue] = useState<SlaPastDueItem[]>([]);
   const [slaLoading, setSlaLoading] = useState(true);
   const [pendingQueries, setPendingQueries] = useState<Array<{ id: string; fileId: string; applicationId?: string; message: string }>>([]);
@@ -60,8 +75,13 @@ export const CreditDashboard: React.FC = () => {
   // Refetch dashboard when tab/window regains focus
   useEffect(() => {
     const handleFocus = () => fetchDashboard();
+    const handleDashboardRefresh = () => fetchDashboard();
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    window.addEventListener('dashboard:refresh', handleDashboardRefresh);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('dashboard:refresh', handleDashboardRefresh);
+    };
   }, []);
 
   // Calculate stats
@@ -71,7 +91,10 @@ export const CreditDashboard: React.FC = () => {
   ).length;
   const inNegotiation = applications.filter(a => a.status === 'in_negotiation').length;
   const sentToNBFC = applications.filter(a => a.status === 'sent_to_nbfc').length;
-  const pendingPayouts = payoutRequests.filter((p: any) => p.status === 'pending').length;
+  const pendingPayouts = payoutRequests.filter(
+    (p: { status?: string }) =>
+      p.status === 'Requested' || String(p.status || '').toLowerCase() === 'requested'
+  ).length;
   const assignableToNbfc = applications.filter(a => a.status === 'pending_credit_review' || a.status === 'in_negotiation').length;
 
   return (
@@ -85,7 +108,9 @@ export const CreditDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.followUpSla')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{slaPastDue.length}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {slaLoading ? '…' : slaPastDue.length}
+              </p>
               <p className="text-xs text-warning mt-1">{t('pages.dashboards.readyForReview')}</p>
             </div>
             <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
@@ -98,7 +123,9 @@ export const CreditDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.totalApplications')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{totalApplications}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {loading ? '…' : totalApplications}
+              </p>
               <p className="text-xs text-neutral-500 mt-1">{t('pages.dashboards.allTime')}</p>
             </div>
             <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
@@ -111,7 +138,9 @@ export const CreditDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingReview}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {loading ? '…' : pendingReview}
+              </p>
               <p className="text-xs text-warning mt-1 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {t('pages.dashboards.readyForReview')}
@@ -127,7 +156,9 @@ export const CreditDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.filesInNegotiation')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{inNegotiation}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {loading ? '…' : inNegotiation}
+              </p>
               <p className="text-xs text-info mt-1 flex items-center gap-1">
                 <Send className="w-3 h-3" />
                 {sentToNBFC} {t('pages.dashboards.assignToNbfc').toLowerCase()}
@@ -146,7 +177,9 @@ export const CreditDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.processPayouts')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingPayouts}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {ledgerLoading ? '…' : pendingPayouts}
+              </p>
               <p className="text-xs text-neutral-500 mt-1">
                 {pendingPayouts > 0 ? `${pendingPayouts} ${t('common.requested').toLowerCase()}` : t('common.none')}
               </p>
@@ -316,7 +349,7 @@ export const CreditDashboard: React.FC = () => {
       {/* Recent Applications */}
       <RecentApplicationsSection
         role="credit"
-        applications={applications}
+        applications={sortedApplications}
         loading={loading}
         onViewAll={() => navigate('/applications')}
         onRowClick={(row) => {

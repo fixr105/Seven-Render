@@ -15,9 +15,12 @@ import { TextArea } from '../components/ui/TextArea';
 import { Input } from '../components/ui/Input';
 import { Plus, Eye, MessageSquare, RefreshCw, FileText, X, Edit } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
+import { useApplicationQueryCounts } from '../hooks/useApplicationQueryCounts';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 import { getStatusDisplayNameForViewer, getStatusColor, normalizeStatus } from '../lib/statusUtils';
+import { matchIds } from '../utils/idMatcher';
+import { sortApplicationsByUnresolvedQueries } from '../utils/applicationQuerySort';
 
 const FILTER_TAG_STYLES: Record<string, { base: string; active: string }> = {
   neutral: { base: 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-neutral-200', active: 'bg-neutral-200 text-neutral-900 border-neutral-300 ring-1 ring-neutral-300' },
@@ -74,10 +77,13 @@ export const Applications: React.FC = () => {
     [selectedStatusKeys]
   );
 
+  const clientIdFromUrl = searchParams.get('clientId');
+
   const { applications, loading, refetch } = useApplications({
     unmapped: unmappedView,
     loanProductId: productFilterId || undefined,
     statusIn: statusInQuery,
+    clientId: clientIdFromUrl || undefined,
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,12 +94,12 @@ export const Applications: React.FC = () => {
   const [queryMessage, setQueryMessage] = useState('');
   const [queryFieldsRequested, setQueryFieldsRequested] = useState('');
   const [queryDocumentsRequested, setQueryDocumentsRequested] = useState('');
-  const [queryCounts, setQueryCounts] = useState<Record<string, { unresolved: number; lastActivity: string | null }>>({});
-  const [loadingQueryCounts, setLoadingQueryCounts] = useState(false);
+  const queryCountsEnabled = userRole === 'credit_team' || userRole === 'kam';
+  const { queryCounts } = useApplicationQueryCounts(applications, {
+    enabled: queryCountsEnabled && !loading,
+  });
   const [submittingQuery, setSubmittingQuery] = useState(false);
   const [clientFilterDisplayName, setClientFilterDisplayName] = useState<string | null>(null);
-
-  const clientIdFromUrl = searchParams.get('clientId');
 
   useEffect(() => {
     if (!clientIdFromUrl) {
@@ -108,7 +114,9 @@ export const Applications: React.FC = () => {
         if (cancelled) return;
         if (res.success && res.data && Array.isArray(res.data)) {
           const c = (res.data as any[]).find(
-            (x: any) => (x.id || x['Client ID'] || '') === clientIdFromUrl
+            (x: any) =>
+              matchIds(x.id || x['Client ID'] || '', clientIdFromUrl) ||
+              matchIds(x.clientId || '', clientIdFromUrl)
           );
           const name = c?.clientName ?? c?.name ?? c?.['Client Name'] ?? c?.['Primary Contact Name'];
           if (name) setClientFilterDisplayName(String(name));
@@ -198,73 +206,6 @@ export const Applications: React.FC = () => {
     [setSearchParams]
   );
 
-  // Fetch query counts for applications (KAM and credit_team)
-  useEffect(() => {
-    if ((userRole === 'credit_team' || userRole === 'kam') && applications.length > 0 && !loading && !loadingQueryCounts) {
-      fetchQueryCounts();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applications.length, userRole]); // Only depend on length and role to avoid infinite loops
-
-  const fetchQueryCounts = async () => {
-    if (loadingQueryCounts) return;
-    
-    setLoadingQueryCounts(true);
-    try {
-      // Fetch queries for visible applications (first 30 to avoid performance issues)
-      const visibleApps = applications.slice(0, 30);
-      const counts: Record<string, { unresolved: number; lastActivity: string | null }> = {};
-      
-      // Fetch queries in parallel for visible applications
-      const queryPromises = visibleApps.map(async (app) => {
-        try {
-          const response = await apiService.getQueries(app.id);
-          if (response.success && response.data && Array.isArray(response.data)) {
-            const threads = response.data as any[];
-            // Count unresolved queries (where isResolved is false)
-            const unresolved = threads.filter((thread: any) => 
-              thread.isResolved === false || thread.isResolved === undefined
-            ).length;
-            
-            // Find last activity timestamp (most recent reply or root query)
-            let lastActivity: string | null = null;
-            threads.forEach((thread: any) => {
-              const rootTime = thread.rootQuery?.timestamp;
-              const replyTimes = (thread.replies || []).map((r: any) => r.timestamp).filter(Boolean) || [];
-              const allTimes = [rootTime, ...replyTimes].filter(Boolean);
-              if (allTimes.length > 0) {
-                const maxTime = allTimes.reduce((max: string, time: string) => {
-                  try {
-                    return new Date(time) > new Date(max) ? time : max;
-                  } catch {
-                    return max;
-                  }
-                });
-                if (!lastActivity || new Date(maxTime) > new Date(lastActivity)) {
-                  lastActivity = maxTime;
-                }
-              }
-            });
-            
-            counts[app.id] = { unresolved, lastActivity };
-          } else {
-            counts[app.id] = { unresolved: 0, lastActivity: null };
-          }
-        } catch (error) {
-          console.error(`Error fetching queries for application ${app.id}:`, error);
-          counts[app.id] = { unresolved: 0, lastActivity: null };
-        }
-      });
-      
-      await Promise.all(queryPromises);
-      setQueryCounts(counts);
-    } catch (error) {
-      console.error('Error fetching query counts:', error);
-    } finally {
-      setLoadingQueryCounts(false);
-    }
-  };
-
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
@@ -346,10 +287,8 @@ export const Applications: React.FC = () => {
   const filteredData = useMemo(() => {
     return displayApplications.filter((app) => {
       if (clientIdFromUrl) {
-        const appClientId =
-          app.rawData?.client_id ?? (app.rawData as any)?.Client ?? (app.rawData as any)?.client;
-        const idStr = appClientId != null ? String(appClientId) : '';
-        if (idStr !== clientIdFromUrl) return false;
+        const appClientId = app.rawData?.client_id ?? '';
+        if (appClientId && !matchIds(appClientId, clientIdFromUrl)) return false;
       }
 
       const matchesSearch =
@@ -365,7 +304,20 @@ export const Applications: React.FC = () => {
   }, [displayApplications, clientIdFromUrl, searchQuery]);
 
   const sortedData = useMemo(() => {
-    if (!sortColumn) return filteredData;
+    if (!sortColumn) {
+      if (queryCountsEnabled) {
+        return sortApplicationsByUnresolvedQueries(
+          filteredData,
+          queryCounts,
+          (row) => row.id,
+          (row) =>
+            (row.rawData as { updated_at?: string; created_at?: string })?.updated_at ??
+            (row.rawData as { updated_at?: string; created_at?: string })?.created_at ??
+            ''
+        );
+      }
+      return filteredData;
+    }
     const mult = sortDirection === 'asc' ? 1 : -1;
     const rows = [...filteredData];
     rows.sort((a, b) => {
@@ -405,7 +357,11 @@ export const Applications: React.FC = () => {
       return cmp * mult;
     });
     return rows;
-  }, [filteredData, sortColumn, sortDirection, statusOrderMap]);
+  }, [filteredData, sortColumn, sortDirection, statusOrderMap, queryCountsEnabled, queryCounts]);
+
+  const hasSecondaryFilters =
+    searchQuery !== '' || productFilterId !== '' || selectedStatusKeys.length > 0;
+  const statsTotal = clientIdFromUrl ? displayApplications.length : applications.length;
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -750,14 +706,14 @@ export const Applications: React.FC = () => {
         <Card>
           <CardContent>
             <p className="text-sm text-neutral-500">{t('pages.applications.total')}</p>
-            <p className="text-2xl font-bold text-neutral-900 mt-1">{applications.length}</p>
+            <p className="text-2xl font-bold text-neutral-900 mt-1">{statsTotal}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
             <p className="text-sm text-neutral-500">{t('pages.applications.pending')}</p>
             <p className="text-2xl font-bold text-warning mt-1">
-              {applications.filter(a => a.status.includes('pending') || a.status.includes('query')).length}
+              {(clientIdFromUrl ? displayApplications : applications).filter(a => a.status.includes('pending') || a.status.includes('query')).length}
             </p>
           </CardContent>
         </Card>
@@ -778,7 +734,19 @@ export const Applications: React.FC = () => {
           ) : sortedData.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-                {applications.length > 0 ? (
+                {clientIdFromUrl && !hasSecondaryFilters ? (
+                  <>
+                    <p className="text-neutral-600 font-medium mb-1">{t('pages.applications.noApplicationsForClient')}</p>
+                    <Button
+                      variant="tertiary"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => navigate('/applications', { replace: true })}
+                    >
+                      {t('pages.applications.clearClientFilter')}
+                    </Button>
+                  </>
+                ) : applications.length > 0 ? (
                   <>
                     <p className="text-neutral-600 font-medium mb-1">{t('pages.applications.noMatchFilters')}</p>
                     <p className="text-neutral-500 text-sm mb-4">{t('pages.applications.noMatchFiltersHint')}</p>

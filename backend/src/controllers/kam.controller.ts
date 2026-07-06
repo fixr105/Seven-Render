@@ -8,6 +8,7 @@ import { invalidateRbacRequestCache } from '../services/rbac/rbacFilter.service.
 import { LoanStatus, LenderDecisionStatus, UserRole } from '../config/constants.js';
 import { logAdminActivity, AdminActionType, logClientAction } from '../utils/adminLogger.js';
 import { matchIds } from '../utils/idMatcher.js';
+import { filterPendingQueries } from '../utils/pendingQueriesFilter.js';
 import { buildKAMNameMap, resolveKAMName } from '../utils/kamNameResolver.js';
 import { deduplicateApplicationsByFileId } from '../utils/applicationDeduplication.js';
 import { countApplicationsForClient } from '../utils/applicationClientCounts.js';
@@ -96,72 +97,10 @@ export class KAMController {
         ).length,
       };
 
-      const normFileId = (v: any) => String(v ?? '').trim().toLowerCase();
-      const isUnresolved = (log: any) => {
-        const r = String(log.Resolved ?? '').trim().toLowerCase();
-        return r === 'false' || r === 'no' || r === '0' || r === '';
-      };
-      // Build set of resolved query IDs from query_resolved entries
-      const resolvedQueryIds = new Set<string>();
-      auditLogs.forEach((log: any) => {
-        const actionType = (log['Action/Event Type'] || '').toString();
-        const details = (log['Details/Message'] || '').toString();
-        if (actionType === 'query_resolved' && details) {
-          // Match [[parent:queryId]] format first (centralizedLogger)
-          const parentMatch = details.match(/\[\[parent:([^\]]+)\]\]/);
-          if (parentMatch) {
-            resolvedQueryIds.add(parentMatch[1]);
-          } else {
-            // Fallback to legacy "Query X resolved" format (queryService)
-            const match = details.match(/Query ([^\s]+) resolved/i);
-            if (match) resolvedQueryIds.add(match[1]);
-          }
-        }
+      const pendingQuestions = filterPendingQueries(auditLogs, {
+        targetRole: 'kam',
+        applications: clientApplications,
       });
-      const getActionType = (log: any) => (log['Action/Event Type'] || '').toString().toLowerCase();
-      const getDetails = (log: any) => (log['Details/Message'] || '').toString();
-      const isActionableQuery = (log: any) =>
-        getActionType(log).includes('query') &&
-        !getActionType(log).includes('query_resolved') &&
-        !getActionType(log).includes('query_edited') &&
-        !getDetails(log).includes('Reply to query') &&
-        !getDetails(log).includes('Status changed from') &&
-        !getDetails(log).includes('Edit of query');
-      const queryLogsToKam = auditLogs.filter(
-        (l: any) => l['Target User/Role'] === 'kam' && isUnresolved(l)
-      );
-      console.log('[getKAMDashboard] Query logs to KAM (unresolved):', queryLogsToKam.length);
-      if (queryLogsToKam.length > 0) {
-        console.log('[getKAMDashboard] Sample query log:', {
-          File: queryLogsToKam[0].File,
-          FileAlt: queryLogsToKam[0]['File ID'],
-          TargetUserRole: queryLogsToKam[0]['Target User/Role'],
-          Resolved: queryLogsToKam[0].Resolved,
-        });
-      }
-      const pendingQuestions = auditLogs
-        .filter(
-          (log) =>
-            log['Target User/Role'] === 'kam' &&
-            isUnresolved(log) &&
-            isActionableQuery(log) &&
-            !resolvedQueryIds.has(log.id) &&
-            clientApplications.some((app) =>
-              normFileId(app['File ID'] || app.fileId) === normFileId(log.File || log['File ID'])
-            )
-        )
-        .map((log) => {
-          const logFileId = normFileId(log.File || log['File ID']);
-          const app = clientApplications.find(
-            (a: any) => normFileId(a['File ID'] || a.fileId) === logFileId
-          );
-          return {
-            id: log.id,
-            fileId: log.File,
-            applicationId: app?.id || app?.['Record ID'] || log.File,
-            message: log['Details/Message'] || '',
-          };
-        });
       console.log('[getKAMDashboard] pendingQuestions count:', pendingQuestions.length);
 
       // Ledger disputes for managed clients (use matchIds; entry.Client is Client ID)
@@ -510,6 +449,14 @@ export class KAMController {
         res.status(400).json({
           success: false,
           error: 'Name and email are required',
+        });
+        return;
+      }
+
+      if (phone && !/^\d{10}$/.test(String(phone).trim())) {
+        res.status(400).json({
+          success: false,
+          error: 'Please enter a valid 10-digit phone number.',
         });
         return;
       }

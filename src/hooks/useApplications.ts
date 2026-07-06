@@ -113,6 +113,8 @@ export interface UseApplicationsOptions {
   loanProductId?: string;
   /** Comma-separated canonical status keys (LoanStatus). */
   statusIn?: string;
+  /** Filter by client id (Airtable record id or business Client ID). */
+  clientId?: string;
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -125,6 +127,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
   const unmapped = options?.unmapped ?? false;
   const loanProductId = options?.loanProductId;
   const statusIn = options?.statusIn;
+  const clientId = options?.clientId;
   const dateFrom = options?.dateFrom;
   const dateTo = options?.dateTo;
   const search = options?.search;
@@ -136,6 +139,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
       if (unmapped) listParams.unmapped = true;
       if (loanProductId) listParams.loanProductId = loanProductId;
       if (statusIn) listParams.statusIn = statusIn;
+      if (clientId) listParams.clientId = clientId;
       if (dateFrom) listParams.dateFrom = dateFrom;
       if (dateTo) listParams.dateTo = dateTo;
       if (search) listParams.search = search;
@@ -164,7 +168,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
     } finally {
       setLoading(false);
     }
-  }, [unmapped, loanProductId, statusIn, dateFrom, dateTo, search, refreshUser]);
+  }, [unmapped, loanProductId, statusIn, clientId, dateFrom, dateTo, search, refreshUser]);
 
   // Fetch on mount and when unmapped toggle changes
   useEffect(() => {

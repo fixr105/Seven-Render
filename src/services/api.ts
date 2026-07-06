@@ -1063,6 +1063,7 @@ class ApiService {
     dateTo?: string;
     search?: string;
     unmapped?: boolean;
+    clientId?: string;
   }): Promise<ApiResponse<LoanApplication[]>> {
     const queryParams = new URLSearchParams();
     if (params?.status) queryParams.append('status', params.status);
@@ -1072,6 +1073,7 @@ class ApiService {
     if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
     if (params?.search) queryParams.append('search', params.search);
     if (params?.unmapped) queryParams.append('unmapped', 'true');
+    if (params?.clientId) queryParams.append('clientId', params.clientId);
 
     const query = queryParams.toString();
     return this.request<LoanApplication[]>(

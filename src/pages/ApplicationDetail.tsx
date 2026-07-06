@@ -637,6 +637,7 @@ export const ApplicationDetail: React.FC = () => {
       if (response.success) {
         fetchQueries();
         fetchApplicationDetails();
+        window.dispatchEvent(new CustomEvent('dashboard:refresh'));
         setReplyDrafts((prev) => {
           const next = { ...prev };
           delete next[queryId];

@@ -15,6 +15,7 @@ import {
   isCanonicalLoanStatusKey,
   normalizeDynamicStatus,
 } from '../services/statusTracking/dynamicStatus.service.js';
+import { filterPendingQueries } from '../utils/pendingQueriesFilter.js';
 
 export class CreditController {
   /**
@@ -73,33 +74,16 @@ export class CreditController {
               app['Last Updated']?.startsWith(today)
           )
           .reduce((sum, app) => sum + parseFloat(app['Approved Loan Amount'] || '0'), 0),
-        pendingQueries: auditLogs.filter((log) => log.Resolved === 'False').length,
+        pendingQueries: filterPendingQueries(auditLogs, {
+          targetRole: 'credit_team',
+          applications,
+        }).length,
       };
 
-      const normFileId = (v: any) => String(v ?? '').trim().toLowerCase();
-      const actionType = (log: any) => (log['Action/Event Type'] || '').toLowerCase();
-      const pendingQueriesList = auditLogs
-        .filter(
-          (log: any) =>
-            actionType(log).includes('query') &&
-            log.Resolved === 'False' &&
-            !actionType(log).includes('query_resolved') &&
-            !actionType(log).includes('query_edited')
-        )
-        .filter((log: any) => !(log['Details/Message'] || '').includes('Reply to query'))
-        .map((log: any) => {
-          const rawFileId = log.File || log['File ID'];
-          const fileIdNorm = normFileId(rawFileId);
-          const app = applications.find(
-            (a: any) => normFileId(a['File ID'] || a.fileId) === fileIdNorm
-          );
-          return {
-            id: log.id,
-            fileId: rawFileId,
-            applicationId: app?.id || app?.['Record ID'] || rawFileId,
-            message: (log['Details/Message'] || '').toString().trim().slice(0, 100),
-          };
-        });
+      const pendingQueriesList = filterPendingQueries(auditLogs, {
+        targetRole: 'credit_team',
+        applications,
+      });
 
       res.json({
         success: true,

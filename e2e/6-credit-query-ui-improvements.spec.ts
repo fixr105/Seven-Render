@@ -62,6 +62,29 @@ test.describe('Credit Team Query UI Improvements', () => {
         expect(className).toContain('warning');
       }
     });
+
+    await test.step('Verify applications with unresolved queries appear before rows without badges', async () => {
+      const queryBadges = page.locator('text=/\\d+ (query|queries)/i');
+      const badgeCount = await queryBadges.count();
+      if (badgeCount === 0) return;
+
+      const dataRows = page.locator('[data-testid="application-row"]');
+      const rowCount = await dataRows.count();
+      if (rowCount < 2) return;
+
+      let firstBadgeRowIndex = -1;
+      let firstPlainRowIndex = -1;
+      for (let i = 0; i < rowCount; i += 1) {
+        const row = dataRows.nth(i);
+        const hasBadge = (await row.locator('text=/\\d+ (query|queries)/i').count()) > 0;
+        if (hasBadge && firstBadgeRowIndex === -1) firstBadgeRowIndex = i;
+        if (!hasBadge && firstPlainRowIndex === -1) firstPlainRowIndex = i;
+      }
+
+      if (firstBadgeRowIndex >= 0 && firstPlainRowIndex >= 0) {
+        expect(firstBadgeRowIndex).toBeLessThan(firstPlainRowIndex);
+      }
+    });
   });
 
   test('Awaiting KAM Response filter appears and works correctly', async ({ page }) => {

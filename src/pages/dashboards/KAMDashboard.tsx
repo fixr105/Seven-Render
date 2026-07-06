@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -14,8 +14,10 @@ import {
   Users,
 } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
+import { useApplicationQueryCounts } from '../../hooks/useApplicationQueryCounts';
 import { apiService } from '../../services/api';
 import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
+import { sortApplicationsByUnresolvedQueries } from '../../utils/applicationQuerySort';
 import type { DashboardSummary } from '../../services/api';
 
 type ClientWithMetrics = NonNullable<DashboardSummary['clients']>[number];
@@ -32,6 +34,19 @@ export const KAMDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { applications, loading, refetch } = useApplications();
+  const { queryCounts } = useApplicationQueryCounts(applications, {
+    enabled: !loading && applications.length > 0,
+  });
+  const sortedApplications = useMemo(
+    () =>
+      sortApplicationsByUnresolvedQueries(
+        applications,
+        queryCounts,
+        (app) => app.id,
+        (app) => app.updated_at || app.created_at
+      ),
+    [applications, queryCounts]
+  );
   const [dashboardData, setDashboardData] = useState<{
     clients: ClientWithMetrics[];
     summary: Summary | null;
@@ -86,8 +101,13 @@ export const KAMDashboard: React.FC = () => {
 
   useEffect(() => {
     const handleFocus = () => fetchDashboard();
+    const handleDashboardRefresh = () => fetchDashboard();
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    window.addEventListener('dashboard:refresh', handleDashboardRefresh);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('dashboard:refresh', handleDashboardRefresh);
+    };
   }, []);
 
   const { clients, summary, pendingQueries, ledgerDisputes, pendingB2cActions } = dashboardData;
@@ -219,8 +239,12 @@ export const KAMDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.managedClients')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{totalClients}</p>
-              <p className="text-xs text-neutral-500 mt-1">{totalFiles} {t('pages.dashboards.totalFiles').toLowerCase()}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {dashboardLoading ? '…' : totalClients}
+              </p>
+              <p className="text-xs text-neutral-500 mt-1">
+                {dashboardLoading ? '…' : totalFiles} {t('pages.dashboards.totalFiles').toLowerCase()}
+              </p>
             </div>
             <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
               <Users className="w-6 h-6 text-brand-primary" />
@@ -232,7 +256,9 @@ export const KAMDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{pendingReview}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {dashboardLoading ? '…' : pendingReview}
+              </p>
               <p className="text-xs text-warning mt-1 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {t('pages.dashboards.readyForReview')}
@@ -248,7 +274,9 @@ export const KAMDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.filesAwaitingClient')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{awaitingResponse}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {dashboardLoading ? '…' : awaitingResponse}
+              </p>
               <p className="text-xs text-info mt-1 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
                 {t('common.underQuery')}
@@ -264,7 +292,9 @@ export const KAMDashboard: React.FC = () => {
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm text-neutral-500">{t('pages.dashboards.reviewFilesCredit')}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{forwarded}</p>
+              <p className="text-2xl font-bold text-neutral-900 mt-1">
+                {dashboardLoading ? '…' : forwarded}
+              </p>
               <p className="text-xs text-success mt-1 flex items-center gap-1">
                 <ArrowRight className="w-3 h-3" />
                 {t('pages.dashboards.pendingReview')}
@@ -413,7 +443,7 @@ export const KAMDashboard: React.FC = () => {
       {/* Recent Applications */}
       <RecentApplicationsSection
         role="kam"
-        applications={applications}
+        applications={sortedApplications}
         loading={loading}
         onViewAll={() => navigate('/applications')}
         onRowClick={(row) => {

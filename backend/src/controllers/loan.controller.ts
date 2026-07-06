@@ -307,7 +307,7 @@ export class LoanController {
     console.log(`🚨 [listApplications] Request method: ${req.method}`);
     console.log(`🚨 [listApplications] User: ${req.user ? JSON.stringify(req.user) : 'NO USER'}`);
     try {
-      const { status, statusIn, loanProductId, dateFrom, dateTo, search, unmapped } = req.query;
+      const { status, statusIn, loanProductId, dateFrom, dateTo, search, unmapped, clientId } = req.query;
       if (!req.user) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
@@ -382,6 +382,17 @@ export class LoanController {
             return !managedClientIds.some((id) => matchIds(appClient, id));
           });
         }
+      }
+
+      // Apply client filter (matchIds handles Airtable record id vs business Client ID)
+      if (clientId && String(clientId).trim()) {
+        const clientIdStr = String(clientId).trim();
+        filteredApplications = filteredApplications.filter((app: any) => {
+          const appClientRaw = Array.isArray(app.Client)
+            ? app.Client[0]
+            : (app.Client ?? app['Client'] ?? app['Client ID'] ?? app.clientId);
+          return matchIds(appClientRaw, clientIdStr);
+        });
       }
 
       // Apply loan product filter (business Product ID, e.g. LP008)
