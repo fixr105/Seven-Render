@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '../../../i18n';
 import { EmiRangeCalculator } from '../EmiRangeCalculator';
-import { calculateLoanPreview } from '../../../lib/loanCalculator';
+import { calculateLoanPreview, computeFinalInvoiceBreakdown } from '../../../lib/loanCalculator';
 
 describe('EmiRangeCalculator', () => {
   it('shows disclaimer and GPS-only baseline before user enters disbursement', () => {
@@ -93,7 +93,7 @@ describe('EmiRangeCalculator', () => {
     expect(screen.queryByTestId('loan-calc-freeze')).not.toBeInTheDocument();
   });
 
-  it('shows stage 2 tabs and computes final invoice amount from insurance and registration', async () => {
+  it('shows stage 2 tabs and computes final invoice with 5% GST', async () => {
     const user = userEvent.setup();
     render(<EmiRangeCalculator />);
 
@@ -109,6 +109,26 @@ describe('EmiRangeCalculator', () => {
     expect(screen.getByTestId('emi-range-tab-registration')).toHaveAttribute('aria-selected', 'true');
     await user.type(screen.getByTestId('emi-range-registration-cost'), '2000');
 
-    expect(screen.getByTestId('emi-range-final-invoice')).toHaveValue('77000');
+    const breakdown = computeFinalInvoiceBreakdown(70000, 5000, 2000, 2000);
+
+    expect(screen.getByTestId('emi-range-gst-amount')).toHaveTextContent(
+      `₹${breakdown.gstAmount.toLocaleString('en-IN')}`
+    );
+    expect(screen.getByTestId('emi-range-final-invoice')).toHaveTextContent(
+      `₹${breakdown.finalInvoiceAmount.toLocaleString('en-IN')}`
+    );
+    expect(breakdown.gstAmount).toBe(3950);
+    expect(breakdown.finalInvoiceAmount).toBe(82950);
+  });
+
+  it('labels IOT, insurance, and registration as including GST', async () => {
+    const user = userEvent.setup();
+    render(<EmiRangeCalculator />);
+
+    expect(screen.getByText('IOT/GPS Charges (₹, including GST)')).toBeInTheDocument();
+    expect(screen.getByText('Insurance Cost (₹, including GST)')).toBeInTheDocument();
+    await user.click(screen.getByTestId('emi-range-tab-registration'));
+    expect(screen.getByText('Registration Cost (₹, including GST)')).toBeInTheDocument();
+    expect(screen.getByText('GST Amount (5%)')).toBeInTheDocument();
   });
 });

@@ -136,7 +136,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">GPS/IOT</dt>
+            <dt className="text-xs text-neutral-500">GPS/IOT (including GST)</dt>
             <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-gps">
               {formatRupee(preview.gpsCharges)}
             </dd>
@@ -207,7 +207,7 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
       required: true,
     },
     {
-      label: 'GPS Charges / IOT (₹)',
+      label: 'GPS Charges / IOT (₹, including GST)',
       value: hasFrozen ? String(frozenValues.gpsCharges) : '',
       testId: 'loan-form-gps',
       required: true,
@@ -251,7 +251,7 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
           <h4 className="mb-3 text-sm font-semibold text-neutral-900">Calculation breakdown</h4>
           <dl className="space-y-2 text-sm text-neutral-700">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <dt>IOT/GPS charges ({mathBreakdown.tenureMonths} months)</dt>
+              <dt>IOT/GPS charges ({mathBreakdown.tenureMonths} months, including GST)</dt>
               <dd className="font-medium text-neutral-900" data-testid="loan-form-math-iot">
                 {formatRupee(mathBreakdown.gpsCharges)}
               </dd>

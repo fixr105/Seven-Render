@@ -1,5 +1,6 @@
 export const INTEREST_RATE = 35;
 export const FEE_PCT = 0.08;
+export const GST_PCT = 0.05;
 export const GPS_CHARGES: Record<12 | 18, number> = {
   12: 2000,
   18: 2500,
@@ -64,14 +65,38 @@ export function computeInvoiceValue(downpayment: number, disbursement: number): 
   return roundRupee(Math.max(0, downpayment) + Math.max(0, disbursement));
 }
 
+export interface FinalInvoiceBreakdown {
+  subtotal: number;
+  gstAmount: number;
+  finalInvoiceAmount: number;
+}
+
+export function computeFinalInvoiceBreakdown(
+  invoiceValue: number,
+  insuranceCost: number,
+  registrationCost: number,
+  iotCost = 0
+): FinalInvoiceBreakdown {
+  const subtotal = roundRupee(
+    Math.max(0, invoiceValue) +
+      Math.max(0, insuranceCost) +
+      Math.max(0, registrationCost) +
+      Math.max(0, iotCost)
+  );
+  const gstAmount = roundRupee(subtotal * GST_PCT);
+  const finalInvoiceAmount = roundRupee(subtotal + gstAmount);
+
+  return { subtotal, gstAmount, finalInvoiceAmount };
+}
+
 export function computeFinalInvoiceAmount(
   invoiceValue: number,
   insuranceCost: number,
-  registrationCost: number
+  registrationCost: number,
+  iotCost = 0
 ): number {
-  return roundRupee(
-    Math.max(0, invoiceValue) + Math.max(0, insuranceCost) + Math.max(0, registrationCost)
-  );
+  return computeFinalInvoiceBreakdown(invoiceValue, insuranceCost, registrationCost, iotCost)
+    .finalInvoiceAmount;
 }
 
 export function calculateEmi(loanAmount: number, tenureMonths: LoanTenureMonths): number {

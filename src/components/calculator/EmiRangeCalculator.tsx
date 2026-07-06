@@ -4,7 +4,7 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import {
   calculateLoanPreview,
-  computeFinalInvoiceAmount,
+  computeFinalInvoiceBreakdown,
   parseMoneyInput,
   type LoanTenureMonths,
 } from '../../lib/loanCalculator';
@@ -42,13 +42,21 @@ export const EmiRangeCalculator: React.FC = () => {
 
   const insuranceAmount = parseMoneyInput(insuranceCost);
   const registrationAmount = parseMoneyInput(registrationCost);
-  const finalInvoiceAmount = useMemo(
-    () => computeFinalInvoiceAmount(preview.invoiceValue, insuranceAmount, registrationAmount),
-    [preview.invoiceValue, insuranceAmount, registrationAmount]
+  const finalInvoice = useMemo(
+    () =>
+      computeFinalInvoiceBreakdown(
+        preview.invoiceValue,
+        insuranceAmount,
+        registrationAmount,
+        preview.gpsCharges
+      ),
+    [preview.invoiceValue, preview.gpsCharges, insuranceAmount, registrationAmount]
   );
 
   const invoiceDisplay = preview.invoiceValue > 0 ? String(preview.invoiceValue) : '';
-  const finalInvoiceDisplay = finalInvoiceAmount > 0 ? String(finalInvoiceAmount) : '';
+  const finalInvoiceDisplay =
+    finalInvoice.finalInvoiceAmount > 0 ? String(finalInvoice.finalInvoiceAmount) : '';
+  const gstDisplay = finalInvoice.gstAmount > 0 ? String(finalInvoice.gstAmount) : '';
 
   const stage2Tabs: Array<{ id: Stage2Tab; label: string }> = [
     { id: 'insurance', label: t('pages.calculator.insuranceTab') },
@@ -209,15 +217,23 @@ export const EmiRangeCalculator: React.FC = () => {
               data-testid="emi-range-registration-cost"
             />
           )}
-          <Input
-            label={t('pages.calculator.finalInvoiceAmount')}
-            type="text"
-            value={finalInvoiceDisplay}
-            readOnly
-            disabled
-            data-testid="emi-range-final-invoice"
-            className="bg-neutral-100 text-neutral-700"
-          />
+        </div>
+
+        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.gstAmount')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-gst-amount">
+                {gstDisplay ? formatRupee(finalInvoice.gstAmount) : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.finalInvoiceAmount')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-invoice">
+                {finalInvoiceDisplay ? formatRupee(finalInvoice.finalInvoiceAmount) : '—'}
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
     </div>

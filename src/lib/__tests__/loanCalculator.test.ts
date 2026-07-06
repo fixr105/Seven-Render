@@ -5,6 +5,7 @@ import {
   calculateEmiRangePreview,
   calculateLoanPreview,
   computeFinalInvoiceAmount,
+  computeFinalInvoiceBreakdown,
   computeInvoiceValue,
   freezeLoanPreview,
   frozenValuesToFormDataPatch,
@@ -110,10 +111,18 @@ describe('loanCalculator', () => {
     );
   });
 
-  it('computes final invoice amount from base invoice plus insurance and registration', () => {
-    expect(computeFinalInvoiceAmount(70000, 5000, 2000)).toBe(77000);
-    expect(computeFinalInvoiceAmount(0, 0, 0)).toBe(0);
-    expect(computeFinalInvoiceAmount(65000, -100, 3000)).toBe(68000);
+  it('computes final invoice amount with 5% GST on subtotal including IOT', () => {
+    expect(computeFinalInvoiceAmount(70000, 5000, 2000, 2000)).toBe(82950);
+    expect(computeFinalInvoiceAmount(0, 0, 0, 0)).toBe(0);
+    expect(computeFinalInvoiceAmount(65000, -100, 3000, 0)).toBe(71400);
+  });
+
+  it('returns GST breakdown for final invoice composition', () => {
+    const breakdown = computeFinalInvoiceBreakdown(70000, 5000, 2000, 2000);
+
+    expect(breakdown.subtotal).toBe(79000);
+    expect(breakdown.gstAmount).toBe(3950);
+    expect(breakdown.finalInvoiceAmount).toBe(82950);
   });
 
   it('returns GPS-only baseline ranges when disbursement is zero', () => {
