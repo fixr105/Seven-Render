@@ -265,14 +265,16 @@
       "disbursalAmount": "Disbursal Amount (₹)",
       "disclaimer": "Insurance and vehicle registration costs are extra and are not included in the loan amount shown in this calculator.",
       "stage2Heading": "Insurance and registration",
-      "stage2Description": "Add insurance and registration costs. IOT, insurance, and registration are shown including GST. Final invoice adds 5% GST on the combined subtotal.",
+      "stage2Description": "Add insurance and registration costs. IOT, insurance, and registration include 5% GST. Final invoice is vehicle invoice plus those GST-inclusive amounts.",
       "stage2TabsAriaLabel": "Insurance and registration",
       "insuranceTab": "Insurance",
       "registrationTab": "Registration",
       "insuranceCost": "Insurance Cost (₹, including GST)",
       "registrationCost": "Registration Cost (₹, including GST)",
       "gstAmount": "GST Amount (5%)",
-      "finalInvoiceAmount": "Final Invoice Amount (₹)"
+      "finalInvoiceHeading": "Final invoice breakdown",
+      "finalInvoiceAmount": "Final Invoice Amount (₹)",
+      "iotGstNote": "Base {{base}} + GST {{gst}}"
     },
     "applications": {
       "title": "Loan Applications",

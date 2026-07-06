@@ -65,8 +65,27 @@ export function computeInvoiceValue(downpayment: number, disbursement: number): 
   return roundRupee(Math.max(0, downpayment) + Math.max(0, disbursement));
 }
 
+export interface GstComponent {
+  baseAmount: number;
+  gstAmount: number;
+  inclusiveAmount: number;
+}
+
+export function computeGstComponent(baseAmount: number): GstComponent {
+  const base = roundRupee(Math.max(0, baseAmount));
+  const gstAmount = roundRupee(base * GST_PCT);
+  return {
+    baseAmount: base,
+    gstAmount,
+    inclusiveAmount: roundRupee(base + gstAmount),
+  };
+}
+
 export interface FinalInvoiceBreakdown {
-  subtotal: number;
+  invoiceValue: number;
+  iot: GstComponent;
+  insurance: GstComponent;
+  registration: GstComponent;
   gstAmount: number;
   finalInvoiceAmount: number;
 }
@@ -75,18 +94,27 @@ export function computeFinalInvoiceBreakdown(
   invoiceValue: number,
   insuranceCost: number,
   registrationCost: number,
-  iotCost = 0
+  iotBaseCost = 0
 ): FinalInvoiceBreakdown {
-  const subtotal = roundRupee(
+  const iot = computeGstComponent(iotBaseCost);
+  const insurance = computeGstComponent(insuranceCost);
+  const registration = computeGstComponent(registrationCost);
+  const gstAmount = roundRupee(iot.gstAmount + insurance.gstAmount + registration.gstAmount);
+  const finalInvoiceAmount = roundRupee(
     Math.max(0, invoiceValue) +
-      Math.max(0, insuranceCost) +
-      Math.max(0, registrationCost) +
-      Math.max(0, iotCost)
+      iot.inclusiveAmount +
+      insurance.inclusiveAmount +
+      registration.inclusiveAmount
   );
-  const gstAmount = roundRupee(subtotal * GST_PCT);
-  const finalInvoiceAmount = roundRupee(subtotal + gstAmount);
 
-  return { subtotal, gstAmount, finalInvoiceAmount };
+  return {
+    invoiceValue: roundRupee(Math.max(0, invoiceValue)),
+    iot,
+    insurance,
+    registration,
+    gstAmount,
+    finalInvoiceAmount,
+  };
 }
 
 export function computeFinalInvoiceAmount(

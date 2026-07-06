@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import {
   buildLoanMathBreakdown,
   calculateLoanPreview,
+  computeGstComponent,
   freezeLoanPreview,
   parseMoneyInput,
   type LoanCalculatorSnapshot,
@@ -57,6 +58,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   );
 
   const preview = useMemo(() => calculateLoanPreview(inputs), [inputs]);
+  const iotWithGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
 
   const handleFreeze = () => {
     onFreeze(freezeLoanPreview(preview), {
@@ -138,7 +140,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           <div>
             <dt className="text-xs text-neutral-500">GPS/IOT (including GST)</dt>
             <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-gps">
-              {formatRupee(preview.gpsCharges)}
+              {formatRupee(iotWithGst.inclusiveAmount)}
             </dd>
           </div>
           <div>
@@ -186,6 +188,7 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
   const hasFrozen = frozenValues != null;
   const placeholder = hasFrozen ? undefined : EMPTY_PLACEHOLDER;
   const mathBreakdown = hasFrozen ? buildLoanMathBreakdown(frozenValues) : null;
+  const iotWithGst = hasFrozen ? computeGstComponent(frozenValues.gpsCharges) : null;
 
   const fields: Array<{ label: string; value: string; testId: string; required?: boolean }> = [
     {
@@ -253,7 +256,11 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <dt>IOT/GPS charges ({mathBreakdown.tenureMonths} months, including GST)</dt>
               <dd className="font-medium text-neutral-900" data-testid="loan-form-math-iot">
-                {formatRupee(mathBreakdown.gpsCharges)}
+                {formatRupee(iotWithGst?.inclusiveAmount ?? mathBreakdown.gpsCharges)}
+              </dd>
+              <dd className="text-xs text-neutral-500" data-testid="loan-form-math-iot-gst">
+                Base {formatRupee(iotWithGst?.baseAmount ?? mathBreakdown.gpsCharges)} + GST{' '}
+                {formatRupee(iotWithGst?.gstAmount ?? 0)}
               </dd>
             </div>
             <div className="border-t border-neutral-200 pt-2">

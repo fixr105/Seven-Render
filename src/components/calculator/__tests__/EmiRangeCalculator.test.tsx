@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '../../../i18n';
 import { EmiRangeCalculator } from '../EmiRangeCalculator';
-import { calculateLoanPreview, computeFinalInvoiceBreakdown } from '../../../lib/loanCalculator';
+import { calculateLoanPreview, computeFinalInvoiceBreakdown, computeGstComponent } from '../../../lib/loanCalculator';
 
 describe('EmiRangeCalculator', () => {
   it('shows disclaimer and GPS-only baseline before user enters disbursement', () => {
@@ -23,7 +23,7 @@ describe('EmiRangeCalculator', () => {
       `₹${baseline.processingFee.toLocaleString('en-IN')}`
     );
     expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent(
-      `₹${baseline.gpsCharges.toLocaleString('en-IN')}`
+      `₹${computeGstComponent(baseline.gpsCharges).inclusiveAmount.toLocaleString('en-IN')}`
     );
   });
 
@@ -50,7 +50,7 @@ describe('EmiRangeCalculator', () => {
       `₹${expected.processingFee.toLocaleString('en-IN')}`
     );
     expect(container.getByTestId('emi-range-iot-cost')).toHaveTextContent(
-      `₹${expected.gpsCharges.toLocaleString('en-IN')}`
+      `₹${computeGstComponent(expected.gpsCharges).inclusiveAmount.toLocaleString('en-IN')}`
     );
   });
 
@@ -71,14 +71,14 @@ describe('EmiRangeCalculator', () => {
       tenureMonths: 18,
     });
 
-    expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent('₹2,000');
+    expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent('₹2,100');
     expect(screen.getByTestId('emi-range-emi')).toHaveTextContent(
       `₹${preview12.emiAmount.toLocaleString('en-IN')}`
     );
 
     await user.selectOptions(screen.getByTestId('emi-range-tenure'), '18');
 
-    expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent('₹2,500');
+    expect(screen.getByTestId('emi-range-iot-cost')).toHaveTextContent('₹2,625');
     expect(screen.getByTestId('emi-range-emi')).toHaveTextContent(
       `₹${preview18.emiAmount.toLocaleString('en-IN')}`
     );
@@ -117,18 +117,19 @@ describe('EmiRangeCalculator', () => {
     expect(screen.getByTestId('emi-range-final-invoice')).toHaveTextContent(
       `₹${breakdown.finalInvoiceAmount.toLocaleString('en-IN')}`
     );
-    expect(breakdown.gstAmount).toBe(3950);
-    expect(breakdown.finalInvoiceAmount).toBe(82950);
+    expect(breakdown.gstAmount).toBe(450);
+    expect(breakdown.finalInvoiceAmount).toBe(79450);
+    expect(screen.getByTestId('emi-range-final-iot')).toHaveTextContent('₹2,100');
   });
 
   it('labels IOT, insurance, and registration as including GST', async () => {
     const user = userEvent.setup();
     render(<EmiRangeCalculator />);
 
-    expect(screen.getByText('IOT/GPS Charges (₹, including GST)')).toBeInTheDocument();
-    expect(screen.getByText('Insurance Cost (₹, including GST)')).toBeInTheDocument();
+    expect(screen.getAllByText('IOT/GPS Charges (₹, including GST)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Insurance Cost (₹, including GST)').length).toBeGreaterThan(0);
     await user.click(screen.getByTestId('emi-range-tab-registration'));
-    expect(screen.getByText('Registration Cost (₹, including GST)')).toBeInTheDocument();
+    expect(screen.getAllByText('Registration Cost (₹, including GST)').length).toBeGreaterThan(0);
     expect(screen.getByText('GST Amount (5%)')).toBeInTheDocument();
   });
 });

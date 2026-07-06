@@ -6,6 +6,7 @@ import {
   calculateLoanPreview,
   computeFinalInvoiceAmount,
   computeFinalInvoiceBreakdown,
+  computeGstComponent,
   computeInvoiceValue,
   freezeLoanPreview,
   frozenValuesToFormDataPatch,
@@ -111,18 +112,30 @@ describe('loanCalculator', () => {
     );
   });
 
-  it('computes final invoice amount with 5% GST on subtotal including IOT', () => {
-    expect(computeFinalInvoiceAmount(70000, 5000, 2000, 2000)).toBe(82950);
-    expect(computeFinalInvoiceAmount(0, 0, 0, 0)).toBe(0);
-    expect(computeFinalInvoiceAmount(65000, -100, 3000, 0)).toBe(71400);
+  it('computes final invoice amount with 5% GST on IOT, insurance, and registration only', () => {
+    expect(computeFinalInvoiceAmount(70000, 5000, 2000, 2000)).toBe(79450);
+    expect(computeFinalInvoiceAmount(0, 0, 0, 2000)).toBe(2100);
+    expect(computeFinalInvoiceAmount(65000, -100, 3000, 0)).toBe(68150);
   });
 
-  it('returns GST breakdown for final invoice composition', () => {
+  it('returns GST breakdown with inclusive IOT, insurance, and registration amounts', () => {
     const breakdown = computeFinalInvoiceBreakdown(70000, 5000, 2000, 2000);
 
-    expect(breakdown.subtotal).toBe(79000);
-    expect(breakdown.gstAmount).toBe(3950);
-    expect(breakdown.finalInvoiceAmount).toBe(82950);
+    expect(breakdown.iot.baseAmount).toBe(2000);
+    expect(breakdown.iot.gstAmount).toBe(100);
+    expect(breakdown.iot.inclusiveAmount).toBe(2100);
+    expect(breakdown.insurance.inclusiveAmount).toBe(5250);
+    expect(breakdown.registration.inclusiveAmount).toBe(2100);
+    expect(breakdown.gstAmount).toBe(450);
+    expect(breakdown.finalInvoiceAmount).toBe(79450);
+  });
+
+  it('computes GST-inclusive amounts from base values', () => {
+    expect(computeGstComponent(2000)).toEqual({
+      baseAmount: 2000,
+      gstAmount: 100,
+      inclusiveAmount: 2100,
+    });
   });
 
   it('returns GPS-only baseline ranges when disbursement is zero', () => {

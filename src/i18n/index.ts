@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import {
   APP_LANGUAGE_STORAGE_KEY,
   DEFAULT_LANGUAGE,
+  SUPPORTED_LANGUAGES,
   isAppLanguageCode,
 } from './languages';
 import { applyDocumentLanguage } from './applyDocumentLanguage';
@@ -47,7 +48,12 @@ void i18n.use(initReactI18next).init({
     ur: { translation: ur },
   },
   lng: initialLanguage,
-  fallbackLng: DEFAULT_LANGUAGE,
+  fallbackLng: {
+    default: ['en'],
+    ...Object.fromEntries(
+      SUPPORTED_LANGUAGES.filter((lang) => lang.code !== 'en').map((lang) => [lang.code, ['en']])
+    ),
+  },
   interpolation: { escapeValue: false },
 });
 

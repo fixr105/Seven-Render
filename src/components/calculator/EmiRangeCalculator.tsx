@@ -5,6 +5,7 @@ import { Select } from '../ui/Select';
 import {
   calculateLoanPreview,
   computeFinalInvoiceBreakdown,
+  computeGstComponent,
   parseMoneyInput,
   type LoanTenureMonths,
 } from '../../lib/loanCalculator';
@@ -39,6 +40,7 @@ export const EmiRangeCalculator: React.FC = () => {
   );
 
   const preview = useMemo(() => calculateLoanPreview(inputs), [inputs]);
+  const iotWithGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
 
   const insuranceAmount = parseMoneyInput(insuranceCost);
   const registrationAmount = parseMoneyInput(registrationCost);
@@ -54,9 +56,9 @@ export const EmiRangeCalculator: React.FC = () => {
   );
 
   const invoiceDisplay = preview.invoiceValue > 0 ? String(preview.invoiceValue) : '';
-  const finalInvoiceDisplay =
-    finalInvoice.finalInvoiceAmount > 0 ? String(finalInvoice.finalInvoiceAmount) : '';
-  const gstDisplay = finalInvoice.gstAmount > 0 ? String(finalInvoice.gstAmount) : '';
+
+  const formatOptionalRupee = (value: number): string =>
+    value > 0 ? formatRupee(value) : '—';
 
   const stage2Tabs: Array<{ id: Stage2Tab; label: string }> = [
     { id: 'insurance', label: t('pages.calculator.insuranceTab') },
@@ -133,7 +135,13 @@ export const EmiRangeCalculator: React.FC = () => {
             <div>
               <dt className="text-xs text-neutral-500">{t('pages.calculator.iotCost')}</dt>
               <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-iot-cost">
-                {formatRupee(preview.gpsCharges)}
+                {formatRupee(iotWithGst.inclusiveAmount)}
+              </dd>
+              <dd className="text-xs text-neutral-500" data-testid="emi-range-iot-gst-note">
+                {t('pages.calculator.iotGstNote', {
+                  gst: formatRupee(iotWithGst.gstAmount),
+                  base: formatRupee(iotWithGst.baseAmount),
+                })}
               </dd>
             </div>
             <div>
@@ -220,17 +228,38 @@ export const EmiRangeCalculator: React.FC = () => {
         </div>
 
         <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+          <h4 className="mb-3 text-sm font-semibold text-neutral-900">
+            {t('pages.calculator.finalInvoiceHeading')}
+          </h4>
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.gstAmount')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-gst-amount">
-                {gstDisplay ? formatRupee(finalInvoice.gstAmount) : '—'}
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.iotCost')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-iot">
+                {formatRupee(finalInvoice.iot.inclusiveAmount)}
               </dd>
             </div>
             <div>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.insuranceCost')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-insurance">
+                {formatOptionalRupee(finalInvoice.insurance.inclusiveAmount)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.registrationCost')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-registration">
+                {formatOptionalRupee(finalInvoice.registration.inclusiveAmount)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">{t('pages.calculator.gstAmount')}</dt>
+              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-gst-amount">
+                {formatRupee(finalInvoice.gstAmount)}
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
               <dt className="text-xs text-neutral-500">{t('pages.calculator.finalInvoiceAmount')}</dt>
               <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-invoice">
-                {finalInvoiceDisplay ? formatRupee(finalInvoice.finalInvoiceAmount) : '—'}
+                {formatOptionalRupee(finalInvoice.finalInvoiceAmount)}
               </dd>
             </div>
           </dl>

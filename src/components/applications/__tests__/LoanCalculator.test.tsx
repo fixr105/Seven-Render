@@ -46,7 +46,7 @@ describe('LoanCalculator', () => {
     expect(screen.getByTestId('loan-form-amount')).toHaveValue(String(snapshot.loanAmount));
     expect(screen.getByTestId('loan-form-tenure')).toHaveValue(String(snapshot.tenureMonths));
     expect(screen.getByTestId('loan-form-math-breakdown')).toBeInTheDocument();
-    expect(screen.getByTestId('loan-form-math-iot')).toHaveTextContent('₹2,000');
+    expect(screen.getByTestId('loan-form-math-iot')).toHaveTextContent('₹2,100');
     expect(screen.getByTestId('loan-form-math-equation')).toHaveTextContent(
       `₹${snapshot.loanAmount.toLocaleString('en-IN')}`
     );
@@ -89,7 +89,7 @@ describe('LoanCalculator', () => {
     await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
     await user.selectOptions(screen.getByTestId('loan-calc-tenure'), '18');
 
-    expect(screen.getByTestId('loan-calc-preview-gps')).toHaveTextContent('₹2,500');
+    expect(screen.getByTestId('loan-calc-preview-gps')).toHaveTextContent('₹2,625');
     expect(screen.getByTestId('loan-calc-preview-tenure')).toHaveTextContent('18 months');
   });
 
