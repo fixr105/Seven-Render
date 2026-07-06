@@ -591,7 +591,7 @@ export const Applications: React.FC = () => {
             type="button"
             onClick={() => setViewTab('all')}
             aria-pressed={viewTab === 'all'}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-md px-4 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${
               viewTab === 'all'
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : 'text-neutral-600 hover:text-neutral-900'
@@ -603,7 +603,7 @@ export const Applications: React.FC = () => {
             type="button"
             onClick={() => setViewTab('unmapped')}
             aria-pressed={viewTab === 'unmapped'}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-md px-4 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${
               viewTab === 'unmapped'
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : 'text-neutral-600 hover:text-neutral-900'
@@ -649,7 +649,7 @@ export const Applications: React.FC = () => {
               </label>
               <select
                 id="applications-product-filter"
-                className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 min-w-[12rem]"
+                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 min-w-[12rem] min-h-[44px] touch-manipulation"
                 value={productFilterId}
                 disabled={loadingLoanProducts}
                 onChange={(e) => {
@@ -684,7 +684,7 @@ export const Applications: React.FC = () => {
                   }}
                   aria-pressed={selectedStatusKeys.length === 0}
                   aria-label={t('pages.applications.allStatuses')}
-                  className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`inline-flex items-center rounded-full border px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${
                     selectedStatusKeys.length === 0
                       ? FILTER_TAG_STYLES.neutral.active
                       : FILTER_TAG_STYLES.neutral.base
@@ -711,7 +711,7 @@ export const Applications: React.FC = () => {
                       }}
                       aria-pressed={isActive}
                       aria-label={t('pages.applications.filterByStatus', { label: opt.label })}
-                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${isActive ? styles.active : styles.base}`}
+                      className={`inline-flex items-center rounded-full border px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${isActive ? styles.active : styles.base}`}
                     >
                       {opt.label}
                     </button>

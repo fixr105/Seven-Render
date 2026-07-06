@@ -40,7 +40,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div
-        className={`relative bg-white rounded-lg shadow-level-3 w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col border border-neutral-200`}
+        className={`relative bg-white rounded-lg shadow-level-3 w-full ${sizeClasses[size]} max-h-[90dvh] flex flex-col border border-neutral-200`}
         data-testid={testId}
       >
         {children}
@@ -61,7 +61,7 @@ export const ModalHeader: React.FC<ModalHeaderProps> = ({ children, onClose }) =
       {onClose && (
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-neutral-100 transition-colors"
+          className="p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation flex items-center justify-center"
           aria-label="Close modal"
         >
           <X className="w-5 h-5 text-neutral-500" />

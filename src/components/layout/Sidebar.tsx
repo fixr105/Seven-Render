@@ -35,7 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
       <aside
         className={`
           fixed top-0 left-0 h-full bg-brand-primary text-white z-50
-          transition-transform duration-300 ease-in-out
+          transition-transform duration-300 ease-in-out motion-reduce:transition-none
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:static lg:z-auto
           w-64 flex flex-col shadow-level-2
@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
           <div className="flex items-center justify-end p-4">
             <button
               onClick={onToggle}
-              className="p-2 min-h-[44px] min-w-[44px] rounded hover:bg-brand-primary/20 transition-colors cursor-none-hover touch-manipulation"
+              className="p-2 min-h-[44px] min-w-[44px] rounded hover:bg-brand-primary/20 transition-colors touch-manipulation"
               aria-label={t('nav.closeMenu')}
             >
               <X className="w-5 h-5" />
@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
                   if (window.innerWidth < 1024) onToggle();
                 }}
                 className={`
-                  w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-pointer border-l-4
+                  w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-left transition-all duration-200 cursor-pointer border-l-4 touch-manipulation motion-reduce:transition-none
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-primary
                   ${isActive
                     ? 'bg-white/10 text-white border-brand-secondary'

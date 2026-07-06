@@ -89,6 +89,7 @@ export const NBFCTools: React.FC = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   const [selectedTool, setSelectedTool] = useState<ToolId>('raad');
+  const [mobilePanel, setMobilePanel] = useState<'form' | 'report'>('form');
   const [currentJobId, setCurrentJobId] = useState<string | null>(() =>
     localStorage.getItem(JOB_ID_KEY)
   );
@@ -835,8 +836,8 @@ export const NBFCTools: React.FC = () => {
     >
       <div className="flex flex-col min-h-0 flex-1">
       {/* Horizontal tool tabs */}
-      <div className="bg-[#1a1a2e] shrink-0 border-b border-white/10">
-        <nav className="flex gap-0">
+      <div className="bg-[#1a1a2e] shrink-0 border-b border-white/10 overflow-x-auto">
+        <nav className="flex gap-0 min-w-max">
           {TOOL_ITEMS.map((tool) => {
             const Icon = tool.icon;
             return (
@@ -844,7 +845,7 @@ export const NBFCTools: React.FC = () => {
                 key={tool.id}
                 onClick={() => setSelectedTool(tool.id)}
                 title={tool.label}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-3 sm:px-5 py-3 text-sm font-medium transition-colors border-b-2 touch-manipulation ${
                   selectedTool === tool.id
                     ? 'border-[#332f78] bg-white/5 text-white'
                     : 'border-transparent text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
@@ -858,12 +859,41 @@ export const NBFCTools: React.FC = () => {
         </nav>
       </div>
 
-      <div
-        className="grid h-full min-h-0 flex-1"
-        style={{ gridTemplateColumns: '1fr 380px' }}
-      >
+      {/* Mobile panel toggle: Form | Report Viewer */}
+      <div className="lg:hidden shrink-0 flex gap-1 border-b border-neutral-200 bg-neutral-50 p-1">
+        <button
+          type="button"
+          onClick={() => setMobilePanel('form')}
+          aria-pressed={mobilePanel === 'form'}
+          className={`flex-1 rounded-md px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${
+            mobilePanel === 'form'
+              ? 'bg-white text-neutral-900 shadow-sm'
+              : 'text-neutral-600 hover:text-neutral-900'
+          }`}
+        >
+          {t('pages.nbfcTools.toolForm')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobilePanel('report')}
+          aria-pressed={mobilePanel === 'report'}
+          className={`flex-1 rounded-md px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${
+            mobilePanel === 'report'
+              ? 'bg-white text-neutral-900 shadow-sm'
+              : 'text-neutral-600 hover:text-neutral-900'
+          }`}
+        >
+          {t('pages.nbfcTools.reportViewer')}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] h-full min-h-0 flex-1">
         {/* Form column */}
-        <div className="bg-white overflow-y-auto p-6">
+        <div
+          className={`bg-white overflow-y-auto p-4 lg:p-6 ${
+            mobilePanel === 'report' ? 'hidden lg:block' : ''
+          }`}
+        >
           {selectedTool === 'raad' && (
             <>
               <h3 className="text-xl font-semibold text-neutral-900 mb-1">
@@ -1153,7 +1183,12 @@ export const NBFCTools: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN */}
-        <div data-testid="report-viewer" className="bg-[#f8f9ff] flex flex-col overflow-hidden border-l border-neutral-200">
+        <div
+          data-testid="report-viewer"
+          className={`bg-[#f8f9ff] flex flex-col overflow-hidden lg:border-l border-neutral-200 min-h-[50vh] lg:min-h-0 ${
+            mobilePanel === 'form' ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
           <h3 className="px-4 py-4 text-lg font-semibold text-neutral-900 border-b border-neutral-200">
             {t('pages.nbfcTools.reportViewer')}
           </h3>

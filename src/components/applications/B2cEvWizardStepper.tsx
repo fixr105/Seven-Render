@@ -110,8 +110,9 @@ export const B2cEvWizardStepper: React.FC<B2cEvWizardStepperProps> = ({
         data-step-accent={accent}
         data-step-phase={phase}
         className={`
-          min-w-0 flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-center sm:px-2 sm:py-2.5
-          transition-all duration-200 touch-manipulation
+          flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-center sm:px-2 sm:py-2.5
+          flex-shrink-0 min-w-[100px] snap-start sm:min-w-0 sm:flex-shrink
+          transition-all duration-200 touch-manipulation motion-reduce:transition-none
           ${isLocked ? 'cursor-not-allowed border border-neutral-200 bg-neutral-100 opacity-45 grayscale' : ''}
           ${!isLocked && isActive ? 'bg-brand-primary text-white shadow-md' : ''}
           ${!isLocked && !isActive ? 'border border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300' : ''}
@@ -149,7 +150,7 @@ export const B2cEvWizardStepper: React.FC<B2cEvWizardStepperProps> = ({
         data-testid="b2c-stepper-phase-do"
       >
         <div
-          className="grid w-full gap-1 sm:gap-2"
+          className="flex sm:grid w-full gap-2 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0 scroll-smooth snap-x snap-mandatory sm:snap-none touch-manipulation [scrollbar-width:thin] sm:[scrollbar-width:auto]"
           style={{ gridTemplateColumns: `repeat(${doStageSteps.length}, minmax(0, 1fr))` }}
         >
           {doStageSteps.map((step, localIndex) => renderStep(step, localIndex))}
@@ -161,7 +162,7 @@ export const B2cEvWizardStepper: React.FC<B2cEvWizardStepperProps> = ({
           data-testid="b2c-stepper-phase-get-paid"
         >
           <div
-            className="grid w-full gap-1 sm:gap-2"
+            className="flex sm:grid w-full gap-2 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0 scroll-smooth snap-x snap-mandatory sm:snap-none touch-manipulation [scrollbar-width:thin] sm:[scrollbar-width:auto]"
             style={{ gridTemplateColumns: `repeat(${getPaidStageSteps.length}, minmax(0, 1fr))` }}
           >
             {getPaidStageSteps.map((step, localIndex) => renderStep(step, localIndex + 6))}

@@ -122,7 +122,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <header
-      className={`bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full ${hideSidebar ? '' : 'lg:ml-[-256px] lg:w-[calc(100%+256px)]'}`}
+      className={`bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full pt-safe ${hideSidebar ? '' : 'lg:ml-[-256px] lg:w-[calc(100%+256px)]'}`}
       aria-label={title ? t('topbar.pageTitle', { title }) : undefined}
     >
       <div className="flex items-center justify-between h-16 w-full">

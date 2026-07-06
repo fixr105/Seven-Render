@@ -84,7 +84,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           {fullBleed ? (
             children
           ) : (
-            <div className="max-w-7xl mx-auto min-h-[calc(100vh-8rem)] animate-fade-in">
+            <div className="max-w-7xl mx-auto min-h-[calc(100dvh-8rem)] animate-fade-in">
               {children}
             </div>
           )}

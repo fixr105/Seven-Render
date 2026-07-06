@@ -40,12 +40,12 @@ export const Toast: React.FC<ToastProps> = ({ type, message, onClose, duration =
   const { bg, icon: Icon } = config[type];
 
   return (
-    <div className={`${bg} text-white rounded shadow-level-2 p-4 flex items-start gap-3 min-w-[320px] max-w-md animate-slide-in`}>
+    <div className={`${bg} text-white rounded shadow-level-2 p-4 flex items-start gap-3 w-[calc(100vw-2rem)] sm:min-w-[280px] sm:max-w-md animate-slide-in`}>
       <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" />
       <p className="flex-1 text-sm">{message}</p>
       <button
         onClick={onClose}
-        className="flex-shrink-0 hover:bg-white hover:bg-opacity-20 rounded p-1 transition-colors"
+        className="flex-shrink-0 hover:bg-white hover:bg-opacity-20 rounded p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation transition-colors"
         aria-label="Close notification"
       >
         <X className="w-4 h-4" />
@@ -61,7 +61,7 @@ interface ToastContainerProps {
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onRemove }) => {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 pb-safe z-50 flex flex-col gap-2">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}

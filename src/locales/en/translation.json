@@ -657,7 +657,8 @@
       "refreshList": "Refresh list",
       "toolRaad": "RAAD",
       "toolPager": "PAGER",
-      "toolQueryDrafter": "Query Drafter"
+      "toolQueryDrafter": "Query Drafter",
+      "toolForm": "Form"
     },
     "dashboards": {
       "noApplicationsYet": "No applications yet",

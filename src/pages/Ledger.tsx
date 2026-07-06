@@ -392,7 +392,8 @@ export const Ledger: React.FC = () => {
               ) : pendingPayoutRequests.length === 0 ? (
                 <div className="text-center py-6 text-neutral-600">{t('pages.ledger.noPendingPayouts')}</div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                  <div className="hidden md:block overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-neutral-200">
@@ -444,7 +445,58 @@ export const Ledger: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+                  <div className="md:hidden divide-y divide-neutral-200">
+                    {pendingPayoutRequests.map((p) => (
+                      <div key={p.id} className="p-4 space-y-2">
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('common.clientLabel')}</span>
+                          <span className="text-sm text-neutral-900 text-right">{p.client ?? p.id}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('common.amount')}</span>
+                          <span className="text-sm font-medium text-success">{formatCurrency(p.amount)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('common.date')}</span>
+                          <span className="text-sm text-neutral-900">{formatDate(p.date ?? '')}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('common.description')}</span>
+                          <span className="text-sm text-neutral-900 text-right">{p.description ?? '-'}</span>
+                        </div>
+                        <div className="flex flex-col gap-2 pt-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={CheckCircle}
+                            onClick={() => {
+                              setCreditPayoutForAction(p);
+                              setApproveNote('');
+                              setError(null);
+                              setShowApproveModal(true);
+                            }}
+                          >
+                            {t('common.approve')}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={XCircle}
+                            onClick={() => {
+                              setCreditPayoutForAction(p);
+                              setRejectReason('');
+                              setError(null);
+                              setShowRejectModal(true);
+                            }}
+                          >
+                            {t('common.reject')}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -528,7 +580,8 @@ export const Ledger: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b border-neutral-200">
@@ -670,6 +723,121 @@ export const Ledger: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              <div className="md:hidden divide-y divide-neutral-200">
+                {entries.map((entry: any, index: number) => {
+                  const payoutAmount = parseFloat(entry['Payout Amount'] || entry.payoutAmount || '0');
+                  const disbursedAmount = parseFloat(entry['Disbursed Amount'] || entry.disbursedAmount || '0');
+                  const commissionRate = entry['Commission Rate'] || entry.commissionRate || '';
+                  const runningBalance = entry.runningBalance || entry.balance || 0;
+
+                  return (
+                    <div key={entry.id || index} className="p-4 space-y-2">
+                      <div className="flex justify-between gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.date')}</span>
+                        <span className="text-sm text-neutral-900">{formatDate(entry.Date || entry.date)}</span>
+                      </div>
+                      <div className="flex justify-between gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.loanFile')}</span>
+                        <span className="text-sm text-neutral-900 text-right">{entry['Loan File'] || entry.loanFile || '-'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.description')}</span>
+                        <span className="text-sm text-neutral-900 text-right">{entry.Description || entry.description || '-'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.disbursedAmount')}</span>
+                        <span className="text-sm text-neutral-900">{disbursedAmount > 0 ? formatCurrency(disbursedAmount) : '-'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.commissionRate')}</span>
+                        <span className="text-sm text-neutral-900">{commissionRate ? `${commissionRate}%` : '-'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.payoutAmount')}</span>
+                        <span className={`text-sm font-medium ${payoutAmount >= 0 ? 'text-success' : 'text-error'}`}>
+                          {payoutAmount !== 0 ? formatCurrency(payoutAmount) : '-'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.runningBalance')}</span>
+                        <span className={`text-sm font-medium ${runningBalance >= 0 ? 'text-success' : 'text-error'}`}>
+                          {formatCurrency(runningBalance)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.disputeStatus')}</span>
+                        {getDisputeStatusBadge(entry['Dispute Status'] || entry.disputeStatus || 'None')}
+                      </div>
+                      <div className="flex justify-between items-center gap-2 py-1">
+                        <span className="text-sm font-medium text-neutral-700">{t('common.payoutRequestCol')}</span>
+                        {getPayoutRequestBadge(entry['Payout Request'] || entry.payoutRequest || 'False')}
+                      </div>
+                      {userRole === 'client' && (
+                        <div className="flex flex-col gap-2 pt-2">
+                          {payoutAmount > 0 && (entry['Payout Request'] || entry.payoutRequest) === 'False' && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntry(entry);
+                                setShowPayoutModal(true);
+                              }}
+                            >
+                              {t('pages.ledger.requestPayout')}
+                            </Button>
+                          )}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={MessageSquare}
+                            onClick={() => {
+                              setSelectedEntry(entry);
+                              setShowQueryModal(true);
+                            }}
+                          >
+                            {t('pages.ledger.raiseQuery')}
+                          </Button>
+                        </div>
+                      )}
+                      {isCreditLedgerView && (
+                        <div className="flex flex-col gap-2 pt-2">
+                          {String(entry['Dispute Status'] || entry.disputeStatus || 'None').toLowerCase() === 'none' && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntry(entry);
+                                setDisputeReason('');
+                                setError(null);
+                                setShowDisputeModal(true);
+                              }}
+                            >
+                              Flag dispute
+                            </Button>
+                          )}
+                          {String(entry['Dispute Status'] || entry.disputeStatus || '').toLowerCase() === 'open' && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntry(entry);
+                                setResolveNotes('');
+                                setResolveAdjustedAmount('');
+                                setResolveAccepted(true);
+                                setError(null);
+                                setShowResolveDisputeModal(true);
+                              }}
+                            >
+                              Resolve dispute
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              </>
             )}
           </CardContent>
         </Card>

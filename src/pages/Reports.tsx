@@ -361,7 +361,7 @@ export const Reports: React.FC = () => {
                       <p className="text-xs text-neutral-500">{t('pages.reports.entriesCount', { count: Number(reportData.payinCount ?? 0) })}</p>
                     </div>
                   </div>
-                  <div className="overflow-x-auto">
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm border border-neutral-200">
                       <thead>
                         <tr className="bg-neutral-50 border-b border-neutral-200">
@@ -386,10 +386,36 @@ export const Reports: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                  <div className="md:hidden divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
+                    {Array.isArray(reportData.entries) &&
+                      (reportData.entries as Record<string, unknown>[]).map((entry, i) => (
+                        <div key={i} className="p-4 space-y-2">
+                          <div className="flex justify-between gap-2 py-1">
+                            <span className="text-sm font-medium text-neutral-700">{t('common.date')}</span>
+                            <span className="text-sm text-neutral-900">{String(entry['Date'] ?? entry.date ?? '-')}</span>
+                          </div>
+                          <div className="flex justify-between gap-2 py-1">
+                            <span className="text-sm font-medium text-neutral-700">{t('common.clientLabel')}</span>
+                            <span className="text-sm text-neutral-900 text-right">{String(entry['Client'] ?? entry.client ?? '-')}</span>
+                          </div>
+                          <div className="flex justify-between gap-2 py-1">
+                            <span className="text-sm font-medium text-neutral-700">{t('common.amount')}</span>
+                            <span className="text-sm text-neutral-900">
+                              {formatCurrency(Number(entry['Payout Amount'] ?? entry.payoutAmount ?? 0))}
+                            </span>
+                          </div>
+                          <div className="flex justify-between gap-2 py-1">
+                            <span className="text-sm font-medium text-neutral-700">{t('common.description')}</span>
+                            <span className="text-sm text-neutral-900 text-right">{String(entry['Description'] ?? entry.description ?? '-')}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               )}
               {reportData && reportTab === 'client-wise' && (
-                <div className="mt-6 overflow-x-auto">
+                <>
+                <div className="mt-6 hidden md:block overflow-x-auto">
                   <table className="w-full text-sm border border-neutral-200">
                     <thead>
                       <tr className="bg-neutral-50 border-b border-neutral-200">
@@ -414,6 +440,34 @@ export const Reports: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+                <div className="mt-6 md:hidden divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
+                  {Array.isArray(reportData.clients) &&
+                    (reportData.clients as Record<string, unknown>[]).map((c, i) => (
+                      <div key={i} className="p-4 space-y-2">
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('common.clientLabel')}</span>
+                          <span className="text-sm text-neutral-900">{String(c.clientId ?? '-')}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('pages.reports.clientName')}</span>
+                          <span className="text-sm text-neutral-900 text-right">{String(c.clientName ?? '-')}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('pages.reports.totalPayouts')}</span>
+                          <span className="text-sm text-neutral-900">{formatCurrency(Number(c.totalPayoutAmount ?? 0))}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('pages.reports.totalPayins')}</span>
+                          <span className="text-sm text-neutral-900">{formatCurrency(Number(c.totalPayinAmount ?? 0))}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 py-1">
+                          <span className="text-sm font-medium text-neutral-700">{t('common.entries')}</span>
+                          <span className="text-sm text-neutral-900">{Number(c.entryCount ?? 0)}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                </>
               )}
               {reportData && reportTab === 'date-range' && (
                 <div className="mt-6">
