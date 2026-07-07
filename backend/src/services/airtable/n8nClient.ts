@@ -14,6 +14,11 @@ import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';
 import { cacheService } from './cache.service.js';
 import { n8nEndpoints, getTableToGetWebhookPath } from './n8nEndpoints.js';
 import { mapLoanStatusForAirtablePost } from '../../utils/loanApplicationAirtableStatus.js';
+import {
+  LOAN_APPLICATION_AIRTABLE_COLUMNS,
+  packLoanApplicationFormData,
+  resolveSelectFromFormData,
+} from '../../utils/loanApplicationAirtableMapping.js';
 import { normalizeRecords } from './recordNormalizer.service.js';
 
 interface PostDataOptions {
@@ -1244,14 +1249,17 @@ export class N8nClient {
       parsedFormData['borrower.email'],
       parsedFormData['_meta.panLookup.borrowerEmail']
     );
-    const typeOfPurchase = data['Type of Purchase'] ?? parsedFormData._typeOfPurchase ?? '';
     const remarks = data['Remarks'] ?? parsedFormData.Remarks ?? '';
     const airtableStatus = mapLoanStatusForAirtablePost(data['Status'] ?? data.status);
+    const packedFormData = packLoanApplicationFormData(parsedFormData, {}, data);
+    const formDataJson = JSON.stringify(packedFormData);
+    const selectValue =
+      firstNonEmpty(data.Select, data.select) || resolveSelectFromFormData(packedFormData);
 
-    // Fixed key order for n8n: same format every time. No "id" — n8n uses only "File ID" for update-by-file-id.
-    return {
+    const allowedPayload: Record<string, unknown> = {
       'File ID': data['File ID'] || data.fileId || '',
       Client: clientId,
+      'KAM ID': kamId,
       'Applicant Name': firstNonEmpty(
         data['Applicant Name'],
         data.applicantName,
@@ -1272,8 +1280,11 @@ export class N8nClient {
         parsedFormData.requested_loan_amount,
         parsedFormData['loan.amount']
       ),
+      'Mobile Number': mobileNumber,
+      'Email Id': emailId,
+      Remarks: remarks,
+      Select: selectValue,
       Documents: data['Documents'] || data.documents || '',
-      ...(airtableStatus !== undefined ? { Status: airtableStatus } : {}),
       'Assigned Credit Analyst': data['Assigned Credit Analyst'] || data.assignedCreditAnalyst || '',
       'Assigned NBFC': data['Assigned NBFC'] || data.assignedNBFC || '',
       'Lender Decision Status': data['Lender Decision Status'] || data.lenderDecisionStatus || '',
@@ -1281,23 +1292,24 @@ export class N8nClient {
       'Lender Decision Remarks': data['Lender Decision Remarks'] || data.lenderDecisionRemarks || '',
       'Approved Loan Amount': data['Approved Loan Amount'] || data.approvedLoanAmount || '',
       'AI File Summary': data['AI File Summary'] || data.aiFileSummary || '',
+      'Form Data': formDataJson,
       'Creation Date': data['Creation Date'] || data.creationDate || '',
       'Submitted Date': data['Submitted Date'] || data.submittedDate || '',
       'Last Updated': data['Last Updated'] || data.lastUpdated || '',
-      'Asana Task ID': data['Asana Task ID'] || data.asanaTaskId || '',
-      'Asana Task Link': data['Asana Task Link'] || data.asanaTaskLink || '',
-      'KAM ID': kamId,
-      'Mobile Number': mobileNumber,
-      'Email Id': emailId,
-      'Type of Purchase': typeOfPurchase,
-      Remarks: remarks,
-      'Form Data': formData,
-      'Form Config Version': data['Form Config Version'] || data.formConfigVersion || '',
-      'Needs Attention': data['Needs Attention'] || data.needsAttention || '',
-      'Validation Warnings': data['Validation Warnings'] || data.validationWarnings || '',
-      'Client Submission ID': data['Client Submission ID'] || data.clientSubmissionId || '',
       MD: md,
     };
+
+    if (airtableStatus !== undefined) {
+      allowedPayload.Status = airtableStatus;
+    }
+
+    const payload: Record<string, unknown> = {};
+    for (const key of LOAN_APPLICATION_AIRTABLE_COLUMNS) {
+      if (key in allowedPayload) {
+        payload[key] = allowedPayload[key];
+      }
+    }
+    return payload;
   }
 
   /**

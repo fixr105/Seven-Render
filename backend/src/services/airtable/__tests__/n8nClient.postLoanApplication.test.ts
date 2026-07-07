@@ -100,7 +100,7 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
     ).rejects.toThrow(/empty response/i);
   });
 
-  it('includes durable metadata fields in the payload', async () => {
+  it('packs durable metadata into Form Data instead of non-Airtable columns', async () => {
     mockFetch.mockResolvedValue(responseOf(JSON.stringify({ success: true, id: 'rec1' })) as never);
 
     await n8nClient.postLoanApplication({
@@ -113,18 +113,17 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
       'Validation Warnings': '["warn"]',
     });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: expect.stringContaining('"Client Submission ID":"submit-789"'),
-      })
-    );
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: expect.stringContaining('"Form Config Version":"v2"'),
-      })
-    );
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body['Client Submission ID']).toBeUndefined();
+    expect(body['Form Config Version']).toBeUndefined();
+    expect(body['Needs Attention']).toBeUndefined();
+    expect(body['Validation Warnings']).toBeUndefined();
+    const formData = JSON.parse(String(body['Form Data'])) as Record<string, unknown>;
+    expect(formData['_meta.clientSubmissionId']).toBe('submit-789');
+    expect(formData['_meta.formConfigVersion']).toBe('v2');
+    expect(formData['_meta.needsAttention']).toBe(true);
+    expect(formData['_meta.validationWarnings']).toEqual(['warn']);
   });
 
   it('preserves requested loan amount when value is zero', async () => {
@@ -174,7 +173,13 @@ describe('n8nClient.postLoanApplication strict write acknowledgement', () => {
     expect(mockFetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: expect.stringContaining('"Type of Purchase":"Rental"'),
+        body: expect.stringContaining('"Select":"Rental"'),
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.not.stringContaining('"Type of Purchase"'),
       })
     );
   });

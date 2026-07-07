@@ -164,8 +164,7 @@ describe('LoanWorkflowService durability', () => {
     expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
       expect.objectContaining({
         Status: LoanStatus.UNDER_KAM_REVIEW,
-        'Client Submission ID': 'submit-456',
-        'Form Config Version': 'v1',
+        'Submitted Date': expect.any(String),
       }),
       expect.objectContaining({
         strictWriteAck: true,

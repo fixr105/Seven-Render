@@ -2,6 +2,12 @@
  * Resolve top-level loan application columns from merged form data and/or an existing record.
  */
 
+import {
+  packLoanApplicationFormData,
+  resolveSelectFromFormData,
+  type LoanApplicationFormDataMetadata,
+} from './loanApplicationAirtableMapping.js';
+
 export interface LoanApplicationCoreFields {
   applicantName: string;
   productId: string;
@@ -206,8 +212,17 @@ export function buildPromotedApplicationRecord(
   existingRecord: Record<string, unknown>,
   formDataToStore: Record<string, unknown>,
   promoted: LoanApplicationPromotedFields,
-  extraFields?: Record<string, unknown>
+  extraFields?: Record<string, unknown>,
+  metadata?: LoanApplicationFormDataMetadata
 ): Record<string, unknown> {
+  const legacyTopLevel = { ...existingRecord, ...extraFields };
+  const packedFormData = packLoanApplicationFormData(
+    stripBase64GeoPhotoUrls(formDataToStore),
+    metadata ?? {},
+    legacyTopLevel
+  );
+  const selectValue = resolveSelectFromFormData(packedFormData);
+
   return {
     ...existingRecord,
     ...extraFields,
@@ -217,7 +232,8 @@ export function buildPromotedApplicationRecord(
     'Mobile Number': promoted.mobileNumber,
     'Email Id': promoted.emailId,
     Documents: promoted.documents,
-    'Form Data': JSON.stringify(stripBase64GeoPhotoUrls(formDataToStore)),
+    ...(selectValue ? { Select: selectValue } : {}),
+    'Form Data': JSON.stringify(packedFormData),
     Remarks:
       formDataToStore.Remarks != null
         ? String(formDataToStore.Remarks)

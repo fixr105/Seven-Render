@@ -1,0 +1,177 @@
+{
+  "_description": "Maps all frontend/API inputs to the 24 existing Loan Applications Airtable columns (tbl85RSGR1op38O3G). No new columns required.",
+  "table": {
+    "id": "tbl85RSGR1op38O3G",
+    "name": "Loan Applications",
+    "primaryField": "File ID",
+    "upsertKey": "File ID"
+  },
+  "columnMappings": [
+    {
+      "airtableColumn": "File ID",
+      "type": "multilineText",
+      "source": "backend generated",
+      "example": "SFXXXXXXXX"
+    },
+    {
+      "airtableColumn": "Client",
+      "type": "multilineText",
+      "source": "auth user clientId",
+      "apiField": "Client"
+    },
+    {
+      "airtableColumn": "KAM ID",
+      "type": "multilineText",
+      "source": "Clients.Assigned KAM for logged-in client",
+      "formDataFallback": null
+    },
+    {
+      "airtableColumn": "Applicant Name",
+      "type": "multilineText",
+      "source": "promoted from form",
+      "apiFields": ["applicantName", "formData.applicant_name", "formData.borrower.customerName"]
+    },
+    {
+      "airtableColumn": "Loan Product",
+      "type": "multilineText",
+      "source": "promoted from form",
+      "apiFields": ["productId", "formData.productId", "formData.loan_product_id"]
+    },
+    {
+      "airtableColumn": "Requested Loan Amount",
+      "type": "currency",
+      "source": "promoted from form",
+      "apiFields": ["requestedLoanAmount", "formData.loan.amount", "formData.requested_loan_amount"]
+    },
+    {
+      "airtableColumn": "Mobile Number",
+      "type": "phoneNumber",
+      "source": "promoted from form",
+      "formDataKeys": ["borrower.mobile", "_meta.panLookup.mobileNumber", "_mobileNumber"]
+    },
+    {
+      "airtableColumn": "Email Id",
+      "type": "email",
+      "source": "promoted from form",
+      "formDataKeys": ["borrower.email", "_meta.panLookup.borrowerEmail", "_email"]
+    },
+    {
+      "airtableColumn": "Remarks",
+      "type": "singleLineText",
+      "source": "form",
+      "formDataKeys": ["Remarks"]
+    },
+    {
+      "airtableColumn": "Select",
+      "type": "singleSelect",
+      "choices": ["Rental", "EMI"],
+      "source": "promoted from form",
+      "formDataKeys": ["_typeOfPurchase", "_meta.typeOfPurchase"],
+      "notes": "Legacy New Application only; B2C EV wizard does not use this field"
+    },
+    {
+      "airtableColumn": "Documents",
+      "type": "multilineText",
+      "source": "geo photo URLs",
+      "format": "slotId:url|fileName,slotId:url|fileName",
+      "formDataKeys": ["geoPhotos.withSupportPerson.url", "geoPhotos.withVehicle.url", "geoPhotos.atResidence.url"]
+    },
+    {
+      "airtableColumn": "Status",
+      "type": "singleSelect",
+      "choices": ["Qualified", "Submitted", "Dealer Unresponsive", "Under Finance Review", "DO Issued", "Disbursed", "Rejected"],
+      "source": "workflow",
+      "notes": "Omitted on draft create; set on submit and status transitions"
+    },
+    {
+      "airtableColumn": "Assigned Credit Analyst",
+      "type": "multilineText",
+      "source": "credit workflow",
+      "onCreate": false
+    },
+    {
+      "airtableColumn": "Assigned NBFC",
+      "type": "multilineText",
+      "source": "credit workflow",
+      "onCreate": false
+    },
+    {
+      "airtableColumn": "Lender Decision Status",
+      "type": "multilineText",
+      "source": "nbfc workflow",
+      "onCreate": false
+    },
+    {
+      "airtableColumn": "Lender Decision Date",
+      "type": "multilineText",
+      "source": "nbfc workflow",
+      "onCreate": false
+    },
+    {
+      "airtableColumn": "Lender Decision Remarks",
+      "type": "multilineText",
+      "source": "nbfc workflow",
+      "onCreate": false
+    },
+    {
+      "airtableColumn": "Approved Loan Amount",
+      "type": "currency",
+      "source": "credit/nbfc workflow",
+      "onCreate": false
+    },
+    {
+      "airtableColumn": "AI File Summary",
+      "type": "multilineText",
+      "source": "AI summary job",
+      "onCreate": false
+    },
+    {
+      "airtableColumn": "Form Data",
+      "type": "multilineText",
+      "source": "JSON string — all wizard fields and metadata below",
+      "notes": "Primary blob for B2C EV and dynamic form fields"
+    },
+    {
+      "airtableColumn": "Creation Date",
+      "type": "multilineText",
+      "source": "backend ISO date YYYY-MM-DD"
+    },
+    {
+      "airtableColumn": "Submitted Date",
+      "type": "multilineText",
+      "source": "backend on submit"
+    },
+    {
+      "airtableColumn": "Last Updated",
+      "type": "multilineText",
+      "source": "backend ISO datetime"
+    },
+    {
+      "airtableColumn": "MD",
+      "type": "multilineText",
+      "source": "optional markdown / notes",
+      "onCreate": false
+    }
+  ],
+  "formDataOnly": {
+    "_description": "These inputs are stored inside Form Data JSON, not as Airtable columns",
+    "mappings": [
+      { "input": "clientSubmissionId", "formDataKey": "_meta.clientSubmissionId" },
+      { "input": "formConfigVersion", "formDataKey": "_meta.formConfigVersion" },
+      { "input": "needsAttention", "formDataKey": "_meta.needsAttention" },
+      { "input": "validationWarnings", "formDataKey": "_meta.validationWarnings" },
+      { "input": "asanaTaskId", "formDataKey": "_meta.asanaTaskId" },
+      { "input": "asanaTaskLink", "formDataKey": "_meta.asanaTaskLink" },
+      { "input": "b2cEvWizard", "formDataKeys": ["borrower.*", "loan.*", "dealer.*", "coApplicant.*", "guarantor.*", "geoPhotos.*", "compliance.*", "insurance.*", "vehicle.*", "_meta.*", "_documentsFolderLink", "<Label> - Documents"] }
+    ]
+  },
+  "removedFromAirtablePost": [
+    "Form Config Version",
+    "Client Submission ID",
+    "Needs Attention",
+    "Validation Warnings",
+    "Type of Purchase",
+    "Asana Task ID",
+    "Asana Task Link"
+  ]
+}

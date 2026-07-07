@@ -27,6 +27,7 @@ import {
   normalizeDynamicStatus,
 } from '../statusTracking/dynamicStatus.service.js';
 import { resolveApplicationRecordStatus } from '../../utils/loanApplicationAirtableStatus.js';
+import { readClientSubmissionId } from '../../utils/loanApplicationAirtableMapping.js';
 import {
   buildPromotedApplicationRecord,
   mergeFormDataJson,
@@ -77,7 +78,7 @@ export class LoanWorkflowService {
         const applications = await n8nClient.fetchTable('Loan Application', false);
         const found = applications.find((app: any) => {
           const appFileId = String(app['File ID'] || app.fileId || '').trim();
-          const appSubmissionId = String(app['Client Submission ID'] || app.clientSubmissionId || '').trim();
+          const appSubmissionId = readClientSubmissionId(app as Record<string, unknown>);
           const fileIdMatches = options.fileId ? appFileId === options.fileId : false;
           const submissionMatches = options.clientSubmissionId
             ? appSubmissionId === options.clientSubmissionId
@@ -126,7 +127,7 @@ export class LoanWorkflowService {
     const applications = await n8nClient.fetchTable('Loan Application', false);
     return applications.find((app: any) => {
       const appClient = String(app.Client || app['Client'] || '').trim();
-      const appSubmissionId = String(app['Client Submission ID'] || app.clientSubmissionId || '').trim();
+      const appSubmissionId = readClientSubmissionId(app as Record<string, unknown>);
       return appClient === clientId && appSubmissionId === clientSubmissionId;
     }) || null;
   }
@@ -265,12 +266,11 @@ export class LoanWorkflowService {
       Status: status,
       'Creation Date': new Date().toISOString().split('T')[0],
       'Last Updated': new Date().toISOString(),
-      'Form Config Version': formConfigVersion || '',
-      'Client Submission ID': options.clientSubmissionId || '',
-      'Needs Attention': options.metadata?.needsAttention ? 'True' : 'False',
-      'Validation Warnings': options.metadata?.validationWarnings?.length
-        ? JSON.stringify(options.metadata.validationWarnings)
-        : '',
+    }, {
+      formConfigVersion: formConfigVersion || '',
+      clientSubmissionId: options.clientSubmissionId || '',
+      needsAttention: options.metadata?.needsAttention ?? false,
+      validationWarnings: options.metadata?.validationWarnings ?? [],
     });
 
     if (!options.saveAsDraft) {
@@ -374,8 +374,6 @@ export class LoanWorkflowService {
       Status: newStatus,
       'Submitted Date': new Date().toISOString().split('T')[0],
       'Last Updated': new Date().toISOString(),
-      'Form Config Version': options.formConfigVersion || application['Form Config Version'] || '',
-      'Client Submission ID': options.clientSubmissionId || application['Client Submission ID'] || '',
     }, {
       strictWriteAck: true,
       operationName: 'loan application submit',
@@ -383,7 +381,8 @@ export class LoanWorkflowService {
 
     await this.verifyLoanApplicationPersisted({
       fileId: String(application['File ID'] || application.fileId || ''),
-      clientSubmissionId: options.clientSubmissionId || application['Client Submission ID'] || '',
+      clientSubmissionId:
+        options.clientSubmissionId || readClientSubmissionId(application as Record<string, unknown>),
       expectedStatus: newStatus,
     });
 

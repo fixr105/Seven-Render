@@ -8,6 +8,8 @@
  * Product Documents table has no Version field; returns null (callers use || '').
  */
 
+import { readFormConfigVersion } from '../utils/loanApplicationAirtableMapping.js';
+
 /**
  * Get the latest form config version for a client.
  * Product Documents has no Version field; returns null.
@@ -45,7 +47,7 @@ export async function getFormConfigVersionForApplication(
   clientId: string
 ): Promise<string | null> {
   // If application has a stored form config version, use it (frozen for submitted files)
-  const storedVersion = application['Form Config Version'] || application.formConfigVersion;
+  const storedVersion = readFormConfigVersion(application);
   if (storedVersion) {
     return storedVersion;
   }

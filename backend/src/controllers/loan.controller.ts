@@ -28,6 +28,7 @@ import {
   mergeFormDataJson,
   resolveLoanApplicationPromotedFields,
 } from '../utils/loanApplicationCoreFields.js';
+import { readFormConfigVersion } from '../utils/loanApplicationAirtableMapping.js';
 
 export class LoanController {
   /**
@@ -1276,7 +1277,7 @@ export class LoanController {
 
       // Module 1: For drafts, preserve existing form config version or update to latest
       // Submitted files keep their frozen version
-      let formConfigVersion = application['Form Config Version'] || application.formConfigVersion;
+      let formConfigVersion = readFormConfigVersion(application as Record<string, unknown>);
       if (!formConfigVersion && applicationStatus === LoanStatus.DRAFT) {
         // Draft without version - get latest
         const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
@@ -1329,7 +1330,8 @@ export class LoanController {
 
       const updatedData = buildPromotedApplicationRecord(application, formDataToStore, promotedFields, {
         'Last Updated': new Date().toISOString(),
-        'Form Config Version': formConfigVersion || '',
+      }, {
+        formConfigVersion: formConfigVersion || '',
       });
 
       await n8nClient.postLoanApplication(updatedData);
@@ -1485,7 +1487,7 @@ export class LoanController {
       }
 
       // Module 1: Ensure form config version is set before submission (freeze it)
-      let formConfigVersion = application['Form Config Version'] || application.formConfigVersion;
+      let formConfigVersion = readFormConfigVersion(application as Record<string, unknown>);
       if (!formConfigVersion) {
         // Get latest version if not set
         const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
