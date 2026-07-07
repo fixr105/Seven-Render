@@ -277,8 +277,8 @@ export class LoanWorkflowService {
       applicationData['Submitted Date'] = new Date().toISOString().split('T')[0];
     }
 
-    if (options.documents) {
-      applicationData.Documents = options.documents;
+    if (options.documents?.trim()) {
+      applicationData.Documents = options.documents.trim();
     }
 
     // Create application via Loan Files webhook

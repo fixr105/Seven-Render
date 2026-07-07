@@ -1,11 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import {
   B2C_EV_GEO_PHOTO_SLOTS,
+  B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS,
+  isB2cEvGeoPhotoSlotId,
   isGeoPhotoSlotComplete,
   validateGeoPhotosStage,
 } from '../b2cEvGeoPhotos';
 
 describe('b2cEvGeoPhotos', () => {
+  it('maps each slot to UPL1/UPL2/UPL3 webhook paths', () => {
+    expect(B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS.withSupportPerson).toBe('UPL1');
+    expect(B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS.withVehicle).toBe('UPL2');
+    expect(B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS.atResidence).toBe('UPL3');
+    expect(isB2cEvGeoPhotoSlotId('withVehicle')).toBe(true);
+    expect(isB2cEvGeoPhotoSlotId('other')).toBe(false);
+  });
+
   it('requires url and coordinates for each slot', () => {
     const errors = validateGeoPhotosStage({});
     expect(Object.keys(errors).length).toBe(B2C_EV_GEO_PHOTO_SLOTS.length);

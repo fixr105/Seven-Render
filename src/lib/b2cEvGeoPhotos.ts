@@ -1,5 +1,24 @@
+export const B2C_EV_GEO_PHOTO_SLOT_IDS = [
+  'withSupportPerson',
+  'withVehicle',
+  'atResidence',
+] as const;
+
+export type B2cEvGeoPhotoSlotId = (typeof B2C_EV_GEO_PHOTO_SLOT_IDS)[number];
+
+/** n8n webhook path segment per geo photo slot (UPL1 / UPL2 / UPL3). */
+export const B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS: Record<B2cEvGeoPhotoSlotId, string> = {
+  withSupportPerson: 'UPL1',
+  withVehicle: 'UPL2',
+  atResidence: 'UPL3',
+};
+
+export function isB2cEvGeoPhotoSlotId(fieldId: string): fieldId is B2cEvGeoPhotoSlotId {
+  return (B2C_EV_GEO_PHOTO_SLOT_IDS as readonly string[]).includes(fieldId);
+}
+
 export interface B2cEvGeoPhotoSlot {
-  id: string;
+  id: B2cEvGeoPhotoSlotId;
   label: string;
   urlKey: string;
   fileNameKey: string;
@@ -83,11 +102,28 @@ export function validateGeoPhotosStage(formData: Record<string, unknown>): Recor
   return errors;
 }
 
-export async function captureGeolocation(): Promise<{ latitude: number; longitude: number }> {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    throw new Error('Geolocation is not supported on this device');
-  }
+const DEV_FALLBACK_COORDS = { latitude: 19.076, longitude: 72.8777 };
 
+function isLocalDevHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
+function mapGeolocationError(error: GeolocationPositionError): string {
+  switch (error.code) {
+    case error.PERMISSION_DENIED:
+      return 'Location permission denied. Enable location access for this site and try again.';
+    case error.POSITION_UNAVAILABLE:
+      return 'Location unavailable. Check that location services are enabled on your device.';
+    case error.TIMEOUT:
+      return 'Location capture timed out. Move to an open area or enable location services and try again.';
+    default:
+      return error.message || 'Unable to capture location';
+  }
+}
+
+function requestGeolocation(options: PositionOptions): Promise<{ latitude: number; longitude: number }> {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -97,11 +133,42 @@ export async function captureGeolocation(): Promise<{ latitude: number; longitud
         });
       },
       (error) => {
-        reject(new Error(error.message || 'Unable to capture location'));
+        reject(new Error(mapGeolocationError(error)));
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      options
     );
   });
+}
+
+export async function captureGeolocation(): Promise<{ latitude: number; longitude: number }> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    throw new Error('Geolocation is not supported on this device');
+  }
+
+  try {
+    return await requestGeolocation({
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0,
+    });
+  } catch (highAccuracyError) {
+    try {
+      return await requestGeolocation({
+        enableHighAccuracy: false,
+        timeout: 20000,
+        maximumAge: 60_000,
+      });
+    } catch (lowAccuracyError) {
+      if (import.meta.env.DEV && isLocalDevHost()) {
+        console.warn(
+          '[geo] Using dev fallback coordinates after location capture failed:',
+          lowAccuracyError instanceof Error ? lowAccuracyError.message : lowAccuracyError
+        );
+        return DEV_FALLBACK_COORDS;
+      }
+      throw lowAccuracyError instanceof Error ? lowAccuracyError : highAccuracyError;
+    }
+  }
 }
 
 export async function compressImageFile(file: File, maxWidth = 1280): Promise<string> {

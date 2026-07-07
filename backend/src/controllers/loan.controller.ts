@@ -220,7 +220,6 @@ export class LoanController {
           applicantName: finalApplicantName,
           requestedLoanAmount: finalRequestedAmount,
           formData: fullFormDataToStore,
-          documents: '',
           saveAsDraft,
           clientSubmissionId,
           metadata: {

@@ -1430,6 +1430,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
           formData={formState.form_data}
           fieldErrors={fieldErrors}
           onBatchChange={(patch) => updateFields(patch, { debounceMs: GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS })}
+          onGeoPhotoPersist={async (patch) => {
+            await persistDraft(patch, { silent: true });
+          }}
           requestingComplianceItemId={kamRequestLoadingId}
           onComplianceCheckboxChange={handleComplianceCheckboxChange}
           onRequestFromKam={(itemId) => void handleRequestFromKam(itemId)}

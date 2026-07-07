@@ -123,6 +123,52 @@ describe('resolveLoanApplicationPromotedFields', () => {
 
     expect(documents).toBe('withVehicle:https://cdn.example.com/vehicle.jpg|vehicle.jpg');
   });
+
+  it('includes all three uploadtourl geo photo URLs in Documents for Airtable', () => {
+    const formData = {
+      'geoPhotos.withSupportPerson.url':
+        'https://cdn.uploadtourl.com/5205686d-bb3a-472d-8288-96cc03370814_geo-test.jpg',
+      'geoPhotos.withSupportPerson.fileName': 'geo-test.jpg',
+      'geoPhotos.withVehicle.url':
+        'https://cdn.uploadtourl.com/vehicle-geo-test.jpg',
+      'geoPhotos.withVehicle.fileName': 'vehicle.jpg',
+      'geoPhotos.atResidence.url':
+        'https://cdn.uploadtourl.com/residence-geo-test.jpg',
+      'geoPhotos.atResidence.fileName': 'residence.jpg',
+    };
+
+    const documents = resolveDocumentsFromFormData(formData);
+    expect(documents).toContain(
+      'withSupportPerson:https://cdn.uploadtourl.com/5205686d-bb3a-472d-8288-96cc03370814_geo-test.jpg|geo-test.jpg'
+    );
+    expect(documents).toContain(
+      'withVehicle:https://cdn.uploadtourl.com/vehicle-geo-test.jpg|vehicle.jpg'
+    );
+    expect(documents).toContain(
+      'atResidence:https://cdn.uploadtourl.com/residence-geo-test.jpg|residence.jpg'
+    );
+
+    const record = buildPromotedApplicationRecord({}, formData, {
+      applicantName: 'Test User',
+      productId: 'LP001',
+      requestedLoanAmount: '100000',
+      mobileNumber: '9999999999',
+      emailId: 'test@example.com',
+      documents,
+    });
+
+    expect(record.Documents).toBe(documents);
+    const storedFormData = JSON.parse(String(record['Form Data'])) as Record<string, unknown>;
+    expect(storedFormData['geoPhotos.withSupportPerson.url']).toBe(
+      'https://cdn.uploadtourl.com/5205686d-bb3a-472d-8288-96cc03370814_geo-test.jpg'
+    );
+    expect(storedFormData['geoPhotos.withVehicle.url']).toBe(
+      'https://cdn.uploadtourl.com/vehicle-geo-test.jpg'
+    );
+    expect(storedFormData['geoPhotos.atResidence.url']).toBe(
+      'https://cdn.uploadtourl.com/residence-geo-test.jpg'
+    );
+  });
 });
 
 describe('buildPromotedApplicationRecord', () => {

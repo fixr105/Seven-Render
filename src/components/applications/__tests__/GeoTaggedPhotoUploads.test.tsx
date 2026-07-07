@@ -100,4 +100,33 @@ describe('GeoTaggedPhotoUploads', () => {
       })
     );
   });
+
+  it('persists geo photo patch to draft immediately after upload', async () => {
+    const user = userEvent.setup();
+    const onBatchChange = vi.fn();
+    const onGeoPhotoPersist = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <GeoTaggedPhotoUploads
+        {...baseProps}
+        formData={createInitialB2cEvFormData()}
+        onBatchChange={onBatchChange}
+        onGeoPhotoPersist={onGeoPhotoPersist}
+        loanApplicationId="draft-geo"
+      />
+    );
+
+    const file = new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' });
+    await user.click(screen.getByTestId('geo-photo-upload-withSupportPerson'));
+    const input = screen.getByTestId('geo-photo-file-input') as HTMLInputElement;
+    await user.upload(input, file);
+
+    await waitFor(() => {
+      expect(onGeoPhotoPersist).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'geoPhotos.withSupportPerson.url': 'https://cdn.example.com/with-support.jpg',
+        })
+      );
+    });
+  });
 });

@@ -22,6 +22,8 @@ export interface GeoTaggedPhotoUploadsProps {
   formData: Record<string, unknown>;
   fieldErrors: Record<string, string>;
   onBatchChange: (patch: Record<string, string>) => void;
+  /** Persist geo photo URLs to Airtable immediately after upload (Form Data + Documents). */
+  onGeoPhotoPersist?: (patch: Record<string, string>) => Promise<void>;
   requestingComplianceItemId: ComplianceItemId | null;
   onComplianceCheckboxChange: (key: string, checked: boolean) => void;
   onRequestFromKam: (itemId: ComplianceItemId) => void;
@@ -38,6 +40,7 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
   formData,
   fieldErrors,
   onBatchChange,
+  onGeoPhotoPersist,
   requestingComplianceItemId,
   onComplianceCheckboxChange,
   onRequestFromKam,
@@ -75,34 +78,41 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
     setSlotError(null);
 
     try {
-      const [location, imageBlob] = await Promise.all([
-        captureGeolocation(),
-        compressImageFileToBlob(file),
-      ]);
+      const imageBlob = await compressImageFileToBlob(file);
 
       let applicationId = loanApplicationId?.trim() || '';
       if (!applicationId && ensureDraftSaved) {
         applicationId = await ensureDraftSaved();
       }
 
-      const uploadResponse = await apiService.uploadDocument({
+      const uploadInput = {
         file: imageBlob,
         fileName: file.name,
         fieldId: slot.id,
         loanApplicationId: applicationId || undefined,
-      });
+      };
+
+      const [location, uploadResponse] = await Promise.all([
+        captureGeolocation(),
+        apiService.uploadDocument(uploadInput),
+      ]);
 
       if (!uploadResponse.success || !uploadResponse.data?.shareLink) {
         throw new Error(uploadResponse.error || 'Failed to upload geo tagged photo');
       }
 
-      onBatchChange({
+      const patch = {
         [slot.urlKey]: uploadResponse.data.shareLink,
         [slot.fileNameKey]: uploadResponse.data.fileName || file.name,
         [slot.latitudeKey]: String(location.latitude),
         [slot.longitudeKey]: String(location.longitude),
         [slot.capturedAtKey]: new Date().toISOString(),
-      });
+      };
+
+      onBatchChange(patch);
+      if (onGeoPhotoPersist) {
+        await onGeoPhotoPersist(patch);
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to upload geo tagged photo';

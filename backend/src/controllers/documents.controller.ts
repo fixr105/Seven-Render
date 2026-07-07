@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import { isB2cEvGeoPhotoSlotId } from '../constants/b2cEvGeoPhotoUpload.js';
+import { uploadGeoPhotoToWebhook } from '../services/onedrive/geoPhotoUpload.service.js';
 import { uploadToOneDrive } from '../services/onedrive/onedriveUpload.service.js';
 
 export class DocumentsController {
@@ -22,7 +24,7 @@ export class DocumentsController {
       const loanApplicationId =
         String(req.body?.loanApplicationId || '').trim() || undefined;
 
-      const result = await uploadToOneDrive({
+      const uploadInput = {
         buffer: file.buffer,
         fileName,
         mimeType: file.mimetype || 'application/octet-stream',
@@ -30,7 +32,16 @@ export class DocumentsController {
         folderPath,
         clientId: req.user?.clientId || undefined,
         loanApplicationId,
-      });
+      };
+
+      const isGeoPhoto = isB2cEvGeoPhotoSlotId(fieldId);
+      if (isGeoPhoto) {
+        console.info('[documents/upload] Routing geo photo to n8n webhook', { fieldId, fileName });
+      }
+
+      const result = isGeoPhoto
+        ? await uploadGeoPhotoToWebhook(uploadInput)
+        : await uploadToOneDrive(uploadInput);
 
       res.json({ success: true, data: result });
     } catch (error: unknown) {

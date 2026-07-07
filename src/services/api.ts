@@ -417,12 +417,14 @@ class ApiService {
       const isAuthRequest = endpoint.includes('/auth/login') || endpoint.includes('/auth/validate');
       const isAuthMe = endpoint.includes('/auth/me');
       const isNBFCUpload = endpoint.includes('/nbfc/tools/raad') || endpoint.includes('/nbfc/tools/pager');
+      const isDocumentUpload = endpoint.includes('/documents/upload');
       const isPanLookupRequest = endpoint.includes('/client/pan-lookup');
       const timeoutMs = isAuthRequest ? 120000
         : isAuthMe ? 90000
         : isPanLookupRequest ? 90000
         : isApplicationRequest ? 60000
         : isNBFCUpload ? 120000
+        : isDocumentUpload ? 120000
         : isGetRequest ? 55000
         : 30000;
       
