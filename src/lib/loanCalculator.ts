@@ -1,5 +1,9 @@
-export const INTEREST_RATE = 35;
-export const FEE_PCT = 0.08;
+export const INTEREST_RATE_MIN = 30;
+export const INTEREST_RATE_MAX = 35;
+export const FEE_PCT_MIN = 0.06;
+export const FEE_PCT_MAX = 0.08;
+export const INTEREST_RATE = INTEREST_RATE_MAX;
+export const FEE_PCT = FEE_PCT_MAX;
 export const GST_PCT = 0.05;
 export const GPS_CHARGES: Record<12 | 18, number> = {
   12: 2000,
@@ -19,12 +23,22 @@ export interface EmiRangeInputs {
   disbursementToDealer: number;
 }
 
+export interface TenureEmiRangeInputs extends EmiRangeInputs {
+  tenureMonths: LoanTenureMonths;
+}
+
 export interface EmiRangePreview {
   invoiceValue: number;
   lowestEmi: number;
   highestEmi: number;
   lowestProcessingFee: number;
   highestProcessingFee: number;
+  lowestLoanAmount: number;
+  highestLoanAmount: number;
+  lowestDisbursalAmount: number;
+  highestDisbursalAmount: number;
+  lowestIotInclusive: number;
+  highestIotInclusive: number;
 }
 
 export interface LoanFrozenValues {
@@ -127,10 +141,14 @@ export function computeFinalInvoiceAmount(
     .finalInvoiceAmount;
 }
 
-export function calculateEmi(loanAmount: number, tenureMonths: LoanTenureMonths): number {
+export function calculateEmi(
+  loanAmount: number,
+  tenureMonths: LoanTenureMonths,
+  interestRate: number = INTEREST_RATE
+): number {
   if (loanAmount <= 0 || tenureMonths <= 0) return 0;
 
-  const monthlyRate = INTEREST_RATE / 100 / 12;
+  const monthlyRate = interestRate / 100 / 12;
   if (monthlyRate === 0) return roundRupee(loanAmount / tenureMonths);
 
   const factor = Math.pow(1 + monthlyRate, tenureMonths);
@@ -138,46 +156,73 @@ export function calculateEmi(loanAmount: number, tenureMonths: LoanTenureMonths)
   return roundRupee(emi);
 }
 
-export function calculateEmiRangePreview(inputs: EmiRangeInputs): EmiRangePreview {
-  const preview12 = calculateLoanPreview({ ...inputs, tenureMonths: 12 });
-  const preview18 = calculateLoanPreview({ ...inputs, tenureMonths: 18 });
-
-  const emis = [preview12.emiAmount, preview18.emiAmount];
-  const processingFees = [preview12.processingFee, preview18.processingFee];
-
-  return {
-    invoiceValue: preview12.invoiceValue,
-    lowestEmi: Math.min(...emis),
-    highestEmi: Math.max(...emis),
-    lowestProcessingFee: Math.min(...processingFees),
-    highestProcessingFee: Math.max(...processingFees),
-  };
-}
-
-export function calculateLoanPreview(inputs: LoanCalculatorInputs): LoanLivePreview {
+export function calculateLoanScenarioPreview(
+  inputs: LoanCalculatorInputs,
+  interestRate: number,
+  feePct: number
+): LoanLivePreview {
   const tenureMonths = inputs.tenureMonths === 18 ? 18 : 12;
   const gps = GPS_CHARGES[tenureMonths];
   const disbursementToDealer = Math.max(0, inputs.disbursementToDealer);
   const upfrontPayment = Math.max(0, inputs.upfrontPayment);
   const invoiceValue = computeInvoiceValue(upfrontPayment, disbursementToDealer);
-  const loanAmountRaw = (disbursementToDealer + gps) / (1 - FEE_PCT);
+  const loanAmountRaw = (disbursementToDealer + gps) / (1 - feePct);
   const loanAmount = roundRupee(loanAmountRaw);
-  const processingFee = roundRupee(loanAmount * FEE_PCT);
+  const processingFee = roundRupee(loanAmount * feePct);
   const gpsCharges = roundRupee(gps);
   const disbursalAmount = roundRupee(loanAmount - processingFee - gpsCharges);
-  const emiAmount = calculateEmi(loanAmount, tenureMonths);
+  const emiAmount = calculateEmi(loanAmount, tenureMonths, interestRate);
 
   return {
     invoiceValue,
     loanAmount,
-    interestRate: INTEREST_RATE,
+    interestRate,
     tenureMonths,
     processingFee,
     gpsCharges,
-    processingFeePctDisplay: FEE_PCT * 100,
+    processingFeePctDisplay: feePct * 100,
     disbursalAmount,
     emiAmount,
   };
+}
+
+export function calculateTenureEmiRangePreviews(
+  inputs: TenureEmiRangeInputs
+): { lowPreview: LoanLivePreview; highPreview: LoanLivePreview } {
+  const tenureMonths = inputs.tenureMonths === 18 ? 18 : 12;
+  const baseInputs: LoanCalculatorInputs = {
+    upfrontPayment: inputs.upfrontPayment,
+    disbursementToDealer: inputs.disbursementToDealer,
+    tenureMonths,
+  };
+
+  return {
+    lowPreview: calculateLoanScenarioPreview(baseInputs, INTEREST_RATE_MIN, FEE_PCT_MIN),
+    highPreview: calculateLoanScenarioPreview(baseInputs, INTEREST_RATE_MAX, FEE_PCT_MAX),
+  };
+}
+
+export function calculateEmiRangePreview(inputs: TenureEmiRangeInputs): EmiRangePreview {
+  const { lowPreview, highPreview } = calculateTenureEmiRangePreviews(inputs);
+  const iotInclusive = computeGstComponent(lowPreview.gpsCharges).inclusiveAmount;
+
+  return {
+    invoiceValue: lowPreview.invoiceValue,
+    lowestEmi: lowPreview.emiAmount,
+    highestEmi: highPreview.emiAmount,
+    lowestProcessingFee: lowPreview.processingFee,
+    highestProcessingFee: highPreview.processingFee,
+    lowestLoanAmount: lowPreview.loanAmount,
+    highestLoanAmount: highPreview.loanAmount,
+    lowestDisbursalAmount: lowPreview.disbursalAmount,
+    highestDisbursalAmount: highPreview.disbursalAmount,
+    lowestIotInclusive: iotInclusive,
+    highestIotInclusive: iotInclusive,
+  };
+}
+
+export function calculateLoanPreview(inputs: LoanCalculatorInputs): LoanLivePreview {
+  return calculateLoanScenarioPreview(inputs, INTEREST_RATE, FEE_PCT);
 }
 
 export interface LoanMathBreakdown {
@@ -196,7 +241,7 @@ export function buildLoanMathBreakdown(frozen: LoanFrozenValues): LoanMathBreakd
     processingFee: frozen.processingFee,
     gpsCharges: frozen.gpsCharges,
     disbursalAmount: frozen.disbursalAmount,
-    emiAmount: calculateEmi(frozen.loanAmount, frozen.tenureMonths),
+    emiAmount: calculateEmi(frozen.loanAmount, frozen.tenureMonths, frozen.interestRate),
   };
 }
 

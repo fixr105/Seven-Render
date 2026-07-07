@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import {
-  calculateLoanPreview,
+  calculateTenureEmiRangePreviews,
   computeFinalInvoiceBreakdown,
   computeGstComponent,
   parseMoneyInput,
+  type LoanLivePreview,
   type LoanTenureMonths,
 } from '../../lib/loanCalculator';
 
@@ -16,9 +17,84 @@ const TENURE_OPTIONS = [
 ];
 
 type Stage2Tab = 'insurance' | 'registration';
+type EmiScenarioVariant = 'low' | 'high';
 
 function formatRupee(value: number): string {
   return `₹${value.toLocaleString('en-IN')}`;
+}
+
+function formatOptionalRupee(value: number): string {
+  return value > 0 ? formatRupee(value) : '—';
+}
+
+function formatPercent(value: number): string {
+  return `${value % 1 === 0 ? value.toFixed(0) : value.toFixed(2)}%`;
+}
+
+interface EmiScenarioPanelProps {
+  variant: EmiScenarioVariant;
+  preview: LoanLivePreview;
+}
+
+function EmiScenarioPanel({ variant, preview }: EmiScenarioPanelProps) {
+  const { t } = useTranslation();
+  const iotGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
+  const testIdPrefix = variant === 'low' ? 'emi-range-low' : 'emi-range-high';
+  const headingKey =
+    variant === 'low' ? 'pages.calculator.lowestScenario' : 'pages.calculator.highestScenario';
+
+  return (
+    <div
+      className="rounded-xl border border-neutral-200 bg-white p-4"
+      data-testid={`${testIdPrefix}-loan-scenario`}
+    >
+      <h4 className="text-sm font-semibold text-neutral-900">{t(headingKey)}</h4>
+      <p className="mt-0.5 text-xs text-neutral-500" data-testid={`${testIdPrefix}-rates`}>
+        {t('pages.calculator.scenarioRates', {
+          interestRate: formatPercent(preview.interestRate),
+          processingFee: formatPercent(preview.processingFeePctDisplay),
+        })}
+      </p>
+      <dl className="mt-3 grid grid-cols-1 gap-3">
+        <div>
+          <dt className="text-xs text-neutral-500">{t('pages.calculator.loanAmount')}</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-loan-amount`}>
+            {formatRupee(preview.loanAmount)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-neutral-500">{t('pages.calculator.iotCost')}</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-iot-cost`}>
+            {formatRupee(iotGst.inclusiveAmount)}
+          </dd>
+          <dd className="text-xs text-neutral-500" data-testid={`${testIdPrefix}-iot-gst-note`}>
+            {t('pages.calculator.iotGstNote', {
+              gst: formatRupee(iotGst.gstAmount),
+              base: formatRupee(preview.gpsCharges),
+            })}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-neutral-500">{t('pages.calculator.processingFee')}</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-processing-fee`}>
+            {formatRupee(preview.processingFee)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-neutral-500">{t('pages.calculator.emiAmount')}</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-emi`}>
+            {formatRupee(preview.emiAmount)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-neutral-500">{t('pages.calculator.disbursalAmount')}</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-disbursal`}>
+            {formatRupee(preview.disbursalAmount)}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
 }
 
 export const EmiRangeCalculator: React.FC = () => {
@@ -30,35 +106,34 @@ export const EmiRangeCalculator: React.FC = () => {
   const [insuranceCost, setInsuranceCost] = useState('');
   const [registrationCost, setRegistrationCost] = useState('');
 
-  const inputs = useMemo(
-    () => ({
-      upfrontPayment: parseMoneyInput(downpayment),
-      disbursementToDealer: parseMoneyInput(disbursementToDealer),
-      tenureMonths,
-    }),
-    [downpayment, disbursementToDealer, tenureMonths]
-  );
-
-  const preview = useMemo(() => calculateLoanPreview(inputs), [inputs]);
-  const iotWithGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
-
+  const upfrontPayment = parseMoneyInput(downpayment);
+  const disbursementAmount = parseMoneyInput(disbursementToDealer);
   const insuranceAmount = parseMoneyInput(insuranceCost);
   const registrationAmount = parseMoneyInput(registrationCost);
+
+  const { lowPreview, highPreview } = useMemo(
+    () =>
+      calculateTenureEmiRangePreviews({
+        upfrontPayment,
+        disbursementToDealer: disbursementAmount,
+        tenureMonths,
+      }),
+    [upfrontPayment, disbursementAmount, tenureMonths]
+  );
+
+  const tenurePreview = lowPreview;
   const finalInvoice = useMemo(
     () =>
       computeFinalInvoiceBreakdown(
-        preview.invoiceValue,
+        tenurePreview.invoiceValue,
         insuranceAmount,
         registrationAmount,
-        preview.gpsCharges
+        tenurePreview.gpsCharges
       ),
-    [preview.invoiceValue, preview.gpsCharges, insuranceAmount, registrationAmount]
+    [tenurePreview.invoiceValue, tenurePreview.gpsCharges, insuranceAmount, registrationAmount]
   );
 
-  const invoiceDisplay = preview.invoiceValue > 0 ? String(preview.invoiceValue) : '';
-
-  const formatOptionalRupee = (value: number): string =>
-    value > 0 ? formatRupee(value) : '—';
+  const invoiceDisplay = tenurePreview.invoiceValue > 0 ? String(tenurePreview.invoiceValue) : '';
 
   const stage2Tabs: Array<{ id: Stage2Tab; label: string }> = [
     { id: 'insurance', label: t('pages.calculator.insuranceTab') },
@@ -115,60 +190,19 @@ export const EmiRangeCalculator: React.FC = () => {
           />
         </div>
 
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-          <h4 className="mb-3 text-sm font-semibold text-neutral-900">
-            {t('pages.calculator.resultsHeading')}
-          </h4>
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.loanAmount')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-loan-amount">
-                {formatRupee(preview.loanAmount)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.tenure')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-tenure-preview">
-                {preview.tenureMonths} {t('pages.calculator.months')}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.iotCost')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-iot-cost">
-                {formatRupee(iotWithGst.inclusiveAmount)}
-              </dd>
-              <dd className="text-xs text-neutral-500" data-testid="emi-range-iot-gst-note">
-                {t('pages.calculator.iotGstNote', {
-                  gst: formatRupee(iotWithGst.gstAmount),
-                  base: formatRupee(iotWithGst.baseAmount),
-                })}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.processingFee')}</dt>
-              <dd
-                className="text-sm font-medium text-neutral-900"
-                data-testid="emi-range-processing-fee"
-              >
-                {formatRupee(preview.processingFee)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.emiAmount')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-emi">
-                {formatRupee(preview.emiAmount)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.disbursalAmount')}</dt>
-              <dd
-                className="text-sm font-medium text-neutral-900"
-                data-testid="emi-range-disbursal"
-              >
-                {formatRupee(preview.disbursalAmount)}
-              </dd>
-            </div>
-          </dl>
+        <div>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h4 className="text-sm font-semibold text-neutral-900">
+              {t('pages.calculator.resultsHeading')}
+            </h4>
+            <p className="text-xs text-neutral-500" data-testid="emi-range-tenure-preview">
+              {t('pages.calculator.scenarioTenure', { months: tenureMonths })}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <EmiScenarioPanel variant="low" preview={lowPreview} />
+            <EmiScenarioPanel variant="high" preview={highPreview} />
+          </div>
         </div>
       </div>
 

@@ -77,14 +77,14 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
       <div>
         <h3 className="text-sm font-semibold text-neutral-900">Loan calculator</h3>
         <p className="mt-1 text-sm text-neutral-600">
-          Enter downpayment and disbursement to dealer. Invoice value is computed automatically.
+          Enter payment from customer and disbursement to dealer. Invoice value is computed automatically.
           Values update live. Freeze to lock them into the application form below.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Input
-          label="Downpayment (₹)"
+          label="Payment from Customer (₹)"
           type="text"
           inputMode="decimal"
           value={downpayment}

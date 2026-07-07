@@ -4,6 +4,7 @@ import {
   calculateEmi,
   calculateEmiRangePreview,
   calculateLoanPreview,
+  calculateTenureEmiRangePreviews,
   computeFinalInvoiceAmount,
   computeFinalInvoiceBreakdown,
   computeGstComponent,
@@ -84,32 +85,31 @@ describe('loanCalculator', () => {
     expect(frozenValuesToFormDataPatch(frozen)['loan.amount']).toBe(String(frozen.loanAmount));
   });
 
-  it('calculates EMI and processing fee ranges across 12- and 18-month tenures', () => {
-    const preview12 = calculateLoanPreview({
+  it('calculates EMI and processing fee ranges for a fixed tenure using rate and PF bounds', () => {
+    const range = calculateEmiRangePreview({
       upfrontPayment: 20000,
       disbursementToDealer: 50000,
       tenureMonths: 12,
     });
-    const preview18 = calculateLoanPreview({
-      upfrontPayment: 20000,
-      disbursementToDealer: 50000,
-      tenureMonths: 18,
-    });
 
-    const range = calculateEmiRangePreview({
+    const { lowPreview, highPreview } = calculateTenureEmiRangePreviews({
       upfrontPayment: 20000,
       disbursementToDealer: 50000,
+      tenureMonths: 12,
     });
 
     expect(range.invoiceValue).toBe(70000);
-    expect(range.lowestEmi).toBe(Math.min(preview12.emiAmount, preview18.emiAmount));
-    expect(range.highestEmi).toBe(Math.max(preview12.emiAmount, preview18.emiAmount));
-    expect(range.lowestProcessingFee).toBe(
-      Math.min(preview12.processingFee, preview18.processingFee)
-    );
-    expect(range.highestProcessingFee).toBe(
-      Math.max(preview12.processingFee, preview18.processingFee)
-    );
+    expect(range.lowestEmi).toBe(lowPreview.emiAmount);
+    expect(range.highestEmi).toBe(highPreview.emiAmount);
+    expect(range.lowestProcessingFee).toBe(lowPreview.processingFee);
+    expect(range.highestProcessingFee).toBe(highPreview.processingFee);
+    expect(range.lowestLoanAmount).toBe(lowPreview.loanAmount);
+    expect(range.highestLoanAmount).toBe(highPreview.loanAmount);
+    expect(range.lowestDisbursalAmount).toBe(lowPreview.disbursalAmount);
+    expect(range.highestDisbursalAmount).toBe(highPreview.disbursalAmount);
+    expect(range.lowestIotInclusive).toBe(2100);
+    expect(range.highestIotInclusive).toBe(2100);
+    expect(lowPreview.emiAmount).toBeLessThan(highPreview.emiAmount);
   });
 
   it('computes final invoice amount with 5% GST on IOT, insurance, and registration only', () => {
@@ -138,32 +138,26 @@ describe('loanCalculator', () => {
     });
   });
 
-  it('returns GPS-only baseline ranges when disbursement is zero', () => {
-    const preview12 = calculateLoanPreview({
+  it('returns GPS-only baseline ranges for selected tenure when disbursement is zero', () => {
+    const range = calculateEmiRangePreview({
       upfrontPayment: 0,
       disbursementToDealer: 0,
       tenureMonths: 12,
     });
-    const preview18 = calculateLoanPreview({
-      upfrontPayment: 0,
-      disbursementToDealer: 0,
-      tenureMonths: 18,
-    });
 
-    const range = calculateEmiRangePreview({
+    const { lowPreview, highPreview } = calculateTenureEmiRangePreviews({
       upfrontPayment: 0,
       disbursementToDealer: 0,
+      tenureMonths: 12,
     });
 
     expect(range.invoiceValue).toBe(0);
-    expect(range.lowestEmi).toBe(Math.min(preview12.emiAmount, preview18.emiAmount));
-    expect(range.highestEmi).toBe(Math.max(preview12.emiAmount, preview18.emiAmount));
-    expect(range.lowestProcessingFee).toBe(
-      Math.min(preview12.processingFee, preview18.processingFee)
-    );
-    expect(range.highestProcessingFee).toBe(
-      Math.max(preview12.processingFee, preview18.processingFee)
-    );
+    expect(range.lowestEmi).toBe(lowPreview.emiAmount);
+    expect(range.highestEmi).toBe(highPreview.emiAmount);
+    expect(range.lowestProcessingFee).toBe(lowPreview.processingFee);
+    expect(range.highestProcessingFee).toBe(highPreview.processingFee);
+    expect(range.lowestIotInclusive).toBe(2100);
+    expect(range.highestIotInclusive).toBe(2100);
   });
 
   it('builds a math breakdown from frozen values including IOT', () => {
