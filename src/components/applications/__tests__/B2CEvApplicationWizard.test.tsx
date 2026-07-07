@@ -363,6 +363,35 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('b2c-field-dealer-contact')).toHaveValue('7905835489');
   });
 
+  it('shows why Next did not advance when loan values are not frozen', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loan-calculator')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    expect(screen.getByTestId('b2c-step-advance-blocker')).toHaveTextContent(
+      /Freeze Values/i
+    );
+    expect(screen.getByTestId('loan-calculator')).toBeInTheDocument();
+  });
+
   it('shows manual co-applicant profile when PAN lookup returns no results and advances to geo photos', async () => {
     (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockImplementation(async (args) => {
       if (args.target === 'coApplicant' || args.target === 'guarantor') {

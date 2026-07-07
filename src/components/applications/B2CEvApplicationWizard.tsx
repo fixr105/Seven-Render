@@ -28,6 +28,7 @@ import {
   type SupportPersonType,
 } from '../../config/forms/b2cEvFormSchema';
 import {
+  buildStepAdvanceBlockerMessage,
   clearSupportPersonFields,
   getB2cEvFormCompletion,
   isDealerKycPopulated,
@@ -252,6 +253,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [dealerKycLoading, setDealerKycLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [stepAdvanceMessage, setStepAdvanceMessage] = useState<string | null>(null);
   const [panLookupLoading, setPanLookupLoading] = useState(false);
   const [panLookupError, setPanLookupError] = useState<string | null>(null);
   const [panLookupCountdown, setPanLookupCountdown] = useState(0);
@@ -477,9 +479,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }));
   };
 
-  const loadDealerKyc = async (formData?: Record<string, unknown>): Promise<boolean> => {
+  const loadDealerKyc = async (
+    formData?: Record<string, unknown>
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
     if (formData && isDealerKycPopulated(formData)) {
-      return true;
+      return { ok: true };
     }
 
     setDealerKycLoading(true);
@@ -495,7 +499,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
             ...kycRes.data!.formDataPatch!,
           }),
         }));
-        return true;
+        return { ok: true };
       }
 
       const message =
@@ -504,14 +508,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
       setDealerKycError(message);
       if (window.location.search.includes('b2cEv=1')) {
         applyDealerPatch(DEMO_DEALER_PATCH);
-        return true;
+        return { ok: true };
       }
-      return false;
+      return { ok: false, error: message };
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Failed to load dealer profile from Client KYC';
       setDealerKycError(message);
-      return false;
+      return { ok: false, error: message };
     } finally {
       setDealerKycLoading(false);
     }
@@ -767,6 +771,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       delete next[key];
       return next;
     });
+    setStepAdvanceMessage(null);
     scheduleAutoSave();
   };
 
@@ -838,7 +843,18 @@ export const B2CEvApplicationWizard: React.FC = () => {
   };
 
   const handleRequestDO = async () => {
-    if (!validateCurrentStep(false)) return;
+    setStepAdvanceMessage(null);
+    const stepErrors = validateB2cEvStage(currentStage, formStateRef.current.form_data, {
+      loanProductId: formStateRef.current.loan_product_id,
+      saveAsDraft: false,
+      formConfig: productFormConfig,
+    });
+    if (Object.keys(stepErrors).length > 0) {
+      setFieldErrors(stepErrors);
+      reportStepAdvanceBlocker(stepErrors);
+      return;
+    }
+    setFieldErrors({});
 
     setDoRequestLoading(true);
     try {
@@ -872,14 +888,18 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }
   };
 
-  const validateCurrentStep = (saveAsDraft = false): boolean => {
-    const errors = validateB2cEvStage(currentStage, formState.form_data, {
-      loanProductId: formState.loan_product_id,
-      saveAsDraft,
-      formConfig: productFormConfig,
-    });
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+  const reportStepAdvanceBlocker = (
+    errors: Record<string, string>,
+    options: { stageId?: string; loanValuesFrozen?: boolean; fallback?: string } = {}
+  ) => {
+    const message =
+      buildStepAdvanceBlockerMessage(errors, {
+        stageId: options.stageId ?? currentStage?.id,
+        loanValuesFrozen: options.loanValuesFrozen,
+      }) || options.fallback;
+    if (message) {
+      setStepAdvanceMessage(message);
+    }
   };
 
   const advanceStep = () => {
@@ -1061,7 +1081,20 @@ export const B2CEvApplicationWizard: React.FC = () => {
   };
 
   const goNext = async () => {
-    if (!validateCurrentStep(false)) return;
+    setStepAdvanceMessage(null);
+    const stepErrors = validateB2cEvStage(currentStage, formStateRef.current.form_data, {
+      loanProductId: formStateRef.current.loan_product_id,
+      saveAsDraft: false,
+      formConfig: productFormConfig,
+    });
+    if (Object.keys(stepErrors).length > 0) {
+      setFieldErrors(stepErrors);
+      reportStepAdvanceBlocker(stepErrors, {
+        loanValuesFrozen: formDataToFrozenValues(formStateRef.current.form_data) != null,
+      });
+      return;
+    }
+    setFieldErrors({});
 
     if (currentStage?.id === 'product') {
       const lookupOk = await runPanLookup();
@@ -1077,30 +1110,40 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
     if (currentStage?.id === 'support-person') {
       if (supportPanPhase !== 'profile') {
-        setFieldErrors({
+        const supportErrors = {
           '_meta.supportPanLookup.phase':
             'Verify PAN and complete the support person profile before continuing',
-        });
+        };
+        setFieldErrors(supportErrors);
+        reportStepAdvanceBlocker(supportErrors);
         return;
       }
     }
 
     const nextStage = visibleStages[currentStep + 1];
     if (nextStage?.id === 'borrower' && !isPanLookupProfileReady(formStateRef.current.form_data)) {
-      setFieldErrors({
+      const panErrors = {
         '_meta.panLookup.status':
           'Borrower details must be verified on the Loan Product step before continuing',
-      });
+      };
+      setFieldErrors(panErrors);
+      reportStepAdvanceBlocker(panErrors);
       return;
     }
 
     if (nextStage?.id === 'dealer') {
-      const kycOk = await loadDealerKyc(formState.form_data);
-      if (!kycOk) return;
+      const kycResult = await loadDealerKyc(formState.form_data);
+      if (!kycResult.ok) {
+        setStepAdvanceMessage(kycResult.error);
+        return;
+      }
     }
 
     const nextStepIndex = currentStep + 1;
     if (lockedStepIndices.includes(nextStepIndex)) {
+      setStepAdvanceMessage(
+        'Insurance and Vehicle unlock after you request DO on the Geo-tagged Photos step.'
+      );
       return;
     }
 
@@ -1370,6 +1413,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
               }
               return next;
             });
+            setStepAdvanceMessage(null);
             scheduleAutoSave();
           }}
         />
@@ -1616,6 +1660,17 @@ export const B2CEvApplicationWizard: React.FC = () => {
         </CardHeader>
         <CardContent>{currentStage ? renderStageBody(currentStage) : null}</CardContent>
       </Card>
+
+      {stepAdvanceMessage && (
+        <div
+          className="mb-4 flex items-start gap-2 rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error"
+          data-testid="b2c-step-advance-blocker"
+          role="alert"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <p>{stepAdvanceMessage}</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button

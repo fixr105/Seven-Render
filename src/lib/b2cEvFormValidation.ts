@@ -349,3 +349,22 @@ export function clearSupportPersonFields(
   next['_meta.supportPanLookup.phase'] = 'input';
   return next;
 }
+
+export function formatB2cEvValidationMessages(errors: Record<string, string>): string[] {
+  return Object.values(errors).filter((message) => message.trim().length > 0);
+}
+
+export function buildStepAdvanceBlockerMessage(
+  errors: Record<string, string>,
+  options: { stageId?: string; loanValuesFrozen?: boolean } = {}
+): string {
+  const messages = formatB2cEvValidationMessages(errors);
+  if (messages.length === 0) return '';
+
+  const parts: string[] = [];
+  if (options.stageId === 'loan' && options.loanValuesFrozen === false) {
+    parts.push('Click Freeze Values in the calculator before continuing.');
+  }
+  parts.push(...messages);
+  return parts.join(' ');
+}
