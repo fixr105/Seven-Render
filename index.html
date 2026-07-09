@@ -16,6 +16,24 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="/icons/app-icon.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+      (function () {
+        var reloadKey = 'seven-asset-reload';
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event.target;
+            if (!target || target.tagName !== 'SCRIPT') return;
+            var src = target.src || '';
+            if (!src.includes('/assets/')) return;
+            if (sessionStorage.getItem(reloadKey)) return;
+            sessionStorage.setItem(reloadKey, '1');
+            window.location.reload();
+          },
+          true
+        );
+      })();
+    </script>
 </head>
   <body>
     <div id="root"></div>

@@ -9,6 +9,7 @@ import './index.css';
 
 // Setup global error handlers
 setupErrorHandlers();
+sessionStorage.removeItem('seven-asset-reload');
 void registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
