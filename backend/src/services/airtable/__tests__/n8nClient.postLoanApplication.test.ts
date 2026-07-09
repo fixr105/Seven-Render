@@ -304,6 +304,25 @@ describe('n8nClient.buildLoanApplicationPayload formData fallbacks', () => {
     const formData = JSON.parse(String(payload['Form Data'])) as Record<string, unknown>;
     expect(formData._documentsFolderLink).toBe('https://drive.google.com/drive/folders/abc123');
   });
+
+  it('merges folder link into Documents when existing Documents has geo photos only', () => {
+    const payload = n8nClient.buildLoanApplicationPayload({
+      'File ID': 'SF002',
+      Client: 'CL001',
+      Status: 'draft',
+      Documents: 'withVehicle:https://cdn.example.com/vehicle.jpg|vehicle.jpg',
+      'Form Data': JSON.stringify({
+        _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+        'geoPhotos.withVehicle.url': 'https://cdn.example.com/vehicle.jpg',
+        'geoPhotos.withVehicle.fileName': 'vehicle.jpg',
+      }),
+    });
+
+    expect(payload.Documents).toContain(
+      '_documentsFolderLink:https://drive.google.com/drive/folders/abc123|Documents Folder'
+    );
+    expect(payload.Documents).toContain('withVehicle:https://cdn.example.com/vehicle.jpg|vehicle.jpg');
+  });
 });
 
 describe('n8nClient.postUserAccount strict write acknowledgement', () => {

@@ -1256,11 +1256,7 @@ export class N8nClient {
     const formDataJson = JSON.stringify(packedFormData);
     const selectValue =
       firstNonEmpty(data.Select, data.select) || resolveSelectFromFormData(packedFormData);
-    const documentsValue = firstNonEmpty(
-      data['Documents'],
-      data.documents,
-      resolveDocumentsFromFormData(packedFormData, data)
-    );
+    const documentsValue = resolveDocumentsFromFormData(packedFormData, data);
 
     const allowedPayload: Record<string, unknown> = {
       'File ID': data['File ID'] || data.fileId || '',

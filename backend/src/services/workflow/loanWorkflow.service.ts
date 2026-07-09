@@ -27,7 +27,7 @@ import {
   normalizeDynamicStatus,
 } from '../statusTracking/dynamicStatus.service.js';
 import { resolveApplicationRecordStatus } from '../../utils/loanApplicationAirtableStatus.js';
-import { readClientSubmissionId } from '../../utils/loanApplicationAirtableMapping.js';
+import { readClientSubmissionId, readFormConfigVersion } from '../../utils/loanApplicationAirtableMapping.js';
 import {
   buildPromotedApplicationRecord,
   mergeFormDataJson,
@@ -369,12 +369,30 @@ export class LoanWorkflowService {
       throw new Error('Target status is not configured in Loan Products Applicable Statuses');
     }
 
-    await n8nClient.postLoanApplication({
-      ...application,
-      Status: newStatus,
-      'Submitted Date': new Date().toISOString().split('T')[0],
-      'Last Updated': new Date().toISOString(),
-    }, {
+    const formDataFromRecord = mergeFormDataJson(application, {});
+    const promotedFields = resolveLoanApplicationPromotedFields(formDataFromRecord, application);
+    const submitPayload = buildPromotedApplicationRecord(
+      application,
+      formDataFromRecord,
+      promotedFields,
+      {
+        Status: newStatus,
+        'Submitted Date': new Date().toISOString().split('T')[0],
+        'Last Updated': new Date().toISOString(),
+      },
+      {
+        formConfigVersion:
+          options.formConfigVersion ||
+          readFormConfigVersion(application as Record<string, unknown>) ||
+          '',
+        clientSubmissionId:
+          options.clientSubmissionId ||
+          readClientSubmissionId(application as Record<string, unknown>) ||
+          '',
+      }
+    );
+
+    await n8nClient.postLoanApplication(submitPayload, {
       strictWriteAck: true,
       operationName: 'loan application submit',
     });

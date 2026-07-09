@@ -136,6 +136,49 @@ describe('LoanWorkflowService durability', () => {
     expect(storedFormData.pan).toBe('ABCDE1234F');
   });
 
+  it('posts Google Drive folder link in Documents when upserting a draft', async () => {
+    mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
+    mockN8nClient.fetchTable.mockResolvedValue([
+      {
+        id: 'rec-folder',
+        Client: 'CLIENT001',
+        'File ID': 'SFFOLDER1',
+        Status: LoanStatus.DRAFT,
+        'Client Submission ID': 'submit-folder',
+        Documents: 'withVehicle:https://cdn.example.com/v.jpg|v.jpg',
+        'Form Data': JSON.stringify({
+          'geoPhotos.withVehicle.url': 'https://cdn.example.com/v.jpg',
+          'geoPhotos.withVehicle.fileName': 'v.jpg',
+        }),
+      },
+    ] as never);
+
+    await service.createLoanApplication(clientUser as any, {
+      clientId: 'CLIENT001',
+      productId: 'LP001',
+      applicantName: 'Folder Test',
+      saveAsDraft: true,
+      clientSubmissionId: 'submit-folder',
+      formData: {
+        _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+        'geoPhotos.withVehicle.url': 'https://cdn.example.com/v.jpg',
+        'geoPhotos.withVehicle.fileName': 'v.jpg',
+      },
+    });
+
+    expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Documents: expect.stringContaining(
+          '_documentsFolderLink:https://drive.google.com/drive/folders/abc123|Documents Folder'
+        ),
+      }),
+      expect.any(Object)
+    );
+    const posted = mockN8nClient.postLoanApplication.mock.calls[0][0];
+    const storedFormData = JSON.parse(posted['Form Data']);
+    expect(storedFormData._documentsFolderLink).toBe('https://drive.google.com/drive/folders/abc123');
+  });
+
   it('verifies persisted status for draft submission', async () => {
     mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
     mockN8nClient.fetchTable.mockResolvedValue([
@@ -170,6 +213,46 @@ describe('LoanWorkflowService durability', () => {
         strictWriteAck: true,
         operationName: 'loan application submit',
       })
+    );
+  });
+
+  it('includes folder link in Documents when submitting an application', async () => {
+    mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
+    mockN8nClient.fetchTable.mockResolvedValue([
+      {
+        id: 'rec-submit-folder',
+        'File ID': 'SFSUBMIT1',
+        Status: LoanStatus.UNDER_KAM_REVIEW,
+        'Client Submission ID': 'submit-folder-final',
+      },
+    ] as never);
+
+    await service.submitExistingLoanApplication(
+      clientUser as any,
+      {
+        id: 'rec-submit-folder',
+        'File ID': 'SFSUBMIT1',
+        Status: LoanStatus.DRAFT,
+        Documents: 'withVehicle:https://cdn.example.com/v.jpg|v.jpg',
+        'Form Data': JSON.stringify({
+          _documentsFolderLink: 'https://drive.google.com/drive/folders/submit123',
+          'geoPhotos.withVehicle.url': 'https://cdn.example.com/v.jpg',
+          'geoPhotos.withVehicle.fileName': 'v.jpg',
+        }),
+      },
+      {
+        clientSubmissionId: 'submit-folder-final',
+        formConfigVersion: 'v1',
+      }
+    );
+
+    expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Documents: expect.stringContaining(
+          '_documentsFolderLink:https://drive.google.com/drive/folders/submit123|Documents Folder'
+        ),
+      }),
+      expect.any(Object)
     );
   });
 
