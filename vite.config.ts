@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { demoVideos } from './vite-plugin-demo-videos';
+import { serviceWorkerCacheVersion } from './vite-plugin-service-worker';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), demoVideos()],
+  plugins: [react(), demoVideos(), serviceWorkerCacheVersion()],
   server: {
     port: 3000,
     host: '0.0.0.0', // Listen on all interfaces
