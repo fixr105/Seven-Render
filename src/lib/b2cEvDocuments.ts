@@ -80,6 +80,88 @@ export function isFileFieldSatisfied(value: unknown): boolean {
   return isFileOptionValue(value);
 }
 
+export function isFileAddedToFolder(value: unknown): boolean {
+  if (value == null) return false;
+  const normalized = readString(value);
+  return (
+    normalized === 'Yes, Added to Folder' ||
+    normalized === 'added_to_link' ||
+    normalized === 'yes_added_to_folder'
+  );
+}
+
+export interface RequiredDocumentReadiness {
+  requiredCount: number;
+  addedToFolderCount: number;
+  pendingLabels: string[];
+}
+
+export function getRequiredDocumentReadiness(
+  formData: Record<string, unknown>,
+  formConfig: FormConfigCategory[]
+): RequiredDocumentReadiness {
+  const pendingLabels: string[] = [];
+  let requiredCount = 0;
+  let addedToFolderCount = 0;
+
+  for (const category of getDocumentCategories(formConfig)) {
+    const categoryName =
+      category.categoryName || category['Category Name'] || category.categoryId || B2C_EV_DOCUMENTS_CATEGORY;
+
+    for (const field of category.fields || []) {
+      const fieldId = field.fieldId || field.id || field['Field ID'] || '';
+      const fieldLabel = field.label || field.fieldLabel || field['Field Label'] || fieldId;
+      const fieldType = field.type || field.fieldType || field['Field Type'] || '';
+      if (fieldType !== 'file' || !isFileFieldRequired(field)) continue;
+
+      requiredCount += 1;
+      const displayKey = getDocumentDisplayKey(fieldLabel, categoryName);
+      const value = formData[displayKey] ?? formData[fieldId];
+      if (isFileAddedToFolder(value)) {
+        addedToFolderCount += 1;
+      } else {
+        pendingLabels.push(fieldLabel);
+      }
+    }
+  }
+
+  return { requiredCount, addedToFolderCount, pendingLabels };
+}
+
+export function validateB2cEvDocumentsReadyForDo(
+  formData: Record<string, unknown>,
+  formConfig: FormConfigCategory[]
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const folderLink = readString(formData._documentsFolderLink);
+
+  if (!isValidDocumentsFolderLink(folderLink)) {
+    errors._documentsFolderLink = 'Please generate or provide a valid document folder link';
+  } else if (!isFolderLinkAccessConfirmed(formData)) {
+    errors._documentsFolderLink = 'Copy or open the folder link before continuing';
+  }
+
+  for (const category of getDocumentCategories(formConfig)) {
+    const categoryName =
+      category.categoryName || category['Category Name'] || category.categoryId || B2C_EV_DOCUMENTS_CATEGORY;
+
+    for (const field of category.fields || []) {
+      const fieldId = field.fieldId || field.id || field['Field ID'] || '';
+      const fieldLabel = field.label || field.fieldLabel || field['Field Label'] || fieldId;
+      const fieldType = field.type || field.fieldType || field['Field Type'] || '';
+      if (fieldType !== 'file') continue;
+
+      const displayKey = getDocumentDisplayKey(fieldLabel, categoryName);
+      const value = formData[displayKey] ?? formData[fieldId];
+      if (isFileFieldRequired(field) && !isFileAddedToFolder(value)) {
+        errors[displayKey] = `${fieldLabel} must be marked as added to folder`;
+      }
+    }
+  }
+
+  return errors;
+}
+
 export function toStoredFileOptionValue(value: string): string {
   if (value === 'yes_added_to_folder') return 'Yes, Added to Folder';
   if (value === 'awaiting_will_update') return 'Awaiting, Will Update Folder';

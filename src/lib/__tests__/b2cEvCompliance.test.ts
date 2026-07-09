@@ -4,6 +4,7 @@ import {
   COMPLIANCE_ITEMS,
   isComplianceChecked,
   isComplianceItemRequested,
+  areAllComplianceItemsApproved,
   validateComplianceForSubmit,
 } from '../b2cEvCompliance';
 
@@ -31,6 +32,17 @@ describe('b2cEvCompliance', () => {
     };
     expect(isComplianceItemRequested(formData, 'vkyc')).toBe(true);
     expect(isComplianceItemRequested(formData, 'enach')).toBe(false);
+  });
+
+  it('requires all three compliance items to be approved for DO gating', () => {
+    expect(areAllComplianceItemsApproved({})).toBe(false);
+    expect(
+      areAllComplianceItemsApproved({
+        'compliance.vkycDone': true,
+        'compliance.loanAgreementSigned': 'true',
+        'compliance.enachDone': true,
+      })
+    ).toBe(true);
   });
 
   it('builds structured KAM request messages', () => {

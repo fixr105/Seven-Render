@@ -74,6 +74,17 @@ const fillStageOne = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(screen.getByTestId('b2c-field-_meta-panLookup-fullName'), 'RAHUL YADAV');
 };
 
+const fillAndFreezeLoanStage = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.type(screen.getByTestId('loan-calc-vehicle-price'), '100000');
+  await user.selectOptions(screen.getByTestId('loan-calc-gst-rate'), '0.05');
+  await user.type(screen.getByTestId('loan-calc-insurance'), '2000');
+  await user.type(screen.getByTestId('loan-calc-registration'), '1000');
+  await user.type(screen.getByTestId('loan-calc-accessories'), '1000');
+  await user.type(screen.getByTestId('loan-calc-customer-payment'), '20000');
+  await user.selectOptions(screen.getByTestId('loan-calc-tenure'), '18');
+  await user.click(screen.getByTestId('loan-calc-freeze'));
+};
+
 describe('B2CEvApplicationWizard submit gating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -350,9 +361,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
-    await user.type(screen.getByTestId('loan-calc-downpayment'), '15000');
-    await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
-    await user.click(screen.getByTestId('loan-calc-freeze'));
+    await fillAndFreezeLoanStage(user);
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
@@ -459,9 +468,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
-    await user.type(screen.getByTestId('loan-calc-downpayment'), '15000');
-    await user.type(screen.getByTestId('loan-calc-disbursement'), '50000');
-    await user.click(screen.getByTestId('loan-calc-freeze'));
+    await fillAndFreezeLoanStage(user);
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
@@ -745,6 +752,9 @@ describe('B2CEvApplicationWizard submit gating', () => {
       'geoPhotos.atResidence.fileName': 'at-residence.jpg',
       'geoPhotos.atResidence.latitude': '21.17',
       'geoPhotos.atResidence.longitude': '72.83',
+      'compliance.vkycDone': 'true',
+      'compliance.loanAgreementSigned': 'true',
+      'compliance.enachDone': 'true',
     };
 
     mockUseSearchParams.mockReturnValue([
@@ -795,6 +805,40 @@ describe('B2CEvApplicationWizard submit gating', () => {
           '_meta.doRequest.queryId': 'QUERY-DO-1',
         })
       );
+      expect(screen.getByTestId('b2c-step-advance-blocker')).toHaveTextContent(
+        /Insurance and Vehicle will unlock after the DO is processed/i
+      );
     });
+  });
+
+  it('keeps insurance and vehicle locked until KAM fulfills DO', async () => {
+    const completeFormData = {
+      ...createInitialB2cEvFormData(),
+      '_meta.doRequest.requestedAt': '2026-01-01T00:00:00.000Z',
+    };
+
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('draftId=draft-locked&b2cEv=1'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-locked',
+        status: 'draft',
+        applicantName: 'RAHUL GONSALVES',
+        loanProduct: 'LP001',
+        formData: completeFormData,
+      },
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-stepper-step-insurance')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('b2c-stepper-step-insurance')).toBeDisabled();
   });
 });

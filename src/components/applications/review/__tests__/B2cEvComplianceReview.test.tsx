@@ -17,6 +17,7 @@ describe('B2cEvComplianceReview', () => {
     expect(screen.getByTestId('b2c-compliance-review')).toBeInTheDocument();
     expect(screen.getByTestId('compliance-review-vkyc')).toBeInTheDocument();
     expect(screen.getByTestId('b2c-do-request-review')).toBeInTheDocument();
+    expect(screen.getByTestId('b2c-document-readiness-review')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /mark do processed/i })).not.toBeInTheDocument();
   });

@@ -7,6 +7,14 @@ export function isDoRequested(formData: Record<string, unknown>): boolean {
   return Boolean(readString(formData['_meta.doRequest.requestedAt']));
 }
 
+export function isDoFulfilled(formData: Record<string, unknown>): boolean {
+  return Boolean(readString(formData['_meta.doRequest.fulfilledAt']));
+}
+
+export function arePostDoStagesUnlocked(formData: Record<string, unknown>): boolean {
+  return isDoFulfilled(formData);
+}
+
 export function buildDoRequestMessage(context: {
   applicantName?: string;
   applicationId?: string;

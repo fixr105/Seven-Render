@@ -76,9 +76,11 @@ import {
 } from '../../lib/b2cEvCompliance';
 import {
   buildDoRequestMessage,
+  isDoFulfilled,
   isDoRequested,
   POST_DO_LOCKED_STAGE_IDS,
 } from '../../lib/b2cEvDoRequest';
+import { getDoRequestBlockers, getDoRequestReadiness } from '../../lib/b2cEvDoRequestGate';
 import {
   formDataToFrozenValues,
   frozenValuesToFormDataPatch,
@@ -403,9 +405,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
   );
 
   const doRequested = isDoRequested(formState.form_data);
+  const doFulfilled = isDoFulfilled(formState.form_data);
+  const doRequestReadiness = useMemo(
+    () => getDoRequestReadiness(formState.form_data, productFormConfig),
+    [formState.form_data, productFormConfig]
+  );
 
   const lockedStepIndices = useMemo(() => {
-    if (doRequested) return [];
+    if (doFulfilled) return [];
     return visibleStages
       .map((stage, index) =>
         POST_DO_LOCKED_STAGE_IDS.includes(stage.id as (typeof POST_DO_LOCKED_STAGE_IDS)[number])
@@ -413,7 +420,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
           : null
       )
       .filter((index): index is number => index !== null);
-  }, [visibleStages, doRequested]);
+  }, [visibleStages, doFulfilled]);
 
   const isGeoPhotosStage = currentStage?.id === 'geo-photos';
 
@@ -802,9 +809,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
     scheduleAutoSave(options?.debounceMs ?? FIELD_AUTO_SAVE_DEBOUNCE_MS);
   };
 
-  const handleComplianceCheckboxChange = (key: string, checked: boolean) => {
-    updateFields({ [key]: checked ? 'true' : 'false' });
-  };
 
   const handleRequestFromKam = async (itemId: ComplianceItemId) => {
     const item = COMPLIANCE_ITEMS.find((entry) => entry.id === itemId);
@@ -844,7 +848,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   const handleRequestDO = async () => {
     setStepAdvanceMessage(null);
-    const stepErrors = validateB2cEvStage(currentStage, formStateRef.current.form_data, {
+    const currentFormData = formStateRef.current.form_data;
+    const blockers = getDoRequestBlockers(currentFormData, productFormConfig);
+    if (blockers.length > 0) {
+      setStepAdvanceMessage(blockers.join('. '));
+      return;
+    }
+
+    const stepErrors = validateB2cEvStage(currentStage, currentFormData, {
       loanProductId: formStateRef.current.loan_product_id,
       saveAsDraft: false,
       formConfig: productFormConfig,
@@ -878,7 +889,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
       }
       await persistDraft(patch);
       updateFields(patch);
-      advanceStep();
+      setStepAdvanceMessage(
+        'DO request sent to your KAM. Insurance and Vehicle will unlock after the DO is processed.'
+      );
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Failed to send DO request to KAM';
@@ -1142,7 +1155,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     const nextStepIndex = currentStep + 1;
     if (lockedStepIndices.includes(nextStepIndex)) {
       setStepAdvanceMessage(
-        'Insurance and Vehicle unlock after you request DO on the Geo-tagged Photos step.'
+        'Insurance and Vehicle unlock after your KAM processes the DO request on the Geo-tagged Photos step.'
       );
       return;
     }
@@ -1478,7 +1491,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
             await persistDraft(patch, { silent: true });
           }}
           requestingComplianceItemId={kamRequestLoadingId}
-          onComplianceCheckboxChange={handleComplianceCheckboxChange}
           onRequestFromKam={(itemId) => void handleRequestFromKam(itemId)}
           loanApplicationId={editingDraftId}
           ensureDraftSaved={ensureDraftSaved}
@@ -1621,7 +1633,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 ) {
                   return;
                 }
-                if (geoPhotosStepIndex >= 0 && index > geoPhotosStepIndex && !doRequested) {
+                if (geoPhotosStepIndex >= 0 && index > geoPhotosStepIndex && !doFulfilled) {
                   return;
                 }
               }
@@ -1720,12 +1732,17 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 loading ||
                 doRequestLoading ||
                 panLookupLoading ||
-                supportPanLookupLoading
+                supportPanLookupLoading ||
+                !doRequestReadiness.canRequestDo
               }
               data-testid="b2c-wizard-request-do"
               className="min-h-[52px] min-w-[12rem] px-8 text-base font-bold shadow-md"
             >
-              {doRequestLoading ? 'Requesting DO…' : 'Request DO'}
+              {doRequestLoading
+                ? 'Requesting DO…'
+                : doRequested
+                  ? 'DO requested'
+                  : 'Request DO'}
             </Button>
           ) : (
             <Button

@@ -64,6 +64,20 @@ export function buildComplianceKamRequestMessage(
   return `Please complete ${item.requestLabel} for ${applicant}${applicationRef}.`;
 }
 
+export function areAllComplianceItemsApproved(formData: Record<string, unknown>): boolean {
+  return COMPLIANCE_ITEMS.every((item) => isComplianceChecked(formData, item.checkboxKey));
+}
+
+export function getApprovedComplianceCount(formData: Record<string, unknown>): number {
+  return COMPLIANCE_ITEMS.filter((item) => isComplianceChecked(formData, item.checkboxKey)).length;
+}
+
+export function getPendingComplianceLabels(formData: Record<string, unknown>): string[] {
+  return COMPLIANCE_ITEMS.filter((item) => !isComplianceChecked(formData, item.checkboxKey)).map(
+    (item) => item.label
+  );
+}
+
 export function validateComplianceForSubmit(
   formData: Record<string, unknown>
 ): Record<string, string> {

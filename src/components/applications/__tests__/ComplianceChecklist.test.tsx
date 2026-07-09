@@ -11,7 +11,6 @@ describe('ComplianceChecklist', () => {
         formData={createInitialB2cEvFormData()}
         fieldErrors={{}}
         requestingItemId={null}
-        onCheckboxChange={vi.fn()}
         onRequestFromKam={vi.fn()}
       />
     );
@@ -40,6 +39,19 @@ describe('ComplianceChecklist', () => {
     expect(onRequestFromKam).toHaveBeenCalledWith('enach');
   });
 
+  it('renders compliance checkboxes as read-only', () => {
+    render(
+      <ComplianceChecklist
+        formData={createInitialB2cEvFormData()}
+        fieldErrors={{}}
+        requestingItemId={null}
+        onRequestFromKam={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('compliance-checkbox-vkyc')).toBeDisabled();
+  });
+
   it('disables loan agreement request button when checkbox is checked', () => {
     render(
       <ComplianceChecklist
@@ -49,7 +61,6 @@ describe('ComplianceChecklist', () => {
         }}
         fieldErrors={{}}
         requestingItemId={null}
-        onCheckboxChange={vi.fn()}
         onRequestFromKam={vi.fn()}
       />
     );
@@ -67,7 +78,6 @@ describe('ComplianceChecklist', () => {
         }}
         fieldErrors={{}}
         requestingItemId={null}
-        onCheckboxChange={vi.fn()}
         onRequestFromKam={vi.fn()}
       />
     );

@@ -22,6 +22,7 @@ describe('b2cEvQueryFulfillment.service', () => {
   it('builds compliance and DO fulfillment patches', () => {
     const compliancePatch = buildB2cFulfillmentPatch('compliance_fulfill', 'vkyc');
     expect(compliancePatch['compliance.vkycDone']).toBe('true');
+    expect(compliancePatch['_meta.kamRequests.vkyc.requestedAt']).toBe('');
 
     const doPatch = buildB2cFulfillmentPatch('do_fulfill');
     expect(doPatch['_meta.doRequest.fulfilledAt']).toBeTruthy();

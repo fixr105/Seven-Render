@@ -17,7 +17,6 @@ export interface ComplianceChecklistProps {
   formData: Record<string, unknown>;
   fieldErrors: Record<string, string>;
   requestingItemId: ComplianceItemId | null;
-  onCheckboxChange: (key: string, checked: boolean) => void;
   onRequestFromKam: (itemId: ComplianceItemId) => void;
 }
 
@@ -25,7 +24,6 @@ export const ComplianceChecklist: React.FC<ComplianceChecklistProps> = ({
   formData,
   fieldErrors,
   requestingItemId,
-  onCheckboxChange,
   onRequestFromKam,
 }) => {
   return (
@@ -33,7 +31,7 @@ export const ComplianceChecklist: React.FC<ComplianceChecklistProps> = ({
       <div>
         <h3 className="text-sm font-semibold text-neutral-900">Compliance checklist</h3>
         <p className="mt-1 text-sm text-neutral-600">
-          Confirm each item when complete, or request assistance from your KAM.
+          KAM confirms each item after you request assistance. You cannot check these off yourself.
         </p>
       </div>
 
@@ -51,13 +49,14 @@ export const ComplianceChecklist: React.FC<ComplianceChecklistProps> = ({
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 p-4"
               data-testid={`compliance-item-${item.id}`}
             >
-              <label className="flex min-w-[12rem] flex-1 cursor-pointer items-center gap-3">
+              <label className="flex min-w-[12rem] flex-1 items-center gap-3">
                 <input
                   type="checkbox"
                   checked={checked}
-                  onChange={(event) => onCheckboxChange(item.checkboxKey, event.target.checked)}
+                  readOnly
+                  disabled
                   data-testid={`compliance-checkbox-${item.id}`}
-                  className="h-4 w-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary"
+                  className="h-4 w-4 rounded border-neutral-300 text-brand-primary"
                 />
                 <span className="text-sm font-medium text-neutral-900">{item.label}</span>
               </label>

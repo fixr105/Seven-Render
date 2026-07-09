@@ -7,6 +7,7 @@ import {
   type B2cEvGeoPhotoSlot,
 } from '../../lib/b2cEvGeoPhotos';
 import { ComplianceChecklist } from './ComplianceChecklist';
+import { DoRequestReadinessPanel } from './DoRequestReadinessPanel';
 import { B2cEvDocumentsSection } from './B2cEvDocumentsSection';
 import type { ComplianceItemId } from '../../lib/b2cEvCompliance';
 import type { FormConfigCategory } from '../../lib/b2cEvDocuments';
@@ -25,7 +26,6 @@ export interface GeoTaggedPhotoUploadsProps {
   /** Persist geo photo URLs to Airtable immediately after upload (Form Data + Documents). */
   onGeoPhotoPersist?: (patch: Record<string, string>) => Promise<void>;
   requestingComplianceItemId: ComplianceItemId | null;
-  onComplianceCheckboxChange: (key: string, checked: boolean) => void;
   onRequestFromKam: (itemId: ComplianceItemId) => void;
   loanApplicationId?: string | null;
   ensureDraftSaved?: () => Promise<string>;
@@ -42,7 +42,6 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
   onBatchChange,
   onGeoPhotoPersist,
   requestingComplianceItemId,
-  onComplianceCheckboxChange,
   onRequestFromKam,
   loanApplicationId,
   ensureDraftSaved,
@@ -227,7 +226,6 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
         formData={formData}
         fieldErrors={fieldErrors}
         requestingItemId={requestingComplianceItemId}
-        onCheckboxChange={onComplianceCheckboxChange}
         onRequestFromKam={onRequestFromKam}
       />
 
@@ -240,6 +238,8 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
         onFolderLinkConsumed={onFolderLinkConsumed}
         formConfigLoading={formConfigLoading}
       />
+
+      <DoRequestReadinessPanel formData={formData} formConfig={formConfig} />
     </div>
   );
 };

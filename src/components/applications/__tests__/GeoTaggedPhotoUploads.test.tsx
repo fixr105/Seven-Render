@@ -25,7 +25,6 @@ describe('GeoTaggedPhotoUploads', () => {
     fieldErrors: {},
     onBatchChange: vi.fn(),
     requestingComplianceItemId: null as const,
-    onComplianceCheckboxChange: vi.fn(),
     onRequestFromKam: vi.fn(),
     usedWebhookLinks: new Set<string>(),
     onDocumentFieldChange: vi.fn(),

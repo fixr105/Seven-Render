@@ -213,7 +213,7 @@ export function buildB2cFulfillmentPatch(
   const config = COMPLIANCE_CONFIG[itemId];
 
   if (action === 'compliance_fulfill') {
-    return { [config.checkboxKey]: 'true' };
+    return { [config.checkboxKey]: 'true', [config.requestedAtKey]: '' };
   }
 
   if (action === 'compliance_unmark') {
