@@ -68,10 +68,8 @@ export function syncB2cEvComputedFields(formData: Record<string, unknown>): Reco
 
   const loanAmount = Number(String(next['loan.amount'] ?? '').replace(/,/g, '')) || 0;
   const processingFee = Number(String(next['loan.processingFee'] ?? '').replace(/,/g, '')) || 0;
-  const gpsCharges = Number(String(next['loan.gpsCharges'] ?? '').replace(/,/g, '')) || 0;
   if (loanAmount > 0) {
-    next['loan.processingFeePercent'] = ((processingFee / loanAmount) * 100).toFixed(2);
-    next['loan.disbursalAmount'] = String(Math.max(loanAmount - processingFee - gpsCharges, 0));
+    next['loan.disbursalAmount'] = String(Math.max(loanAmount - processingFee, 0));
   }
 
   return next;
@@ -171,6 +169,30 @@ export function validateB2cEvStage(
     const errors = validateGeoPhotosStage(formData);
     if (options.formConfig && options.formConfig.length > 0) {
       Object.assign(errors, validateB2cEvDocumentsStage(formData, options.formConfig));
+    }
+    return errors;
+  }
+
+  if (stage.id === 'loan') {
+    const requiredLoanFields: Array<[string, string]> = [
+      ['loan.vehiclePrice', 'Vehicle price'],
+      ['loan.gstRate', 'GST rate'],
+      ['loan.insurance', 'Insurance'],
+      ['loan.registration', 'Registration'],
+      ['loan.accessories', 'Accessories'],
+      ['loan.calculator.customerPayment', 'Payment from customer'],
+      ['loan.amount', 'Loan amount'],
+      ['loan.processingFee', 'Processing fee'],
+      ['loan.tenureMonths', 'Tenure'],
+    ];
+    for (const [key, label] of requiredLoanFields) {
+      if (isEmptyValue(readValue(formData, key))) {
+        errors[key] = `${label} is required`;
+      }
+    }
+    const gstRate = readValue(formData, 'loan.gstRate');
+    if (gstRate && gstRate !== '0.05' && gstRate !== '0.18') {
+      errors['loan.gstRate'] = 'GST rate must be 5% or 18%';
     }
     return errors;
   }

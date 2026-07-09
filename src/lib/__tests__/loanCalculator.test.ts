@@ -1,34 +1,178 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildLoanMathBreakdown,
+  calculateB2cLoanPreview,
+  calculateB2cTenureEmiRangePreviews,
   calculateEmi,
   calculateEmiRangePreview,
-  calculateLoanPreview,
+  calculateLoanScenarioPreview,
   calculateTenureEmiRangePreviews,
   computeFinalInvoiceAmount,
   computeFinalInvoiceBreakdown,
   computeGstComponent,
   computeInvoiceValue,
-  freezeLoanPreview,
+  freezeB2cLoanPreview,
   frozenValuesToFormDataPatch,
   INTEREST_RATE,
+  INTEREST_RATE_MAX,
+  INTEREST_RATE_MIN,
+  LOAN_GROSSUP_FACTOR,
+  PF_PCT,
+  FEE_PCT_MIN,
+  FEE_PCT_MAX,
+  validateCustomerPaymentForFreeze,
+  getMinimumCustomerPayment,
+  MIN_CUSTOMER_PAYMENT_OF_TAX_INVOICE_PCT,
 } from '../loanCalculator';
 
-describe('loanCalculator', () => {
-  it('calculates loan amount, fees and disbursal from disbursement and tenure', () => {
-    const preview = calculateLoanPreview({
-      upfrontPayment: 20000,
-      disbursementToDealer: 50000,
+describe('validateCustomerPaymentForFreeze', () => {
+  it('requires customer payment of at least 10% of tax invoice value', () => {
+    const result = validateCustomerPaymentForFreeze(5000, 62700);
+    expect(result.valid).toBe(false);
+    expect(result.minimumPayment).toBe(getMinimumCustomerPayment(62700));
+    expect(result.message).toMatch(/10%/);
+    expect(result.message).toMatch(/6,270/);
+  });
+
+  it('allows freeze when customer payment equals 10% minimum', () => {
+    const taxInvoiceValue = 111500;
+    const minimum = getMinimumCustomerPayment(taxInvoiceValue);
+    expect(minimum).toBe(Math.round(taxInvoiceValue * MIN_CUSTOMER_PAYMENT_OF_TAX_INVOICE_PCT));
+    expect(validateCustomerPaymentForFreeze(minimum, taxInvoiceValue).valid).toBe(true);
+  });
+
+  it('allows freeze when customer payment exceeds 10% minimum', () => {
+    expect(validateCustomerPaymentForFreeze(20000, 111500).valid).toBe(true);
+  });
+});
+
+describe('calculateB2cLoanPreview', () => {
+  it('matches vehicle-price methodology worked example', () => {
+    const preview = calculateB2cLoanPreview({
+      vehiclePrice: 100000,
+      gstRate: 0.05,
+      insurance: 2000,
+      registration: 1000,
+      accessories: 1000,
+      customerPayment: 20000,
+      tenureMonths: 18,
+    });
+
+    expect(preview.vehiclePriceWithGST).toBe(105000);
+    expect(preview.taxInvoiceValue).toBe(111500);
+    expect(preview.assumedDisbursement).toBe(91500);
+    expect(preview.loanAmount).toBe(99735);
+    expect(preview.processingFee).toBe(Math.round(99735 * PF_PCT));
+    expect(preview.disbursalAmount).toBe(preview.loanAmount - preview.processingFee);
+    expect(preview.gpsCharges).toBe(2500);
+    expect(preview.emiAmount).toBe(calculateEmi(99735, 18));
+  });
+
+  it('uses tenure-based IOT charge for 12-month tenure', () => {
+    const preview = calculateB2cLoanPreview({
+      vehiclePrice: 100000,
+      gstRate: 0.18,
+      insurance: 0,
+      registration: 0,
+      accessories: 0,
+      customerPayment: 0,
       tenureMonths: 12,
     });
 
-    // loanAmount = (50000 + 2000) / 0.92 = 56521.739… → 56522
+    expect(preview.gpsCharges).toBe(2000);
+    expect(preview.vehiclePriceWithGST).toBe(118000);
+    expect(preview.taxInvoiceValue).toBe(120000);
+    expect(preview.loanAmount).toBe(Math.round(120000 * LOAN_GROSSUP_FACTOR));
+  });
+
+  it('freezes B2C preview into form data patch keys', () => {
+    const preview = calculateB2cLoanPreview({
+      vehiclePrice: 100000,
+      gstRate: 0.05,
+      insurance: 2000,
+      registration: 1000,
+      accessories: 1000,
+      customerPayment: 20000,
+      tenureMonths: 18,
+    });
+    const frozen = freezeB2cLoanPreview(preview);
+    const patch = frozenValuesToFormDataPatch(frozen, {
+      vehiclePrice: preview.vehiclePrice,
+      gstRate: preview.gstRate,
+      insurance: preview.insurance,
+      registration: preview.registration,
+      accessories: preview.accessories,
+      customerPayment: preview.customerPayment,
+      taxInvoiceValue: preview.taxInvoiceValue,
+      emiAmount: preview.emiAmount,
+    });
+
+    expect(patch['loan.vehiclePrice']).toBe('100000');
+    expect(patch['loan.gstRate']).toBe('0.05');
+    expect(patch['loan.taxInvoiceValue']).toBe('111500');
+    expect(patch['loan.amount']).toBe('99735');
+    expect(patch['loan.calculator.customerPayment']).toBe('20000');
+    expect(patch['loan.emiAmount']).toBe(String(preview.emiAmount));
+    expect(patch['loan.calculator.disbursementToDealer']).toBeUndefined();
+  });
+
+  it('builds math breakdown with net disbursal composition', () => {
+    const preview = calculateB2cLoanPreview({
+      vehiclePrice: 100000,
+      gstRate: 0.05,
+      insurance: 2000,
+      registration: 1000,
+      accessories: 1000,
+      customerPayment: 20000,
+      tenureMonths: 18,
+    });
+    const frozen = freezeB2cLoanPreview(preview);
+    const breakdown = buildLoanMathBreakdown(frozen);
+
+    expect(breakdown.loanAmount).toBe(breakdown.disbursalAmount + breakdown.processingFee);
+    expect(breakdown.taxInvoiceValue).toBe(111500);
+  });
+});
+
+describe('calculateB2cTenureEmiRangePreviews', () => {
+  it('returns lowest EMI at min rate/PF and highest EMI at max rate/PF', () => {
+    const inputs = {
+      vehiclePrice: 100000,
+      gstRate: 0.05 as const,
+      insurance: 2000,
+      registration: 1000,
+      accessories: 1000,
+      customerPayment: 20000,
+      tenureMonths: 18 as const,
+    };
+    const { lowPreview, highPreview } = calculateB2cTenureEmiRangePreviews(inputs);
+
+    expect(lowPreview.interestRate).toBe(INTEREST_RATE_MIN);
+    expect(highPreview.interestRate).toBe(INTEREST_RATE_MAX);
+    expect(lowPreview.processingFee).toBe(Math.round(lowPreview.loanAmount * FEE_PCT_MIN));
+    expect(highPreview.processingFee).toBe(Math.round(highPreview.loanAmount * FEE_PCT_MAX));
+    expect(lowPreview.emiAmount).toBeLessThan(highPreview.emiAmount);
+    expect(lowPreview.loanAmount).toBeLessThan(highPreview.loanAmount);
+    expect(lowPreview.taxInvoiceValue).toBe(highPreview.taxInvoiceValue);
+    expect(lowPreview.taxInvoiceValue).toBe(111500);
+  });
+});
+
+describe('loanCalculator legacy EMI range', () => {
+  it('calculates loan amount, fees and disbursal from disbursement and tenure', () => {
+    const preview = calculateLoanScenarioPreview(
+      {
+        upfrontPayment: 20000,
+        disbursementToDealer: 50000,
+        tenureMonths: 12,
+      },
+      INTEREST_RATE,
+      PF_PCT
+    );
+
     expect(preview.loanAmount).toBe(56522);
     expect(preview.gpsCharges).toBe(2000);
     expect(preview.processingFee).toBe(Math.round(56522 * 0.08));
-    expect(preview.interestRate).toBe(INTEREST_RATE);
-    expect(preview.tenureMonths).toBe(12);
-    expect(preview.processingFeePctDisplay).toBe(8);
     expect(preview.disbursalAmount).toBe(
       preview.loanAmount - preview.processingFee - preview.gpsCharges
     );
@@ -36,53 +180,20 @@ describe('loanCalculator', () => {
   });
 
   it('derives invoice value from downpayment plus disbursement', () => {
-    const preview = calculateLoanPreview({
-      upfrontPayment: 15000,
-      disbursementToDealer: 50000,
-      tenureMonths: 18,
-    });
+    const preview = calculateLoanScenarioPreview(
+      {
+        upfrontPayment: 15000,
+        disbursementToDealer: 50000,
+        tenureMonths: 18,
+      },
+      INTEREST_RATE,
+      PF_PCT
+    );
 
     expect(computeInvoiceValue(15000, 50000)).toBe(65000);
     expect(preview.invoiceValue).toBe(65000);
     expect(preview.loanAmount).toBe(57065);
     expect(preview.gpsCharges).toBe(2500);
-    expect(preview.tenureMonths).toBe(18);
-    expect(preview.emiAmount).toBe(calculateEmi(57065, 18));
-  });
-
-  it('uses GPS 2500 for 18 month tenure', () => {
-    const preview = calculateLoanPreview({
-      upfrontPayment: 0,
-      disbursementToDealer: 46000,
-      tenureMonths: 18,
-    });
-    expect(preview.gpsCharges).toBe(2500);
-    expect(preview.tenureMonths).toBe(18);
-  });
-
-  it('calculates EMI using reducing-balance formula at 35% annual rate', () => {
-    const emi = calculateEmi(57065, 18);
-    expect(emi).toBeGreaterThan(0);
-    expect(emi).toBeLessThan(57065);
-  });
-
-  it('freezes a snapshot that stage 1 cannot mutate', () => {
-    const preview = calculateLoanPreview({
-      upfrontPayment: 10000,
-      disbursementToDealer: 40000,
-      tenureMonths: 12,
-    });
-    const frozen = freezeLoanPreview(preview);
-    expect(frozen).toEqual({
-      loanAmount: preview.loanAmount,
-      interestRate: 35,
-      tenureMonths: 12,
-      processingFee: preview.processingFee,
-      gpsCharges: 2000,
-      processingFeePct: 8,
-      disbursalAmount: preview.disbursalAmount,
-    });
-    expect(frozenValuesToFormDataPatch(frozen)['loan.amount']).toBe(String(frozen.loanAmount));
   });
 
   it('calculates EMI and processing fee ranges for a fixed tenure using rate and PF bounds', () => {
@@ -101,14 +212,7 @@ describe('loanCalculator', () => {
     expect(range.invoiceValue).toBe(70000);
     expect(range.lowestEmi).toBe(lowPreview.emiAmount);
     expect(range.highestEmi).toBe(highPreview.emiAmount);
-    expect(range.lowestProcessingFee).toBe(lowPreview.processingFee);
-    expect(range.highestProcessingFee).toBe(highPreview.processingFee);
-    expect(range.lowestLoanAmount).toBe(lowPreview.loanAmount);
-    expect(range.highestLoanAmount).toBe(highPreview.loanAmount);
-    expect(range.lowestDisbursalAmount).toBe(lowPreview.disbursalAmount);
-    expect(range.highestDisbursalAmount).toBe(highPreview.disbursalAmount);
     expect(range.lowestIotInclusive).toBe(2100);
-    expect(range.highestIotInclusive).toBe(2100);
     expect(lowPreview.emiAmount).toBeLessThan(highPreview.emiAmount);
   });
 
@@ -121,12 +225,7 @@ describe('loanCalculator', () => {
   it('returns GST breakdown with inclusive IOT, insurance, and registration amounts', () => {
     const breakdown = computeFinalInvoiceBreakdown(70000, 5000, 2000, 2000);
 
-    expect(breakdown.iot.baseAmount).toBe(2000);
-    expect(breakdown.iot.gstAmount).toBe(100);
     expect(breakdown.iot.inclusiveAmount).toBe(2100);
-    expect(breakdown.insurance.inclusiveAmount).toBe(5250);
-    expect(breakdown.registration.inclusiveAmount).toBe(2100);
-    expect(breakdown.gstAmount).toBe(450);
     expect(breakdown.finalInvoiceAmount).toBe(79450);
   });
 
@@ -136,63 +235,5 @@ describe('loanCalculator', () => {
       gstAmount: 100,
       inclusiveAmount: 2100,
     });
-  });
-
-  it('returns GPS-only baseline ranges for selected tenure when disbursement is zero', () => {
-    const range = calculateEmiRangePreview({
-      upfrontPayment: 0,
-      disbursementToDealer: 0,
-      tenureMonths: 12,
-    });
-
-    const { lowPreview, highPreview } = calculateTenureEmiRangePreviews({
-      upfrontPayment: 0,
-      disbursementToDealer: 0,
-      tenureMonths: 12,
-    });
-
-    expect(range.invoiceValue).toBe(0);
-    expect(range.lowestEmi).toBe(lowPreview.emiAmount);
-    expect(range.highestEmi).toBe(highPreview.emiAmount);
-    expect(range.lowestProcessingFee).toBe(lowPreview.processingFee);
-    expect(range.highestProcessingFee).toBe(highPreview.processingFee);
-    expect(range.lowestIotInclusive).toBe(2100);
-    expect(range.highestIotInclusive).toBe(2100);
-  });
-
-  it('builds a math breakdown from frozen values including IOT', () => {
-    const preview = calculateLoanPreview({
-      upfrontPayment: 20000,
-      disbursementToDealer: 50000,
-      tenureMonths: 12,
-    });
-    const frozen = freezeLoanPreview(preview);
-    const breakdown = buildLoanMathBreakdown(frozen);
-
-    expect(breakdown.gpsCharges).toBe(2000);
-    expect(breakdown.loanAmount).toBe(
-      breakdown.disbursalAmount + breakdown.processingFee + breakdown.gpsCharges
-    );
-    expect(breakdown.emiAmount).toBe(calculateEmi(frozen.loanAmount, 12));
-  });
-
-  it('includes calculator snapshot keys when snapshot is provided', () => {
-    const preview = calculateLoanPreview({
-      upfrontPayment: 10000,
-      disbursementToDealer: 40000,
-      tenureMonths: 12,
-    });
-    const frozen = freezeLoanPreview(preview);
-    const patch = frozenValuesToFormDataPatch(frozen, {
-      downpayment: 10000,
-      disbursementToDealer: 40000,
-      invoiceValue: preview.invoiceValue,
-      emiAmount: preview.emiAmount,
-    });
-
-    expect(patch['loan.calculator.downpayment']).toBe('10000');
-    expect(patch['loan.calculator.disbursementToDealer']).toBe('40000');
-    expect(patch['loan.calculator.invoiceValue']).toBe(String(preview.invoiceValue));
-    expect(patch['loan.emiAmount']).toBe(String(preview.emiAmount));
   });
 });

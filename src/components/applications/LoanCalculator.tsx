@@ -3,25 +3,37 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import {
-  buildLoanMathBreakdown,
-  calculateLoanPreview,
+  calculateB2cLoanPreview,
   computeGstComponent,
-  freezeLoanPreview,
+  freezeB2cLoanPreview,
+  parseGstRateInput,
   parseMoneyInput,
+  validateCustomerPaymentForFreeze,
   type LoanCalculatorSnapshot,
   type LoanFrozenValues,
   type LoanTenureMonths,
+  type VehicleGstRate,
 } from '../../lib/loanCalculator';
+import { LoanDraftInvoiceBreakdown } from './LoanDraftInvoiceBreakdown';
 
 const TENURE_OPTIONS = [
   { value: '12', label: '12 months' },
   { value: '18', label: '18 months' },
 ];
 
+const GST_RATE_OPTIONS_UI = [
+  { value: '0.05', label: '5%' },
+  { value: '0.18', label: '18%' },
+];
+
 const EMPTY_PLACEHOLDER = 'Freeze values in calculator first.';
 
 function formatRupee(value: number): string {
   return `₹${value.toLocaleString('en-IN')}`;
+}
+
+function displayMoney(value: number): string {
+  return value > 0 ? String(value) : '';
 }
 
 interface LoanCalculatorStage1Props {
@@ -36,78 +48,143 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   onUnfreeze,
 }) => {
   const isFrozen = frozenValues != null;
-  const [downpayment, setDownpayment] = useState('');
-  const [disbursementToDealer, setDisbursementToDealer] = useState('');
+  const [vehiclePrice, setVehiclePrice] = useState('');
+  const [gstRate, setGstRate] = useState<VehicleGstRate>(0.05);
+  const [insurance, setInsurance] = useState('');
+  const [registration, setRegistration] = useState('');
+  const [accessories, setAccessories] = useState('');
+  const [customerPayment, setCustomerPayment] = useState('');
   const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(
     frozenValues?.tenureMonths ?? 12
   );
 
   useEffect(() => {
-    if (frozenValues?.tenureMonths) {
-      setTenureMonths(frozenValues.tenureMonths);
-    }
-  }, [frozenValues?.tenureMonths]);
+    if (!frozenValues) return;
+    setVehiclePrice(displayMoney(frozenValues.vehiclePrice));
+    setGstRate(frozenValues.gstRate);
+    setInsurance(displayMoney(frozenValues.insurance));
+    setRegistration(displayMoney(frozenValues.registration));
+    setAccessories(displayMoney(frozenValues.accessories));
+    setCustomerPayment(displayMoney(frozenValues.customerPayment));
+    setTenureMonths(frozenValues.tenureMonths);
+  }, [frozenValues]);
 
   const inputs = useMemo(
     () => ({
-      upfrontPayment: parseMoneyInput(downpayment),
-      disbursementToDealer: parseMoneyInput(disbursementToDealer),
+      vehiclePrice: parseMoneyInput(vehiclePrice),
+      gstRate,
+      insurance: parseMoneyInput(insurance),
+      registration: parseMoneyInput(registration),
+      accessories: parseMoneyInput(accessories),
+      customerPayment: parseMoneyInput(customerPayment),
       tenureMonths,
     }),
-    [downpayment, disbursementToDealer, tenureMonths]
+    [vehiclePrice, gstRate, insurance, registration, accessories, customerPayment, tenureMonths]
   );
 
-  const preview = useMemo(() => calculateLoanPreview(inputs), [inputs]);
+  const preview = useMemo(() => calculateB2cLoanPreview(inputs), [inputs]);
   const iotWithGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
+  const customerPaymentValidation = useMemo(
+    () => validateCustomerPaymentForFreeze(inputs.customerPayment, preview.taxInvoiceValue),
+    [inputs.customerPayment, preview.taxInvoiceValue]
+  );
+  const canFreeze =
+    preview.loanAmount > 0 && customerPaymentValidation.valid;
 
   const handleFreeze = () => {
-    onFreeze(freezeLoanPreview(preview), {
-      downpayment: inputs.upfrontPayment,
-      disbursementToDealer: inputs.disbursementToDealer,
-      invoiceValue: preview.invoiceValue,
+    if (!canFreeze) return;
+    onFreeze(freezeB2cLoanPreview(preview), {
+      vehiclePrice: inputs.vehiclePrice,
+      gstRate: inputs.gstRate,
+      insurance: inputs.insurance,
+      registration: inputs.registration,
+      accessories: inputs.accessories,
+      customerPayment: inputs.customerPayment,
+      taxInvoiceValue: preview.taxInvoiceValue,
       emiAmount: preview.emiAmount,
     });
   };
 
-  const invoiceDisplay =
-    preview.invoiceValue > 0 ? String(preview.invoiceValue) : '';
+  const taxInvoiceDisplay =
+    preview.taxInvoiceValue > 0 ? String(preview.taxInvoiceValue) : '';
 
   return (
     <div className="space-y-6" data-testid="loan-calculator-stage1">
       <div>
         <h3 className="text-sm font-semibold text-neutral-900">Loan calculator</h3>
         <p className="mt-1 text-sm text-neutral-600">
-          Enter payment from customer and disbursement to dealer. Invoice value is computed automatically.
-          Values update live. Freeze to lock them into the application form below.
+          Enter vehicle price, GST rate, add-on costs, and payment from customer. Tax invoice value
+          is computed automatically. Values update live. Freeze to lock them into the application
+          form below.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Input
+          label="Vehicle Price (₹)"
+          type="text"
+          inputMode="decimal"
+          value={vehiclePrice}
+          disabled={isFrozen}
+          onChange={(e) => setVehiclePrice(e.target.value)}
+          data-testid="loan-calc-vehicle-price"
+        />
+        <Select
+          label="GST Rate"
+          value={String(gstRate)}
+          disabled={isFrozen}
+          options={GST_RATE_OPTIONS_UI}
+          onChange={(e) => setGstRate(parseGstRateInput(e.target.value))}
+          data-testid="loan-calc-gst-rate"
+        />
+        <Input
+          label="Insurance (₹)"
+          type="text"
+          inputMode="decimal"
+          value={insurance}
+          disabled={isFrozen}
+          onChange={(e) => setInsurance(e.target.value)}
+          data-testid="loan-calc-insurance"
+        />
+        <Input
+          label="Registration (₹)"
+          type="text"
+          inputMode="decimal"
+          value={registration}
+          disabled={isFrozen}
+          onChange={(e) => setRegistration(e.target.value)}
+          data-testid="loan-calc-registration"
+        />
+        <Input
+          label="Accessories (₹)"
+          type="text"
+          inputMode="decimal"
+          value={accessories}
+          disabled={isFrozen}
+          onChange={(e) => setAccessories(e.target.value)}
+          data-testid="loan-calc-accessories"
+        />
+        <Input
           label="Payment from Customer (₹)"
           type="text"
           inputMode="decimal"
-          value={downpayment}
+          value={customerPayment}
           disabled={isFrozen}
-          onChange={(e) => setDownpayment(e.target.value)}
-          data-testid="loan-calc-downpayment"
+          onChange={(e) => setCustomerPayment(e.target.value)}
+          error={
+            !isFrozen && preview.taxInvoiceValue > 0 && !customerPaymentValidation.valid
+              ? customerPaymentValidation.message
+              : undefined
+          }
+          data-testid="loan-calc-customer-payment"
         />
         <Input
-          label="Disbursement to Dealer (₹)"
+          label="Tax Invoice Value (₹)"
           type="text"
-          inputMode="decimal"
-          value={disbursementToDealer}
-          disabled={isFrozen}
-          onChange={(e) => setDisbursementToDealer(e.target.value)}
-          data-testid="loan-calc-disbursement"
-        />
-        <Input
-          label="Invoice Value (₹)"
-          type="text"
-          value={invoiceDisplay}
+          value={taxInvoiceDisplay}
           readOnly
           disabled
-          data-testid="loan-calc-invoice"
+          data-testid="loan-calc-tax-invoice"
           className="bg-neutral-100 text-neutral-700"
         />
         <Select
@@ -115,9 +192,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           value={String(tenureMonths)}
           disabled={isFrozen}
           options={TENURE_OPTIONS}
-          onChange={(e) =>
-            setTenureMonths(e.target.value === '18' ? 18 : 12)
-          }
+          onChange={(e) => setTenureMonths(e.target.value === '18' ? 18 : 12)}
           data-testid="loan-calc-tenure"
         />
       </div>
@@ -152,12 +227,22 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
         </dl>
       </div>
 
+      {!isFrozen && preview.taxInvoiceValue > 0 && !customerPaymentValidation.valid ? (
+        <p
+          className="rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error"
+          data-testid="loan-calc-customer-payment-error"
+          role="alert"
+        >
+          {customerPaymentValidation.message}
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         {!isFrozen ? (
           <Button
             type="button"
             onClick={handleFreeze}
-            disabled={preview.loanAmount <= 0}
+            disabled={!canFreeze}
             data-testid="loan-calc-freeze"
           >
             Freeze Values
@@ -187,8 +272,6 @@ interface LoanCalculatorStage2Props {
 const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValues }) => {
   const hasFrozen = frozenValues != null;
   const placeholder = hasFrozen ? undefined : EMPTY_PLACEHOLDER;
-  const mathBreakdown = hasFrozen ? buildLoanMathBreakdown(frozenValues) : null;
-  const iotWithGst = hasFrozen ? computeGstComponent(frozenValues.gpsCharges) : null;
 
   const fields: Array<{ label: string; value: string; testId: string; required?: boolean }> = [
     {
@@ -246,42 +329,7 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
         ))}
       </div>
 
-      {mathBreakdown && (
-        <div
-          className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"
-          data-testid="loan-form-math-breakdown"
-        >
-          <h4 className="mb-3 text-sm font-semibold text-neutral-900">Calculation breakdown</h4>
-          <dl className="space-y-2 text-sm text-neutral-700">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <dt>IOT/GPS charges ({mathBreakdown.tenureMonths} months, including GST)</dt>
-              <dd className="font-medium text-neutral-900" data-testid="loan-form-math-iot">
-                {formatRupee(iotWithGst?.inclusiveAmount ?? mathBreakdown.gpsCharges)}
-              </dd>
-              <dd className="text-xs text-neutral-500" data-testid="loan-form-math-iot-gst">
-                Base {formatRupee(iotWithGst?.baseAmount ?? mathBreakdown.gpsCharges)} + GST{' '}
-                {formatRupee(iotWithGst?.gstAmount ?? 0)}
-              </dd>
-            </div>
-            <div className="border-t border-neutral-200 pt-2">
-              <p className="text-xs text-neutral-500">Loan amount composition</p>
-              <p className="mt-1 font-medium text-neutral-900" data-testid="loan-form-math-equation">
-                {formatRupee(mathBreakdown.loanAmount)} = {formatRupee(mathBreakdown.disbursalAmount)}{' '}
-                + {formatRupee(mathBreakdown.processingFee)} + {formatRupee(mathBreakdown.gpsCharges)}
-              </p>
-              <p className="mt-1 text-xs text-neutral-600">
-                Disbursal to dealer + Processing fee (8%) + IOT/GPS
-              </p>
-            </div>
-            <div className="flex flex-wrap items-baseline justify-between gap-2 border-t border-neutral-200 pt-2">
-              <dt>EMI @ 35% p.a.</dt>
-              <dd className="font-medium text-neutral-900" data-testid="loan-form-math-emi">
-                {formatRupee(mathBreakdown.emiAmount)}/month for {mathBreakdown.tenureMonths} months
-              </dd>
-            </div>
-          </dl>
-        </div>
-      )}
+      {hasFrozen && frozenValues ? <LoanDraftInvoiceBreakdown frozen={frozenValues} /> : null}
     </div>
   );
 };
@@ -304,13 +352,6 @@ export const LoanCalculator: React.FC<LoanCalculatorProps> = ({
 }) => {
   return (
     <div className="space-y-8" data-testid="loan-calculator">
-      <p
-        className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-        data-testid="loan-extra-costs-disclaimer"
-      >
-        Insurance and vehicle registration costs are extra and are not included in the loan amount
-        shown in this calculator.
-      </p>
       <LoanCalculatorStage1
         frozenValues={frozenValues}
         onFreeze={(values, snapshot) => onFrozenValuesChange(values, snapshot)}

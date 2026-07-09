@@ -2,13 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
+import { LoanDraftInvoiceBreakdown } from '../applications/LoanDraftInvoiceBreakdown';
 import {
-  calculateTenureEmiRangePreviews,
-  computeFinalInvoiceBreakdown,
+  b2cPreviewToFrozenValues,
+  calculateB2cTenureEmiRangePreviews,
   computeGstComponent,
+  parseGstRateInput,
   parseMoneyInput,
-  type LoanLivePreview,
+  validateCustomerPaymentForFreeze,
+  type B2cLoanLivePreview,
   type LoanTenureMonths,
+  type VehicleGstRate,
 } from '../../lib/loanCalculator';
 
 const TENURE_OPTIONS = [
@@ -16,140 +20,117 @@ const TENURE_OPTIONS = [
   { value: '18', label: '18 months' },
 ];
 
-type Stage2Tab = 'insurance' | 'registration';
+const GST_RATE_OPTIONS_UI = [
+  { value: '0.05', label: '5%' },
+  { value: '0.18', label: '18%' },
+];
+
 type EmiScenarioVariant = 'low' | 'high';
 
 function formatRupee(value: number): string {
   return `₹${value.toLocaleString('en-IN')}`;
 }
 
-function formatOptionalRupee(value: number): string {
-  return value > 0 ? formatRupee(value) : '—';
-}
-
-function formatPercent(value: number): string {
-  return `${value % 1 === 0 ? value.toFixed(0) : value.toFixed(2)}%`;
-}
-
-interface EmiScenarioPanelProps {
+interface EmiScenarioPreviewProps {
   variant: EmiScenarioVariant;
-  preview: LoanLivePreview;
+  preview: B2cLoanLivePreview;
+  heading: string;
 }
 
-function EmiScenarioPanel({ variant, preview }: EmiScenarioPanelProps) {
-  const { t } = useTranslation();
-  const iotGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
+const EmiScenarioPreview: React.FC<EmiScenarioPreviewProps> = ({ variant, preview, heading }) => {
+  const iotWithGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
   const testIdPrefix = variant === 'low' ? 'emi-range-low' : 'emi-range-high';
-  const headingKey =
-    variant === 'low' ? 'pages.calculator.lowestScenario' : 'pages.calculator.highestScenario';
 
   return (
     <div
-      className="rounded-xl border border-neutral-200 bg-white p-4"
+      className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"
       data-testid={`${testIdPrefix}-loan-scenario`}
     >
-      <h4 className="text-sm font-semibold text-neutral-900">{t(headingKey)}</h4>
-      <p className="mt-0.5 text-xs text-neutral-500" data-testid={`${testIdPrefix}-rates`}>
-        {t('pages.calculator.scenarioRates', {
-          interestRate: formatPercent(preview.interestRate),
-          processingFee: formatPercent(preview.processingFeePctDisplay),
-        })}
-      </p>
+      <h4 className="text-sm font-semibold text-neutral-900">{heading}</h4>
       <dl className="mt-3 grid grid-cols-1 gap-3">
         <div>
-          <dt className="text-xs text-neutral-500">{t('pages.calculator.loanAmount')}</dt>
-          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-loan-amount`}>
+          <dt className="text-xs text-neutral-500">Loan Amount</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-scenario-loan-amount`}>
             {formatRupee(preview.loanAmount)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">{t('pages.calculator.iotCost')}</dt>
-          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-iot-cost`}>
-            {formatRupee(iotGst.inclusiveAmount)}
-          </dd>
-          <dd className="text-xs text-neutral-500" data-testid={`${testIdPrefix}-iot-gst-note`}>
-            {t('pages.calculator.iotGstNote', {
-              gst: formatRupee(iotGst.gstAmount),
-              base: formatRupee(preview.gpsCharges),
-            })}
+          <dt className="text-xs text-neutral-500">Tenure</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-scenario-tenure`}>
+            {preview.tenureMonths} months
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">{t('pages.calculator.processingFee')}</dt>
-          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-processing-fee`}>
+          <dt className="text-xs text-neutral-500">GPS/IOT (including GST)</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-scenario-iot-cost`}>
+            {formatRupee(iotWithGst.inclusiveAmount)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-neutral-500">Processing Fee</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-scenario-processing-fee`}>
             {formatRupee(preview.processingFee)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">{t('pages.calculator.emiAmount')}</dt>
-          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-emi`}>
-            {formatRupee(preview.emiAmount)}
+          <dt className="text-xs text-neutral-500">Disbursal Amount</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-scenario-disbursal`}>
+            {formatRupee(preview.disbursalAmount)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">{t('pages.calculator.disbursalAmount')}</dt>
-          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-disbursal`}>
-            {formatRupee(preview.disbursalAmount)}
+          <dt className="text-xs text-neutral-500">EMI Amount</dt>
+          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-scenario-emi`}>
+            {formatRupee(preview.emiAmount)}
           </dd>
         </div>
       </dl>
     </div>
   );
-}
+};
 
 export const EmiRangeCalculator: React.FC = () => {
   const { t } = useTranslation();
-  const [downpayment, setDownpayment] = useState('');
-  const [disbursementToDealer, setDisbursementToDealer] = useState('');
+  const [vehiclePrice, setVehiclePrice] = useState('');
+  const [gstRate, setGstRate] = useState<VehicleGstRate>(0.05);
+  const [insurance, setInsurance] = useState('');
+  const [registration, setRegistration] = useState('');
+  const [accessories, setAccessories] = useState('');
+  const [customerPayment, setCustomerPayment] = useState('');
   const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(12);
-  const [activeStage2Tab, setActiveStage2Tab] = useState<Stage2Tab>('insurance');
-  const [insuranceCost, setInsuranceCost] = useState('');
-  const [registrationCost, setRegistrationCost] = useState('');
 
-  const upfrontPayment = parseMoneyInput(downpayment);
-  const disbursementAmount = parseMoneyInput(disbursementToDealer);
-  const insuranceAmount = parseMoneyInput(insuranceCost);
-  const registrationAmount = parseMoneyInput(registrationCost);
+  const inputs = useMemo(
+    () => ({
+      vehiclePrice: parseMoneyInput(vehiclePrice),
+      gstRate,
+      insurance: parseMoneyInput(insurance),
+      registration: parseMoneyInput(registration),
+      accessories: parseMoneyInput(accessories),
+      customerPayment: parseMoneyInput(customerPayment),
+      tenureMonths,
+    }),
+    [vehiclePrice, gstRate, insurance, registration, accessories, customerPayment, tenureMonths]
+  );
 
   const { lowPreview, highPreview } = useMemo(
-    () =>
-      calculateTenureEmiRangePreviews({
-        upfrontPayment,
-        disbursementToDealer: disbursementAmount,
-        tenureMonths,
-      }),
-    [upfrontPayment, disbursementAmount, tenureMonths]
+    () => calculateB2cTenureEmiRangePreviews(inputs),
+    [inputs]
   );
 
-  const tenurePreview = lowPreview;
-  const finalInvoice = useMemo(
-    () =>
-      computeFinalInvoiceBreakdown(
-        tenurePreview.invoiceValue,
-        insuranceAmount,
-        registrationAmount,
-        tenurePreview.gpsCharges
-      ),
-    [tenurePreview.invoiceValue, tenurePreview.gpsCharges, insuranceAmount, registrationAmount]
+  const customerPaymentValidation = useMemo(
+    () => validateCustomerPaymentForFreeze(inputs.customerPayment, lowPreview.taxInvoiceValue),
+    [inputs.customerPayment, lowPreview.taxInvoiceValue]
   );
 
-  const invoiceDisplay = tenurePreview.invoiceValue > 0 ? String(tenurePreview.invoiceValue) : '';
+  const taxInvoiceDisplay =
+    lowPreview.taxInvoiceValue > 0 ? String(lowPreview.taxInvoiceValue) : '';
 
-  const stage2Tabs: Array<{ id: Stage2Tab; label: string }> = [
-    { id: 'insurance', label: t('pages.calculator.insuranceTab') },
-    { id: 'registration', label: t('pages.calculator.registrationTab') },
-  ];
+  const showCustomerPaymentWarning =
+    lowPreview.taxInvoiceValue > 0 && !customerPaymentValidation.valid;
 
   return (
     <div className="space-y-8" data-testid="emi-range-calculator">
       <div className="space-y-6" data-testid="emi-range-calculator-stage1">
-        <p
-          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-          data-testid="emi-range-disclaimer"
-        >
-          {t('pages.calculator.disclaimer')}
-        </p>
-
         <div>
           <h3 className="text-sm font-semibold text-neutral-900">{t('pages.calculator.heading')}</h3>
           <p className="mt-1 text-sm text-neutral-600">{t('pages.calculator.description')}</p>
@@ -157,28 +138,60 @@ export const EmiRangeCalculator: React.FC = () => {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input
+            label={t('pages.calculator.vehiclePrice')}
+            type="text"
+            inputMode="decimal"
+            value={vehiclePrice}
+            onChange={(e) => setVehiclePrice(e.target.value)}
+            data-testid="emi-range-vehicle-price"
+          />
+          <Select
+            label={t('pages.calculator.gstRate')}
+            value={String(gstRate)}
+            options={GST_RATE_OPTIONS_UI}
+            onChange={(e) => setGstRate(parseGstRateInput(e.target.value))}
+            data-testid="emi-range-gst-rate"
+          />
+          <Input
+            label={t('pages.calculator.insurance')}
+            type="text"
+            inputMode="decimal"
+            value={insurance}
+            onChange={(e) => setInsurance(e.target.value)}
+            data-testid="emi-range-insurance"
+          />
+          <Input
+            label={t('pages.calculator.registration')}
+            type="text"
+            inputMode="decimal"
+            value={registration}
+            onChange={(e) => setRegistration(e.target.value)}
+            data-testid="emi-range-registration"
+          />
+          <Input
+            label={t('pages.calculator.accessories')}
+            type="text"
+            inputMode="decimal"
+            value={accessories}
+            onChange={(e) => setAccessories(e.target.value)}
+            data-testid="emi-range-accessories"
+          />
+          <Input
             label={t('pages.calculator.downpayment')}
             type="text"
             inputMode="decimal"
-            value={downpayment}
-            onChange={(e) => setDownpayment(e.target.value)}
-            data-testid="emi-range-downpayment"
+            value={customerPayment}
+            onChange={(e) => setCustomerPayment(e.target.value)}
+            error={showCustomerPaymentWarning ? customerPaymentValidation.message : undefined}
+            data-testid="emi-range-customer-payment"
           />
           <Input
-            label={t('pages.calculator.disbursement')}
+            label={t('pages.calculator.taxInvoiceValue')}
             type="text"
-            inputMode="decimal"
-            value={disbursementToDealer}
-            onChange={(e) => setDisbursementToDealer(e.target.value)}
-            data-testid="emi-range-disbursement"
-          />
-          <Input
-            label={t('pages.calculator.invoiceValue')}
-            type="text"
-            value={invoiceDisplay}
+            value={taxInvoiceDisplay}
             readOnly
             disabled
-            data-testid="emi-range-invoice"
+            data-testid="emi-range-tax-invoice"
             className="bg-neutral-100 text-neutral-700"
           />
           <Select
@@ -190,6 +203,16 @@ export const EmiRangeCalculator: React.FC = () => {
           />
         </div>
 
+        {showCustomerPaymentWarning ? (
+          <p
+            className="rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error"
+            data-testid="emi-range-customer-payment-error"
+            role="alert"
+          >
+            {customerPaymentValidation.message}
+          </p>
+        ) : null}
+
         <div>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h4 className="text-sm font-semibold text-neutral-900">
@@ -200,105 +223,48 @@ export const EmiRangeCalculator: React.FC = () => {
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <EmiScenarioPanel variant="low" preview={lowPreview} />
-            <EmiScenarioPanel variant="high" preview={highPreview} />
+            <EmiScenarioPreview
+              variant="low"
+              preview={lowPreview}
+              heading={t('pages.calculator.lowestScenario')}
+            />
+            <EmiScenarioPreview
+              variant="high"
+              preview={highPreview}
+              heading={t('pages.calculator.highestScenario')}
+            />
           </div>
         </div>
       </div>
 
-      <div className="border-t border-neutral-200 pt-8" data-testid="emi-range-calculator-stage2">
-        <div>
-          <h3 className="text-sm font-semibold text-neutral-900">{t('pages.calculator.stage2Heading')}</h3>
-          <p className="mt-1 text-sm text-neutral-600">{t('pages.calculator.stage2Description')}</p>
-        </div>
-
-        <div
-          className="mt-4 flex gap-1 overflow-x-auto pb-1"
-          role="tablist"
-          aria-label={t('pages.calculator.stage2TabsAriaLabel')}
-        >
-          {stage2Tabs.map((tab) => {
-            const isSelected = activeStage2Tab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                data-testid={`emi-range-tab-${tab.id}`}
-                className={`shrink-0 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
-                  isSelected
-                    ? 'border-brand-primary bg-brand-primary text-white'
-                    : 'border-neutral-300 bg-neutral-50 text-neutral-700 hover:border-neutral-400 hover:bg-neutral-100'
-                }`}
-                onClick={() => setActiveStage2Tab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {activeStage2Tab === 'insurance' ? (
-            <Input
-              label={t('pages.calculator.insuranceCost')}
-              type="text"
-              inputMode="decimal"
-              value={insuranceCost}
-              onChange={(e) => setInsuranceCost(e.target.value)}
-              data-testid="emi-range-insurance-cost"
+      {lowPreview.taxInvoiceValue > 0 && customerPaymentValidation.valid ? (
+        <div className="border-t border-neutral-200 pt-8" data-testid="emi-range-calculator-stage2">
+          <div>
+            <h3 className="text-sm font-semibold text-neutral-900">
+              {t('pages.calculator.draftInvoiceHeading')}
+            </h3>
+            <p className="mt-1 text-sm text-neutral-600">
+              {t('pages.calculator.draftInvoiceDescription')}
+            </p>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <LoanDraftInvoiceBreakdown
+              frozen={b2cPreviewToFrozenValues(lowPreview)}
+              scenarioLabel={t('pages.calculator.lowestScenario')}
+              testIdPrefix="emi-range-low"
+              referenceCode="EMI-RANGE-LOW"
+              sampleSubtitle={t('pages.calculator.draftInvoiceSubtitle')}
             />
-          ) : (
-            <Input
-              label={t('pages.calculator.registrationCost')}
-              type="text"
-              inputMode="decimal"
-              value={registrationCost}
-              onChange={(e) => setRegistrationCost(e.target.value)}
-              data-testid="emi-range-registration-cost"
+            <LoanDraftInvoiceBreakdown
+              frozen={b2cPreviewToFrozenValues(highPreview)}
+              scenarioLabel={t('pages.calculator.highestScenario')}
+              testIdPrefix="emi-range-high"
+              referenceCode="EMI-RANGE-HIGH"
+              sampleSubtitle={t('pages.calculator.draftInvoiceSubtitle')}
             />
-          )}
+          </div>
         </div>
-
-        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-          <h4 className="mb-3 text-sm font-semibold text-neutral-900">
-            {t('pages.calculator.finalInvoiceHeading')}
-          </h4>
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.iotCost')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-iot">
-                {formatRupee(finalInvoice.iot.inclusiveAmount)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.insuranceCost')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-insurance">
-                {formatOptionalRupee(finalInvoice.insurance.inclusiveAmount)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.registrationCost')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-registration">
-                {formatOptionalRupee(finalInvoice.registration.inclusiveAmount)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.gstAmount')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-gst-amount">
-                {formatRupee(finalInvoice.gstAmount)}
-              </dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt className="text-xs text-neutral-500">{t('pages.calculator.finalInvoiceAmount')}</dt>
-              <dd className="text-sm font-medium text-neutral-900" data-testid="emi-range-final-invoice">
-                {formatOptionalRupee(finalInvoice.finalInvoiceAmount)}
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 };

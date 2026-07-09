@@ -3,7 +3,13 @@ export const INTEREST_RATE_MAX = 35;
 export const FEE_PCT_MIN = 0.06;
 export const FEE_PCT_MAX = 0.08;
 export const INTEREST_RATE = INTEREST_RATE_MAX;
+/** @deprecated Legacy EMI range calculator — B2C wizard uses PF_PCT */
 export const FEE_PCT = FEE_PCT_MAX;
+export const PF_PCT = 0.08;
+export const LOAN_GROSSUP_FACTOR = 1.09;
+export const MIN_CUSTOMER_PAYMENT_OF_TAX_INVOICE_PCT = 0.1;
+export const GST_RATE_OPTIONS = [0.05, 0.18] as const;
+export type VehicleGstRate = (typeof GST_RATE_OPTIONS)[number];
 export const GST_PCT = 0.05;
 export const GPS_CHARGES: Record<12 | 18, number> = {
   12: 2000,
@@ -12,9 +18,21 @@ export const GPS_CHARGES: Record<12 | 18, number> = {
 
 export type LoanTenureMonths = 12 | 18;
 
+/** Legacy disbursement-input model — used only by /calculator EMI range page */
 export interface LoanCalculatorInputs {
   upfrontPayment: number;
   disbursementToDealer: number;
+  tenureMonths: LoanTenureMonths;
+}
+
+/** B2C EV wizard — vehicle price + GST methodology */
+export interface B2cLoanCalculatorInputs {
+  vehiclePrice: number;
+  gstRate: VehicleGstRate;
+  insurance: number;
+  registration: number;
+  accessories: number;
+  customerPayment: number;
   tenureMonths: LoanTenureMonths;
 }
 
@@ -42,15 +60,22 @@ export interface EmiRangePreview {
 }
 
 export interface LoanFrozenValues {
+  vehiclePrice: number;
+  gstRate: VehicleGstRate;
+  insurance: number;
+  registration: number;
+  accessories: number;
+  customerPayment: number;
+  taxInvoiceValue: number;
   loanAmount: number;
   interestRate: number;
   tenureMonths: LoanTenureMonths;
   processingFee: number;
   gpsCharges: number;
-  processingFeePct: number;
   disbursalAmount: number;
 }
 
+/** Legacy live preview — EMI range calculator */
 export interface LoanLivePreview {
   invoiceValue: number;
   loanAmount: number;
@@ -59,6 +84,25 @@ export interface LoanLivePreview {
   processingFee: number;
   gpsCharges: number;
   processingFeePctDisplay: number;
+  disbursalAmount: number;
+  emiAmount: number;
+}
+
+export interface B2cLoanLivePreview {
+  vehiclePrice: number;
+  gstRate: VehicleGstRate;
+  insurance: number;
+  registration: number;
+  accessories: number;
+  customerPayment: number;
+  vehiclePriceWithGST: number;
+  taxInvoiceValue: number;
+  assumedDisbursement: number;
+  loanAmount: number;
+  interestRate: number;
+  tenureMonths: LoanTenureMonths;
+  processingFee: number;
+  gpsCharges: number;
   disbursalAmount: number;
   emiAmount: number;
 }
@@ -73,6 +117,16 @@ export function parseMoneyInput(value: string): number {
   if (!cleaned) return 0;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : 0;
+}
+
+export function parseGstRateInput(value: string): VehicleGstRate {
+  const n = Number(value);
+  if (n === 0.18) return 0.18;
+  return 0.05;
+}
+
+export function getIotChargeForTenure(tenureMonths: LoanTenureMonths): number {
+  return GPS_CHARGES[tenureMonths === 18 ? 18 : 12];
 }
 
 export function computeInvoiceValue(downpayment: number, disbursement: number): number {
@@ -156,6 +210,142 @@ export function calculateEmi(
   return roundRupee(emi);
 }
 
+export function getMinimumCustomerPayment(taxInvoiceValue: number): number {
+  if (taxInvoiceValue <= 0) return 0;
+  return roundRupee(taxInvoiceValue * MIN_CUSTOMER_PAYMENT_OF_TAX_INVOICE_PCT);
+}
+
+export interface CustomerPaymentFreezeValidation {
+  valid: boolean;
+  minimumPayment: number;
+  message?: string;
+}
+
+export function validateCustomerPaymentForFreeze(
+  customerPayment: number,
+  taxInvoiceValue: number
+): CustomerPaymentFreezeValidation {
+  if (taxInvoiceValue <= 0) {
+    return { valid: true, minimumPayment: 0 };
+  }
+
+  const minimumPayment = getMinimumCustomerPayment(taxInvoiceValue);
+  if (customerPayment < minimumPayment) {
+    const formattedMinimum = minimumPayment.toLocaleString('en-IN');
+    const formattedTaxInvoice = taxInvoiceValue.toLocaleString('en-IN');
+    return {
+      valid: false,
+      minimumPayment,
+      message: `Payment from customer must be at least 10% of the tax invoice value (minimum ₹${formattedMinimum} on ₹${formattedTaxInvoice}).`,
+    };
+  }
+
+  return { valid: true, minimumPayment };
+}
+
+export type B2cLoanAmountMode = 'wizardGrossUp' | 'feeInverse';
+
+function resolveB2cLoanAmount(
+  assumedDisbursement: number,
+  processingFeePct: number,
+  loanAmountMode: B2cLoanAmountMode
+): number {
+  if (assumedDisbursement <= 0) return 0;
+
+  if (loanAmountMode === 'feeInverse') {
+    if (processingFeePct <= 0 || processingFeePct >= 1) return 0;
+    return roundRupee(assumedDisbursement / (1 - processingFeePct));
+  }
+
+  return roundRupee(assumedDisbursement * LOAN_GROSSUP_FACTOR);
+}
+
+export function calculateB2cLoanScenarioPreview(
+  inputs: B2cLoanCalculatorInputs,
+  interestRate: number = INTEREST_RATE,
+  processingFeePct: number = PF_PCT,
+  loanAmountMode: B2cLoanAmountMode = 'wizardGrossUp'
+): B2cLoanLivePreview {
+  const tenureMonths: LoanTenureMonths = inputs.tenureMonths === 18 ? 18 : 12;
+  const vehiclePrice = Math.max(0, inputs.vehiclePrice);
+  const gstRate: VehicleGstRate = inputs.gstRate === 0.18 ? 0.18 : 0.05;
+  const insurance = Math.max(0, inputs.insurance);
+  const registration = Math.max(0, inputs.registration);
+  const accessories = Math.max(0, inputs.accessories);
+  const customerPayment = Math.max(0, inputs.customerPayment);
+  const iotCharge = getIotChargeForTenure(tenureMonths);
+
+  const vehiclePriceWithGST = roundRupee(vehiclePrice * (1 + gstRate));
+  const taxInvoiceValue = roundRupee(
+    vehiclePriceWithGST + iotCharge + insurance + registration + accessories
+  );
+  const assumedDisbursement = roundRupee(taxInvoiceValue - customerPayment);
+  const loanAmount = resolveB2cLoanAmount(assumedDisbursement, processingFeePct, loanAmountMode);
+  const processingFee = roundRupee(loanAmount * processingFeePct);
+  const disbursalAmount = roundRupee(loanAmount - processingFee);
+  const emiAmount = calculateEmi(loanAmount, tenureMonths, interestRate);
+
+  return {
+    vehiclePrice,
+    gstRate,
+    insurance,
+    registration,
+    accessories,
+    customerPayment,
+    vehiclePriceWithGST,
+    taxInvoiceValue,
+    assumedDisbursement,
+    loanAmount,
+    interestRate,
+    tenureMonths,
+    processingFee,
+    gpsCharges: iotCharge,
+    disbursalAmount,
+    emiAmount,
+  };
+}
+
+export function calculateB2cLoanPreview(inputs: B2cLoanCalculatorInputs): B2cLoanLivePreview {
+  return calculateB2cLoanScenarioPreview(inputs, INTEREST_RATE, PF_PCT);
+}
+
+export function calculateB2cTenureEmiRangePreviews(
+  inputs: B2cLoanCalculatorInputs
+): { lowPreview: B2cLoanLivePreview; highPreview: B2cLoanLivePreview } {
+  return {
+    lowPreview: calculateB2cLoanScenarioPreview(
+      inputs,
+      INTEREST_RATE_MIN,
+      FEE_PCT_MIN,
+      'feeInverse'
+    ),
+    highPreview: calculateB2cLoanScenarioPreview(
+      inputs,
+      INTEREST_RATE_MAX,
+      FEE_PCT_MAX,
+      'feeInverse'
+    ),
+  };
+}
+
+export function b2cPreviewToFrozenValues(preview: B2cLoanLivePreview): LoanFrozenValues {
+  return {
+    vehiclePrice: preview.vehiclePrice,
+    gstRate: preview.gstRate,
+    insurance: preview.insurance,
+    registration: preview.registration,
+    accessories: preview.accessories,
+    customerPayment: preview.customerPayment,
+    taxInvoiceValue: preview.taxInvoiceValue,
+    loanAmount: preview.loanAmount,
+    interestRate: preview.interestRate,
+    tenureMonths: preview.tenureMonths,
+    processingFee: preview.processingFee,
+    gpsCharges: preview.gpsCharges,
+    disbursalAmount: preview.disbursalAmount,
+  };
+}
+
 export function calculateLoanScenarioPreview(
   inputs: LoanCalculatorInputs,
   interestRate: number,
@@ -221,12 +411,10 @@ export function calculateEmiRangePreview(inputs: TenureEmiRangeInputs): EmiRange
   };
 }
 
-export function calculateLoanPreview(inputs: LoanCalculatorInputs): LoanLivePreview {
-  return calculateLoanScenarioPreview(inputs, INTEREST_RATE, FEE_PCT);
-}
-
 export interface LoanMathBreakdown {
   tenureMonths: LoanTenureMonths;
+  taxInvoiceValue: number;
+  assumedDisbursement: number;
   loanAmount: number;
   processingFee: number;
   gpsCharges: number;
@@ -237,6 +425,8 @@ export interface LoanMathBreakdown {
 export function buildLoanMathBreakdown(frozen: LoanFrozenValues): LoanMathBreakdown {
   return {
     tenureMonths: frozen.tenureMonths,
+    taxInvoiceValue: frozen.taxInvoiceValue,
+    assumedDisbursement: roundRupee(frozen.taxInvoiceValue - frozen.customerPayment),
     loanAmount: frozen.loanAmount,
     processingFee: frozen.processingFee,
     gpsCharges: frozen.gpsCharges,
@@ -245,22 +435,32 @@ export function buildLoanMathBreakdown(frozen: LoanFrozenValues): LoanMathBreakd
   };
 }
 
-export function freezeLoanPreview(preview: LoanLivePreview): LoanFrozenValues {
+export function freezeB2cLoanPreview(preview: B2cLoanLivePreview): LoanFrozenValues {
   return {
+    vehiclePrice: preview.vehiclePrice,
+    gstRate: preview.gstRate,
+    insurance: preview.insurance,
+    registration: preview.registration,
+    accessories: preview.accessories,
+    customerPayment: preview.customerPayment,
+    taxInvoiceValue: preview.taxInvoiceValue,
     loanAmount: preview.loanAmount,
     interestRate: INTEREST_RATE,
     tenureMonths: preview.tenureMonths,
     processingFee: preview.processingFee,
     gpsCharges: preview.gpsCharges,
-    processingFeePct: FEE_PCT * 100,
     disbursalAmount: preview.disbursalAmount,
   };
 }
 
 export interface LoanCalculatorSnapshot {
-  downpayment: number;
-  disbursementToDealer: number;
-  invoiceValue: number;
+  vehiclePrice: number;
+  gstRate: VehicleGstRate;
+  insurance: number;
+  registration: number;
+  accessories: number;
+  customerPayment: number;
+  taxInvoiceValue: number;
   emiAmount: number;
 }
 
@@ -269,19 +469,22 @@ export function frozenValuesToFormDataPatch(
   snapshot?: LoanCalculatorSnapshot
 ): Record<string, string> {
   const patch: Record<string, string> = {
+    'loan.vehiclePrice': String(frozen.vehiclePrice),
+    'loan.gstRate': String(frozen.gstRate),
+    'loan.insurance': String(frozen.insurance),
+    'loan.registration': String(frozen.registration),
+    'loan.accessories': String(frozen.accessories),
+    'loan.taxInvoiceValue': String(frozen.taxInvoiceValue),
     'loan.amount': String(frozen.loanAmount),
     'loan.interestRate': String(frozen.interestRate),
     'loan.tenureMonths': String(frozen.tenureMonths),
     'loan.processingFee': String(frozen.processingFee),
     'loan.gpsCharges': String(frozen.gpsCharges),
-    'loan.processingFeePercent': String(frozen.processingFeePct),
     'loan.disbursalAmount': String(frozen.disbursalAmount),
+    'loan.calculator.customerPayment': String(frozen.customerPayment),
   };
 
   if (snapshot) {
-    patch['loan.calculator.downpayment'] = String(snapshot.downpayment);
-    patch['loan.calculator.disbursementToDealer'] = String(snapshot.disbursementToDealer);
-    patch['loan.calculator.invoiceValue'] = String(snapshot.invoiceValue);
     patch['loan.emiAmount'] = String(snapshot.emiAmount);
   }
 
@@ -292,23 +495,27 @@ export function formDataToFrozenValues(
   formData: Record<string, unknown>
 ): LoanFrozenValues | null {
   const loanAmount = parseMoneyInput(String(formData['loan.amount'] ?? ''));
-  const tenureRaw = Number(String(formData['loan.tenureMonths'] ?? ''));
-  const tenureMonths: LoanTenureMonths = tenureRaw === 18 ? 18 : tenureRaw === 12 ? 12 : 12;
-  const processingFee = parseMoneyInput(String(formData['loan.processingFee'] ?? ''));
-  const gpsCharges = parseMoneyInput(String(formData['loan.gpsCharges'] ?? ''));
-  const disbursalAmount = parseMoneyInput(String(formData['loan.disbursalAmount'] ?? ''));
-  const interestRate = parseMoneyInput(String(formData['loan.interestRate'] ?? ''));
-  const processingFeePct = parseMoneyInput(String(formData['loan.processingFeePercent'] ?? ''));
-
   if (loanAmount <= 0) return null;
 
+  const tenureRaw = Number(String(formData['loan.tenureMonths'] ?? ''));
+  const tenureMonths: LoanTenureMonths = tenureRaw === 18 ? 18 : 12;
+  const gstRate = parseGstRateInput(String(formData['loan.gstRate'] ?? '0.05'));
+
   return {
+    vehiclePrice: parseMoneyInput(String(formData['loan.vehiclePrice'] ?? '')),
+    gstRate,
+    insurance: parseMoneyInput(String(formData['loan.insurance'] ?? '')),
+    registration: parseMoneyInput(String(formData['loan.registration'] ?? '')),
+    accessories: parseMoneyInput(String(formData['loan.accessories'] ?? '')),
+    customerPayment: parseMoneyInput(
+      String(formData['loan.calculator.customerPayment'] ?? formData['loan.customerPayment'] ?? '')
+    ),
+    taxInvoiceValue: parseMoneyInput(String(formData['loan.taxInvoiceValue'] ?? '')),
     loanAmount,
-    interestRate: interestRate || INTEREST_RATE,
+    interestRate: parseMoneyInput(String(formData['loan.interestRate'] ?? '')) || INTEREST_RATE,
     tenureMonths,
-    processingFee,
-    gpsCharges,
-    processingFeePct: processingFeePct || FEE_PCT * 100,
-    disbursalAmount,
+    processingFee: parseMoneyInput(String(formData['loan.processingFee'] ?? '')),
+    gpsCharges: parseMoneyInput(String(formData['loan.gpsCharges'] ?? '')),
+    disbursalAmount: parseMoneyInput(String(formData['loan.disbursalAmount'] ?? '')),
   };
 }

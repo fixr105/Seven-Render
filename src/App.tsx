@@ -23,6 +23,7 @@ import { AdminUserAccounts } from './pages/AdminUserAccounts';
 import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
 import { NBFCTools } from './pages/NBFCTools';
 import { Calculator } from './pages/Calculator';
+import { LoanCalculatorDevPage } from './pages/dev/LoanCalculatorDevPage';
 import { useAuth } from './auth/AuthContext';
 import { getProfileCompletion } from './auth/profileCompletion';
 import { getIsPromptDismissedForSession, getProfilePromptDismissKey, shouldShowProfilePrompt } from './auth/profilePromptSession';
@@ -143,6 +144,10 @@ function AppRoutes() {
           </ErrorBoundary>
         }
       />
+
+        {import.meta.env.DEV && (
+          <Route path="/dev/loan-details" element={<LoanCalculatorDevPage />} />
+        )}
 
         <Route
         path="/ledger"
