@@ -99,6 +99,17 @@ describe('LoanCalculator', () => {
     expect(screen.getByTestId('loan-calc-preview-tenure')).toHaveTextContent('18 months');
   });
 
+  it('does not show customer payment warning before user enters a payment amount', async () => {
+    const user = userEvent.setup();
+
+    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+
+    await user.type(screen.getByTestId('loan-calc-vehicle-price'), '60000');
+
+    expect(screen.queryByTestId('loan-calc-customer-payment-error')).not.toBeInTheDocument();
+    expect(screen.getByTestId('loan-calc-freeze')).toBeDisabled();
+  });
+
   it('blocks freeze when customer payment is below 10% of tax invoice value', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

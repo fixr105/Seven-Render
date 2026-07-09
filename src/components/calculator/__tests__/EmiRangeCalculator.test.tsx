@@ -157,6 +157,15 @@ describe('EmiRangeCalculator', () => {
     expect(screen.getByTestId('emi-range-high-tax-invoice')).toHaveTextContent('₹1,11,000');
   });
 
+  it('does not show customer payment warning before user enters a payment amount', async () => {
+    const user = userEvent.setup();
+    render(<EmiRangeCalculator />);
+
+    await user.type(screen.getByTestId('emi-range-vehicle-price'), '100000');
+
+    expect(screen.queryByTestId('emi-range-customer-payment-error')).not.toBeInTheDocument();
+  });
+
   it('warns when customer payment is below 10% of tax invoice value', async () => {
     const user = userEvent.setup();
     render(<EmiRangeCalculator />);

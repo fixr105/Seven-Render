@@ -104,7 +104,7 @@ export const LoanDraftInvoiceBreakdown: React.FC<LoanDraftInvoiceBreakdownProps>
               Seven Fincorp
             </p>
             <h4 className="mt-1 font-serif text-xl font-semibold tracking-tight text-neutral-900">
-              Draft Tax Invoice
+              Value Breakup
             </h4>
             <p className="mt-1 text-xs text-neutral-500">
               {sampleSubtitle} · {invoiceDate}

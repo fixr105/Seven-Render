@@ -126,7 +126,9 @@ export const EmiRangeCalculator: React.FC = () => {
     lowPreview.taxInvoiceValue > 0 ? String(lowPreview.taxInvoiceValue) : '';
 
   const showCustomerPaymentWarning =
-    lowPreview.taxInvoiceValue > 0 && !customerPaymentValidation.valid;
+    lowPreview.taxInvoiceValue > 0 &&
+    inputs.customerPayment > 0 &&
+    !customerPaymentValidation.valid;
 
   return (
     <div className="space-y-8" data-testid="emi-range-calculator">

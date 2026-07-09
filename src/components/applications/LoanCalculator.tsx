@@ -88,6 +88,11 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
     () => validateCustomerPaymentForFreeze(inputs.customerPayment, preview.taxInvoiceValue),
     [inputs.customerPayment, preview.taxInvoiceValue]
   );
+  const showCustomerPaymentWarning =
+    !isFrozen &&
+    preview.taxInvoiceValue > 0 &&
+    inputs.customerPayment > 0 &&
+    !customerPaymentValidation.valid;
   const canFreeze =
     preview.loanAmount > 0 && customerPaymentValidation.valid;
 
@@ -171,11 +176,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           value={customerPayment}
           disabled={isFrozen}
           onChange={(e) => setCustomerPayment(e.target.value)}
-          error={
-            !isFrozen && preview.taxInvoiceValue > 0 && !customerPaymentValidation.valid
-              ? customerPaymentValidation.message
-              : undefined
-          }
+          error={showCustomerPaymentWarning ? customerPaymentValidation.message : undefined}
           data-testid="loan-calc-customer-payment"
         />
         <Input
@@ -227,7 +228,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
         </dl>
       </div>
 
-      {!isFrozen && preview.taxInvoiceValue > 0 && !customerPaymentValidation.valid ? (
+      {showCustomerPaymentWarning ? (
         <p
           className="rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error"
           data-testid="loan-calc-customer-payment-error"
