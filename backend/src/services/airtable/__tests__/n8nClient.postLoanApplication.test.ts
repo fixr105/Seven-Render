@@ -287,6 +287,23 @@ describe('n8nClient.buildLoanApplicationPayload formData fallbacks', () => {
     expect(payload['Requested Loan Amount']).toBe('500000');
     expect(payload.Status).toBeUndefined();
   });
+
+  it('promotes _documentsFolderLink from Form Data into Documents column', () => {
+    const payload = n8nClient.buildLoanApplicationPayload({
+      'File ID': 'SF001',
+      Client: 'CL001',
+      Status: 'draft',
+      'Form Data': JSON.stringify({
+        _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      }),
+    });
+
+    expect(payload.Documents).toBe(
+      '_documentsFolderLink:https://drive.google.com/drive/folders/abc123|Documents Folder'
+    );
+    const formData = JSON.parse(String(payload['Form Data'])) as Record<string, unknown>;
+    expect(formData._documentsFolderLink).toBe('https://drive.google.com/drive/folders/abc123');
+  });
 });
 
 describe('n8nClient.postUserAccount strict write acknowledgement', () => {

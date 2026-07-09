@@ -124,6 +124,29 @@ describe('resolveLoanApplicationPromotedFields', () => {
     expect(documents).toBe('withVehicle:https://cdn.example.com/vehicle.jpg|vehicle.jpg');
   });
 
+  it('includes Google Drive folder link in Documents', () => {
+    const documents = resolveDocumentsFromFormData({
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+    });
+
+    expect(documents).toBe(
+      '_documentsFolderLink:https://drive.google.com/drive/folders/abc123|Documents Folder'
+    );
+  });
+
+  it('includes folder link alongside geo photo URLs in Documents', () => {
+    const documents = resolveDocumentsFromFormData({
+      _documentsFolderLink: 'https://drive.google.com/drive/folders/abc123',
+      'geoPhotos.atResidence.url': 'https://cdn.example.com/residence.jpg',
+      'geoPhotos.atResidence.fileName': 'residence.jpg',
+    });
+
+    expect(documents).toContain(
+      '_documentsFolderLink:https://drive.google.com/drive/folders/abc123|Documents Folder'
+    );
+    expect(documents).toContain('atResidence:https://cdn.example.com/residence.jpg|residence.jpg');
+  });
+
   it('includes all three uploadtourl geo photo URLs in Documents for Airtable', () => {
     const formData = {
       'geoPhotos.withSupportPerson.url':

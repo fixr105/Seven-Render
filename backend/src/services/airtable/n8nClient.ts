@@ -19,6 +19,7 @@ import {
   packLoanApplicationFormData,
   resolveSelectFromFormData,
 } from '../../utils/loanApplicationAirtableMapping.js';
+import { resolveDocumentsFromFormData } from '../../utils/loanApplicationCoreFields.js';
 import { normalizeRecords } from './recordNormalizer.service.js';
 
 interface PostDataOptions {
@@ -1255,6 +1256,11 @@ export class N8nClient {
     const formDataJson = JSON.stringify(packedFormData);
     const selectValue =
       firstNonEmpty(data.Select, data.select) || resolveSelectFromFormData(packedFormData);
+    const documentsValue = firstNonEmpty(
+      data['Documents'],
+      data.documents,
+      resolveDocumentsFromFormData(packedFormData, data)
+    );
 
     const allowedPayload: Record<string, unknown> = {
       'File ID': data['File ID'] || data.fileId || '',
@@ -1284,7 +1290,7 @@ export class N8nClient {
       'Email Id': emailId,
       Remarks: remarks,
       Select: selectValue,
-      Documents: data['Documents'] || data.documents || '',
+      Documents: documentsValue,
       'Assigned Credit Analyst': data['Assigned Credit Analyst'] || data.assignedCreditAnalyst || '',
       'Assigned NBFC': data['Assigned NBFC'] || data.assignedNBFC || '',
       'Lender Decision Status': data['Lender Decision Status'] || data.lenderDecisionStatus || '',

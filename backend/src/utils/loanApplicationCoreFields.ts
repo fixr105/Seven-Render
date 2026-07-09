@@ -66,6 +66,22 @@ function isHttpDocumentUrl(value: string): boolean {
   return trimmed.startsWith('http://') || trimmed.startsWith('https://');
 }
 
+function isDocumentsFolderLink(value: string): boolean {
+  const lower = value.trim().toLowerCase();
+  if (!lower) return false;
+  return (
+    lower.includes('drive.google.com') ||
+    lower.includes('docs.google.com') ||
+    lower.includes('sharepoint.com') ||
+    lower.includes('onedrive.live.com') ||
+    lower.includes('1drv.ms')
+  );
+}
+
+function formatDocumentEntry(fieldId: string, url: string, fileName: string): string {
+  return `${fieldId}:${url}|${fileName}`;
+}
+
 function isBase64DataUrl(value: string): boolean {
   return value.trim().startsWith('data:');
 }
@@ -114,7 +130,22 @@ export function resolveDocumentsFromFormData(
     const fileNameKey = GEO_PHOTO_FILE_NAME_KEYS[urlKey];
     const fileName = firstNonEmpty(mergedFormData[fileNameKey]) || slotIdFromGeoPhotoUrlKey(urlKey);
     const slotId = slotIdFromGeoPhotoUrlKey(urlKey);
-    entries.set(`${slotId}:${url}|${fileName}`, `${slotId}:${url}|${fileName}`);
+    const entry = formatDocumentEntry(slotId, url, fileName);
+    entries.set(entry, entry);
+  }
+
+  const existingFormData = parseExistingFormData(existingRecord);
+  const folderLink = firstNonEmpty(
+    mergedFormData._documentsFolderLink,
+    existingFormData._documentsFolderLink
+  );
+  if (folderLink && isDocumentsFolderLink(folderLink)) {
+    const folderEntry = formatDocumentEntry(
+      '_documentsFolderLink',
+      folderLink,
+      'Documents Folder'
+    );
+    entries.set(folderEntry, folderEntry);
   }
 
   return Array.from(entries.values()).join(',');
