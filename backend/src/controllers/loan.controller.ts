@@ -885,10 +885,11 @@ export class LoanController {
           ? b2cFulfillment.itemId
           : undefined;
 
+      const rootActionEventType = String(rootQuery['Action/Event Type'] ?? '');
       const hasFulfillment =
         !!fulfillmentAction &&
         canPerformB2cFulfillment(role) &&
-        isB2cClientQueryActionEventType(rootQuery['Action/Event Type'] || '');
+        isB2cClientQueryActionEventType(rootActionEventType);
 
       const hasContent =
         message.trim() ||
@@ -967,12 +968,12 @@ export class LoanController {
         }
       }
 
-      const rootActionType = rootQuery['Action/Event Type'] || '';
+      const rootActionType = rootActionEventType;
       const replyTarget = getQueryReplyTarget(
         {
           actionEventType: rootActionType,
-          targetUserRole: rootQuery['Target User/Role'] || '',
-          actor: rootQuery.Actor || '',
+          targetUserRole: String(rootQuery['Target User/Role'] ?? ''),
+          actor: String(rootQuery.Actor ?? ''),
         },
         role
       );
