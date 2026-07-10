@@ -18,7 +18,12 @@ import { useNotifications } from '../../hooks/useNotifications';
 import { useNavigation } from '../../hooks/useNavigation';
 import { useSidebarItems } from '../../hooks/useSidebarItems';
 import { apiService, type ClientKycDealerProfile } from '../../services/api';
-import { normalizeStatus } from '../../lib/statusUtils';
+import { isClientEditableApplication, resolveApplicationStatus } from '../../lib/statusUtils';
+import {
+  buildWizardResumeSearchParams,
+  patchWizardStepMeta,
+  resolveWizardResumeStepIndex,
+} from '../../lib/b2cEvWizardResume';
 import {
   B2C_EV_FORM_TEMPLATE_ID,
   createInitialB2cEvFormData,
@@ -287,6 +292,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
   });
   const editingDraftIdRef = useRef<string | null>(null);
   const draftUrlSyncedRef = useRef(false);
+  const draftResumeAppliedRef = useRef(false);
+  const currentStepRef = useRef(0);
+  const visibleStagesRef = useRef<B2cEvStage[]>([]);
   const autoSaveTimerRef = useRef<number | null>(null);
   const pendingSaveChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
@@ -329,6 +337,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
     editingDraftIdRef.current = editingDraftId;
   }, [editingDraftId]);
 
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+  }, [currentStep]);
+
+  useEffect(() => {
+    visibleStagesRef.current = visibleStages;
+  }, [visibleStages]);
+
   const cancelScheduledAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current != null) {
       window.clearTimeout(autoSaveTimerRef.current);
@@ -351,6 +367,28 @@ export const B2CEvApplicationWizard: React.FC = () => {
       setCurrentStep(targetIndex);
     }
   }, [wizardStepParam, wizardStageParam, visibleStages, searchParams, draftLoading]);
+
+  useEffect(() => {
+    if (!draftIdParam) {
+      draftResumeAppliedRef.current = false;
+      return;
+    }
+    if (draftLoading || wizardStepParam || wizardStageParam) return;
+    if (draftResumeAppliedRef.current) return;
+
+    const resumeIndex = resolveWizardResumeStepIndex(formState.form_data, visibleStages);
+    if (resumeIndex != null) {
+      setCurrentStep(resumeIndex);
+    }
+    draftResumeAppliedRef.current = true;
+  }, [
+    draftIdParam,
+    draftLoading,
+    formState.form_data,
+    visibleStages,
+    wizardStepParam,
+    wizardStageParam,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -574,8 +612,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
           throw new Error(response.error || 'Draft not found');
         }
         const app = response.data;
-        const statusKey = normalizeStatus(app.status || app.Status || '');
-        if (statusKey !== 'draft' && statusKey !== 'query_with_client') {
+        const statusKey = resolveApplicationStatus(app.status || app.Status || '');
+        if (!isClientEditableApplication(statusKey)) {
           throw new Error('Only draft applications can be edited here');
         }
         let parsedFormData: Record<string, unknown> = {};
@@ -634,10 +672,18 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const buildFormDataPayloadFromState = (
     state: WizardFormState,
     patch?: Record<string, string>
-  ): Record<string, unknown> => ({
-    ...syncB2cEvComputedFields({ ...state.form_data, ...patch }),
-    '_meta.formTemplate': B2C_EV_FORM_TEMPLATE_ID,
-  });
+  ): Record<string, unknown> => {
+    const synced = syncB2cEvComputedFields({ ...state.form_data, ...patch });
+    const stage = visibleStagesRef.current[currentStepRef.current];
+    const withWizardMeta = stage
+      ? patchWizardStepMeta(synced, stage.id, currentStepRef.current)
+      : synced;
+
+    return {
+      ...withWizardMeta,
+      '_meta.formTemplate': B2C_EV_FORM_TEMPLATE_ID,
+    };
+  };
 
   const canAutoSave = (): boolean => {
     if (submitInFlightRef.current || saveInFlightRef.current) return false;
@@ -706,9 +752,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
         editingDraftIdRef.current = draftId;
         if (!draftUrlSyncedRef.current) {
           draftUrlSyncedRef.current = true;
-          const draftQuery = new URLSearchParams(window.location.search);
-          draftQuery.set('draftId', draftId);
-          navigate(`/applications/new?${draftQuery.toString()}`, { replace: true });
+          const resumeParams = buildWizardResumeSearchParams(draftId, formDataToSend);
+          navigate(`/applications/new?${resumeParams.toString()}`, { replace: true });
         }
         return draftId;
       };
@@ -1333,9 +1378,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
       }
 
       alert('Draft saved successfully.');
-      const draftQuery = new URLSearchParams(window.location.search);
-      draftQuery.set('draftId', draftId!);
-      navigate(`/applications/new?${draftQuery.toString()}`, { replace: true });
+      const resumeParams = buildWizardResumeSearchParams(
+        draftId!,
+        buildFormDataPayloadFromState(formState)
+      );
+      navigate(`/applications/new?${resumeParams.toString()}`, { replace: true });
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : 'Failed to save application');
     } finally {

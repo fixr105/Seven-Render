@@ -8,6 +8,8 @@ import {
   getStatusDisplayName,
   getBusinessStatusDisplayName,
   getStatusColor,
+  resolveApplicationStatus,
+  isClientEditableApplication,
 } from '../statusUtils';
 
 describe('normalizeStatus', () => {
@@ -154,5 +156,25 @@ describe('getStatusColor', () => {
   });
   it('returns neutral for unknown', () => {
     expect(getStatusColor('unknown')).toBe('neutral');
+  });
+});
+
+describe('resolveApplicationStatus', () => {
+  it('treats empty status as draft', () => {
+    expect(resolveApplicationStatus('')).toBe('draft');
+    expect(resolveApplicationStatus(undefined)).toBe('draft');
+  });
+
+  it('normalizes non-empty statuses', () => {
+    expect(resolveApplicationStatus('Submitted')).toBe('under_kam_review');
+  });
+});
+
+describe('isClientEditableApplication', () => {
+  it('allows draft and query_with_client', () => {
+    expect(isClientEditableApplication('')).toBe(true);
+    expect(isClientEditableApplication('draft')).toBe(true);
+    expect(isClientEditableApplication('query_with_client')).toBe(true);
+    expect(isClientEditableApplication('under_kam_review')).toBe(false);
   });
 });

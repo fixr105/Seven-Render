@@ -18,7 +18,8 @@ import { useApplications } from '../hooks/useApplications';
 import { useApplicationQueryCounts } from '../hooks/useApplicationQueryCounts';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
-import { getStatusDisplayNameForViewer, getStatusColor, normalizeStatus } from '../lib/statusUtils';
+import { getStatusDisplayNameForViewer, getStatusColor, isClientEditableApplication, resolveApplicationStatus } from '../lib/statusUtils';
+import { buildWizardResumePath } from '../lib/b2cEvWizardResume';
 import { matchIds } from '../utils/idMatcher';
 import { sortApplicationsByUnresolvedQueries } from '../utils/applicationQuerySort';
 
@@ -259,7 +260,7 @@ export const Applications: React.FC = () => {
           : 'N/A';
 
       const queryData = queryCounts[app.id] || { unresolved: 0, lastActivity: null };
-      const nk = normalizeStatus(app.status);
+      const nk = resolveApplicationStatus(app.status);
 
       return {
         id: app.id || (app as any).id,
@@ -339,8 +340,8 @@ export const Applications: React.FC = () => {
           cmp = String(a.amount).localeCompare(String(b.amount), undefined, { numeric: true });
           break;
         case 'status': {
-          const oa = statusOrderMap.get(normalizeStatus(a.rawStatus ?? '')) ?? 99999;
-          const ob = statusOrderMap.get(normalizeStatus(b.rawStatus ?? '')) ?? 99999;
+          const oa = statusOrderMap.get(resolveApplicationStatus(a.rawStatus ?? '')) ?? 99999;
+          const ob = statusOrderMap.get(resolveApplicationStatus(b.rawStatus ?? '')) ?? 99999;
           cmp = oa - ob;
           if (cmp === 0) cmp = String(a.status).localeCompare(String(b.status));
           break;
@@ -448,7 +449,7 @@ export const Applications: React.FC = () => {
           >
             {t('common.view')}
           </Button>
-          {(userRole === 'client' && normalizeStatus(row.rawStatus ?? '') === 'draft') && (
+          {(userRole === 'client' && isClientEditableApplication(row.rawStatus ?? '')) && (
             <Button
               variant="secondary"
               size="sm"
@@ -457,7 +458,8 @@ export const Applications: React.FC = () => {
                 e.stopPropagation();
                 const id = row.id ?? row.fileNumber;
                 if (id && String(id) !== 'undefined') {
-                  navigate(`/applications/new?draftId=${encodeURIComponent(String(id))}`);
+                  const formData = (row.rawData as { form_data?: Record<string, unknown> })?.form_data;
+                  navigate(buildWizardResumePath(String(id), formData));
                 }
               }}
             >

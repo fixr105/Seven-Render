@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { getVisibleB2cEvStages } from '../../../config/forms/b2cEvFormSchema';
+import { B2C_EV_GEO_PHOTO_SLOTS } from '../../../lib/b2cEvGeoPhotos';
 import { getBorrowerCibilScoreFromFormData } from '../../../lib/b2cEvCibilProbability';
 import { isPanLookupSuccessful } from '../../../lib/b2cEvPanLookup';
 import { CibilProbabilityBar } from '../CibilProbabilityBar';
@@ -8,6 +9,28 @@ import { B2cEvSupportPersonReview } from './B2cEvSupportPersonReview';
 import { B2cEvComplianceReview } from './B2cEvComplianceReview';
 import { KamClientKycPanel } from './KamClientKycPanel';
 import type { ComplianceItemId } from '../../../lib/b2cEvCompliance';
+
+function readString(value: unknown): string {
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function resolveInitialOpenStageId(
+  stages: ReturnType<typeof getVisibleB2cEvStages>,
+  formData: Record<string, unknown>,
+  userRole?: string | null
+): string | null {
+  const defaultStageId = stages[0]?.id ?? null;
+  const isReviewer = userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin';
+  if (!isReviewer) return defaultStageId;
+
+  const hasGeoPhotos = B2C_EV_GEO_PHOTO_SLOTS.some((slot) => readString(formData[slot.urlKey]));
+  if (hasGeoPhotos && stages.some((stage) => stage.id === 'geo-photos')) {
+    return 'geo-photos';
+  }
+
+  return defaultStageId;
+}
 
 function formatFieldValue(value: unknown): string {
   if (value == null || value === '') return '—';
@@ -33,7 +56,9 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
   onUpdated,
 }) => {
   const stages = useMemo(() => getVisibleB2cEvStages(formData), [formData]);
-  const [openStageId, setOpenStageId] = useState<string | null>(stages[0]?.id ?? null);
+  const [openStageId, setOpenStageId] = useState<string | null>(() =>
+    resolveInitialOpenStageId(getVisibleB2cEvStages(formData), formData, userRole)
+  );
 
   const cibilScore = isPanLookupSuccessful(formData)
     ? getBorrowerCibilScoreFromFormData(formData)

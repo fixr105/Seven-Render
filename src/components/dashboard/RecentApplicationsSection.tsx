@@ -3,7 +3,9 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { DataTable, Column } from '../ui/DataTable';
 import { FileText, Plus } from 'lucide-react';
-import { getStatusDisplayNameForViewer } from '../../lib/statusUtils';
+import { getStatusDisplayNameForViewer, isClientEditableApplication } from '../../lib/statusUtils';
+import { buildWizardResumePath } from '../../lib/b2cEvWizardResume';
+import { Edit } from 'lucide-react';
 import type { LoanApplication } from '../../hooks/useApplications';
 
 export type RecentApplicationsRole = 'client' | 'kam' | 'credit';
@@ -17,7 +19,9 @@ export interface ApplicationRow {
   loanType: string;
   amount: string;
   status: string;
+  statusKey: string;
   lastUpdate: string;
+  formData?: Record<string, unknown>;
 }
 
 export interface RecentApplicationsSectionProps {
@@ -31,6 +35,7 @@ export interface RecentApplicationsSectionProps {
   statusPalette?: 'default' | 'brand';
   /** Extra classes on the outer card (e.g. grid column span). */
   className?: string;
+  onContinueEdit?: (row: ApplicationRow) => void;
 }
 
 function getStatusVariant(status: string): 'success' | 'error' | 'warning' | 'info' | 'neutral' {
@@ -63,6 +68,8 @@ function mapToTableData(applications: LoanApplication[], role: RecentApplication
     loanType: app.loan_product?.name || '',
     amount: `₹${((app.requested_loan_amount || 0) / 100000).toFixed(2)}L`,
     status: formatStatus(app, role),
+    statusKey: app.status,
+    formData: app.form_data,
     lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -116,6 +123,7 @@ export function RecentApplicationsSection({
   onEmptyAction,
   statusPalette = 'default',
   className = '',
+  onContinueEdit,
 }: RecentApplicationsSectionProps) {
   const tableData = mapToTableData(applications, role);
   const emptyConfig = EMPTY_STATE_CONFIG[role];
@@ -140,6 +148,28 @@ export function RecentApplicationsSection({
       ),
     },
     { key: 'lastUpdate', label: 'Last Update', sortable: true },
+    ...(role === 'client' && onContinueEdit
+      ? [
+          {
+            key: 'actions',
+            label: 'Actions',
+            render: (_value: unknown, row: ApplicationRow) =>
+              isClientEditableApplication(row.statusKey) ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Edit}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onContinueEdit(row);
+                  }}
+                >
+                  Continue
+                </Button>
+              ) : null,
+          } as Column<ApplicationRow>,
+        ]
+      : []),
   ];
 
   return (

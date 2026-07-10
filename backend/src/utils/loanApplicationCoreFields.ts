@@ -271,3 +271,74 @@ export function buildPromotedApplicationRecord(
         : existingRecord['Remarks'] ?? '',
   };
 }
+
+export interface LoanApplicationDocumentEntry {
+  fieldId: string;
+  url: string;
+  fileName: string;
+}
+
+function parseDocumentEntry(entry: string): LoanApplicationDocumentEntry | null {
+  const trimmed = entry.trim();
+  if (!trimmed) return null;
+
+  const colonIndex = trimmed.indexOf(':');
+  if (colonIndex <= 0) return null;
+
+  const fieldId = trimmed.slice(0, colonIndex).trim();
+  const remainder = trimmed.slice(colonIndex + 1).trim();
+  if (!fieldId || !remainder) return null;
+
+  const pipeIndex = remainder.indexOf('|');
+  const url = (pipeIndex >= 0 ? remainder.slice(0, pipeIndex) : remainder).trim();
+  const fileName =
+    (pipeIndex >= 0 ? remainder.slice(pipeIndex + 1).trim() : '') ||
+    url.split('/').pop() ||
+    'document';
+
+  if (!url) return null;
+
+  return {
+    fieldId,
+    url,
+    fileName,
+  };
+}
+
+export function parseLoanApplicationDocumentsList(
+  documentsValue: unknown
+): LoanApplicationDocumentEntry[] {
+  const documentsStr = String(documentsValue ?? '').trim();
+  if (!documentsStr) return [];
+  const byFieldId = new Map<string, LoanApplicationDocumentEntry>();
+  for (const entry of documentsStr.split(',')) {
+    const parsed = parseDocumentEntry(entry);
+    if (parsed) byFieldId.set(parsed.fieldId, parsed);
+  }
+  return Array.from(byFieldId.values());
+}
+
+export function mergeLoanApplicationDocuments(
+  ...sources: LoanApplicationDocumentEntry[][]
+): LoanApplicationDocumentEntry[] {
+  const byFieldId = new Map<string, LoanApplicationDocumentEntry>();
+  for (const source of sources) {
+    for (const doc of source) {
+      byFieldId.set(doc.fieldId, doc);
+    }
+  }
+  return Array.from(byFieldId.values());
+}
+
+export function resolveLoanApplicationDocuments(
+  application: Record<string, unknown>,
+  formData: Record<string, unknown>
+): LoanApplicationDocumentEntry[] {
+  const fromColumn = parseLoanApplicationDocumentsList(
+    application.Documents ?? application.documents
+  );
+  const fromFormData = parseLoanApplicationDocumentsList(
+    resolveDocumentsFromFormData(formData, application)
+  );
+  return mergeLoanApplicationDocuments(fromColumn, fromFormData);
+}

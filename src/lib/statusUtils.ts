@@ -49,6 +49,18 @@ export function normalizeStatus(status: string): string {
   return STATUS_ALIASES[normalized] ?? normalized;
 }
 
+/** Empty/missing Airtable Status is treated as draft (see loanApplicationAirtableStatus). */
+export function resolveApplicationStatus(status: string | null | undefined): string {
+  const trimmed = String(status ?? '').trim();
+  if (!trimmed) return 'draft';
+  return normalizeStatus(trimmed);
+}
+
+export function isClientEditableApplication(status: string | null | undefined): boolean {
+  const key = resolveApplicationStatus(status);
+  return key === 'draft' || key === 'query_with_client';
+}
+
 function formatStatusFallback(normalized: string): string {
   return normalized
     .split('_')

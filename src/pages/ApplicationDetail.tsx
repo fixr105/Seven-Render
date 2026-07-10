@@ -17,7 +17,8 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService, type ApiResponse, type LoanApplication } from '../services/api';
 import { formatDateSafe } from '../utils/dateFormatter';
-import { getBusinessStatusOptions, getAllowedNextStatusesForKam, getStatusDisplayNameForViewer, normalizeStatus, type LoanStatus } from '../lib/statusUtils';
+import { getBusinessStatusOptions, getAllowedNextStatusesForKam, getStatusDisplayNameForViewer, isClientEditableApplication, normalizeStatus, resolveApplicationStatus, type LoanStatus } from '../lib/statusUtils';
+import { buildWizardResumePath } from '../lib/b2cEvWizardResume';
 import {
   applyApplicationStatusChange,
   statusRequiresDisbursementFields,
@@ -435,7 +436,7 @@ export const ApplicationDetail: React.FC = () => {
             : requestedAmount != null ? (typeof requestedAmount === 'string' ? parseFloat(String(requestedAmount)) : Number(requestedAmount)) : undefined;
         const normalized = {
           ...d,
-          status: normalizeStatus(String(d.status ?? d.Status ?? '')),
+          status: resolveApplicationStatus(String(d.status ?? d.Status ?? '')),
           file_number: d.file_number ?? d.fileId ?? d['File ID'],
           applicant_name: d.applicant_name ?? d.applicantName ?? d['Applicant Name'],
           remarks: d.remarks ?? d['Remarks'] ?? form_data.Remarks ?? '',
@@ -935,6 +936,10 @@ export const ApplicationDetail: React.FC = () => {
     (applicationStatusKey === 'under_kam_review' || applicationStatusKey === 'query_with_client');
   const canWithdrawApplication =
     userRole === 'client' && WITHDRAWABLE_CLIENT_STATUSES.has(applicationStatusKey);
+  const canContinueEditingApplication =
+    userRole === 'client' &&
+    isClientEditableApplication(applicationStatusKey) &&
+    isB2cEvFormTemplate(parseApplicationFormData());
   const canRecordOfflineNbfcDecision =
     (userRole === 'credit_team' || userRole === 'admin') &&
     applicationStatusKey === 'sent_to_nbfc' &&
@@ -1061,6 +1066,16 @@ export const ApplicationDetail: React.FC = () => {
             <Button variant="tertiary" icon={RefreshCw} onClick={handleRefresh} disabled={refreshing} loading={refreshing}>
               {t('common.refresh')}
             </Button>
+            {canContinueEditingApplication && id && (
+              <Button
+                variant="primary"
+                icon={Edit}
+                onClick={() => navigate(buildWizardResumePath(id, parseApplicationFormData()))}
+                data-testid="client-continue-editing-application"
+              >
+                Continue editing
+              </Button>
+            )}
             {canEditApplication && (
               <Button variant="secondary" icon={Edit} onClick={handleOpenKamEdit}>
                 Edit Application

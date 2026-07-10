@@ -10,6 +10,7 @@ import { useLedger } from '../../hooks/useLedger';
 import { useNotifications } from '../../hooks/useNotifications';
 import { apiService } from '../../services/api';
 import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
+import { buildWizardResumePath } from '../../lib/b2cEvWizardResume';
 import type { LoanApplication } from '../../hooks/useApplications';
 
 type LoanProductCard = {
@@ -435,6 +436,12 @@ export const ClientDashboard: React.FC = () => {
             if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
           }}
           onEmptyAction={() => navigate('/applications/new')}
+          onContinueEdit={(row) => {
+            const id = row.id ?? row.applicationId ?? row.fileId;
+            if (id && String(id) !== 'undefined') {
+              navigate(buildWizardResumePath(String(id), row.formData));
+            }
+          }}
         />
 
         <Card className="rounded-xl shadow-sm lg:col-span-1">

@@ -23,6 +23,7 @@ import {
 } from '../services/entitlements/clientProducts.service.js';
 import { resolveRequestedLoanAmountFromVehicleSelection } from '../services/vehicles/vehicleCatalog.service.js';
 import { resolveApplicationRecordStatus, resolveStoredApplicationStatus } from '../utils/loanApplicationAirtableStatus.js';
+import { resolveLoanApplicationDocuments } from '../utils/loanApplicationCoreFields.js';
 import {
   buildPromotedApplicationRecord,
   mergeFormDataJson,
@@ -414,15 +415,15 @@ export class LoanController {
             .filter(Boolean)
         );
         filteredApplications = filteredApplications.filter((app: any) => {
-          const st = String(app.Status ?? '')
-            .trim()
-            .toLowerCase();
-          return allowed.has(st);
+          const resolved = resolveStoredApplicationStatus(app.Status ?? app.status);
+          return allowed.has(resolved);
         });
       } else if (status) {
-        filteredApplications = filteredApplications.filter(
-          (app: any) => app.Status === status
-        );
+        const wanted = String(status).trim().toLowerCase();
+        filteredApplications = filteredApplications.filter((app: any) => {
+          const resolved = resolveStoredApplicationStatus(app.Status ?? app.status);
+          return resolved === wanted;
+        });
       }
 
       // Apply date filters
@@ -1102,28 +1103,6 @@ export class LoanController {
           resolved: log.Resolved === 'True',
         }));
 
-      // Parse Documents field - format: fieldId:url|fileName,fieldId:url|fileName
-      const documents: Array<{ fieldId: string; url: string; fileName: string }> = [];
-      if (application.Documents) {
-        const documentsStr = application.Documents;
-        const documentEntries = documentsStr.split(',').filter(Boolean);
-        
-        documentEntries.forEach((entry: string) => {
-          // Parse format: fieldId:url|fileName
-          const [fieldIdPart, rest] = entry.split(':');
-          if (rest) {
-            const [url, fileName] = rest.split('|');
-            if (fieldIdPart && url) {
-              documents.push({
-                fieldId: fieldIdPart.trim(),
-                url: url.trim(),
-                fileName: fileName ? fileName.trim() : url.split('/').pop() || 'document',
-              });
-            }
-          }
-        });
-      }
-
       // Parse Form Data safely (defensive reads for n8n/Airtable field name variants)
       let formData: Record<string, unknown> = {};
       const rawFormData =
@@ -1175,6 +1154,11 @@ export class LoanController {
       if (Object.keys(formData).length === 0) {
         console.log(`[getApplication] No form data for application ${application.id} (File ID: ${application['File ID']}) source: ${formDataSource}`);
       }
+
+      const documents = resolveLoanApplicationDocuments(
+        application as Record<string, unknown>,
+        formData
+      );
 
       const normalizedStatus = resolveApplicationRecordStatus(application);
       const productStatuses = await getApplicationProductStatuses(application as Record<string, any>);

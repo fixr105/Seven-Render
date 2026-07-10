@@ -262,3 +262,35 @@ describe('stripBase64GeoPhotoUrls', () => {
     expect(sanitized['borrower.mobile']).toBe('9999999999');
   });
 });
+
+describe('resolveLoanApplicationDocuments', () => {
+  it('merges Documents column entries with geo photos from form data', async () => {
+    const { resolveLoanApplicationDocuments } = await import('../loanApplicationCoreFields.js');
+    const docs = resolveLoanApplicationDocuments(
+      {
+        Documents: 'withVehicle:https://cdn.example.com/old-vehicle.jpg|old.jpg',
+      },
+      {
+        'geoPhotos.withSupportPerson.url': 'https://cdn.example.com/support.jpg',
+        'geoPhotos.withSupportPerson.fileName': 'support.jpg',
+        'geoPhotos.withVehicle.url': 'https://cdn.example.com/vehicle.jpg',
+        'geoPhotos.withVehicle.fileName': 'vehicle.jpg',
+      }
+    );
+
+    expect(docs).toEqual(
+      expect.arrayContaining([
+        {
+          fieldId: 'withSupportPerson',
+          url: 'https://cdn.example.com/support.jpg',
+          fileName: 'support.jpg',
+        },
+        {
+          fieldId: 'withVehicle',
+          url: 'https://cdn.example.com/vehicle.jpg',
+          fileName: 'vehicle.jpg',
+        },
+      ])
+    );
+  });
+});
