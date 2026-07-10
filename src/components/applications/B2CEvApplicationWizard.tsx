@@ -251,7 +251,7 @@ function renderField(
 export const B2CEvApplicationWizard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const draftIdParam = searchParams.get('draftId');
   const wizardStepParam = searchParams.get('step');
   const wizardStageParam = searchParams.get('stage');
@@ -299,6 +299,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const editingDraftIdRef = useRef<string | null>(null);
   const draftUrlSyncedRef = useRef(false);
   const draftResumeAppliedRef = useRef(false);
+  const wizardJumpAppliedRef = useRef(false);
   const currentStepRef = useRef(0);
   const visibleStagesRef = useRef<B2cEvStage[]>([]);
   const autoSaveTimerRef = useRef<number | null>(null);
@@ -368,11 +369,36 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   useEffect(() => {
     if (!wizardStepParam && !wizardStageParam) return;
+    if (draftLoading) return;
+    if (wizardJumpAppliedRef.current) return;
+
     const targetIndex = parseWizardStepJumpParam(searchParams, visibleStages);
     if (targetIndex != null) {
       setCurrentStep(targetIndex);
     }
+    wizardJumpAppliedRef.current = true;
   }, [wizardStepParam, wizardStageParam, visibleStages, searchParams, draftLoading]);
+
+  const syncWizardStageInUrl = useCallback(
+    (stepIndex: number) => {
+      const stage = visibleStagesRef.current[stepIndex];
+      if (!stage) return;
+
+      setSearchParams(
+        (prev) => {
+          if (prev.get('stage') === stage.id && !prev.get('step')) {
+            return prev;
+          }
+          const next = new URLSearchParams(prev);
+          next.delete('step');
+          next.set('stage', stage.id);
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     if (!draftIdParam) {
@@ -385,6 +411,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     const resumeIndex = resolveWizardResumeStepIndex(formState.form_data, visibleStages);
     if (resumeIndex != null) {
       setCurrentStep(resumeIndex);
+      syncWizardStageInUrl(resumeIndex);
     }
     draftResumeAppliedRef.current = true;
   }, [
@@ -394,6 +421,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     visibleStages,
     wizardStepParam,
     wizardStageParam,
+    syncWizardStageInUrl,
   ]);
 
   useEffect(() => {
@@ -1122,8 +1150,17 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }
   };
 
+  const setWizardStep = useCallback(
+    (stepIndex: number) => {
+      const clamped = Math.max(0, Math.min(stepIndex, visibleStagesRef.current.length - 1));
+      setCurrentStep(clamped);
+      syncWizardStageInUrl(clamped);
+    },
+    [syncWizardStageInUrl]
+  );
+
   const advanceStep = () => {
-    setCurrentStep((prev) => Math.min(prev + 1, visibleStages.length - 1));
+    setWizardStep(currentStepRef.current + 1);
   };
 
   const runPanLookup = async (): Promise<boolean> => {
@@ -1380,7 +1417,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     advanceStep();
   };
 
-  const goBack = () => setCurrentStep((prev) => Math.max(prev - 1, 0));
+  const goBack = () => setWizardStep(currentStepRef.current - 1);
 
   const handleSubmit = async (saveAsDraft: boolean) => {
     if (submitInFlightRef.current) return;
@@ -1596,7 +1633,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
             Borrower details must be verified on the Loan Product step before this section can be
             loaded.
           </p>
-          <Button type="button" variant="secondary" onClick={() => setCurrentStep(0)}>
+          <Button type="button" variant="secondary" onClick={() => setWizardStep(0)}>
             Go back to verify PAN
           </Button>
         </div>
@@ -1847,7 +1884,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 }
               }
 
-              setCurrentStep(index);
+              setWizardStep(index);
             }}
           />
           {draftSaveStatus !== 'idle' && (

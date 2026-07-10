@@ -938,4 +938,75 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('b2c-field-insurance-cost')).toBeInTheDocument();
     });
   });
+
+  it('stays on Insurance after advancing when URL still has stage=geo-photos', async () => {
+    const completeFormData = {
+      ...createInitialB2cEvFormData(),
+      '_meta.doRequest.requestedAt': '2026-01-01T00:00:00.000Z',
+      '_meta.doRequest.fulfilledAt': '2026-01-02T00:00:00.000Z',
+      '_meta.doRequest.status': 'approved',
+      'compliance.vkycDone': 'true',
+      'compliance.loanAgreementSigned': 'true',
+      'compliance.enachDone': 'true',
+      'geoPhotos.withSupportPerson.url': 'https://cdn.example.com/with-support.jpg',
+      'geoPhotos.withSupportPerson.latitude': '21.17',
+      'geoPhotos.withSupportPerson.longitude': '72.83',
+      'geoPhotos.withVehicle.url': 'https://cdn.example.com/with-vehicle.jpg',
+      'geoPhotos.withVehicle.latitude': '21.17',
+      'geoPhotos.withVehicle.longitude': '72.83',
+      'geoPhotos.atResidence.url': 'https://cdn.example.com/at-residence.jpg',
+      'geoPhotos.atResidence.latitude': '21.17',
+      'geoPhotos.atResidence.longitude': '72.83',
+    };
+
+    const urlParams = new URLSearchParams('draftId=draft-do-fulfilled&b2cEv=1&stage=geo-photos');
+    const setSearchParams = vi.fn(
+      (updater: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams)) => {
+        const next =
+          typeof updater === 'function' ? updater(urlParams) : updater;
+        for (const key of [...urlParams.keys()]) {
+          urlParams.delete(key);
+        }
+        next.forEach((value, key) => urlParams.set(key, value));
+      }
+    );
+
+    mockUseSearchParams.mockReturnValue([urlParams, setSearchParams] as ReturnType<
+      typeof mockUseSearchParams
+    >);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-do-fulfilled',
+        status: 'draft',
+        applicantName: 'RAHUL GONSALVES',
+        loanProduct: 'LP001',
+        formData: completeFormData,
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-wizard-next')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-insurance-cost')).toBeInTheDocument();
+    });
+
+    const insuranceCost = screen.getByTestId('b2c-field-insurance-cost');
+    await user.type(insuranceCost, '5000');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-insurance-cost')).toBeInTheDocument();
+      expect(screen.queryByTestId('b2c-field-geoPhotos-withSupportPerson-url')).not.toBeInTheDocument();
+    });
+
+    expect(urlParams.get('stage')).toBe('insurance');
+  });
 });
