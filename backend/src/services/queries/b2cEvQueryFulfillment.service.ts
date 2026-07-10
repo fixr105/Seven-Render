@@ -4,7 +4,11 @@
 
 export type ComplianceItemId = 'vkyc' | 'loanAgreement' | 'enach';
 export type B2cRequestKind = 'b2c_compliance' | 'b2c_do';
-export type B2cFulfillmentAction = 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill';
+export type B2cFulfillmentAction =
+  | 'compliance_fulfill'
+  | 'compliance_unmark'
+  | 'do_fulfill'
+  | 'do_clear_request';
 
 const COMPLIANCE_ITEM_IDS: ComplianceItemId[] = ['vkyc', 'loanAgreement', 'enach'];
 
@@ -206,6 +210,15 @@ export function buildB2cFulfillmentPatch(
     return { '_meta.doRequest.fulfilledAt': now };
   }
 
+  if (action === 'do_clear_request') {
+    return {
+      '_meta.doRequest.requestedAt': '',
+      '_meta.doRequest.queryId': '',
+      '_meta.doRequest.fulfilledAt': '',
+      '_meta.doRequest.fulfillmentNotes': '',
+    };
+  }
+
   if (!itemId || !isComplianceItemId(itemId)) {
     throw new Error('itemId is required for compliance fulfillment actions');
   }
@@ -230,6 +243,9 @@ export function buildB2cFulfillmentReplyMessage(
 ): string {
   if (action === 'do_fulfill') {
     return 'Disbursement Order (DO) marked as processed by KAM.';
+  }
+  if (action === 'do_clear_request') {
+    return 'Disbursement Order (DO) request rejected by KAM.';
   }
   if (!itemId || !isComplianceItemId(itemId)) {
     throw new Error('itemId is required for compliance fulfillment actions');
@@ -259,5 +275,10 @@ export function canPerformB2cFulfillment(role: string): boolean {
 }
 
 export function isB2cFulfillmentAction(value: string): value is B2cFulfillmentAction {
-  return value === 'compliance_fulfill' || value === 'compliance_unmark' || value === 'do_fulfill';
+  return (
+    value === 'compliance_fulfill' ||
+    value === 'compliance_unmark' ||
+    value === 'do_fulfill' ||
+    value === 'do_clear_request'
+  );
 }

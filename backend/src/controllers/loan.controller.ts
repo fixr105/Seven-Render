@@ -30,6 +30,7 @@ import {
   resolveLoanApplicationPromotedFields,
 } from '../utils/loanApplicationCoreFields.js';
 import { readFormConfigVersion } from '../utils/loanApplicationAirtableMapping.js';
+import { isB2cMetadataOnlyFormPatch } from '../utils/b2cEvFormPatchGuards.js';
 
 export class LoanController {
   /**
@@ -630,11 +631,12 @@ export class LoanController {
         return;
       }
 
-      const clientId = application.Client || application['Client'];
-      if (clientId !== req.user.clientId) {
+      const appClient = application.Client || application['Client'];
+      if (!matchIds(appClient, req.user.clientId)) {
         res.status(403).json({ success: false, error: 'Access denied. You can only raise queries for your own applications.' });
         return;
       }
+      const clientIdForQuery = req.user.clientId!;
 
       const {
         buildB2cClientQueryActionEventType,
@@ -654,7 +656,7 @@ export class LoanController {
       const { queryService } = await import('../services/queries/query.service.js');
       const queryId = await queryService.createQuery(
         application['File ID'],
-        clientId,
+        clientIdForQuery,
         req.user.email,
         'client',
         queryMessage,
@@ -663,18 +665,25 @@ export class LoanController {
       );
 
       let formDataPatchApplied = false;
+      let formDataPatchError: string | undefined;
       if (normalizedRequestKind) {
-        const patch = buildB2cClientRequestFormPatch(normalizedRequestKind, {
-          itemId: typedItemId,
-          queryId,
-        });
-        const mergedFormData = mergeFormDataJson(application, patch);
-        await n8nClient.postLoanApplication({
-          ...application,
-          'Form Data': JSON.stringify(mergedFormData),
-          'Last Updated': new Date().toISOString(),
-        });
-        formDataPatchApplied = true;
+        try {
+          const patch = buildB2cClientRequestFormPatch(normalizedRequestKind, {
+            itemId: typedItemId,
+            queryId,
+          });
+          const mergedFormData = mergeFormDataJson(application, patch);
+          await n8nClient.postLoanApplication({
+            ...application,
+            'Form Data': JSON.stringify(mergedFormData),
+            'Last Updated': new Date().toISOString(),
+          });
+          formDataPatchApplied = true;
+        } catch (patchError: unknown) {
+          formDataPatchError =
+            patchError instanceof Error ? patchError.message : 'Failed to persist B2C request metadata';
+          console.error('[createClientQuery] form_data patch failed:', patchError);
+        }
       }
 
       await logApplicationAction(
@@ -688,7 +697,7 @@ export class LoanController {
       res.json({
         success: true,
         message: 'Query raised successfully',
-        data: { queryId, formDataPatchApplied },
+        data: { queryId, formDataPatchApplied, formDataPatchError },
       });
     } catch (error: any) {
       res.status(500).json({
@@ -1236,6 +1245,11 @@ export class LoanController {
 
       const { id } = req.params;
       const { formData } = req.body;
+      const incomingFormData = (formData && typeof formData === 'object' ? formData : {}) as Record<
+        string,
+        unknown
+      >;
+      const metadataOnlyPatch = isB2cMetadataOnlyFormPatch(incomingFormData);
       // Fetch only Loan Application table (bypass cache — must see freshly created drafts)
       const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
@@ -1248,10 +1262,28 @@ export class LoanController {
 
       const applicationStatus = resolveApplicationRecordStatus(application);
 
-      // Only allow updates in DRAFT or QUERY_WITH_CLIENT status
+      let isB2cEvApplication = false;
+      if (!metadataOnlyPatch) {
+        const { isB2cEvFormTemplate } = await import(
+          '../services/validation/b2cEvFormValidation.service.js'
+        );
+        const existingFormData = mergeFormDataJson(application, {});
+        isB2cEvApplication =
+          isB2cEvFormTemplate(existingFormData) || isB2cEvFormTemplate(incomingFormData);
+      }
+
+      const editableStatuses = new Set<LoanStatus>([
+        LoanStatus.DRAFT,
+        LoanStatus.QUERY_WITH_CLIENT,
+      ]);
+      if (isB2cEvApplication) {
+        editableStatuses.add(LoanStatus.UNDER_KAM_REVIEW);
+      }
+
+      // Metadata-only B2C patches (DO/compliance request flags) bypass workflow status gates.
       if (
-        applicationStatus !== LoanStatus.DRAFT &&
-        applicationStatus !== LoanStatus.QUERY_WITH_CLIENT
+        !metadataOnlyPatch &&
+        !editableStatuses.has(applicationStatus)
       ) {
         res.status(400).json({
           success: false,
@@ -1269,7 +1301,7 @@ export class LoanController {
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
 
-      const mergedFormData = mergeFormDataJson(application, formData || {});
+      const mergedFormData = mergeFormDataJson(application, incomingFormData);
       let promotedFields = resolveLoanApplicationPromotedFields(mergedFormData, application);
 
       const existingProductId = String(application['Loan Product'] || application.loanProduct || '');

@@ -3,7 +3,11 @@ import { buildDoRequestMessage } from './b2cEvDoRequest';
 import { buildComplianceKamRequestMessage } from './b2cEvCompliance';
 
 export type B2cRequestKind = 'b2c_compliance' | 'b2c_do';
-export type B2cFulfillmentAction = 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill';
+export type B2cFulfillmentAction =
+  | 'compliance_fulfill'
+  | 'compliance_unmark'
+  | 'do_fulfill'
+  | 'do_clear_request';
 
 export function getComplianceQueryIdKey(itemId: ComplianceItemId): string {
   return `_meta.kamRequests.${itemId}.queryId`;

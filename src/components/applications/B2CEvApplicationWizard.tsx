@@ -906,7 +906,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
       if (queryId) {
         patch[item.queryIdKey] = queryId;
       }
-      await persistDraft(patch);
+      if (!response.data?.formDataPatchApplied) {
+        await persistDraft(patch);
+      }
       updateFields(patch);
     } catch (error: unknown) {
       const message =
@@ -958,7 +960,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
       if (queryId) {
         patch['_meta.doRequest.queryId'] = queryId;
       }
-      await persistDraft(patch);
+      if (!response.data?.formDataPatchApplied) {
+        await persistDraft(patch);
+      }
       updateFields(patch);
       setStepAdvanceMessage(
         'DO request sent to your KAM. Insurance and Vehicle will unlock after the DO is processed.'

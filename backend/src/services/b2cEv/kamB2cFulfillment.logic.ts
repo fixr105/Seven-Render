@@ -61,6 +61,25 @@ export function buildDoFulfillPatch(
   return mergeFormDataPatch(formData, patch);
 }
 
+export function buildDoClearRequestPatch(
+  formData: Record<string, unknown>
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    '_meta.doRequest.requestedAt': '',
+    '_meta.doRequest.queryId': '',
+    '_meta.doRequest.fulfilledAt': '',
+    '_meta.doRequest.fulfillmentNotes': '',
+  };
+  return mergeFormDataPatch(formData, patch);
+}
+
+export function formatDoAuditMessage(action: 'fulfill' | 'clear_request'): string {
+  if (action === 'fulfill') {
+    return 'KAM marked Disbursement Order (DO) as processed';
+  }
+  return 'KAM rejected Disbursement Order (DO) request';
+}
+
 export function formatComplianceAuditMessage(
   itemId: ComplianceItemId,
   action: 'fulfill' | 'unmark' | 'clear_request'

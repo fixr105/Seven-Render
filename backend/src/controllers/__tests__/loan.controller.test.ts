@@ -548,7 +548,7 @@ describe('LoanController - P0 Tests', () => {
       mockRequest = {
         user: clientUser,
         params: { id: 'rec2' },
-        body: { formData: { applicant_name: 'Test' } },
+        body: { formData: { 'borrower.customerName': 'Test' } },
       };
 
       await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
@@ -750,6 +750,7 @@ describe('LoanController - P0 Tests', () => {
           return [{
             ...mockLoanApplications[0],
             id: 'rec1',
+            Client: ['CLIENT001'],
             'Form Data': JSON.stringify({ '_meta.formTemplate': 'b2c_ev_v1' }),
             Status: undefined,
           }];
@@ -768,6 +769,15 @@ describe('LoanController - P0 Tests', () => {
 
       await controller.createClientQuery(mockRequest as Request, mockResponse as Response);
 
+      expect(queryService.createQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        'CLIENT001',
+        expect.any(String),
+        'client',
+        expect.any(String),
+        'kam',
+        'client_query_b2c_do'
+      );
       expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalledWith(
         expect.objectContaining({
           'Form Data': expect.stringContaining('_meta.doRequest.requestedAt'),
@@ -783,7 +793,55 @@ describe('LoanController - P0 Tests', () => {
         })
       );
     });
+
+    it('returns queryId when form patch fails after query creation', async () => {
+      const { queryService } = await import('../../services/queries/query.service.js');
+      jest.mocked(queryService.createQuery).mockResolvedValue('QUERY-DO-2');
+      (mockN8nClientInstance.postLoanApplication as jest.Mock).mockRejectedValueOnce(
+        new Error('sync failed') as never
+      );
+
+      const clientUser: AuthUser = {
+        id: 'user-1',
+        email: 'client@example.com',
+        role: UserRole.CLIENT,
+        clientId: 'CLIENT001',
+      };
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            Client: 'CLIENT001',
+            'Form Data': JSON.stringify({ '_meta.formTemplate': 'b2c_ev_v1' }),
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: {
+          message: 'Please process Disbursement Order (DO) for test.',
+          requestKind: 'b2c_do',
+        },
+      };
+
+      await controller.createClientQuery(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            queryId: 'QUERY-DO-2',
+            formDataPatchApplied: false,
+            formDataPatchError: 'sync failed',
+          }),
+        })
+      );
+    });
   });
 
 });
-

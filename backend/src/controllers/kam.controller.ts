@@ -1837,9 +1837,9 @@ export class KAMController {
         return;
       }
       const { id } = req.params;
-      const action = req.body?.action as string;
-      if (action !== 'fulfill') {
-        res.status(400).json({ success: false, error: 'Only fulfill action is supported' });
+      const action = req.body?.action as 'fulfill' | 'clear_request';
+      if (action !== 'fulfill' && action !== 'clear_request') {
+        res.status(400).json({ success: false, error: 'action must be fulfill or clear_request' });
         return;
       }
 
@@ -1853,21 +1853,41 @@ export class KAMController {
 
       const {
         buildDoFulfillPatch,
+        buildDoClearRequestPatch,
+        formatDoAuditMessage,
         getApplicationFormData,
         persistApplicationFormData,
       } = await import('../services/b2cEv/kamB2cFulfillment.service.js');
 
       const existing = getApplicationFormData(application);
       const notes = typeof req.body?.notes === 'string' ? req.body.notes : undefined;
-      const merged = buildDoFulfillPatch(existing, notes);
-      await persistApplicationFormData(
-        application,
-        merged,
-        req.user,
-        'KAM marked Disbursement Order (DO) as processed'
-      );
+      const merged =
+        action === 'fulfill'
+          ? buildDoFulfillPatch(existing, notes)
+          : buildDoClearRequestPatch(existing);
+      const auditMessage = formatDoAuditMessage(action);
+      await persistApplicationFormData(application, merged, req.user, auditMessage);
 
-      res.json({ success: true, message: 'DO request marked processed' });
+      const queryId = String(existing['_meta.doRequest.queryId'] ?? '').trim();
+      if (queryId) {
+        const { queryService } = await import('../services/queries/query.service.js');
+        await queryService.resolveQuery(
+          queryId,
+          String(application['File ID'] || application.fileId || ''),
+          application.Client || application['Client'],
+          req.user!.email,
+          auditMessage,
+          req.user!.role
+        );
+      }
+
+      res.json({
+        success: true,
+        message:
+          action === 'fulfill'
+            ? 'DO request marked processed'
+            : 'DO request rejected',
+      });
     } catch (error: unknown) {
       if (error instanceof KamAccessError) {
         res.status(error.statusCode).json({ success: false, error: error.message });

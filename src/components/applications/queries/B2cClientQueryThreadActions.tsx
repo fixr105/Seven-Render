@@ -51,7 +51,7 @@ export const B2cClientQueryThreadActions: React.FC<B2cClientQueryThreadActionsPr
   }
 
   const runFulfillment = async (
-    action: 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill',
+    action: 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill' | 'do_clear_request',
     itemId?: ComplianceItemId
   ) => {
     const actionKey = itemId ? `${action}-${itemId}` : action;
@@ -78,16 +78,28 @@ export const B2cClientQueryThreadActions: React.FC<B2cClientQueryThreadActionsPr
     >
       {parsed.kind === 'compliance' && renderComplianceActions(parsed, formData, loadingAction, runFulfillment)}
       {parsed.kind === 'do' && (
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={loadingAction != null}
-          onClick={() => void runFulfillment('do_fulfill')}
-          data-testid="b2c-query-action-do-fulfill"
-        >
-          {loadingAction === 'do_fulfill' ? 'Saving…' : 'Mark DO processed'}
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={loadingAction != null}
+            onClick={() => void runFulfillment('do_fulfill')}
+            data-testid="b2c-query-action-do-fulfill"
+          >
+            {loadingAction === 'do_fulfill' ? 'Saving…' : 'Mark DO processed'}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={loadingAction != null}
+            onClick={() => void runFulfillment('do_clear_request')}
+            data-testid="b2c-query-action-do-reject"
+          >
+            {loadingAction === 'do_clear_request' ? 'Saving…' : 'Reject'}
+          </Button>
+        </>
       )}
     </div>
   );
@@ -98,7 +110,7 @@ function renderComplianceActions(
   formData: Record<string, unknown>,
   loadingAction: string | null,
   runFulfillment: (
-    action: 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill',
+    action: 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill' | 'do_clear_request',
     itemId?: ComplianceItemId
   ) => Promise<void>
 ) {

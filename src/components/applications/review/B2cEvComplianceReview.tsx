@@ -43,6 +43,22 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   const canManageCompliance = userRole === 'kam' && Boolean(applicationId);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
+  const runDoAction = async (action: 'fulfill' | 'clear_request') => {
+    if (!applicationId) return;
+    setLoadingAction(action);
+    try {
+      const response = await apiService.kamB2cDoRequestAction(applicationId, { action });
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update DO request');
+      }
+      onUpdated?.();
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Failed to update DO request');
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
   const highlightedItemId = useMemo(() => {
     if (highlightComplianceItem) return highlightComplianceItem;
     const pending = COMPLIANCE_ITEMS.find(
@@ -167,9 +183,33 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
             {doFulfilled
               ? ` · Processed ${new Date(readString(formData['_meta.doRequest.fulfilledAt'])).toLocaleString()} — post-DO stages unlocked for client`
               : doRequested
-                ? ' · Mark DO processed in Queries to unlock Insurance and Vehicle for the client'
+                ? ' · Pending KAM action to unlock Insurance and Vehicle for the client'
                 : ''}
           </p>
+          {canManageCompliance && doRequested && !doFulfilled && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={loadingAction != null}
+                onClick={() => void runDoAction('fulfill')}
+                data-testid="do-request-approve"
+              >
+                {loadingAction === 'fulfill' ? 'Saving…' : 'Mark DO processed'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={loadingAction != null}
+                onClick={() => void runDoAction('clear_request')}
+                data-testid="do-request-reject"
+              >
+                {loadingAction === 'clear_request' ? 'Saving…' : 'Reject'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

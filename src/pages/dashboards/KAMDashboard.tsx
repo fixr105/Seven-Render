@@ -189,13 +189,25 @@ export const KAMDashboard: React.FC = () => {
                       const targetId = action.applicationId || action.fileId;
                       if (!targetId) return;
                       const params = new URLSearchParams();
-                      if (action.itemId) {
+                      if (action.type === 'compliance' && action.itemId) {
                         params.set('complianceItem', action.itemId);
+                        const query = params.toString();
+                        navigate(
+                          `/applications/${encodeURIComponent(targetId)}${query ? `?${query}` : ''}#b2c-compliance`
+                        );
+                        return;
                       }
-                      const query = params.toString();
-                      navigate(
-                        `/applications/${encodeURIComponent(targetId)}${query ? `?${query}` : ''}#b2c-compliance`
-                      );
+                      if (action.type === 'do') {
+                        if (action.queryId) {
+                          params.set('highlightQuery', action.queryId);
+                        }
+                        const query = params.toString();
+                        navigate(
+                          `/applications/${encodeURIComponent(targetId)}${query ? `?${query}` : ''}#queries`
+                        );
+                        return;
+                      }
+                      navigate(`/applications/${encodeURIComponent(targetId)}#b2c-compliance`);
                     }}
                     className="text-sm font-medium text-brand-primary hover:underline"
                   >

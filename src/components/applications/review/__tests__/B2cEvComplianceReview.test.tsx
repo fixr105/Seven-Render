@@ -38,4 +38,19 @@ describe('B2cEvComplianceReview', () => {
     expect(screen.getByTestId('compliance-approve-vkyc')).toBeInTheDocument();
     expect(screen.getByTestId('compliance-reject-vkyc')).toBeInTheDocument();
   });
+
+  it('shows DO approve and reject for pending KAM DO requests', () => {
+    render(
+      <B2cEvComplianceReview
+        formData={{
+          '_meta.doRequest.requestedAt': '2026-01-02T00:00:00.000Z',
+        }}
+        userRole="kam"
+        applicationId="rec-app-1"
+      />
+    );
+
+    expect(screen.getByTestId('do-request-approve')).toBeInTheDocument();
+    expect(screen.getByTestId('do-request-reject')).toBeInTheDocument();
+  });
 });

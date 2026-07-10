@@ -126,6 +126,7 @@ export interface DashboardSummary {
     itemId?: 'vkyc' | 'loanAgreement' | 'enach';
     label: string;
     requestedAt: string;
+    queryId?: string;
   }>;
   payoutRequests?: Array<{
     id: string;
@@ -893,8 +894,11 @@ class ApiService {
       requestKind?: 'b2c_compliance' | 'b2c_do';
       itemId?: 'vkyc' | 'loanAgreement' | 'enach';
     }
-  ): Promise<ApiResponse<{ queryId: string }>> {
-    return this.request<{ queryId: string }>(`/loan-applications/${applicationId}/queries`, {
+  ): Promise<
+    ApiResponse<{ queryId: string; formDataPatchApplied?: boolean; formDataPatchError?: string }>
+  > {
+    return this.request<{ queryId: string; formDataPatchApplied?: boolean; formDataPatchError?: string }>(
+      `/loan-applications/${applicationId}/queries`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -909,7 +913,7 @@ class ApiService {
     message: string,
     options?: {
       b2cFulfillment?: {
-        action: 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill';
+        action: 'compliance_fulfill' | 'compliance_unmark' | 'do_fulfill' | 'do_clear_request';
         itemId?: 'vkyc' | 'loanAgreement' | 'enach';
       };
     }
@@ -1502,7 +1506,7 @@ class ApiService {
 
   async kamB2cDoRequestAction(
     applicationId: string,
-    body: { action: 'fulfill'; notes?: string }
+    body: { action: 'fulfill' | 'clear_request'; notes?: string }
   ): Promise<ApiResponse> {
     return this.request(`/kam/loan-applications/${applicationId}/b2c/do-request`, {
       method: 'POST',

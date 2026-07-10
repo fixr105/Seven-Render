@@ -56,6 +56,7 @@ export interface PendingB2cActionRow {
   itemId?: ComplianceItemId;
   label: string;
   requestedAt: string;
+  queryId?: string;
 }
 
 export function extractPendingB2cActionsFromFormData(
@@ -88,6 +89,7 @@ export function extractPendingB2cActionsFromFormData(
       type: 'do',
       label: 'Disbursement Order (DO)',
       requestedAt: doRequestedAt,
+      queryId: readString(formData['_meta.doRequest.queryId']) || undefined,
     });
   }
 

@@ -81,6 +81,7 @@ export const ApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const complianceItemParam = searchParams.get('complianceItem') as ComplianceItemId | null;
+  const highlightQueryParam = searchParams.get('highlightQuery');
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
@@ -213,6 +214,17 @@ export const ApplicationDetail: React.FC = () => {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [application, loading, complianceItemParam]);
+
+  useEffect(() => {
+    if (!highlightQueryParam || queries.length === 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('queries')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document
+        .querySelector(`[data-testid="query-thread-${highlightQueryParam}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [highlightQueryParam, queries]);
 
   useEffect(() => {
     if (userRole === 'nbfc') {
@@ -1653,7 +1665,7 @@ export const ApplicationDetail: React.FC = () => {
           </Card>
 
           {/* Queries Section */}
-          <Card>
+          <Card id="queries">
             <CardHeader className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle>
