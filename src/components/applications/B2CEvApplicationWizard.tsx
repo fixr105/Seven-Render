@@ -81,6 +81,7 @@ import {
   POST_DO_LOCKED_STAGE_IDS,
 } from '../../lib/b2cEvDoRequest';
 import { getDoRequestBlockers, getDoRequestReadiness } from '../../lib/b2cEvDoRequestGate';
+import { SubmitReadinessPanel } from './SubmitReadinessPanel';
 import {
   formDataToFrozenValues,
   frozenValuesToFormDataPatch,
@@ -1683,6 +1684,17 @@ export const B2CEvApplicationWizard: React.FC = () => {
           <p>{stepAdvanceMessage}</p>
         </div>
       )}
+
+      {isLastStep ? (
+        <div className="mb-4">
+          <SubmitReadinessPanel
+            canSubmit={canSubmitApplication}
+            completion={completion}
+            complianceErrors={complianceErrors}
+            formData={formState.form_data}
+          />
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button
