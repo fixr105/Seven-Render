@@ -257,5 +257,11 @@ export function createInitialB2cEvFormData(): Record<string, unknown> {
     '_meta.doRequest.requestedAt': '',
     '_meta.doRequest.queryId': '',
     '_meta.doRequest.fulfilledAt': '',
+    '_meta.doRequest.fulfilledBy': '',
+    '_meta.doRequest.status': '',
+    '_meta.doRequest.rejectionReason': '',
+    '_meta.doRequest.rejectedAt': '',
+    '_meta.doRequest.rejectedBy': '',
+    '_meta.doRequest.fulfillmentNotes': '',
   };
 }

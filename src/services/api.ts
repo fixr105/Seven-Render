@@ -1506,7 +1506,7 @@ class ApiService {
 
   async kamB2cDoRequestAction(
     applicationId: string,
-    body: { action: 'fulfill' | 'clear_request'; notes?: string }
+    body: { action: 'fulfill' | 'clear_request'; notes?: string; rejectionReason?: string }
   ): Promise<ApiResponse> {
     return this.request(`/kam/loan-applications/${applicationId}/b2c/do-request`, {
       method: 'POST',

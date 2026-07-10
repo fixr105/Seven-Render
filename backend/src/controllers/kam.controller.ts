@@ -1856,16 +1856,22 @@ export class KAMController {
         buildDoClearRequestPatch,
         formatDoAuditMessage,
         getApplicationFormData,
+        notifyClientOfDoDecision,
         persistApplicationFormData,
       } = await import('../services/b2cEv/kamB2cFulfillment.service.js');
 
       const existing = getApplicationFormData(application);
       const notes = typeof req.body?.notes === 'string' ? req.body.notes : undefined;
+      const rejectionReason =
+        typeof req.body?.rejectionReason === 'string' ? req.body.rejectionReason : undefined;
       const merged =
         action === 'fulfill'
-          ? buildDoFulfillPatch(existing, notes)
-          : buildDoClearRequestPatch(existing);
-      const auditMessage = formatDoAuditMessage(action);
+          ? buildDoFulfillPatch(existing, { notes, fulfilledBy: req.user!.email })
+          : buildDoClearRequestPatch(existing, {
+              rejectionReason,
+              rejectedBy: req.user!.email,
+            });
+      const auditMessage = formatDoAuditMessage(action, rejectionReason);
       await persistApplicationFormData(application, merged, req.user, auditMessage);
 
       const queryId = String(existing['_meta.doRequest.queryId'] ?? '').trim();
@@ -1880,6 +1886,14 @@ export class KAMController {
           req.user!.role
         );
       }
+
+      const clientMessage =
+        action === 'fulfill'
+          ? 'Your Disbursement Order (DO) has been approved. You can continue with Insurance and Vehicle details.'
+          : rejectionReason?.trim()
+            ? `Your Disbursement Order (DO) request was rejected: ${rejectionReason.trim()}`
+            : 'Your Disbursement Order (DO) request was rejected. You may submit a new request when ready.';
+      await notifyClientOfDoDecision(application, req.user!, clientMessage);
 
       res.json({
         success: true,

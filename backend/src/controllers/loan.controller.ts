@@ -897,7 +897,9 @@ export class LoanController {
       }
 
       if (hasFulfillment && fulfillmentAction) {
-        const patch = buildB2cFulfillmentPatch(fulfillmentAction, fulfillmentItemId);
+        const patch = buildB2cFulfillmentPatch(fulfillmentAction, fulfillmentItemId, {
+          actorEmail: req.user!.email,
+        });
         const existingFormData = parseFormDataField(application['Form Data']);
         const mergedFormData = mergeFormDataPatch(existingFormData, patch);
         await n8nClient.postLoanApplication({
@@ -905,6 +907,17 @@ export class LoanController {
           'Form Data': JSON.stringify(mergedFormData),
           'Last Updated': new Date().toISOString(),
         });
+
+        if (fulfillmentAction === 'do_fulfill' || fulfillmentAction === 'do_clear_request') {
+          const { notifyClientOfDoDecision } = await import(
+            '../services/b2cEv/kamB2cFulfillment.service.js'
+          );
+          const clientMessage =
+            fulfillmentAction === 'do_fulfill'
+              ? 'Your Disbursement Order (DO) has been approved. You can continue with Insurance and Vehicle details.'
+              : 'Your Disbursement Order (DO) request was rejected. You may submit a new request when ready.';
+          await notifyClientOfDoDecision(application, req.user!, clientMessage);
+        }
       }
 
       if (role === 'client') {

@@ -27,9 +27,13 @@ describe('b2cEvQueryFulfillment.service', () => {
     const doPatch = buildB2cFulfillmentPatch('do_fulfill');
     expect(doPatch['_meta.doRequest.fulfilledAt']).toBeTruthy();
 
-    const doRejectPatch = buildB2cFulfillmentPatch('do_clear_request');
+    const doRejectPatch = buildB2cFulfillmentPatch('do_clear_request', undefined, {
+      actorEmail: 'kam@test.local',
+      rejectionReason: 'Incomplete folder',
+    });
     expect(doRejectPatch['_meta.doRequest.requestedAt']).toBe('');
-    expect(doRejectPatch['_meta.doRequest.queryId']).toBe('');
+    expect(doRejectPatch['_meta.doRequest.status']).toBe('rejected');
+    expect(doRejectPatch['_meta.doRequest.rejectionReason']).toBe('Incomplete folder');
   });
 
   it('builds client request form patches for compliance and DO', () => {

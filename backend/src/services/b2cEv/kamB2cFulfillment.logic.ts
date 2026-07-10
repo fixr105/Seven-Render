@@ -50,34 +50,53 @@ export function buildCompliancePatch(
 
 export function buildDoFulfillPatch(
   formData: Record<string, unknown>,
-  notes?: string
+  options?: { notes?: string; fulfilledBy?: string }
 ): Record<string, unknown> {
+  const now = new Date().toISOString();
   const patch: Record<string, unknown> = {
-    '_meta.doRequest.fulfilledAt': new Date().toISOString(),
+    '_meta.doRequest.fulfilledAt': now,
+    '_meta.doRequest.fulfilledBy': options?.fulfilledBy?.trim() ?? '',
+    '_meta.doRequest.status': 'approved',
+    '_meta.doRequest.rejectionReason': '',
+    '_meta.doRequest.rejectedAt': '',
+    '_meta.doRequest.rejectedBy': '',
   };
-  if (notes?.trim()) {
-    patch['_meta.doRequest.fulfillmentNotes'] = notes.trim();
+  if (options?.notes?.trim()) {
+    patch['_meta.doRequest.fulfillmentNotes'] = options.notes.trim();
   }
   return mergeFormDataPatch(formData, patch);
 }
 
 export function buildDoClearRequestPatch(
-  formData: Record<string, unknown>
+  formData: Record<string, unknown>,
+  options?: { rejectionReason?: string; rejectedBy?: string }
 ): Record<string, unknown> {
+  const now = new Date().toISOString();
   const patch: Record<string, unknown> = {
     '_meta.doRequest.requestedAt': '',
     '_meta.doRequest.queryId': '',
     '_meta.doRequest.fulfilledAt': '',
+    '_meta.doRequest.fulfilledBy': '',
     '_meta.doRequest.fulfillmentNotes': '',
+    '_meta.doRequest.status': 'rejected',
+    '_meta.doRequest.rejectionReason': options?.rejectionReason?.trim() ?? '',
+    '_meta.doRequest.rejectedAt': now,
+    '_meta.doRequest.rejectedBy': options?.rejectedBy?.trim() ?? '',
   };
   return mergeFormDataPatch(formData, patch);
 }
 
-export function formatDoAuditMessage(action: 'fulfill' | 'clear_request'): string {
+export function formatDoAuditMessage(
+  action: 'fulfill' | 'clear_request',
+  rejectionReason?: string
+): string {
   if (action === 'fulfill') {
-    return 'KAM marked Disbursement Order (DO) as processed';
+    return 'KAM approved Disbursement Order (DO) request';
   }
-  return 'KAM rejected Disbursement Order (DO) request';
+  const reason = rejectionReason?.trim();
+  return reason
+    ? `KAM rejected Disbursement Order (DO) request: ${reason}`
+    : 'KAM rejected Disbursement Order (DO) request';
 }
 
 export function formatComplianceAuditMessage(

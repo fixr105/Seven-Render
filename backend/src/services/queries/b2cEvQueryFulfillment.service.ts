@@ -181,7 +181,15 @@ export function buildB2cClientRequestFormPatch(
   const queryId = options?.queryId?.trim() ?? '';
 
   if (requestKind === 'b2c_do') {
-    const patch: Record<string, unknown> = { '_meta.doRequest.requestedAt': requestedAt };
+    const patch: Record<string, unknown> = {
+      '_meta.doRequest.requestedAt': requestedAt,
+      '_meta.doRequest.status': 'pending',
+      '_meta.doRequest.fulfilledAt': '',
+      '_meta.doRequest.fulfilledBy': '',
+      '_meta.doRequest.rejectionReason': '',
+      '_meta.doRequest.rejectedAt': '',
+      '_meta.doRequest.rejectedBy': '',
+    };
     if (queryId) patch['_meta.doRequest.queryId'] = queryId;
     return patch;
   }
@@ -202,12 +210,20 @@ export function buildB2cClientRequestFormPatch(
 
 export function buildB2cFulfillmentPatch(
   action: B2cFulfillmentAction,
-  itemId?: ComplianceItemId
+  itemId?: ComplianceItemId,
+  options?: { actorEmail?: string; rejectionReason?: string }
 ): Record<string, unknown> {
   const now = new Date().toISOString();
 
   if (action === 'do_fulfill') {
-    return { '_meta.doRequest.fulfilledAt': now };
+    return {
+      '_meta.doRequest.fulfilledAt': now,
+      '_meta.doRequest.fulfilledBy': options?.actorEmail?.trim() ?? '',
+      '_meta.doRequest.status': 'approved',
+      '_meta.doRequest.rejectionReason': '',
+      '_meta.doRequest.rejectedAt': '',
+      '_meta.doRequest.rejectedBy': '',
+    };
   }
 
   if (action === 'do_clear_request') {
@@ -215,7 +231,12 @@ export function buildB2cFulfillmentPatch(
       '_meta.doRequest.requestedAt': '',
       '_meta.doRequest.queryId': '',
       '_meta.doRequest.fulfilledAt': '',
+      '_meta.doRequest.fulfilledBy': '',
       '_meta.doRequest.fulfillmentNotes': '',
+      '_meta.doRequest.status': 'rejected',
+      '_meta.doRequest.rejectionReason': options?.rejectionReason?.trim() ?? '',
+      '_meta.doRequest.rejectedAt': now,
+      '_meta.doRequest.rejectedBy': options?.actorEmail?.trim() ?? '',
     };
   }
 

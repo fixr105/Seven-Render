@@ -47,10 +47,11 @@ describe('B2cEvComplianceReview', () => {
         }}
         userRole="kam"
         applicationId="rec-app-1"
+        highlightDoRequest
       />
     );
 
-    expect(screen.getByTestId('do-request-approve')).toBeInTheDocument();
-    expect(screen.getByTestId('do-request-reject')).toBeInTheDocument();
+    expect(screen.getByTestId('do-request-approve')).toHaveTextContent('Approve DO');
+    expect(screen.getByTestId('do-request-reject')).toHaveTextContent('Reject DO');
   });
 });

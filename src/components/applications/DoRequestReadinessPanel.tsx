@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle2, Circle } from 'lucide-react';
 import type { FormConfigCategory } from '../../lib/b2cEvDocuments';
 import { getDoRequestReadiness } from '../../lib/b2cEvDoRequestGate';
+import { getDoRejectionReason, hasDoRejectionOnRecord } from '../../lib/b2cEvDoRequest';
 
 export interface DoRequestReadinessPanelProps {
   formData: Record<string, unknown>;
@@ -39,6 +40,8 @@ export const DoRequestReadinessPanel: React.FC<DoRequestReadinessPanelProps> = (
   formConfig,
 }) => {
   const readiness = getDoRequestReadiness(formData, formConfig);
+  const rejectionReason = getDoRejectionReason(formData);
+  const rejectedPreviously = hasDoRejectionOnRecord(formData) && !readiness.doRequested;
   const complianceDone =
     readiness.complianceApprovedCount === readiness.complianceTotal &&
     readiness.complianceTotal > 0;
@@ -102,6 +105,17 @@ export const DoRequestReadinessPanel: React.FC<DoRequestReadinessPanelProps> = (
               <li key={blocker}>{blocker}</li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {rejectedPreviously && rejectionReason ? (
+        <div
+          className="rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-neutral-800"
+          data-testid="do-rejection-notice"
+        >
+          <p className="font-medium text-neutral-900">Previous DO request rejected</p>
+          <p className="mt-1 text-neutral-700">{rejectionReason}</p>
+          <p className="mt-1 text-xs text-neutral-600">You can submit a new DO request when ready.</p>
         </div>
       ) : null}
     </div>

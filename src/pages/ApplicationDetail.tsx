@@ -81,6 +81,7 @@ export const ApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const complianceItemParam = searchParams.get('complianceItem') as ComplianceItemId | null;
+  const doRequestParam = searchParams.get('doRequest') === '1';
   const highlightQueryParam = searchParams.get('highlightQuery');
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
@@ -208,12 +209,16 @@ export const ApplicationDetail: React.FC = () => {
 
   useEffect(() => {
     if (!application || loading) return;
-    if (window.location.hash !== '#b2c-compliance') return;
+    if (window.location.hash !== '#b2c-compliance' && !doRequestParam) return;
     const frame = window.requestAnimationFrame(() => {
+      if (doRequestParam) {
+        document.getElementById('b2c-do-request-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       document.getElementById('b2c-compliance')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [application, loading, complianceItemParam]);
+  }, [application, loading, complianceItemParam, doRequestParam]);
 
   useEffect(() => {
     if (!highlightQueryParam || queries.length === 0) return;
@@ -1584,6 +1589,7 @@ export const ApplicationDetail: React.FC = () => {
                       clientId={clientId}
                       userRole={userRole}
                       highlightComplianceItem={complianceItemParam ?? undefined}
+                      highlightDoRequest={doRequestParam}
                       onUpdated={() => {
                         void fetchApplicationDetails();
                         window.dispatchEvent(new Event('dashboard:refresh'));

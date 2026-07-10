@@ -44,6 +44,7 @@ export interface B2cEvApplicationReviewProps {
   clientId?: string;
   userRole?: string | null;
   highlightComplianceItem?: ComplianceItemId;
+  highlightDoRequest?: boolean;
   onUpdated?: () => void;
 }
 
@@ -53,6 +54,7 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
   clientId,
   userRole,
   highlightComplianceItem,
+  highlightDoRequest,
   onUpdated,
 }) => {
   const stages = useMemo(() => getVisibleB2cEvStages(formData), [formData]);
@@ -122,6 +124,7 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
         applicationId={applicationId}
         userRole={userRole}
         highlightComplianceItem={highlightComplianceItem}
+        highlightDoRequest={highlightDoRequest}
         onUpdated={onUpdated}
       />
     </div>

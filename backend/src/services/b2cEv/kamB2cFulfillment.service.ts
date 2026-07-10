@@ -4,7 +4,9 @@
 
 import type { AuthUser } from '../../types/auth.js';
 import { n8nClient } from '../airtable/n8nClient.js';
+import { notificationService } from '../notifications/notification.service.js';
 import { parseFormDataField } from '../../utils/mergeFormDataPatch.js';
+import { matchIds } from '../../utils/idMatcher.js';
 
 export type { ComplianceItemId } from './kamB2cFulfillment.logic.js';
 export {
@@ -55,4 +57,44 @@ export async function persistApplicationFormData(
 
 export function getApplicationFormData(application: Record<string, unknown>): Record<string, unknown> {
   return parseFormDataField(application['Form Data']);
+}
+
+async function resolveClientRecipientEmail(clientId: unknown): Promise<string> {
+  const clients = await n8nClient.fetchTable('Clients');
+  const candidates = Array.isArray(clientId) ? clientId : [clientId];
+  const client = clients.find((entry: Record<string, unknown>) =>
+    candidates.some((candidate) =>
+      matchIds(entry.id, candidate) ||
+      matchIds(entry['Client ID'], candidate) ||
+      matchIds(entry['ID'], candidate)
+    )
+  );
+  const contact = String(client?.['Contact Email / Phone'] ?? '').trim();
+  return contact.split(' / ')[0]?.trim() ?? '';
+}
+
+export async function notifyClientOfDoDecision(
+  application: Record<string, unknown>,
+  kamUser: AuthUser,
+  message: string
+): Promise<void> {
+  const fileId = String(application['File ID'] || application.fileId || '').trim();
+  const clientId = application.Client || application['Client'];
+  const recipientEmail = await resolveClientRecipientEmail(clientId);
+  if (!fileId || (!recipientEmail && !clientId)) {
+    return;
+  }
+
+  try {
+    await notificationService.notifyQueryReply(
+      fileId,
+      String(clientId ?? ''),
+      message,
+      recipientEmail || kamUser.email,
+      'client',
+      kamUser.email
+    );
+  } catch (error) {
+    console.error('[notifyClientOfDoDecision] failed:', error);
+  }
 }

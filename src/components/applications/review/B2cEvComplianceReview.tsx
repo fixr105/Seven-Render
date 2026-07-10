@@ -10,7 +10,12 @@ import {
   type FormConfigCategory,
 } from '../../../lib/b2cEvDocuments';
 import { extractPendingB2cActions } from '../../../lib/b2cEvKamActions';
-import { isDoFulfilled, isDoRequested } from '../../../lib/b2cEvDoRequest';
+import {
+  getDoRejectionReason,
+  hasDoRejectionOnRecord,
+  isDoFulfilled,
+  isDoRequested,
+} from '../../../lib/b2cEvDoRequest';
 import { apiService } from '../../../services/api';
 import { Button } from '../../ui/Button';
 
@@ -25,6 +30,7 @@ export interface B2cEvComplianceReviewProps {
   applicationId?: string;
   userRole?: string | null;
   highlightComplianceItem?: ComplianceItemId;
+  highlightDoRequest?: boolean;
   onUpdated?: () => void;
 }
 
@@ -34,24 +40,35 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   applicationId,
   userRole,
   highlightComplianceItem,
+  highlightDoRequest = false,
   onUpdated,
 }) => {
   const { doRequest } = extractPendingB2cActions(formData);
   const documentReadiness = getRequiredDocumentReadiness(formData, formConfig);
   const doRequested = isDoRequested(formData);
   const doFulfilled = isDoFulfilled(formData);
+  const doRejectionReason = getDoRejectionReason(formData);
+  const doRejectedOnRecord = hasDoRejectionOnRecord(formData);
   const canManageCompliance = userRole === 'kam' && Boolean(applicationId);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
-  const runDoAction = async (action: 'fulfill' | 'clear_request') => {
+  const runDoAction = async (action: 'fulfill' | 'clear_request', rejectionReason?: string) => {
     if (!applicationId) return;
     setLoadingAction(action);
     try {
-      const response = await apiService.kamB2cDoRequestAction(applicationId, { action });
+      const response = await apiService.kamB2cDoRequestAction(applicationId, {
+        action,
+        rejectionReason,
+      });
       if (!response.success) {
         throw new Error(response.error || 'Failed to update DO request');
       }
+      setShowRejectModal(false);
+      setRejectReason('');
       onUpdated?.();
+      window.dispatchEvent(new Event('dashboard:refresh'));
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : 'Failed to update DO request');
     } finally {
@@ -80,12 +97,18 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
         throw new Error(response.error || 'Failed to update compliance');
       }
       onUpdated?.();
+      window.dispatchEvent(new Event('dashboard:refresh'));
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : 'Failed to update compliance');
     } finally {
       setLoadingAction(null);
     }
   };
+
+  const fulfilledBy = readString(formData['_meta.doRequest.fulfilledBy']);
+  const fulfilledAt = readString(formData['_meta.doRequest.fulfilledAt']);
+  const rejectedBy = readString(formData['_meta.doRequest.rejectedBy']);
+  const rejectedAt = readString(formData['_meta.doRequest.rejectedAt']);
 
   return (
     <div
@@ -170,9 +193,14 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
         ) : null}
       </div>
 
-      {(doRequest || doRequested) && (
+      {(doRequest || doRequested || doFulfilled || doRejectedOnRecord) && (
         <div
-          className="rounded-xl border border-warning/30 bg-warning/5 p-4"
+          id="b2c-do-request-review"
+          className={`rounded-xl border p-4 ${
+            highlightDoRequest && doRequested && !doFulfilled
+              ? 'border-brand-primary bg-brand-primary/5'
+              : 'border-warning/30 bg-warning/5'
+          }`}
           data-testid="b2c-do-request-review"
         >
           <p className="text-sm font-semibold text-neutral-900">Disbursement Order (DO) request</p>
@@ -180,12 +208,19 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
             {doRequest?.requestedAt || readString(formData['_meta.doRequest.requestedAt'])
               ? `Requested ${new Date(doRequest?.requestedAt || readString(formData['_meta.doRequest.requestedAt'])).toLocaleString()}`
               : 'Not requested'}
-            {doFulfilled
-              ? ` · Processed ${new Date(readString(formData['_meta.doRequest.fulfilledAt'])).toLocaleString()} — post-DO stages unlocked for client`
+            {doFulfilled && fulfilledAt
+              ? ` · Approved ${new Date(fulfilledAt).toLocaleString()}${fulfilledBy ? ` by ${fulfilledBy}` : ''} — Insurance and Vehicle unlocked for client`
               : doRequested
-                ? ' · Pending KAM action to unlock Insurance and Vehicle for the client'
-                : ''}
+                ? ' · Pending KAM approval to unlock Insurance and Vehicle for the client'
+                : doRejectedOnRecord && rejectedAt
+                  ? ` · Rejected ${new Date(rejectedAt).toLocaleString()}${rejectedBy ? ` by ${rejectedBy}` : ''}`
+                  : ''}
           </p>
+          {doRejectionReason && !doRequested ? (
+            <p className="mt-2 text-sm text-error" data-testid="do-rejection-reason">
+              Rejection reason: {doRejectionReason}
+            </p>
+          ) : null}
           {canManageCompliance && doRequested && !doFulfilled && (
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
@@ -196,20 +231,66 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
                 onClick={() => void runDoAction('fulfill')}
                 data-testid="do-request-approve"
               >
-                {loadingAction === 'fulfill' ? 'Saving…' : 'Mark DO processed'}
+                {loadingAction === 'fulfill' ? 'Saving…' : 'Approve DO'}
               </Button>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 disabled={loadingAction != null}
-                onClick={() => void runDoAction('clear_request')}
+                onClick={() => setShowRejectModal(true)}
                 data-testid="do-request-reject"
               >
-                {loadingAction === 'clear_request' ? 'Saving…' : 'Reject'}
+                Reject DO
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {showRejectModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          data-testid="do-reject-modal"
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
+            <h3 className="text-base font-semibold text-neutral-900">Reject DO request</h3>
+            <p className="mt-1 text-sm text-neutral-600">
+              Provide a reason so the client knows what to fix before submitting again.
+            </p>
+            <textarea
+              className="mt-4 w-full rounded-lg border border-neutral-300 p-3 text-sm"
+              rows={4}
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="Rejection reason"
+              data-testid="do-reject-reason-input"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={loadingAction != null}
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={loadingAction != null || !rejectReason.trim()}
+                onClick={() => void runDoAction('clear_request', rejectReason.trim())}
+                data-testid="do-reject-confirm"
+              >
+                {loadingAction === 'clear_request' ? 'Saving…' : 'Confirm reject'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

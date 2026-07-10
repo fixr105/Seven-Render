@@ -11,6 +11,14 @@ export function isDoFulfilled(formData: Record<string, unknown>): boolean {
   return Boolean(readString(formData['_meta.doRequest.fulfilledAt']));
 }
 
+export function getDoRejectionReason(formData: Record<string, unknown>): string {
+  return readString(formData['_meta.doRequest.rejectionReason']);
+}
+
+export function hasDoRejectionOnRecord(formData: Record<string, unknown>): boolean {
+  return readString(formData['_meta.doRequest.status']) === 'rejected' && Boolean(getDoRejectionReason(formData));
+}
+
 export function arePostDoStagesUnlocked(formData: Record<string, unknown>): boolean {
   return isDoFulfilled(formData);
 }

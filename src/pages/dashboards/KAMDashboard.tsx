@@ -198,12 +198,10 @@ export const KAMDashboard: React.FC = () => {
                         return;
                       }
                       if (action.type === 'do') {
-                        if (action.queryId) {
-                          params.set('highlightQuery', action.queryId);
-                        }
+                        params.set('doRequest', '1');
                         const query = params.toString();
                         navigate(
-                          `/applications/${encodeURIComponent(targetId)}${query ? `?${query}` : ''}#queries`
+                          `/applications/${encodeURIComponent(targetId)}${query ? `?${query}` : ''}#b2c-compliance`
                         );
                         return;
                       }
