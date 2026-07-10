@@ -123,8 +123,9 @@ export function scanApplicationsForPendingB2cActions(
 
     if (readString(formData['_meta.formTemplate']) !== 'b2c_ev_v1') continue;
 
-    const applicationId = String(app.id ?? app['Record ID'] ?? app['File ID'] ?? '');
-    const fileId = String(app['File ID'] ?? app.fileId ?? '');
+    const recordId = String(app.id ?? app['Record ID'] ?? '').trim();
+    const fileId = String(app['File ID'] ?? app.fileId ?? '').trim();
+    const applicationId = recordId || fileId;
     const applicantName = String(
       app['Applicant Name'] ?? app.applicantName ?? formData['borrower.customerName'] ?? ''
     ).trim();

@@ -7,6 +7,7 @@ import { B2cEvGeoPhotoReview } from './B2cEvGeoPhotoReview';
 import { B2cEvSupportPersonReview } from './B2cEvSupportPersonReview';
 import { B2cEvComplianceReview } from './B2cEvComplianceReview';
 import { KamClientKycPanel } from './KamClientKycPanel';
+import type { ComplianceItemId } from '../../../lib/b2cEvCompliance';
 
 function formatFieldValue(value: unknown): string {
   if (value == null || value === '') return '—';
@@ -19,15 +20,17 @@ export interface B2cEvApplicationReviewProps {
   applicationId: string;
   clientId?: string;
   userRole?: string | null;
+  highlightComplianceItem?: ComplianceItemId;
   onUpdated?: () => void;
 }
 
 export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
   formData,
-  applicationId: _applicationId,
+  applicationId,
   clientId,
   userRole,
-  onUpdated: _onUpdated,
+  highlightComplianceItem,
+  onUpdated,
 }) => {
   const stages = useMemo(() => getVisibleB2cEvStages(formData), [formData]);
   const [openStageId, setOpenStageId] = useState<string | null>(stages[0]?.id ?? null);
@@ -89,7 +92,13 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
         );
       })}
 
-      <B2cEvComplianceReview formData={formData} />
+      <B2cEvComplianceReview
+        formData={formData}
+        applicationId={applicationId}
+        userRole={userRole}
+        highlightComplianceItem={highlightComplianceItem}
+        onUpdated={onUpdated}
+      />
     </div>
   );
 };

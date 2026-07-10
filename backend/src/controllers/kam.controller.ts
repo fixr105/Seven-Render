@@ -61,7 +61,7 @@ export class KAMController {
       // Fetch only the tables we need (no User Accounts; managed clients from Clients + getKAMManagedClientIds)
       const [clients, allApplications, allLedgerEntries, allAuditLogs] = await Promise.all([
         n8nClient.fetchTable('Clients'),
-        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('Loan Application', false),
         n8nClient.fetchTable('Commission Ledger'),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
@@ -1776,7 +1776,7 @@ export class KAMController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -1795,6 +1795,26 @@ export class KAMController {
       const merged = buildCompliancePatch(existing, itemId, action);
       const auditMessage = formatComplianceAuditMessage(itemId, action);
       await persistApplicationFormData(application, merged, req.user, auditMessage);
+
+      if (action === 'fulfill') {
+        const queryIdKeys: Record<'vkyc' | 'loanAgreement' | 'enach', string> = {
+          vkyc: '_meta.kamRequests.vkyc.queryId',
+          loanAgreement: '_meta.kamRequests.loanAgreement.queryId',
+          enach: '_meta.kamRequests.enach.queryId',
+        };
+        const queryId = String(existing[queryIdKeys[itemId]] ?? '').trim();
+        if (queryId) {
+          const { queryService } = await import('../services/queries/query.service.js');
+          await queryService.resolveQuery(
+            queryId,
+            String(application['File ID'] || application.fileId || ''),
+            application.Client || application['Client'],
+            req.user!.email,
+            auditMessage,
+            req.user!.role
+          );
+        }
+      }
 
       res.json({ success: true, message: 'Compliance updated' });
     } catch (error: unknown) {
@@ -1823,7 +1843,7 @@ export class KAMController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });

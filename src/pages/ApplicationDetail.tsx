@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -31,6 +31,8 @@ import {
   getB2cThreadTitle,
 } from '../components/applications/queries/B2cClientQueryThreadActions';
 import { isUnresolvedB2cClientQuery, isResolvableB2cClientQuery } from '../lib/b2cEvQueryActions';
+import { resolveApplicationClientId } from '../utils/resolveApplicationClientId';
+import type { ComplianceItemId } from '../lib/b2cEvCompliance';
 
 const WITHDRAWABLE_CLIENT_STATUSES = new Set(['draft', 'under_kam_review', 'query_with_client']);
 
@@ -76,6 +78,8 @@ interface StatusHistoryItem {
 export const ApplicationDetail: React.FC = () => {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const complianceItemParam = searchParams.get('complianceItem') as ComplianceItemId | null;
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
   const userRole = user?.role || null;
@@ -201,6 +205,15 @@ export const ApplicationDetail: React.FC = () => {
   }, [id]);
 
   useEffect(() => {
+    if (!application || loading) return;
+    if (window.location.hash !== '#b2c-compliance') return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('b2c-compliance')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [application, loading, complianceItemParam]);
+
+  useEffect(() => {
     if (userRole === 'nbfc') {
       apiService.getNbfcRejectionReasons().then((res) => {
         if (res.success && res.data) setRejectionReasonsList(res.data);
@@ -233,13 +246,7 @@ export const ApplicationDetail: React.FC = () => {
   const productIdForConfig = appRecord
     ? String(appRecord.loan_product_id ?? appRecord.productId ?? appRecord['Product ID'] ?? (application?.loan_product as { code?: string } | undefined)?.code ?? appRecord['Loan Product'] ?? '')
     : '';
-  const clientIdForConfig = appRecord
-    ? (() => {
-        const client = appRecord.Client ?? appRecord.clientId;
-        if (typeof client === 'string') return client;
-        return null;
-      })()
-    : null;
+  const clientIdForConfig = appRecord ? resolveApplicationClientId(appRecord) || null : null;
   useEffect(() => {
     let cancelled = false;
 
@@ -433,6 +440,7 @@ export const ApplicationDetail: React.FC = () => {
           applicant_name: d.applicant_name ?? d.applicantName ?? d['Applicant Name'],
           remarks: d.remarks ?? d['Remarks'] ?? form_data.Remarks ?? '',
           form_data,
+          clientId: resolveApplicationClientId(d),
           requested_loan_amount: Number.isNaN(requested_loan_amount) ? undefined : requested_loan_amount,
           created_at: d.created_at ?? d.creationDate ?? d['Creation Date'],
           updated_at: d.updated_at ?? d.lastUpdated ?? d['Last Updated'],
@@ -1541,16 +1549,18 @@ export const ApplicationDetail: React.FC = () => {
                 const formDataToShow = parseApplicationFormData();
                 if (isB2cEvFormTemplate(formDataToShow) && id) {
                   const appRecord = application as unknown as Record<string, unknown>;
-                  const clientId =
-                    String(appRecord.client ?? appRecord.clientId ?? appRecord['Client'] ?? '').trim() ||
-                    undefined;
+                  const clientId = resolveApplicationClientId(appRecord) || undefined;
                   return (
                     <B2cEvApplicationReview
                       formData={formDataToShow}
                       applicationId={id}
                       clientId={clientId}
                       userRole={userRole}
-                      onUpdated={() => void fetchApplicationDetails()}
+                      highlightComplianceItem={complianceItemParam ?? undefined}
+                      onUpdated={() => {
+                        void fetchApplicationDetails();
+                        window.dispatchEvent(new Event('dashboard:refresh'));
+                      }}
                     />
                   );
                 }

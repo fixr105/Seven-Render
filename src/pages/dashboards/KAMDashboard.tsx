@@ -187,7 +187,15 @@ export const KAMDashboard: React.FC = () => {
                     type="button"
                     onClick={() => {
                       const targetId = action.applicationId || action.fileId;
-                      if (targetId) navigate(`/applications/${targetId}#b2c-compliance`);
+                      if (!targetId) return;
+                      const params = new URLSearchParams();
+                      if (action.itemId) {
+                        params.set('complianceItem', action.itemId);
+                      }
+                      const query = params.toString();
+                      navigate(
+                        `/applications/${encodeURIComponent(targetId)}${query ? `?${query}` : ''}#b2c-compliance`
+                      );
                     }}
                     className="text-sm font-medium text-brand-primary hover:underline"
                   >

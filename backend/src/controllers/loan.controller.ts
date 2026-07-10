@@ -541,7 +541,7 @@ export class LoanController {
   async getQueries(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -621,7 +621,7 @@ export class LoanController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -711,7 +711,7 @@ export class LoanController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -763,7 +763,7 @@ export class LoanController {
       const { resolutionMessage } = req.body;
 
       // Step 1: Fetch applications and find the specific one
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -828,7 +828,7 @@ export class LoanController {
       const { message: bodyMessage, reply, newDocs, answers, b2cFulfillment } = req.body;
       const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
 
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
