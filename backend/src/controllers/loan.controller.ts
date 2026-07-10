@@ -1252,11 +1252,12 @@ export class LoanController {
 
       const { id } = req.params;
       const { formData } = req.body;
-      // Fetch only Loan Application table
-      const applications = await n8nClient.fetchTable('Loan Application');
+      // Fetch only Loan Application table (bypass cache — must see freshly created drafts)
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
+      const appClient = application?.Client || application?.['Client'];
 
-      if (!application || application.Client !== req.user.clientId) {
+      if (!application || !matchIds(appClient, req.user.clientId)) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
@@ -1403,13 +1404,14 @@ export class LoanController {
 
       const { id } = req.params;
       const { clientSubmissionId } = req.body ?? {};
-      // Fetch only Loan Application table
+      // Fetch only Loan Application table (bypass cache — must see freshly created drafts)
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
+      const appClient = application?.Client || application?.['Client'];
 
-      if (!application || application.Client !== req.user.clientId) {
+      if (!application || !matchIds(appClient, req.user.clientId)) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
@@ -1538,11 +1540,12 @@ export class LoanController {
       }
 
       const { id } = req.params;
-      // Fetch only Loan Application table
-      const applications = await n8nClient.fetchTable('Loan Application');
+      // Fetch only Loan Application table (bypass cache)
+      const applications = await n8nClient.fetchTable('Loan Application', false);
       const application = findLoanApplicationByParamId(applications, id);
+      const appClient = application?.Client || application?.['Client'];
 
-      if (!application || application.Client !== req.user.clientId) {
+      if (!application || !matchIds(appClient, req.user.clientId)) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }

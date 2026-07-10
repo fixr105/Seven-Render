@@ -459,7 +459,13 @@ describe('LoanController - P0 Tests', () => {
 
     it('returns 404 when application belongs to another client', async () => {
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
-        if (tableName === 'Loan Application') return mockLoanApplications;
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[2],
+            id: 'rec3',
+            Client: ['CLIENT002'],
+          }];
+        }
         return [];
       });
 
@@ -472,6 +478,59 @@ describe('LoanController - P0 Tests', () => {
       await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(404);
+    });
+
+    it('allows update when Client is an Airtable linked-record array', async () => {
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            Status: LoanStatus.DRAFT,
+            Client: ['CLIENT001'],
+            'Loan Product': 'LP001',
+            'Form Data': JSON.stringify({ pan: 'ABCDE1234F' }),
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: { formData: { applicant_name: 'Array Client Name' } },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true })
+      );
+      expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalled();
+    });
+
+    it('fetches Loan Application with cache disabled for form update', async () => {
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            Status: LoanStatus.DRAFT,
+            'Loan Product': 'LP001',
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: { formData: { applicant_name: 'Cache Test' } },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', false);
     });
 
     it('returns 400 when application is not in an editable status', async () => {

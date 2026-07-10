@@ -19,6 +19,8 @@ import {
 } from '../services/clientKyc/clientKyc.service.js';
 import { lookupBorrowerByPan } from '../services/panLookup/panLookup.service.js';
 import { parsePanLookupTarget } from '../services/panLookup/panLookup.mapper.js';
+import { matchIds } from '../utils/idMatcher.js';
+import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
 
 const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink0';
 const WEBHOOK_MAX_ATTEMPTS = 3;
@@ -696,12 +698,13 @@ export class ClientController {
       const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
       // Fetch only the tables we need
       const [applications, auditLogs] = await Promise.all([
-        n8nClient.fetchTable('Loan Application'),
+        n8nClient.fetchTable('Loan Application', false),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
 
-      const application = applications.find((app) => app.id === id);
-      if (!application || application.Client !== req.user.clientId) {
+      const application = findLoanApplicationByParamId(applications, id);
+      const appClient = application?.Client || application?.['Client'];
+      if (!application || !matchIds(appClient, req.user.clientId)) {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }

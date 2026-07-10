@@ -148,6 +148,11 @@ const DEMO_DEALER_PATCH: Record<string, unknown> = {
 const createClientSubmissionId = (): string =>
   `submit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+function isApplicationNotFoundError(errorMessage?: string): boolean {
+  if (!errorMessage) return false;
+  return /application not found/i.test(errorMessage);
+}
+
 function readFieldValue(formData: Record<string, unknown>, key: string): string {
   const value = formData[key];
   if (value == null) return '';
@@ -281,6 +286,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     form_data: createInitialB2cEvFormData(),
   });
   const editingDraftIdRef = useRef<string | null>(null);
+  const draftUrlSyncedRef = useRef(false);
   const autoSaveTimerRef = useRef<number | null>(null);
   const pendingSaveChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
@@ -586,7 +592,13 @@ export const B2CEvApplicationWizard: React.FC = () => {
             ? String((app.loan_product as { code?: string }).code || '')
             : String(app.loanProduct || app.loan_product || '');
 
-        setEditingDraftId(draftIdParam);
+        const canonicalDraftId = String(
+          (app as { id?: string; loanApplicationId?: string }).id ||
+            (app as { loanApplicationId?: string }).loanApplicationId ||
+            draftIdParam
+        );
+        setEditingDraftId(canonicalDraftId);
+        draftUrlSyncedRef.current = true;
         const nextFormState: WizardFormState = {
           applicant_name: app.applicant_name || app.applicantName || '',
           loan_product_id: productId,
@@ -662,9 +674,16 @@ export const B2CEvApplicationWizard: React.FC = () => {
             requested_loan_amount: requestedAmount,
           });
           if (!updateRes.success) {
-            throw new Error(updateRes.error || 'Failed to update draft');
+            if (isApplicationNotFoundError(updateRes.error)) {
+              setEditingDraftId(null);
+              editingDraftIdRef.current = null;
+              draftId = null;
+            } else {
+              throw new Error(updateRes.error || 'Failed to update draft');
+            }
+          } else {
+            return draftId;
           }
-          return draftId;
         }
 
         const createRes = await apiService.createApplication({
@@ -685,6 +704,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
         }
         setEditingDraftId(draftId);
         editingDraftIdRef.current = draftId;
+        if (!draftUrlSyncedRef.current) {
+          draftUrlSyncedRef.current = true;
+          const draftQuery = new URLSearchParams(window.location.search);
+          draftQuery.set('draftId', draftId);
+          navigate(`/applications/new?${draftQuery.toString()}`, { replace: true });
+        }
         return draftId;
       };
 
@@ -718,7 +743,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       const draftId = await savePromise;
       return { draftId };
     },
-    [clientSubmissionId]
+    [clientSubmissionId, navigate]
   );
 
   const ensureDraftSaved = useCallback(async (): Promise<string> => {

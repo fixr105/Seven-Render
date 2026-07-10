@@ -570,6 +570,50 @@ describe('B2CEvApplicationWizard submit gating', () => {
     }
   });
 
+  it('falls back to createApplication when updateApplicationForm returns Application not found', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-1'),
+      vi.fn(),
+    ] as const);
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-1',
+        status: 'draft',
+        loanProduct: 'LP001',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          '_meta.formTemplate': 'b2c_ev_v1',
+        },
+      },
+    });
+    (apiService.updateApplicationForm as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      error: 'Application not found',
+    });
+    (apiService.createApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { loanApplicationId: 'draft-1', fileId: 'SF001' },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-_meta-panLookup-mobileNumber')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByTestId('b2c-field-_meta-panLookup-mobileNumber'), '9');
+
+    await waitFor(
+      () => {
+        expect(apiService.updateApplicationForm).toHaveBeenCalled();
+        expect(apiService.createApplication).toHaveBeenCalled();
+      },
+      { timeout: 3000 }
+    );
+  }, 10000);
+
   it('persists KAM request timestamp via updateApplicationForm after createClientQuery', async () => {
     const completeFormData = {
       ...createInitialB2cEvFormData(),
