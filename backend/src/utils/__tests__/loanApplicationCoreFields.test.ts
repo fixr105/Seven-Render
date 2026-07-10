@@ -293,4 +293,49 @@ describe('resolveLoanApplicationDocuments', () => {
       ])
     );
   });
+
+  it('parses bare https URLs stored in the Documents column', async () => {
+    const { resolveLoanApplicationDocuments } = await import('../loanApplicationCoreFields.js');
+    const docs = resolveLoanApplicationDocuments(
+      {
+        Documents:
+          'https://cdn.example.com/withVehicle.jpg,https://cdn.example.com/atResidence.jpg',
+      },
+      {}
+    );
+
+    expect(docs).toEqual(
+      expect.arrayContaining([
+        {
+          fieldId: 'withVehicle',
+          url: 'https://cdn.example.com/withVehicle.jpg',
+          fileName: 'withVehicle.jpg',
+        },
+        {
+          fieldId: 'atResidence',
+          url: 'https://cdn.example.com/atResidence.jpg',
+          fileName: 'atResidence.jpg',
+        },
+      ])
+    );
+  });
+
+  it('parses folder links with https scheme without splitting on the scheme colon', async () => {
+    const { resolveLoanApplicationDocuments } = await import('../loanApplicationCoreFields.js');
+    const docs = resolveLoanApplicationDocuments(
+      {
+        Documents:
+          '_documentsFolderLink:https://drive.google.com/drive/folders/abc123|Documents Folder',
+      },
+      {}
+    );
+
+    expect(docs).toEqual([
+      {
+        fieldId: '_documentsFolderLink',
+        url: 'https://drive.google.com/drive/folders/abc123',
+        fileName: 'Documents Folder',
+      },
+    ]);
+  });
 });

@@ -278,30 +278,62 @@ export interface LoanApplicationDocumentEntry {
   fileName: string;
 }
 
+function parseDocumentUrlAndFileName(remainder: string): { url: string; fileName: string } | null {
+  const trimmed = remainder.trim();
+  if (!trimmed) return null;
+
+  const pipeIndex = trimmed.indexOf('|');
+  const url = (pipeIndex >= 0 ? trimmed.slice(0, pipeIndex) : trimmed).trim();
+  const fileName =
+    (pipeIndex >= 0 ? trimmed.slice(pipeIndex + 1).trim() : '') ||
+    url.split('/').pop()?.split('?')[0] ||
+    'document';
+
+  if (!url) return null;
+
+  return { url, fileName };
+}
+
 function parseDocumentEntry(entry: string): LoanApplicationDocumentEntry | null {
   const trimmed = entry.trim();
   if (!trimmed) return null;
+
+  // Bare HTTP(S) URL entries (legacy Documents column values).
+  if (/^https?:\/\//i.test(trimmed)) {
+    const parsed = parseDocumentUrlAndFileName(trimmed);
+    if (!parsed) return null;
+    const fieldId = parsed.fileName.replace(/\.[^.]+$/, '') || 'document';
+    return {
+      fieldId,
+      url: parsed.url,
+      fileName: parsed.fileName,
+    };
+  }
+
+  // fieldId:https://... — split before the URL scheme, not the first colon in "https:".
+  const fieldUrlMatch = trimmed.match(/^([^:]+):(https?:\/\/.+)$/i);
+  if (fieldUrlMatch) {
+    const fieldId = fieldUrlMatch[1].trim();
+    const parsed = parseDocumentUrlAndFileName(fieldUrlMatch[2]);
+    if (!fieldId || !parsed) return null;
+    return {
+      fieldId,
+      url: parsed.url,
+      fileName: parsed.fileName,
+    };
+  }
 
   const colonIndex = trimmed.indexOf(':');
   if (colonIndex <= 0) return null;
 
   const fieldId = trimmed.slice(0, colonIndex).trim();
-  const remainder = trimmed.slice(colonIndex + 1).trim();
-  if (!fieldId || !remainder) return null;
-
-  const pipeIndex = remainder.indexOf('|');
-  const url = (pipeIndex >= 0 ? remainder.slice(0, pipeIndex) : remainder).trim();
-  const fileName =
-    (pipeIndex >= 0 ? remainder.slice(pipeIndex + 1).trim() : '') ||
-    url.split('/').pop() ||
-    'document';
-
-  if (!url) return null;
+  const parsed = parseDocumentUrlAndFileName(trimmed.slice(colonIndex + 1));
+  if (!fieldId || !parsed) return null;
 
   return {
     fieldId,
-    url,
-    fileName,
+    url: parsed.url,
+    fileName: parsed.fileName,
   };
 }
 

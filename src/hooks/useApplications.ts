@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import { mapClientFromApi } from '../utils/applicationTransform';
-import { normalizeStatus, resolveApplicationStatus } from '../lib/statusUtils';
+import { resolveApplicationStatus } from '../lib/statusUtils';
 import { resolveApplicationClientId } from '../utils/resolveApplicationClientId';
 
 export interface LoanApplication {

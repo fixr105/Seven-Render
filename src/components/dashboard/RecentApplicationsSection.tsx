@@ -4,7 +4,6 @@ import { Badge } from '../ui/Badge';
 import { DataTable, Column } from '../ui/DataTable';
 import { FileText, Plus } from 'lucide-react';
 import { getStatusDisplayNameForViewer, isClientEditableApplication } from '../../lib/statusUtils';
-import { buildWizardResumePath } from '../../lib/b2cEvWizardResume';
 import { Edit } from 'lucide-react';
 import type { LoanApplication } from '../../hooks/useApplications';
 

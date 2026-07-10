@@ -10,7 +10,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/Mod
 import { TextArea } from '../components/ui/TextArea';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
-import { MessageSquare, Download, Edit, Sparkles, RefreshCw, File, FileText, Image, Eye, ExternalLink, Grid3x3, List, CheckCircle, XCircle, Send, LogOut } from 'lucide-react';
+import { MessageSquare, Edit, Sparkles, RefreshCw, CheckCircle, XCircle, Send, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
@@ -26,6 +26,8 @@ import {
 import { mergeFormDataPatch } from '../lib/mergeFormDataPatch';
 import { isB2cEvFormTemplate } from '../lib/b2cEvFormTemplate';
 import { B2cEvApplicationReview } from '../components/applications/review/B2cEvApplicationReview';
+import { ApplicationDocumentsPanel } from '../components/applications/ApplicationDocumentsPanel';
+import { coerceApplicationDocuments } from '../lib/applicationDocuments';
 import { B2cEvKamEditModal } from '../components/applications/review/B2cEvKamEditModal';
 import {
   B2cClientQueryThreadActions,
@@ -148,7 +150,6 @@ export const ApplicationDetail: React.FC = () => {
   const [approvedAmount, setApprovedAmount] = useState<string>('');
   const [rejectionReasonOption, setRejectionReasonOption] = useState<string>('');
   const [rejectionReasonsList, setRejectionReasonsList] = useState<Array<{ value: string; label: string }>>([]);
-  const [documentsViewMode, setDocumentsViewMode] = useState<'grid' | 'list'>('grid');
   const [editingQueryId, setEditingQueryId] = useState<string | null>(null);
   const [editMessage, setEditMessage] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
@@ -1360,216 +1361,11 @@ export const ApplicationDetail: React.FC = () => {
             </Card>
           )}
 
-          {/* Documents Section - Enhanced for Credit Team */}
-          {Array.isArray(application.documents) && application.documents.length > 0 && (
-            <Card>
-              <CardHeader className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CardTitle>{t('pages.applicationDetail.uploadedDocuments', { count: application.documents.length })}</CardTitle>
-                  {userRole === 'credit_team' && (
-                    <Badge variant="info">{t('pages.applicationDetail.filesFromBackend')}</Badge>
-                  )}
-                </div>
-                {userRole === 'credit_team' && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant={documentsViewMode === 'grid' ? 'primary' : 'secondary'}
-                      size="sm"
-                      icon={Grid3x3}
-                      onClick={() => setDocumentsViewMode('grid')}
-                    >
-                      {t('pages.applicationDetail.grid')}
-                    </Button>
-                    <Button
-                      variant={documentsViewMode === 'list' ? 'primary' : 'secondary'}
-                      size="sm"
-                      icon={List}
-                      onClick={() => setDocumentsViewMode('list')}
-                    >
-                      {t('pages.applicationDetail.list')}
-                    </Button>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent>
-                {documentsViewMode === 'grid' && userRole === 'credit_team' ? (
-                  // Grid view for credit team
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {application.documents.map((doc: any, index: number) => {
-                      const fileExtension = doc.fileName?.split('.').pop()?.toLowerCase() || '';
-                      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension);
-                      const isPdf = fileExtension === 'pdf';
-                      
-                      return (
-                        <div
-                          key={index}
-                          className="group relative border-2 border-neutral-200 rounded-lg p-4 hover:border-brand-primary hover:shadow-md transition-all duration-200 bg-white"
-                        >
-                          {/* File Icon/Preview */}
-                          <div className="flex items-center justify-center h-32 mb-3 bg-neutral-50 rounded-lg">
-                            {isImage ? (
-                              <Image className="w-12 h-12 text-brand-primary" />
-                            ) : isPdf ? (
-                              <FileText className="w-12 h-12 text-red-500" />
-                            ) : (
-                              <File className="w-12 h-12 text-neutral-400" />
-                            )}
-                          </div>
-                          
-                          {/* File Info */}
-                          <div className="space-y-2">
-                            <p className="text-sm font-semibold text-neutral-900 line-clamp-2" title={doc.fileName}>
-                              {doc.fileName || t('pages.applicationDetail.document')}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="neutral" className="text-xs">
-                                {doc.fieldId || t('pages.applicationDetail.field')}
-                              </Badge>
-                              {fileExtension && (
-                                <Badge variant="info" className="text-xs uppercase">
-                                  {fileExtension}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Action Buttons */}
-                          <div className="flex gap-2 mt-4 pt-4 border-t border-neutral-200">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              icon={Eye}
-                              className="flex-1"
-                              onClick={() => window.open(doc.url, '_blank')}
-                            >
-                              {t('common.view')}
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              icon={Download}
-                              className="flex-1"
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = doc.url;
-                                link.download = doc.fileName || 'document';
-                                link.click();
-                              }}
-                            >
-                              {t('common.download')}
-                            </Button>
-                          </div>
-                          
-                          {/* Hover overlay for quick preview */}
-                          <div className="absolute inset-0 bg-brand-primary/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  // List view (default or for non-credit roles)
-                  <div className="space-y-3">
-                    {application.documents.map((doc: any, index: number) => {
-                      const fileExtension = doc.fileName?.split('.').pop()?.toLowerCase() || '';
-                      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension);
-                      const isPdf = fileExtension === 'pdf';
-                      
-                      return (
-                        <div
-                          key={index}
-                          className="flex flex-wrap items-center justify-between gap-3 p-4 border-2 border-neutral-200 rounded-lg hover:border-brand-primary hover:shadow-sm transition-all"
-                        >
-                          <div className="flex items-center gap-4 flex-1">
-                            {/* File Icon */}
-                            <div className="flex-shrink-0">
-                              {isImage ? (
-                                <div className="w-12 h-12 bg-info/10 rounded-lg flex items-center justify-center">
-                                  <Image className="w-6 h-6 text-info" />
-                                </div>
-                              ) : isPdf ? (
-                                <div className="w-12 h-12 bg-error/10 rounded-lg flex items-center justify-center">
-                                  <FileText className="w-6 h-6 text-error" />
-                                </div>
-                              ) : (
-                                <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center">
-                                  <File className="w-6 h-6 text-neutral-600" />
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* File Details */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="text-sm font-semibold text-neutral-900 truncate" title={doc.fileName}>
-                                  {doc.fileName || t('pages.applicationDetail.document')}
-                                </p>
-                                {fileExtension && (
-                                  <Badge variant="info" className="text-xs uppercase flex-shrink-0">
-                                    {fileExtension}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="neutral" className="text-xs">
-                                  {doc.fieldId || t('pages.applicationDetail.fieldId')}
-                                </Badge>
-                                {userRole === 'credit_team' && (
-                                  <span className="text-xs text-neutral-500">• {t('pages.applicationDetail.backendUpload')}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Action Buttons */}
-                          <div className="flex gap-2 flex-shrink-0">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              icon={Eye}
-                              onClick={() => window.open(doc.url, '_blank')}
-                            >
-                              {t('common.view')}
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              icon={Download}
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = doc.url;
-                                link.download = doc.fileName || 'document';
-                                link.click();
-                              }}
-                            >
-                              {t('common.download')}
-                            </Button>
-                            {userRole === 'credit_team' && (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                icon={ExternalLink}
-                                onClick={() => window.open(doc.url, '_blank')}
-                              >
-                                {t('common.open')}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                
-                {userRole === 'credit_team' && application.documents.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-neutral-200">
-                    <p className="text-xs text-neutral-500 text-center">
-                      {t('pages.applicationDetail.documentsTip')}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          <ApplicationDocumentsPanel
+            documents={coerceApplicationDocuments(application.documents)}
+            folderLinkFromForm={parseApplicationFormData()._documentsFolderLink}
+            showReviewerTips={userRole === 'credit_team'}
+          />
 
           {/* Application Form Data */}
           <Card>

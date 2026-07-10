@@ -18,7 +18,7 @@ import { useApplications } from '../hooks/useApplications';
 import { useApplicationQueryCounts } from '../hooks/useApplicationQueryCounts';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
-import { getStatusDisplayNameForViewer, getStatusColor, isClientEditableApplication, resolveApplicationStatus } from '../lib/statusUtils';
+import { getStatusDisplayNameForViewer, getStatusColor, isClientEditableApplication, normalizeStatus, resolveApplicationStatus } from '../lib/statusUtils';
 import { buildWizardResumePath } from '../lib/b2cEvWizardResume';
 import { matchIds } from '../utils/idMatcher';
 import { sortApplicationsByUnresolvedQueries } from '../utils/applicationQuerySort';

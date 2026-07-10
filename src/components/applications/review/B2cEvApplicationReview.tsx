@@ -7,6 +7,7 @@ import { CibilProbabilityBar } from '../CibilProbabilityBar';
 import { B2cEvGeoPhotoReview } from './B2cEvGeoPhotoReview';
 import { B2cEvSupportPersonReview } from './B2cEvSupportPersonReview';
 import { B2cEvComplianceReview } from './B2cEvComplianceReview';
+import { B2cEvDocumentsReview } from './B2cEvDocumentsReview';
 import { KamClientKycPanel } from './KamClientKycPanel';
 import type { ComplianceItemId } from '../../../lib/b2cEvCompliance';
 
@@ -118,6 +119,8 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
           </div>
         );
       })}
+
+      <B2cEvDocumentsReview formData={formData} clientId={clientId} />
 
       <B2cEvComplianceReview
         formData={formData}
