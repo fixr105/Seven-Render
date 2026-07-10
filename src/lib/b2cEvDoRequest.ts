@@ -8,7 +8,8 @@ export function isDoRequested(formData: Record<string, unknown>): boolean {
 }
 
 export function isDoFulfilled(formData: Record<string, unknown>): boolean {
-  return Boolean(readString(formData['_meta.doRequest.fulfilledAt']));
+  if (readString(formData['_meta.doRequest.fulfilledAt'])) return true;
+  return readString(formData['_meta.doRequest.status']) === 'approved';
 }
 
 export function getDoRejectionReason(formData: Record<string, unknown>): string {

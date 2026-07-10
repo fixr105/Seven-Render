@@ -14,6 +14,7 @@ describe('b2cEvDoRequest', () => {
     expect(isDoFulfilled({ '_meta.doRequest.fulfilledAt': '2026-01-02T00:00:00.000Z' })).toBe(
       true
     );
+    expect(isDoFulfilled({ '_meta.doRequest.status': 'approved' })).toBe(true);
     expect(arePostDoStagesUnlocked({ '_meta.doRequest.fulfilledAt': '2026-01-02T00:00:00.000Z' })).toBe(
       true
     );

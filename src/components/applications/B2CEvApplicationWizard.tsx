@@ -1009,10 +1009,20 @@ export const B2CEvApplicationWizard: React.FC = () => {
     if (!draftId) return false;
     const appRes = await apiService.getApplication(draftId);
     if (!appRes.success || !appRes.data) return false;
-    const remoteFormData = (appRes.data.formData ?? appRes.data.form_data ?? {}) as Record<
-      string,
-      unknown
-    >;
+    const app = appRes.data;
+    const rawForm = app.formData ?? (app as unknown as Record<string, unknown>).form_data;
+    let remoteFormData: Record<string, unknown> = {};
+    if (rawForm != null) {
+      if (typeof rawForm === 'string') {
+        try {
+          remoteFormData = JSON.parse(rawForm) as Record<string, unknown>;
+        } catch {
+          remoteFormData = {};
+        }
+      } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+        remoteFormData = rawForm as Record<string, unknown>;
+      }
+    }
     if (!isDoRequested(remoteFormData)) return false;
 
     const patch: Record<string, string> = {
@@ -1918,22 +1928,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
             Save draft
           </Button>
 
-          {isLastStep ? (
-            <Button
-              type="button"
-              icon={Send}
-              onClick={() => void handleSubmit(false)}
-              disabled={loading || !canSubmitApplication}
-              data-testid="b2c-submit-application"
-              title={
-                !canSubmitApplication
-                  ? 'Complete all required fields and compliance checklist before submitting'
-                  : undefined
-              }
-            >
-              {loading ? 'Submitting...' : 'Submit application'}
-            </Button>
-          ) : isGeoPhotosStage && doFulfilled ? (
+          {isGeoPhotosStage && doFulfilled ? (
             <Button
               type="button"
               size="lg"
@@ -1949,6 +1944,21 @@ export const B2CEvApplicationWizard: React.FC = () => {
               className="min-h-[52px] min-w-[12rem] px-8 text-base font-bold shadow-md"
             >
               Continue to Insurance
+            </Button>
+          ) : isLastStep ? (
+            <Button
+              type="button"
+              icon={Send}
+              onClick={() => void handleSubmit(false)}
+              disabled={loading || !canSubmitApplication}
+              data-testid="b2c-submit-application"
+              title={
+                !canSubmitApplication
+                  ? 'Complete all required fields and compliance checklist before submitting'
+                  : undefined
+              }
+            >
+              {loading ? 'Submitting...' : 'Submit application'}
             </Button>
           ) : isGeoPhotosStage ? (
             <Button
