@@ -5,6 +5,11 @@
 
 import { n8nClient } from '../airtable/n8nClient.js';
 import { notificationService } from '../notifications/notification.service.js';
+import {
+  auditLogEntryMatchesFile,
+  findAuditLogEntryByIdentifier,
+  readAuditLogIdentifier,
+} from '../../utils/auditLogLookup.js';
 import { parseQueryContent } from '../../utils/queryParser.js';
 
 export interface QueryThread {
@@ -123,10 +128,13 @@ export class QueryService {
     const timestamp = new Date().toISOString();
 
     // Get parent query to determine original target
-    const auditLogs = await n8nClient.fetchTable('File Auditing Log');
-    const parentQuery = auditLogs.find((q: any) => q.id === parentQueryId);
+    const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+    const parentQuery = findAuditLogEntryByIdentifier(
+      auditLogs as Array<Record<string, unknown>>,
+      parentQueryId
+    );
 
-    if (!parentQuery) {
+    if (!parentQuery || !auditLogEntryMatchesFile(parentQuery, fileId)) {
       throw new Error('Parent query not found');
     }
 
@@ -141,13 +149,13 @@ export class QueryService {
       Actor: actor,
       'Action/Event Type': 'query_reply',
       'Details/Message': replyMessage,
-      'Target User/Role': targetUserRole || parentQuery['Target User/Role'] || '',
+      'Target User/Role': targetUserRole || String(parentQuery['Target User/Role'] ?? ''),
       Resolved: 'False',
     });
 
     // Get recipient email for notification
     let recipientEmail = '';
-    let recipientRole = targetUserRole || parentQuery['Target User/Role'] || '';
+    let recipientRole = targetUserRole || String(parentQuery['Target User/Role'] ?? '');
 
     if (recipientRole === 'client') {
       const clients = await n8nClient.fetchTable('Clients');
@@ -214,7 +222,7 @@ export class QueryService {
       if (/^Reply to query\s+\S+\s*:?\s*$/.test(rootMessage)) {
         rootMessage = '(No message)';
       }
-      const rootId = root.id;
+      const rootId = readAuditLogIdentifier(root as Record<string, unknown>) || root.id;
 
       // Edit history for this root query
       const editHistory = queryEntries
@@ -254,7 +262,7 @@ export class QueryService {
 
       return {
         rootQuery: {
-          id: root.id,
+          id: rootId,
           fileId: root.File || fileId,
           message: rootMessage,
           actor: root.Actor || '',
@@ -292,29 +300,28 @@ export class QueryService {
     userEmail: string,
     newMessage: string
   ): Promise<void> {
-    const auditLogs = await n8nClient.fetchTable('File Auditing Log');
-    const query = auditLogs.find((q: any) => q.id === queryId);
+    const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+    const query = findAuditLogEntryByIdentifier(
+      auditLogs as Array<Record<string, unknown>>,
+      queryId
+    );
 
-    if (!query) {
+    if (!query || !auditLogEntryMatchesFile(query, fileId)) {
       throw new Error('Query not found');
     }
 
-    if (query.File !== fileId) {
-      throw new Error('Query does not belong to this application');
-    }
-
-    const actor = (query.Actor || '').trim();
+    const actor = String(query.Actor ?? '').trim();
     if (!actor || actor.toLowerCase() !== (userEmail || '').toLowerCase()) {
       throw new Error('Only the query author can edit this query');
     }
 
-    const created = new Date(query.Timestamp || 0).getTime();
+    const created = new Date(String(query.Timestamp ?? 0)).getTime();
     const now = Date.now();
     if (now - created > this.QUERY_EDIT_WINDOW_MS) {
       throw new Error('Query can only be edited within 15 minutes of creation');
     }
 
-    const previousMessage = query['Details/Message'] || '';
+    const previousMessage = String(query['Details/Message'] ?? '');
     if (previousMessage === newMessage) {
       return;
     }
@@ -352,22 +359,25 @@ export class QueryService {
     resolutionMessage?: string,
     resolverRole?: string
   ): Promise<void> {
-    const auditLogs = await n8nClient.fetchTable('File Auditing Log');
-    const query = auditLogs.find((q: any) => q.id === queryId);
+    const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+    const query = findAuditLogEntryByIdentifier(
+      auditLogs as Array<Record<string, unknown>>,
+      queryId
+    );
 
-    if (!query) {
+    if (!query || !auditLogEntryMatchesFile(query, fileId)) {
       throw new Error('Query not found');
     }
 
-    const queryActor = (query.Actor || '').trim().toLowerCase();
+    const queryActor = String(query.Actor ?? '').trim().toLowerCase();
     const resolverEmail = (resolvedBy || '').trim().toLowerCase();
     const isAuthor = !queryActor || resolverEmail === queryActor;
 
     const { isResolvableB2cClientQuery, canPerformB2cFulfillment } = await import(
       './b2cEvQueryFulfillment.service.js'
     );
-    const actionEventType = query['Action/Event Type'] || query.actionEventType || '';
-    const targetUserRole = query['Target User/Role'] || query.targetUserRole || '';
+    const actionEventType = String(query['Action/Event Type'] ?? query.actionEventType ?? '');
+    const targetUserRole = String(query['Target User/Role'] ?? query.targetUserRole ?? '');
     const canStaffResolveB2c =
       canPerformB2cFulfillment(resolverRole || '') &&
       isResolvableB2cClientQuery(actionEventType, targetUserRole);

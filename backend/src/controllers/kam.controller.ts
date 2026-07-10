@@ -1804,15 +1804,19 @@ export class KAMController {
         };
         const queryId = String(existing[queryIdKeys[itemId]] ?? '').trim();
         if (queryId) {
-          const { queryService } = await import('../services/queries/query.service.js');
-          await queryService.resolveQuery(
-            queryId,
-            String(application['File ID'] || application.fileId || ''),
-            application.Client || application['Client'],
-            req.user!.email,
-            auditMessage,
-            req.user!.role
-          );
+          try {
+            const { queryService } = await import('../services/queries/query.service.js');
+            await queryService.resolveQuery(
+              queryId,
+              String(application['File ID'] || application.fileId || ''),
+              application.Client || application['Client'],
+              req.user!.email,
+              auditMessage,
+              req.user!.role
+            );
+          } catch (resolveError: unknown) {
+            console.warn('[b2cComplianceAction] query resolve skipped:', resolveError);
+          }
         }
       }
 
@@ -1876,15 +1880,19 @@ export class KAMController {
 
       const queryId = String(existing['_meta.doRequest.queryId'] ?? '').trim();
       if (queryId) {
-        const { queryService } = await import('../services/queries/query.service.js');
-        await queryService.resolveQuery(
-          queryId,
-          String(application['File ID'] || application.fileId || ''),
-          application.Client || application['Client'],
-          req.user!.email,
-          auditMessage,
-          req.user!.role
-        );
+        try {
+          const { queryService } = await import('../services/queries/query.service.js');
+          await queryService.resolveQuery(
+            queryId,
+            String(application['File ID'] || application.fileId || ''),
+            application.Client || application['Client'],
+            req.user!.email,
+            auditMessage,
+            req.user!.role
+          );
+        } catch (resolveError: unknown) {
+          console.warn('[b2cDoRequestAction] query resolve skipped:', resolveError);
+        }
       }
 
       const clientMessage =

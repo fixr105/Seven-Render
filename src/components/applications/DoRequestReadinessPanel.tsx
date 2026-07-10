@@ -94,6 +94,18 @@ export const DoRequestReadinessPanel: React.FC<DoRequestReadinessPanelProps> = (
         />
       </div>
 
+      {readiness.doFulfilled ? (
+        <div
+          className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-neutral-800"
+          data-testid="do-approval-success"
+        >
+          <p className="font-medium text-neutral-900">DO approved by your KAM</p>
+          <p className="mt-1 text-neutral-700">
+            Insurance and Vehicle are unlocked. Use Continue to Insurance below to proceed.
+          </p>
+        </div>
+      ) : null}
+
       {!readiness.canRequestDo && readiness.blockers.length > 0 && !readiness.doRequested ? (
         <div
           className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-neutral-800"

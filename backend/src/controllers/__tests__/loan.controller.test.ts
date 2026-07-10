@@ -590,6 +590,44 @@ describe('LoanController - P0 Tests', () => {
       expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalled();
     });
 
+    it('preserves KAM-approved compliance when client sends false on B2C draft', async () => {
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') {
+          return [{
+            ...mockLoanApplications[0],
+            id: 'rec1',
+            Status: LoanStatus.DRAFT,
+            'Loan Product': 'LP001',
+            'Form Data': JSON.stringify({
+              '_meta.formTemplate': 'b2c_ev_v1',
+              'compliance.vkycDone': 'true',
+              pan: 'ABCDE1234F',
+            }),
+          }];
+        }
+        return [];
+      });
+
+      mockRequest = {
+        user: clientUser,
+        params: { id: 'rec1' },
+        body: {
+          formData: {
+            '_meta.formTemplate': 'b2c_ev_v1',
+            'compliance.vkycDone': false,
+            pan: 'ABCDE1234F',
+            applicant_name: 'Client Name',
+          },
+        },
+      };
+
+      await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
+
+      const posted = (mockN8nClientInstance.postLoanApplication as jest.Mock).mock.calls[0][0];
+      const storedFormData = JSON.parse(posted['Form Data']);
+      expect(storedFormData['compliance.vkycDone']).toBe('true');
+    });
+
     it('returns success even when audit log webhooks reject', async () => {
       const { logApplicationAction } = await import('../../utils/adminLogger.js');
       (logApplicationAction as jest.Mock).mockRejectedValueOnce(new Error('admin log failed') as never);

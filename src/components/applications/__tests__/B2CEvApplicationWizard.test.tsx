@@ -885,4 +885,57 @@ describe('B2CEvApplicationWizard submit gating', () => {
 
     expect(screen.getByTestId('b2c-stepper-step-insurance')).toBeDisabled();
   });
+
+  it('shows Continue to Insurance and advances after KAM fulfills DO', async () => {
+    const completeFormData = {
+      ...createInitialB2cEvFormData(),
+      '_meta.doRequest.requestedAt': '2026-01-01T00:00:00.000Z',
+      '_meta.doRequest.fulfilledAt': '2026-01-02T00:00:00.000Z',
+      '_meta.doRequest.status': 'approved',
+      'compliance.vkycDone': 'true',
+      'compliance.loanAgreementSigned': 'true',
+      'compliance.enachDone': 'true',
+      'geoPhotos.withSupportPerson.url': 'https://cdn.example.com/with-support.jpg',
+      'geoPhotos.withSupportPerson.latitude': '21.17',
+      'geoPhotos.withSupportPerson.longitude': '72.83',
+      'geoPhotos.withVehicle.url': 'https://cdn.example.com/with-vehicle.jpg',
+      'geoPhotos.withVehicle.latitude': '21.17',
+      'geoPhotos.withVehicle.longitude': '72.83',
+      'geoPhotos.atResidence.url': 'https://cdn.example.com/at-residence.jpg',
+      'geoPhotos.atResidence.latitude': '21.17',
+      'geoPhotos.atResidence.longitude': '72.83',
+    };
+
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('draftId=draft-do-fulfilled&b2cEv=1&stage=geo-photos'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-do-fulfilled',
+        status: 'draft',
+        applicantName: 'RAHUL GONSALVES',
+        loanProduct: 'LP001',
+        formData: completeFormData,
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-wizard-next')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('b2c-wizard-next')).toHaveTextContent('Continue to Insurance');
+    expect(screen.queryByTestId('b2c-wizard-request-do')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-insurance-cost')).toBeInTheDocument();
+    });
+  });
 });

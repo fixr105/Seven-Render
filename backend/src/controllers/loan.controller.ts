@@ -31,6 +31,7 @@ import {
 } from '../utils/loanApplicationCoreFields.js';
 import { readFormConfigVersion } from '../utils/loanApplicationAirtableMapping.js';
 import { isB2cMetadataOnlyFormPatch } from '../utils/b2cEvFormPatchGuards.js';
+import { auditLogEntryMatchesFile, findAuditLogEntryByIdentifier } from '../utils/auditLogLookup.js';
 
 export class LoanController {
   /**
@@ -852,9 +853,13 @@ export class LoanController {
         return;
       }
 
-      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
-      const rootQuery = auditLogs.find((q: any) => q.id === queryId && (q.File === application['File ID']));
-      if (!rootQuery) {
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+      const rootQuery = findAuditLogEntryByIdentifier(
+        auditLogs as Array<Record<string, unknown>>,
+        queryId
+      );
+      const fileId = String(application['File ID'] || application.fileId || '');
+      if (!rootQuery || !auditLogEntryMatchesFile(rootQuery, fileId)) {
         res.status(404).json({ success: false, error: 'Query not found' });
         return;
       }
@@ -996,14 +1001,18 @@ export class LoanController {
       );
 
       if (hasFulfillment) {
-        await queryService.resolveQuery(
-          queryId,
-          application['File ID'],
-          application.Client,
-          req.user!.email,
-          fulfillmentReplyText || 'B2C request fulfilled',
-          req.user!.role
-        );
+        try {
+          await queryService.resolveQuery(
+            queryId,
+            application['File ID'],
+            application.Client,
+            req.user!.email,
+            fulfillmentReplyText || 'B2C request fulfilled',
+            req.user!.role
+          );
+        } catch (resolveError: unknown) {
+          console.warn('[replyToQuery] B2C fulfillment resolve skipped:', resolveError);
+        }
       }
 
       if (role === 'client' && resolveApplicationRecordStatus(application) === LoanStatus.QUERY_WITH_CLIENT) {
@@ -1314,7 +1323,12 @@ export class LoanController {
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
 
-      const mergedFormData = mergeFormDataJson(application, incomingFormData);
+      let mergedFormData = mergeFormDataJson(application, incomingFormData);
+      if (!metadataOnlyPatch) {
+        const { preserveB2cKamManagedFields } = await import('../utils/b2cEvKamManagedFields.js');
+        const existingFormDataOnly = mergeFormDataJson(application, {});
+        mergedFormData = preserveB2cKamManagedFields(existingFormDataOnly, mergedFormData);
+      }
       let promotedFields = resolveLoanApplicationPromotedFields(mergedFormData, application);
 
       const existingProductId = String(application['Loan Product'] || application.loanProduct || '');

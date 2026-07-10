@@ -74,11 +74,16 @@ import { B2cEvWizardStepper } from './B2cEvWizardStepper';
 import { CibilProbabilityBar } from './CibilProbabilityBar';
 import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
 import {
+  areAllComplianceItemsApproved,
   buildComplianceKamRequestMessage,
   COMPLIANCE_ITEMS,
   validateComplianceForSubmit,
   type ComplianceItemId,
 } from '../../lib/b2cEvCompliance';
+import {
+  hasKamManagedFieldChanges,
+  mergeKamManagedFieldsFromServer,
+} from '../../lib/b2cEvKamManagedFields';
 import {
   buildDoRequestMessage,
   isDoFulfilled,
@@ -98,6 +103,7 @@ type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const FIELD_AUTO_SAVE_DEBOUNCE_MS = 1500;
 const GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS = 2000;
+const KAM_SYNC_POLL_INTERVAL_MS = 20_000;
 const PAN_MANUAL_FAILURE_MESSAGE =
   'PAN verification returned no results. Enter all details manually below.';
 
@@ -669,6 +675,81 @@ export const B2CEvApplicationWizard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load when dealer stage is opened
   }, [currentStage?.id, currentStep]);
 
+  const syncKamManagedFieldsFromServer = useCallback(async () => {
+    const draftId = editingDraftIdRef.current;
+    if (!draftId) return;
+
+    try {
+      const response = await apiService.getApplication(draftId);
+      if (!response.success || !response.data) return;
+
+      const app = response.data;
+      let serverFormData: Record<string, unknown> = {};
+      const rawForm = app.formData ?? (app as unknown as Record<string, unknown>).form_data;
+      if (rawForm != null) {
+        if (typeof rawForm === 'string') {
+          serverFormData = JSON.parse(rawForm) as Record<string, unknown>;
+        } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+          serverFormData = rawForm as Record<string, unknown>;
+        }
+      }
+
+      const localFormData = formStateRef.current.form_data;
+      if (!hasKamManagedFieldChanges(localFormData, serverFormData)) return;
+
+      const mergedFormData = mergeKamManagedFieldsFromServer(localFormData, serverFormData);
+      commitFormState((prev) => ({
+        ...prev,
+        form_data: syncB2cEvComputedFields(mergedFormData),
+      }));
+
+      if (isDoFulfilled(mergedFormData)) {
+        setStepAdvanceMessage(
+          'DO approved by your KAM. Continue to Insurance and Vehicle details.'
+        );
+      }
+    } catch (error) {
+      console.warn('[B2CEvApplicationWizard] KAM field sync failed:', error);
+    }
+  }, [commitFormState]);
+
+  const shouldPollKamUpdates = useMemo(() => {
+    if (!editingDraftId) return false;
+    const formData = formState.form_data;
+    if (isGeoPhotosStage) return true;
+    if (!areAllComplianceItemsApproved(formData)) return true;
+    if (isDoRequested(formData) && !isDoFulfilled(formData)) return true;
+    return false;
+  }, [editingDraftId, formState.form_data, isGeoPhotosStage]);
+
+  useEffect(() => {
+    if (!shouldPollKamUpdates) return;
+
+    const syncOnFocus = () => {
+      if (document.visibilityState === 'visible') {
+        void syncKamManagedFieldsFromServer();
+      }
+    };
+
+    void syncKamManagedFieldsFromServer();
+    window.addEventListener('focus', syncOnFocus);
+    document.addEventListener('visibilitychange', syncOnFocus);
+    const intervalId = window.setInterval(() => {
+      void syncKamManagedFieldsFromServer();
+    }, KAM_SYNC_POLL_INTERVAL_MS);
+
+    return () => {
+      window.removeEventListener('focus', syncOnFocus);
+      document.removeEventListener('visibilitychange', syncOnFocus);
+      window.clearInterval(intervalId);
+    };
+  }, [shouldPollKamUpdates, syncKamManagedFieldsFromServer]);
+
+  useEffect(() => {
+    if (!isGeoPhotosStage || !doFulfilled) return;
+    setStepAdvanceMessage('DO approved by your KAM. Continue to Insurance and Vehicle details.');
+  }, [isGeoPhotosStage, doFulfilled]);
+
   const buildFormDataPayloadFromState = (
     state: WizardFormState,
     patch?: Record<string, string>
@@ -897,17 +978,21 @@ export const B2CEvApplicationWizard: React.FC = () => {
         requestKind: 'b2c_compliance',
         itemId,
       });
-      if (!response.success) {
+      const queryId = response.data?.queryId || '';
+      if (!response.success && !queryId) {
         throw new Error(response.error || 'Failed to send request to KAM');
       }
       const requestedAt = new Date().toISOString();
-      const queryId = response.data?.queryId || '';
       const patch: Record<string, string> = { [item.requestedAtKey]: requestedAt };
       if (queryId) {
         patch[item.queryIdKey] = queryId;
       }
       if (!response.data?.formDataPatchApplied) {
-        await persistDraft(patch);
+        try {
+          await persistDraft(patch);
+        } catch (persistError) {
+          console.warn('[B2CEvApplicationWizard] compliance request persist failed:', persistError);
+        }
       }
       updateFields(patch);
     } catch (error: unknown) {
@@ -917,6 +1002,28 @@ export const B2CEvApplicationWizard: React.FC = () => {
     } finally {
       setKamRequestLoadingId(null);
     }
+  };
+
+  const recoverDoRequestFromServer = async (): Promise<boolean> => {
+    const draftId = editingDraftIdRef.current;
+    if (!draftId) return false;
+    const appRes = await apiService.getApplication(draftId);
+    if (!appRes.success || !appRes.data) return false;
+    const remoteFormData = (appRes.data.formData ?? appRes.data.form_data ?? {}) as Record<
+      string,
+      unknown
+    >;
+    if (!isDoRequested(remoteFormData)) return false;
+
+    const patch: Record<string, string> = {
+      '_meta.doRequest.requestedAt': String(remoteFormData['_meta.doRequest.requestedAt'] ?? ''),
+    };
+    const remoteQueryId = String(remoteFormData['_meta.doRequest.queryId'] ?? '').trim();
+    if (remoteQueryId) {
+      patch['_meta.doRequest.queryId'] = remoteQueryId;
+    }
+    updateFields(patch);
+    return true;
   };
 
   const handleRequestDO = async () => {
@@ -951,23 +1058,38 @@ export const B2CEvApplicationWizard: React.FC = () => {
         message,
         requestKind: 'b2c_do',
       });
-      if (!response.success) {
+      const queryId = response.data?.queryId || '';
+      if (!response.success && !queryId) {
         throw new Error(response.error || 'Failed to send DO request to KAM');
       }
       const requestedAt = new Date().toISOString();
-      const queryId = response.data?.queryId || '';
       const patch: Record<string, string> = { '_meta.doRequest.requestedAt': requestedAt };
       if (queryId) {
         patch['_meta.doRequest.queryId'] = queryId;
       }
       if (!response.data?.formDataPatchApplied) {
-        await persistDraft(patch);
+        try {
+          await persistDraft(patch);
+        } catch (persistError) {
+          console.warn('[B2CEvApplicationWizard] DO metadata persist failed:', persistError);
+          const recovered = await recoverDoRequestFromServer();
+          if (!recovered) {
+            throw persistError;
+          }
+        }
       }
       updateFields(patch);
       setStepAdvanceMessage(
         'DO request sent to your KAM. Insurance and Vehicle will unlock after the DO is processed.'
       );
     } catch (error: unknown) {
+      const recovered = await recoverDoRequestFromServer().catch(() => false);
+      if (recovered) {
+        setStepAdvanceMessage(
+          'DO request sent to your KAM. Insurance and Vehicle will unlock after the DO is processed.'
+        );
+        return;
+      }
       const message =
         error instanceof Error ? error.message : 'Failed to send DO request to KAM';
       alert(message);
@@ -1235,7 +1357,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return;
     }
 
-    if (currentStage?.id === 'geo-photos') {
+    if (currentStage?.id === 'geo-photos' && !isDoFulfilled(formStateRef.current.form_data)) {
       return;
     }
 
@@ -1811,6 +1933,23 @@ export const B2CEvApplicationWizard: React.FC = () => {
             >
               {loading ? 'Submitting...' : 'Submit application'}
             </Button>
+          ) : isGeoPhotosStage && doFulfilled ? (
+            <Button
+              type="button"
+              size="lg"
+              icon={ChevronRight}
+              onClick={() => void goNext()}
+              disabled={
+                loading ||
+                panLookupLoading ||
+                supportPanLookupLoading ||
+                supportNextDisabled
+              }
+              data-testid="b2c-wizard-next"
+              className="min-h-[52px] min-w-[12rem] px-8 text-base font-bold shadow-md"
+            >
+              Continue to Insurance
+            </Button>
           ) : isGeoPhotosStage ? (
             <Button
               type="button"
@@ -1819,6 +1958,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
               disabled={
                 loading ||
                 doRequestLoading ||
+                doRequested ||
                 panLookupLoading ||
                 supportPanLookupLoading ||
                 !doRequestReadiness.canRequestDo
@@ -1829,7 +1969,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
               {doRequestLoading
                 ? 'Requesting DO…'
                 : doRequested
-                  ? 'DO requested'
+                  ? 'DO requested — waiting for KAM'
                   : 'Request DO'}
             </Button>
           ) : (

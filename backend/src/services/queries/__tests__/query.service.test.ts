@@ -28,7 +28,8 @@ describe('QueryService.resolveQuery', () => {
   let queryService: QueryService;
 
   const mockQuery = {
-    id: 'QUERY-123',
+    id: 'recAudit001',
+    'Log Entry ID': 'QUERY-123',
     File: 'file-1',
     Actor: 'client@example.com',
     'Target User/Role': 'kam',
@@ -83,6 +84,26 @@ describe('QueryService.resolveQuery', () => {
       'client-1',
       'kam@example.com',
       'Fulfilled',
+      'kam'
+    );
+
+    expect(mockPostFileAuditLog).toHaveBeenCalledTimes(2);
+  });
+
+  it('resolves by Log Entry ID when form_data stores QUERY-* ids', async () => {
+    mockFetchTable.mockResolvedValue([
+      {
+        ...mockQuery,
+        'Action/Event Type': 'client_query_b2c_do',
+      },
+    ]);
+
+    await queryService.resolveQuery(
+      'QUERY-123',
+      'file-1',
+      'client-1',
+      'kam@example.com',
+      'DO approved',
       'kam'
     );
 
