@@ -27,6 +27,7 @@ import productsRoutes from './products.routes.js';
 import usersRoutes from './users.routes.js';
 import documentsRoutes from './documents.routes.js';
 import publicRoutes from './public.routes.js';
+import configRoutes from './config.routes.js';
 
 const router = Router();
 
@@ -242,8 +243,9 @@ router.use('/clients', apiRateLimiter, ledgerRoutes); // Client ledger routes
 router.use('/reports', apiRateLimiter, reportsRoutes);
 router.use('/credit-team-users', apiRateLimiter, creditTeamUsersRoutes);
 router.use('/form-categories', apiRateLimiter, formCategoryRoutes);
-router.use('/queries', apiRateLimiter, queriesRoutes); // Threaded queries routes
-router.use('/notifications', apiRateLimiter, notificationsRoutes); // Notifications routes
+  router.use('/queries', apiRateLimiter, queriesRoutes); // Threaded queries routes
+  router.use('/notifications', apiRateLimiter, notificationsRoutes); // Notifications routes
+  router.use('/config', apiRateLimiter, configRoutes); // Cached n8n-synced config (e.g. CIBIL rate matrix)
 router.use('/', apiRateLimiter, productsRoutes); // Products routes (loan-products, nbfc-partners)
 router.use('/', apiRateLimiter, usersRoutes); // Users routes (kam-users, user-accounts)
 router.use('/', apiRateLimiter, auditRoutes); // Audit routes (mounted at root for /loan-applications/:id/audit-log)

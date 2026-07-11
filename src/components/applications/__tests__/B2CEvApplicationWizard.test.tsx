@@ -18,6 +18,7 @@ vi.mock('../../../services/api', () => ({
     submitApplication: vi.fn(),
     validateApplicationSubmission: vi.fn(),
     createClientQuery: vi.fn(),
+    getCibilRateMatrix: vi.fn(),
   },
 }));
 
@@ -134,6 +135,12 @@ describe('B2CEvApplicationWizard submit gating', () => {
     (apiService.validateApplicationSubmission as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       data: {},
+    });
+    (apiService.getCibilRateMatrix as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: [
+        { start_cibil: 0, end_cibil: 900, pf_pct: 8, roi_pct: 35, band_label: 'Default' },
+      ],
     });
     window.alert = vi.fn();
   });

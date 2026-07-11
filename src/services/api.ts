@@ -5,6 +5,7 @@
 
 import { defaultLogger } from '../utils/logger.js';
 import { errorTracker } from '../utils/errorTracker.js';
+import type { CibilRateBand } from '../lib/loanCalculator';
 
 // API is same-origin on Vercel (`/api` serverless). Ignore legacy Fly hosts.
 function getApiBaseUrl(): string {
@@ -823,6 +824,13 @@ class ApiService {
    */
   async getConfiguredProducts(): Promise<ApiResponse<string[]>> {
     return this.request<string[]>('/client/configured-products');
+  }
+
+  /**
+   * Get the CIBIL-score → (ROI%, PF%) band matrix (cached, n8n-synced).
+   */
+  async getCibilRateMatrix(): Promise<ApiResponse<CibilRateBand[]>> {
+    return this.request<CibilRateBand[]>('/config/cibil-rate-matrix');
   }
 
   /**

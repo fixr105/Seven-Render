@@ -67,6 +67,7 @@ function buildCompleteCoApplicantForm(): Record<string, unknown> {
     'loan.calculator.customerPayment': '20000',
     'loan.taxInvoiceValue': '111500',
     'loan.amount': '99735',
+    'loan.interestRate': '35',
     'loan.tenureMonths': '18',
     'loan.processingFee': '7979',
     'loan.gpsCharges': '2500',

@@ -3,17 +3,22 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import {
-  calculateB2cLoanPreview,
+  INTEREST_RATE,
+  PF_PCT,
+  calculateB2cLoanScenarioPreview,
   computeGstComponent,
   freezeB2cLoanPreview,
+  matchCibilBand,
   parseGstRateInput,
   parseMoneyInput,
   validateCustomerPaymentForFreeze,
+  type CibilRateBand,
   type LoanCalculatorSnapshot,
   type LoanFrozenValues,
   type LoanTenureMonths,
   type VehicleGstRate,
 } from '../../lib/loanCalculator';
+import { apiService } from '../../services/api';
 import { LoanDraftInvoiceBreakdown } from './LoanDraftInvoiceBreakdown';
 
 const TENURE_OPTIONS = [
@@ -38,16 +43,19 @@ function displayMoney(value: number): string {
 
 interface LoanCalculatorStage1Props {
   frozenValues: LoanFrozenValues | null;
+  cibilScore: number | null;
   onFreeze: (values: LoanFrozenValues, snapshot: LoanCalculatorSnapshot) => void;
   onUnfreeze: () => void;
 }
 
 const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   frozenValues,
+  cibilScore,
   onFreeze,
   onUnfreeze,
 }) => {
   const isFrozen = frozenValues != null;
+  const [matrix, setMatrix] = useState<CibilRateBand[]>([]);
   const [vehiclePrice, setVehiclePrice] = useState('');
   const [gstRate, setGstRate] = useState<VehicleGstRate>(0.05);
   const [insurance, setInsurance] = useState('');
@@ -57,6 +65,23 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(
     frozenValues?.tenureMonths ?? 12
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    apiService
+      .getCibilRateMatrix()
+      .then((res) => {
+        if (!cancelled && res.success && Array.isArray(res.data)) {
+          setMatrix(res.data);
+        }
+      })
+      .catch(() => {
+        // Fetch failure falls back to default constants below; nothing to surface here.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!frozenValues) return;
@@ -82,7 +107,19 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
     [vehiclePrice, gstRate, insurance, registration, accessories, customerPayment, tenureMonths]
   );
 
-  const preview = useMemo(() => calculateB2cLoanPreview(inputs), [inputs]);
+  const matchedBand = useMemo(
+    () => matchCibilBand(cibilScore, matrix),
+    [cibilScore, matrix]
+  );
+  const roiPct = matchedBand ? matchedBand.roi_pct : INTEREST_RATE;
+  const pfPct = matchedBand ? matchedBand.pf_pct : PF_PCT * 100;
+  const bandLabel = matchedBand ? matchedBand.band_label : 'Default';
+  const usingDefaultRate = matchedBand == null;
+
+  const preview = useMemo(
+    () => calculateB2cLoanScenarioPreview(inputs, roiPct, pfPct / 100, 'wizardGrossUp'),
+    [inputs, roiPct, pfPct]
+  );
   const iotWithGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
   const customerPaymentValidation = useMemo(
     () => validateCustomerPaymentForFreeze(inputs.customerPayment, preview.taxInvoiceValue),
@@ -98,7 +135,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
 
   const handleFreeze = () => {
     if (!canFreeze) return;
-    onFreeze(freezeB2cLoanPreview(preview), {
+    onFreeze(freezeB2cLoanPreview(preview, pfPct, bandLabel), {
       vehiclePrice: inputs.vehiclePrice,
       gstRate: inputs.gstRate,
       insurance: inputs.insurance,
@@ -196,6 +233,36 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           onChange={(e) => setTenureMonths(e.target.value === '18' ? 18 : 12)}
           data-testid="loan-calc-tenure"
         />
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 bg-white p-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-neutral-900">Rate &amp; fee (CIBIL-derived)</h4>
+          {usingDefaultRate ? (
+            <span
+              className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs font-medium text-warning"
+              data-testid="loan-calc-default-rate-badge"
+              role="status"
+            >
+              Using default rate — no CIBIL band matched.
+            </span>
+          ) : null}
+        </div>
+        <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <dt className="text-xs text-neutral-500">Interest Rate (ROI)</dt>
+            <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-roi">
+              {roiPct}% ({bandLabel}
+              {matchedBand ? `, CIBIL ${matchedBand.start_cibil}–${matchedBand.end_cibil}` : ''})
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-neutral-500">Processing Fee (PF)</dt>
+            <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-pf">
+              {pfPct}% ({bandLabel})
+            </dd>
+          </div>
+        </dl>
       </div>
 
       <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
@@ -337,6 +404,7 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
 
 export interface LoanCalculatorProps {
   frozenValues: LoanFrozenValues | null;
+  cibilScore?: number | null;
   onFrozenValuesChange: (
     values: LoanFrozenValues | null,
     snapshot?: LoanCalculatorSnapshot
@@ -349,12 +417,14 @@ export interface LoanCalculatorProps {
  */
 export const LoanCalculator: React.FC<LoanCalculatorProps> = ({
   frozenValues,
+  cibilScore = null,
   onFrozenValuesChange,
 }) => {
   return (
     <div className="space-y-8" data-testid="loan-calculator">
       <LoanCalculatorStage1
         frozenValues={frozenValues}
+        cibilScore={cibilScore}
         onFreeze={(values, snapshot) => onFrozenValuesChange(values, snapshot)}
         onUnfreeze={() => onFrozenValuesChange(null)}
       />

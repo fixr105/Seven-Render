@@ -18,6 +18,22 @@ export const GPS_CHARGES: Record<12 | 18, number> = {
 
 export type LoanTenureMonths = 12 | 18;
 
+export interface CibilRateBand {
+  start_cibil: number;
+  end_cibil: number;
+  pf_pct: number; // whole number percent, e.g. 8
+  roi_pct: number; // whole number percent, e.g. 35
+  band_label: string;
+}
+
+export function matchCibilBand(
+  cibilScore: number | null | undefined,
+  matrix: CibilRateBand[]
+): CibilRateBand | null {
+  if (!cibilScore || !matrix?.length) return null;
+  return matrix.find((b) => cibilScore >= b.start_cibil && cibilScore <= b.end_cibil) ?? null;
+}
+
 /** Legacy disbursement-input model — used only by /calculator EMI range page */
 export interface LoanCalculatorInputs {
   upfrontPayment: number;
@@ -71,6 +87,8 @@ export interface LoanFrozenValues {
   interestRate: number;
   tenureMonths: LoanTenureMonths;
   processingFee: number;
+  processingFeePct: number; // whole number percent, e.g. 8
+  cibilBandUsed: string; // matched CIBIL band label, or 'Default'
   gpsCharges: number;
   disbursalAmount: number;
 }
@@ -341,6 +359,8 @@ export function b2cPreviewToFrozenValues(preview: B2cLoanLivePreview): LoanFroze
     interestRate: preview.interestRate,
     tenureMonths: preview.tenureMonths,
     processingFee: preview.processingFee,
+    processingFeePct: preview.loanAmount > 0 ? (preview.processingFee / preview.loanAmount) * 100 : PF_PCT * 100,
+    cibilBandUsed: 'Default',
     gpsCharges: preview.gpsCharges,
     disbursalAmount: preview.disbursalAmount,
   };
@@ -435,7 +455,11 @@ export function buildLoanMathBreakdown(frozen: LoanFrozenValues): LoanMathBreakd
   };
 }
 
-export function freezeB2cLoanPreview(preview: B2cLoanLivePreview): LoanFrozenValues {
+export function freezeB2cLoanPreview(
+  preview: B2cLoanLivePreview,
+  processingFeePct: number = PF_PCT * 100,
+  cibilBandUsed: string = 'Default'
+): LoanFrozenValues {
   return {
     vehiclePrice: preview.vehiclePrice,
     gstRate: preview.gstRate,
@@ -445,9 +469,11 @@ export function freezeB2cLoanPreview(preview: B2cLoanLivePreview): LoanFrozenVal
     customerPayment: preview.customerPayment,
     taxInvoiceValue: preview.taxInvoiceValue,
     loanAmount: preview.loanAmount,
-    interestRate: INTEREST_RATE,
+    interestRate: preview.interestRate,
     tenureMonths: preview.tenureMonths,
     processingFee: preview.processingFee,
+    processingFeePct,
+    cibilBandUsed,
     gpsCharges: preview.gpsCharges,
     disbursalAmount: preview.disbursalAmount,
   };
@@ -479,6 +505,8 @@ export function frozenValuesToFormDataPatch(
     'loan.interestRate': String(frozen.interestRate),
     'loan.tenureMonths': String(frozen.tenureMonths),
     'loan.processingFee': String(frozen.processingFee),
+    'loan.processingFeePct': String(frozen.processingFeePct),
+    'loan.cibilBandUsed': frozen.cibilBandUsed,
     'loan.gpsCharges': String(frozen.gpsCharges),
     'loan.disbursalAmount': String(frozen.disbursalAmount),
     'loan.calculator.customerPayment': String(frozen.customerPayment),
@@ -515,6 +543,9 @@ export function formDataToFrozenValues(
     interestRate: parseMoneyInput(String(formData['loan.interestRate'] ?? '')) || INTEREST_RATE,
     tenureMonths,
     processingFee: parseMoneyInput(String(formData['loan.processingFee'] ?? '')),
+    processingFeePct:
+      parseMoneyInput(String(formData['loan.processingFeePct'] ?? '')) || PF_PCT * 100,
+    cibilBandUsed: String(formData['loan.cibilBandUsed'] ?? '') || 'Default',
     gpsCharges: parseMoneyInput(String(formData['loan.gpsCharges'] ?? '')),
     disbursalAmount: parseMoneyInput(String(formData['loan.disbursalAmount'] ?? '')),
   };

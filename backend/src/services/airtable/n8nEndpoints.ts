@@ -346,6 +346,9 @@ export const n8nEndpoints = {
     clientKyc:
       process.env.N8N_GET_CLIENT_KYC_URL ||
       'https://fixrrahul.app.n8n.cloud/webhook/getclientKYC',
+    cibilRateMatrix:
+      process.env.CIBIL_RATE_MATRIX_WEBHOOK_URL ||
+      'https://fixrrahul.app.n8n.cloud/webhook/getmatrix',
   },
   vehicles: {
     post:

@@ -182,6 +182,7 @@ export function validateB2cEvStage(
       ['loan.accessories', 'Accessories'],
       ['loan.calculator.customerPayment', 'Payment from customer'],
       ['loan.amount', 'Loan amount'],
+      ['loan.interestRate', 'Interest rate'],
       ['loan.processingFee', 'Processing fee'],
       ['loan.tenureMonths', 'Tenure'],
     ];
@@ -193,6 +194,13 @@ export function validateB2cEvStage(
     const gstRate = readValue(formData, 'loan.gstRate');
     if (gstRate && gstRate !== '0.05' && gstRate !== '0.18') {
       errors['loan.gstRate'] = 'GST rate must be 5% or 18%';
+    }
+    const interestRateRaw = readValue(formData, 'loan.interestRate');
+    if (!isEmptyValue(interestRateRaw) && !errors['loan.interestRate']) {
+      const interestRate = Number(String(interestRateRaw).replace(/,/g, ''));
+      if (!Number.isFinite(interestRate) || interestRate <= 0 || interestRate > 60) {
+        errors['loan.interestRate'] = 'Interest rate must be greater than 0 and at most 60%';
+      }
     }
     return errors;
   }

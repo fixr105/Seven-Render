@@ -1645,6 +1645,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return (
         <LoanCalculator
           frozenValues={frozenValues}
+          cibilScore={getBorrowerCibilScoreFromFormData(formState.form_data)}
           onFrozenValuesChange={(
             values: LoanFrozenValues | null,
             snapshot?: LoanCalculatorSnapshot
