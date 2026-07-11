@@ -637,6 +637,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   useEffect(() => {
     if (!draftIdParam) return;
+    // Only load from the server for a draft we are NOT already editing in this
+    // session (i.e. a genuine "Continue" from the client list, which mounts
+    // fresh with editingDraftIdRef === null). When a new application autosaves,
+    // it creates a draft and pushes its id into the URL; that must NOT re-trigger
+    // a full reload (which would flash "Loading draft..." and clobber local edits).
+    if (editingDraftIdRef.current === draftIdParam) return;
     const loadDraft = async () => {
       setDraftLoading(true);
       setDraftLoadError(null);
