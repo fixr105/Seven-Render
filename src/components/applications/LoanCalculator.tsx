@@ -114,7 +114,6 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   const roiPct = matchedBand ? matchedBand.roi_pct : INTEREST_RATE;
   const pfPct = matchedBand ? matchedBand.pf_pct : PF_PCT * 100;
   const bandLabel = matchedBand ? matchedBand.band_label : 'Default';
-  const usingDefaultRate = matchedBand == null;
 
   const preview = useMemo(
     () => calculateB2cLoanScenarioPreview(inputs, roiPct, pfPct / 100, 'wizardGrossUp'),
@@ -233,36 +232,6 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           onChange={(e) => setTenureMonths(e.target.value === '18' ? 18 : 12)}
           data-testid="loan-calc-tenure"
         />
-      </div>
-
-      <div className="rounded-xl border border-neutral-200 bg-white p-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-neutral-900">Rate &amp; fee (CIBIL-derived)</h4>
-          {usingDefaultRate ? (
-            <span
-              className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs font-medium text-warning"
-              data-testid="loan-calc-default-rate-badge"
-              role="status"
-            >
-              Using default rate — no CIBIL band matched.
-            </span>
-          ) : null}
-        </div>
-        <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs text-neutral-500">Interest Rate (ROI)</dt>
-            <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-roi">
-              {roiPct}% ({bandLabel}
-              {matchedBand ? `, CIBIL ${matchedBand.start_cibil}–${matchedBand.end_cibil}` : ''})
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-neutral-500">Processing Fee (PF)</dt>
-            <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-pf">
-              {pfPct}% ({bandLabel})
-            </dd>
-          </div>
-        </dl>
       </div>
 
       <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
