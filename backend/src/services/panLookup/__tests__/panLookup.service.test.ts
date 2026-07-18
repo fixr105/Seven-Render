@@ -1,4 +1,15 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
+
+jest.mock('../../../utils/logger.js', () => ({
+  defaultLogger: {
+    warn: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+    http: jest.fn(),
+  },
+}));
+
 import {
   convertDobToIsoDate,
   hasBorrowerPatchData,
@@ -28,6 +39,80 @@ describe('panLookup.mapper', () => {
   it('converts DD/MM/YYYY date to ISO', () => {
     expect(convertDobToIsoDate('07/04/1993')).toBe('1993-04-07');
     expect(convertDobToIsoDate('invalid')).toBe('');
+  });
+
+  it('converts DD-MM-YYYY hyphen date to ISO', () => {
+    expect(convertDobToIsoDate('07-04-1993')).toBe('1993-04-07');
+    expect(convertDobToIsoDate('1993-04-07')).toBe('1993-04-07');
+  });
+
+  it('parses live n8n payload with hyphen DOB into meaningful borrower patch', () => {
+    const payload = [
+      {
+        output: {
+          first_name: 'RAHUL',
+          last_name: 'GONSALVES',
+          customer_name: 'RAHUL GONSALVES',
+          gender: '',
+          date_of_birth: '07-04-1993',
+          father_name: 'JOSEPH GONSALVES',
+          mobile_number: '9081908777',
+          email: 'rahulgonsalves@hotmail.com',
+          pan_card: 'BAIPG3083L',
+          cibil_score: '569',
+          'address Line 1':
+            'NO 107 VILLA DE FLORES CATHOLIC SOCIETY, VIDHYANAGAR, OPP: LAW COLLEGE, BHAVNAGAR',
+          'village/City': 'BHAVNAGAR',
+          pincode: '364002',
+          district: 'BHAVNAGAR',
+          state: 'GUJARAT',
+        },
+      },
+    ];
+    const output = parseWebhookOutput(payload);
+    expect(output?.first_name).toBe('RAHUL');
+    const patch = mapPanLookupOutputToFormDataPatch(output!);
+    expect(patch['borrower.dob']).toBe('1993-04-07');
+    expect(patch['borrower.address.line1']).toContain('VILLA DE FLORES');
+    expect(patch['_meta.panLookup.cibilScore']).toBe('569');
+    expect(hasBorrowerPatchData(patch)).toBe(true);
+  });
+
+  it('parses double-encoded JSON string body', () => {
+    const inner = [
+      {
+        output: {
+          first_name: 'RAHUL',
+          'address Line 1': '107 Villa',
+        },
+      },
+    ];
+    const output = parseWebhookOutput(JSON.stringify(inner));
+    expect(output?.first_name).toBe('RAHUL');
+    expect(output?.['address Line 1']).toBe('107 Villa');
+  });
+
+  it('parses output field that is a JSON string of the profile', () => {
+    const profile = {
+      first_name: 'RAHUL',
+      customer_name: 'RAHUL GONSALVES',
+      'address Line 1': '107 Villa',
+    };
+    const output = parseWebhookOutput([{ output: JSON.stringify(profile) }]);
+    expect(output?.first_name).toBe('RAHUL');
+    expect(output?.['address Line 1']).toBe('107 Villa');
+  });
+
+  it('rejects output that is a plain error string', () => {
+    expect(parseWebhookOutput([{ output: 'PAN returned no records' }])).toBeNull();
+  });
+
+  it('rejects empty array webhook body', () => {
+    expect(parseWebhookOutput([])).toBeNull();
+  });
+
+  it('rejects output object without profile keys', () => {
+    expect(parseWebhookOutput([{ output: { error: 'no hit' } }])).toBeNull();
   });
 
   it('rejects masked mobile numbers', () => {

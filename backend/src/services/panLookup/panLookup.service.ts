@@ -1,4 +1,6 @@
+import { defaultLogger } from '../../utils/logger.js';
 import {
+  describeWebhookResponseShape,
   hasBorrowerPatchData,
   hasSupportPersonPatchData,
   mapPanLookupOutputToFormDataPatch,
@@ -44,6 +46,15 @@ function getWebhookUrl(): string {
 
 function normalizePanInput(value: string): string {
   return value.replace(/\s+/g, '').replace(/-/g, '').trim().toUpperCase();
+}
+
+/** Truncated body preview with PAN / mobile / email redacted for logs. */
+function sanitizeWebhookBodyPreview(responseText: string): string {
+  return responseText
+    .replace(/[A-Z]{5}[0-9]{4}[A-Z]/gi, '[PAN]')
+    .replace(/\b[6-9]\d{9}\b/g, '[MOBILE]')
+    .replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '[EMAIL]')
+    .slice(0, 200);
 }
 
 export function validatePanLookupRequest(input: PanLookupRequest): string | null {
@@ -147,9 +158,10 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   }
 
   if (!responseText.trim()) {
+    defaultLogger.warn('PAN lookup EMPTY_RESPONSE', { reason: 'empty_body' });
     return {
       success: false,
-      error: 'PAN lookup returned no borrower details',
+      error: 'PAN lookup returned no borrower details (response shape: empty)',
       code: 'EMPTY_RESPONSE',
     };
   }
@@ -158,6 +170,9 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   try {
     parsed = JSON.parse(responseText);
   } catch {
+    defaultLogger.warn('PAN lookup PARSE_ERROR', {
+      preview: sanitizeWebhookBodyPreview(responseText),
+    });
     return {
       success: false,
       error: 'PAN lookup returned an invalid response',
@@ -167,9 +182,15 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
 
   const output = parseWebhookOutput(parsed);
   if (!output) {
+    const shape = describeWebhookResponseShape(parsed);
+    defaultLogger.warn('PAN lookup EMPTY_RESPONSE', {
+      reason: 'unrecognized_shape',
+      shape,
+      preview: sanitizeWebhookBodyPreview(responseText),
+    });
     return {
       success: false,
-      error: 'PAN lookup returned no borrower details',
+      error: `PAN lookup returned no borrower details (response shape: ${shape})`,
       code: 'EMPTY_RESPONSE',
     };
   }
@@ -183,9 +204,16 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   if (!hasMeaningfulData) {
     const emptyLabel =
       target === 'borrower' ? 'borrower' : target === 'coApplicant' ? 'co-applicant' : 'guarantor';
+    const shape = describeWebhookResponseShape(parsed);
+    defaultLogger.warn('PAN lookup EMPTY_RESPONSE', {
+      reason: 'no_meaningful_fields',
+      target,
+      shape,
+      preview: sanitizeWebhookBodyPreview(responseText),
+    });
     return {
       success: false,
-      error: `PAN lookup returned no ${emptyLabel} details`,
+      error: `PAN lookup returned no ${emptyLabel} details (response shape: ${shape})`,
       code: 'EMPTY_RESPONSE',
     };
   }

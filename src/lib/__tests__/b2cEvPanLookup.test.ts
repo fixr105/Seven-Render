@@ -3,6 +3,7 @@ import {
   applyBorrowerManualProfilePhase,
   buildPanLookupInputHash,
   clearBorrowerFields,
+  convertDobToIsoDate,
   hasMeaningfulBorrowerAutofill,
   isPanLookupManual,
   mapPanLookupOutputToFormDataPatch,
@@ -12,6 +13,26 @@ import {
 import { createInitialB2cEvFormData } from '../../config/forms/b2cEvFormSchema';
 
 describe('b2cEvPanLookup', () => {
+  it('converts DD-MM-YYYY and DD/MM/YYYY dates to ISO', () => {
+    expect(convertDobToIsoDate('07-04-1993')).toBe('1993-04-07');
+    expect(convertDobToIsoDate('07/04/1993')).toBe('1993-04-07');
+    expect(convertDobToIsoDate('1993-04-07')).toBe('1993-04-07');
+  });
+
+  it('maps live n8n hyphen DOB into borrower.dob', () => {
+    const patch = mapPanLookupOutputToFormDataPatch({
+      first_name: 'RAHUL',
+      last_name: 'GONSALVES',
+      customer_name: 'RAHUL GONSALVES',
+      date_of_birth: '07-04-1993',
+      'address Line 1':
+        'NO 107 VILLA DE FLORES CATHOLIC SOCIETY, VIDHYANAGAR, OPP: LAW COLLEGE, BHAVNAGAR',
+      cibil_score: '569',
+    });
+    expect(patch['borrower.dob']).toBe('1993-04-07');
+    expect(hasMeaningfulBorrowerAutofill(patch)).toBe(true);
+  });
+
   it('maps webhook output with cibil stored in meta only', () => {
     const patch = mapPanLookupOutputToFormDataPatch({
       first_name: 'RAHUL',

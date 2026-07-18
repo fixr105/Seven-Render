@@ -51,11 +51,65 @@ export function readFirstStringFlexible(record: Record<string, unknown>, aliases
   return '';
 }
 
+const PROFILE_KEYS = [
+  'first_name',
+  'last_name',
+  'customer_name',
+  'gender',
+  'date_of_birth',
+  'father_name',
+  'mobile_number',
+  'email',
+  'pan_card',
+  'address Line 1',
+  'village/City',
+  'pincode',
+  'district',
+  'state',
+] as const;
+
+function objectHasProfileKeys(obj: Record<string, unknown>): boolean {
+  const hasProfileKey = PROFILE_KEYS.some((key) => key in obj);
+  const hasNormalizedAddress = Object.keys(obj).some((key) => {
+    const n = normalizeFieldKey(key);
+    return (
+      n === 'addressline1' ||
+      n === 'villagecity' ||
+      n === 'pincode' ||
+      n === 'district' ||
+      n === 'state' ||
+      n === 'firstname' ||
+      n === 'pancard'
+    );
+  });
+  return hasProfileKey || hasNormalizedAddress;
+}
+
+/** Attempt to parse a JSON string; returns undefined when not JSON-like or invalid. */
+function tryParseJsonString(value: string): unknown | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (!(trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"'))) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 export function parseWebhookOutput(payload: unknown): PanLookupWebhookOutput | null {
   if (payload == null) return null;
 
   const visit = (value: unknown): PanLookupWebhookOutput | null => {
     if (value == null) return null;
+
+    if (typeof value === 'string') {
+      const parsed = tryParseJsonString(value);
+      return parsed === undefined ? null : visit(parsed);
+    }
+
     if (Array.isArray(value)) {
       for (const item of value) {
         const found = visit(item);
@@ -63,52 +117,51 @@ export function parseWebhookOutput(payload: unknown): PanLookupWebhookOutput | n
       }
       return null;
     }
+
     if (typeof value === 'object') {
       const obj = value as Record<string, unknown>;
-      if (obj.output && typeof obj.output === 'object') {
-        return obj.output as PanLookupWebhookOutput;
+
+      if ('output' in obj) {
+        const outputVal = obj.output;
+        if (typeof outputVal === 'string') {
+          const fromString = visit(outputVal);
+          if (fromString) return fromString;
+        } else if (outputVal != null && typeof outputVal === 'object') {
+          if (!Array.isArray(outputVal) && objectHasProfileKeys(outputVal as Record<string, unknown>)) {
+            return outputVal as PanLookupWebhookOutput;
+          }
+          const nestedOutput = visit(outputVal);
+          if (nestedOutput) return nestedOutput;
+        }
       }
-      const profileKeys = [
-        'first_name',
-        'last_name',
-        'customer_name',
-        'gender',
-        'date_of_birth',
-        'father_name',
-        'mobile_number',
-        'email',
-        'pan_card',
-        'address Line 1',
-        'village/City',
-        'pincode',
-        'district',
-        'state',
-      ];
-      const hasProfileKey = profileKeys.some((key) => key in obj);
-      const hasNormalizedAddress = Object.keys(obj).some((key) => {
-        const n = normalizeFieldKey(key);
-        return (
-          n === 'addressline1' ||
-          n === 'villagecity' ||
-          n === 'pincode' ||
-          n === 'district' ||
-          n === 'state' ||
-          n === 'firstname' ||
-          n === 'pancard'
-        );
-      });
-      if (hasProfileKey || hasNormalizedAddress) {
+
+      if (objectHasProfileKeys(obj)) {
         return obj as PanLookupWebhookOutput;
       }
+
       for (const nested of [obj.json, obj.data, obj.body]) {
         const found = visit(nested);
         if (found) return found;
       }
     }
+
     return null;
   };
 
   return visit(payload);
+}
+
+/** Non-PII summary of webhook JSON shape for EMPTY_RESPONSE diagnostics. */
+export function describeWebhookResponseShape(parsed: unknown): string {
+  if (parsed === null) return 'null';
+  if (Array.isArray(parsed)) return `array(len=${parsed.length})`;
+  const t = typeof parsed;
+  if (t === 'string') return `string(len=${String(parsed).length})`;
+  if (t === 'object') {
+    const keys = Object.keys(parsed as Record<string, unknown>).slice(0, 8).join(',');
+    return `object(keys=${keys || 'none'})`;
+  }
+  return t;
 }
 
 export function convertDobToIsoDate(value: string): string {
@@ -116,6 +169,13 @@ export function convertDobToIsoDate(value: string): string {
   const slashMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
   if (slashMatch) {
     const [, dd, mm, yyyy] = slashMatch;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  // DD-MM-YYYY with hyphens (live n8n format); must run before ISO check is unnecessary
+  // because ISO is YYYY-MM-DD and does not match this pattern.
+  const hyphenMatch = /^(\d{2})-(\d{2})-(\d{4})$/.exec(trimmed);
+  if (hyphenMatch) {
+    const [, dd, mm, yyyy] = hyphenMatch;
     return `${yyyy}-${mm}-${dd}`;
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;

@@ -71,6 +71,12 @@ export function convertDobToIsoDate(value: string): string {
     const [, dd, mm, yyyy] = slashMatch;
     return `${yyyy}-${mm}-${dd}`;
   }
+  // DD-MM-YYYY with hyphens (live n8n format).
+  const hyphenMatch = /^(\d{2})-(\d{2})-(\d{4})$/.exec(trimmed);
+  if (hyphenMatch) {
+    const [, dd, mm, yyyy] = hyphenMatch;
+    return `${yyyy}-${mm}-${dd}`;
+  }
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   return '';
 }
