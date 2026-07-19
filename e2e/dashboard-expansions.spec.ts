@@ -35,7 +35,7 @@ test.describe('Dashboard expansions', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Drafts').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/Commission Balance/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Payout earned/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('Client dashboard shows Action required or Rejected', async ({ page }) => {
