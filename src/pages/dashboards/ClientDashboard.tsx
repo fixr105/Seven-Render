@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Plus, FileText, Clock, IndianRupee, Package, RefreshCw, Sparkles, Wallet, FileEdit } from 'lucide-react';
+import { Plus, FileText, Clock, IndianRupee, Package, Sparkles, Wallet } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
@@ -116,14 +116,10 @@ export const ClientDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
-  const { applications, loading, refetch: refetchApplications } = useApplications();
-  const draftCount = useMemo(
-    () => applications.filter((a) => a.status === 'draft').length,
-    [applications]
-  );
+  const { applications, loading } = useApplications();
   const mix = useMemo(() => applicationMix(applications), [applications]);
 
-  const { balance, loading: ledgerLoading, refetch: refetchLedger, entries } = useLedger();
+  const { balance, loading: ledgerLoading, entries } = useLedger();
   useNotifications();
   const [loanProducts, setLoanProducts] = useState<LoanProductCard[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -213,18 +209,11 @@ export const ClientDashboard: React.FC = () => {
     }
   }, [refreshUser]);
 
-  // Fetch on mount (including SPA navigation) and via Refresh.
+  // Fetch on mount (including SPA navigation).
   useEffect(() => {
     fetchLoanProducts();
     fetchConfiguredProducts();
   }, [fetchLoanProducts, fetchConfiguredProducts]);
-
-  const refreshAll = () => {
-    refetchApplications();
-    refetchLedger();
-    fetchLoanProducts();
-    fetchConfiguredProducts();
-  };
 
   const showAccountNotLinkedBanner =
     !loadingProducts &&
@@ -331,8 +320,24 @@ export const ClientDashboard: React.FC = () => {
               {displayProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="cursor-pointer rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition-all hover:border-brand-primary/35 hover:shadow-md"
+                  className="relative rounded-xl border border-neutral-200 bg-white p-4 pt-12 shadow-sm"
                 >
+                  {product.id ? (
+                    <button
+                      type="button"
+                      className="absolute top-2 right-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-brand-primary transition-colors hover:bg-brand-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 touch-manipulation"
+                      aria-label={t('pages.dashboards.startNewApplicationForProduct', {
+                        product: product.name || product.id,
+                        defaultValue: `Start application for ${product.name || product.id}`,
+                      })}
+                      title={t('pages.dashboards.startNewApplication')}
+                      onClick={() =>
+                        navigate(`/applications/new?productId=${encodeURIComponent(product.id)}`)
+                      }
+                    >
+                      <Plus className="h-5 w-5" aria-hidden />
+                    </button>
+                  ) : null}
                   <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-brand-primary/8 text-brand-primary">
                     {product.iconUrl ? (
                       <img
@@ -355,54 +360,6 @@ export const ClientDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Action Center — warm neutral strip, navy CTAs */}
-      <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200/90 bg-[#F5F4F0] shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200/80 px-4 py-3">
-          <h3 className="text-base font-semibold text-neutral-900">{t('pages.dashboards.actionCenter')}</h3>
-          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={refreshAll}>
-            {t('common.refresh')}
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-3 px-4 py-4">
-          <Button
-            variant="primary"
-            icon={Plus}
-            onClick={() => navigate('/applications/new')}
-            title="Create a new loan application"
-          >
-            {t('pages.dashboards.startNewApplication')}
-          </Button>
-          <Button
-            variant="secondary"
-            icon={IndianRupee}
-            onClick={() => navigate('/ledger')}
-            title={t('pages.dashboards.viewFullLedger')}
-          >
-            {t('pages.dashboards.viewFullLedger')}
-          </Button>
-          {draftCount > 0 && (
-            <Button
-              variant="secondary"
-              icon={FileEdit}
-              onClick={() => navigate('/applications?status=draft')}
-              title={t('pages.dashboards.viewDrafts')}
-            >
-              {t('pages.dashboards.viewDrafts')}
-            </Button>
-          )}
-          {balance > 0 && (
-            <Button
-              variant="secondary"
-              icon={Wallet}
-              onClick={() => navigate('/ledger')}
-              title={t('pages.dashboards.requestPayout')}
-            >
-              {t('pages.dashboards.requestPayout')}
-            </Button>
-          )}
-        </div>
-      </div>
 
       {/* AI features — restrained strip */}
       <div className="mb-6 overflow-hidden rounded-xl border border-brand-primary/15 bg-brand-primary/[0.06]">

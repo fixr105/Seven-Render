@@ -63,7 +63,10 @@ export const KamClientKycPanel: React.FC<KamClientKycPanelProps> = ({ clientId }
 
   return (
     <div className="rounded-xl border border-neutral-200 p-4" data-testid="kam-client-kyc-panel">
-      <h4 className="mb-3 text-sm font-semibold text-neutral-900">Dealer KYC profile</h4>
+      <h4 className="text-sm font-semibold text-neutral-900">Dealer KYC profile</h4>
+      <p className="mb-3 text-xs text-neutral-500">
+        Registered KYC on file for this client. May differ from the dealer selected for this file (see “Dealer”).
+      </p>
       <div className="space-y-2">
         {rows.map((row) => (
           <div key={row.label} className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">

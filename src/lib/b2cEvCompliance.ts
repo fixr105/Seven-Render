@@ -28,7 +28,7 @@ export const COMPLIANCE_ITEMS: ComplianceItem[] = [
   },
   {
     id: 'enach',
-    label: 'ENach done',
+    label: 'eNACH done',
     checkboxKey: 'compliance.enachDone',
     requestedAtKey: '_meta.kamRequests.enach.requestedAt',
     queryIdKey: '_meta.kamRequests.enach.queryId',

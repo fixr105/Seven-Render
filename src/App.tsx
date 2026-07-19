@@ -138,7 +138,7 @@ function AppRoutes() {
         path="/calculator"
         element={
           <ErrorBoundary>
-            <ProtectedRoute allowedRoles={['client', 'kam', 'credit_team', 'admin']}>
+            <ProtectedRoute allowedRoles={['client', 'kam', 'credit_team', 'admin', 'nbfc']}>
               <Calculator />
             </ProtectedRoute>
           </ErrorBoundary>

@@ -55,6 +55,13 @@ const formatAmount = (amount: unknown): string => {
   return `₹${num.toLocaleString('en-IN')}`;
 };
 
+const formatDateOnly = (date: unknown): string => {
+  if (date == null || date === '') return '—';
+  const d = new Date(String(date));
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 
 interface Query {
   id: string;
@@ -266,6 +273,30 @@ export const ApplicationDetail: React.FC = () => {
     ? String(appRecord.loan_product_id ?? appRecord.productId ?? appRecord['Product ID'] ?? (application?.loan_product as { code?: string } | undefined)?.code ?? appRecord['Loan Product'] ?? '')
     : '';
   const clientIdForConfig = appRecord ? resolveApplicationClientId(appRecord) || null : null;
+
+  // Resolve a human-readable product name so the header shows e.g. "EV Fleet Loan"
+  // instead of the raw product code (e.g. "LP012").
+  const [loanProductDisplayName, setLoanProductDisplayName] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    if (!productIdForConfig) {
+      setLoanProductDisplayName('');
+      return;
+    }
+    void apiService
+      .getLoanProduct(productIdForConfig)
+      .then((res) => {
+        if (cancelled) return;
+        setLoanProductDisplayName(res.success ? String(res.data?.productName ?? '').trim() : '');
+      })
+      .catch(() => {
+        if (!cancelled) setLoanProductDisplayName('');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productIdForConfig]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1166,11 +1197,23 @@ export const ApplicationDetail: React.FC = () => {
                 <div>
                   <p className="text-sm text-neutral-500">{t('pages.applications.client')}</p>
                   <p className="font-semibold text-neutral-900">
-                    {typeof application.client === 'object' && application.client
-                      ? (application.client as import('../services/api').LoanApplicationClient).company_name
-                      : typeof application.client === 'string'
-                        ? application.client
-                        : ''}
+                    {(() => {
+                      const companyName =
+                        typeof application.client === 'object' && application.client
+                          ? (application.client as import('../services/api').LoanApplicationClient).company_name
+                          : '';
+                      const clientString =
+                        typeof application.client === 'string' ? application.client : '';
+                      // A bare "USER-..." id is not meaningful to a KAM — prefer a readable name.
+                      const looksLikeRawId = /^USER[-_]/i.test(clientString);
+                      return (
+                        companyName ||
+                        (looksLikeRawId ? application.applicant_name : '') ||
+                        clientString ||
+                        application.applicant_name ||
+                        ''
+                      );
+                    })()}
                   </p>
                 </div>
                 <div>
@@ -1180,17 +1223,31 @@ export const ApplicationDetail: React.FC = () => {
                 <div>
                   <p className="text-sm text-neutral-500">{t('pages.applicationDetail.loanProduct')}</p>
                   <p className="font-semibold text-neutral-900">
-                    {typeof application.loan_product === 'object' && application.loan_product
-                      ? application.loan_product.name ?? ''
-                      : typeof application.loan_product === 'string'
-                        ? application.loan_product
-                        : ''}
+                    {loanProductDisplayName ||
+                      (typeof application.loan_product === 'object' && application.loan_product
+                        ? application.loan_product.name || application.loan_product.code || ''
+                        : typeof application.loan_product === 'string'
+                          ? application.loan_product
+                          : '')}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">{t('pages.applicationDetail.requestedAmount')}</p>
                   <p className="font-semibold text-neutral-900">
-                    {formatAmount(application.requested_loan_amount || 0)}
+                    {(() => {
+                      const appRecord = application as unknown as Record<string, unknown>;
+                      const formDataRecord =
+                        appRecord.form_data && typeof appRecord.form_data === 'object' && !Array.isArray(appRecord.form_data)
+                          ? (appRecord.form_data as Record<string, unknown>)
+                          : {};
+                      // Fall back to the frozen B2C-EV loan amount when the top-level
+                      // requested amount was never populated (otherwise it shows ₹0).
+                      const requested =
+                        Number(application.requested_loan_amount) ||
+                        Number(formDataRecord['loan.amount']) ||
+                        0;
+                      return formatAmount(requested);
+                    })()}
                   </p>
                 </div>
                 {(() => {
@@ -1266,7 +1323,7 @@ export const ApplicationDetail: React.FC = () => {
                 )}
                 <div>
                   <p className="text-sm text-neutral-500">{t('pages.applicationDetail.created')}</p>
-                  <p className="font-semibold text-neutral-900">{formatDateSafe(application.created_at)}</p>
+                  <p className="font-semibold text-neutral-900">{formatDateOnly(application.created_at)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">{t('pages.applicationDetail.lastUpdated')}</p>

@@ -1017,3 +1017,73 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(urlParams.get('stage')).toBe('insurance');
   });
 });
+
+describe('B2CEvApplicationWizard productId query param', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseSearchParams.mockReturnValue([new URLSearchParams('b2cEv=1'), vi.fn()] as const);
+    (apiService.listLoanProducts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: [
+        { productId: 'LP001', productName: 'EV Loan' },
+        { productId: 'LP012', productName: 'EV Fleet Loan' },
+      ],
+    });
+    (apiService.getClientKyc as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      error: 'Not found',
+    });
+    (apiService.getFormConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: [],
+    });
+    (apiService.createApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { loanApplicationId: 'draft-1', fileId: 'draft-1' },
+    });
+    (apiService.updateApplicationForm as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+    window.alert = vi.fn();
+  });
+
+  it('pre-selects loan product from ?productId=', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&productId=LP012'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toHaveValue('LP012');
+    });
+  });
+
+  it('draft product wins over ?productId= when draftId is present', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-override&productId=LP012'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-override',
+        status: 'draft',
+        applicantName: 'DRAFT USER',
+        loanProduct: 'LP001',
+        requestedLoanAmount: '0',
+        formData: createInitialB2cEvFormData(),
+      },
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(apiService.getApplication).toHaveBeenCalledWith('draft-override');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toHaveValue('LP001');
+    });
+  });
+});

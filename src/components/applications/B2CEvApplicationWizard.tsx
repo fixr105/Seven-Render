@@ -253,6 +253,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const draftIdParam = searchParams.get('draftId');
+  const productIdParam = searchParams.get('productId');
   const wizardStepParam = searchParams.get('step');
   const wizardStageParam = searchParams.get('stage');
   const { user } = useAuth();
@@ -634,6 +635,24 @@ export const B2CEvApplicationWizard: React.FC = () => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial mount only
   }, []);
+
+  // Pre-select product from ?productId= (dashboard tile +). Draft resume always wins.
+  useEffect(() => {
+    if (draftIdParam) return;
+    const trimmed = productIdParam?.trim() ?? '';
+    if (!trimmed) return;
+    if (loanProductsLoading) return;
+
+    setFormState((prev) => {
+      if (prev.loan_product_id) return prev;
+      if (loanProducts.length > 0 && !loanProducts.some((p) => p.id === trimmed)) {
+        return prev;
+      }
+      const next = { ...prev, loan_product_id: trimmed };
+      formStateRef.current = next;
+      return next;
+    });
+  }, [draftIdParam, productIdParam, loanProductsLoading, loanProducts]);
 
   useEffect(() => {
     if (!draftIdParam) return;

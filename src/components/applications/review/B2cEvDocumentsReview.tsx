@@ -38,14 +38,20 @@ function formatChecklistValue(value: unknown): string {
 export interface B2cEvDocumentsReviewProps {
   formData: Record<string, unknown>;
   clientId?: string;
+  /** When provided, use this shared config instead of fetching internally. */
+  formConfig?: FormConfigCategory[];
+  formConfigLoading?: boolean;
 }
 
 export const B2cEvDocumentsReview: React.FC<B2cEvDocumentsReviewProps> = ({
   formData,
   clientId,
+  formConfig: formConfigProp,
+  formConfigLoading: formConfigLoadingProp,
 }) => {
-  const [formConfig, setFormConfig] = useState<FormConfigCategory[]>([]);
-  const [formConfigLoading, setFormConfigLoading] = useState(false);
+  const usingExternalConfig = formConfigProp !== undefined;
+  const [internalFormConfig, setInternalFormConfig] = useState<FormConfigCategory[]>([]);
+  const [internalFormConfigLoading, setInternalFormConfigLoading] = useState(false);
 
   const folderLink = readString(formData._documentsFolderLink);
   const externalFolderLink = getExternalMediaUrl(folderLink);
@@ -53,17 +59,22 @@ export const B2cEvDocumentsReview: React.FC<B2cEvDocumentsReviewProps> = ({
   const productId = readString(formData.loan_product_id) || readString(formData.productId);
 
   useEffect(() => {
-    if (!clientId || !productId) return;
-    setFormConfigLoading(true);
+    if (usingExternalConfig || !clientId || !productId) return;
+    setInternalFormConfigLoading(true);
     void apiService.getKAMClientFormConfig(clientId, productId).then((response: ApiResponse<Array<Record<string, unknown>>>) => {
       if (response.success && Array.isArray(response.data)) {
-        setFormConfig(response.data as FormConfigCategory[]);
+        setInternalFormConfig(response.data as FormConfigCategory[]);
       } else {
-        setFormConfig([]);
+        setInternalFormConfig([]);
       }
-      setFormConfigLoading(false);
+      setInternalFormConfigLoading(false);
     });
-  }, [clientId, productId]);
+  }, [clientId, productId, usingExternalConfig]);
+
+  const formConfig = usingExternalConfig ? (formConfigProp as FormConfigCategory[]) : internalFormConfig;
+  const formConfigLoading = usingExternalConfig
+    ? Boolean(formConfigLoadingProp)
+    : internalFormConfigLoading;
 
   const documentCategories = useMemo(() => getDocumentCategories(formConfig), [formConfig]);
   const fallbackChecklistEntries = useMemo(

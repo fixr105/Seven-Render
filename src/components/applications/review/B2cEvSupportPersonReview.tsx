@@ -3,15 +3,11 @@ import {
   getSupportPersonProfileFields,
   type SupportPersonType,
 } from '../../../config/forms/b2cEvFormSchema';
+import { formatB2cEvFieldValue } from '../../../lib/b2cEvFieldFormat';
 
 function readString(value: unknown): string {
   if (value == null) return '';
   return String(value).trim();
-}
-
-function formatValue(value: unknown): string {
-  if (value == null || value === '') return '—';
-  return String(value);
 }
 
 export interface B2cEvSupportPersonReviewProps {
@@ -39,7 +35,7 @@ export const B2cEvSupportPersonReview: React.FC<B2cEvSupportPersonReviewProps> =
           <div key={field.key} className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
             <p className="text-sm text-neutral-500">{field.label}</p>
             <p className="text-sm text-neutral-900 sm:col-span-2">
-              {formatValue(formData[field.key])}
+              {formatB2cEvFieldValue(field, formData[field.key])}
             </p>
           </div>
         ))}
