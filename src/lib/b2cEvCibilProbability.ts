@@ -23,7 +23,7 @@ export function getBorrowerCibilScoreFromFormData(
 }
 
 export function getCibilProbabilityTier(score: number): CibilProbabilityTier {
-  if (score <= 575) return 'almost_none';
+  if (score <= 550) return 'almost_none';
   if (score <= 630) return 'co_applicant';
   if (score <= 674) return 'chances';
   return 'full';

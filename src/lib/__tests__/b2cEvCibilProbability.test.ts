@@ -23,8 +23,8 @@ describe('parseCibilScore', () => {
 
 describe('getCibilProbabilityTier', () => {
   it('maps boundary scores to correct tiers', () => {
-    expect(getCibilProbabilityTier(575)).toBe('almost_none');
-    expect(getCibilProbabilityTier(576)).toBe('co_applicant');
+    expect(getCibilProbabilityTier(550)).toBe('almost_none');
+    expect(getCibilProbabilityTier(551)).toBe('co_applicant');
     expect(getCibilProbabilityTier(630)).toBe('co_applicant');
     expect(getCibilProbabilityTier(631)).toBe('chances');
     expect(getCibilProbabilityTier(674)).toBe('chances');
