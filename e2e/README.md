@@ -126,12 +126,12 @@ npx playwright show-trace trace.zip
 ## Troubleshooting
 
 ### Settings Save Returns 404
-When using `E2E_USE_MOCK_USER_ACCOUNTS=1` or mock user IDs (e.g. `recE2ECredit01`), Settings save (`PATCH /user-accounts/:id/settings`) may return 404 because the mock ID does not exist in n8n/User Accounts. This is expected. E2E tests should not assert on Settings save success when using mock users.
+Settings update (`PATCH /user-accounts/:id/settings` or `/auth/me/settings`) requires a real User Accounts record for the logged-in user. If the account is missing or inactive in Airtable/n8n, the API returns 404. Use the real test users in [`TEST_USERS.md`](../TEST_USERS.md); do not rely on local mock account IDs.
 
 ### Tests Fail with "User not found"
-- Ensure test users are created in the database
-- Check `TEST_USERS.md` for setup instructions
-- Verify users have correct roles assigned
+- Ensure the real test users exist in Airtable **User Accounts** (see [`TEST_USERS.md`](../TEST_USERS.md))
+- Verify each user has the correct role and Active status
+- Check `E2E_*_USERNAME` / `E2E_*_PASSWORD` if you override defaults in [`e2e/helpers/auth.ts`](helpers/auth.ts)
 
 ### Tests Fail with "Element not found"
 - Check if the UI has changed (selectors may need updating)

@@ -19,10 +19,12 @@
 
 ## Test User Credentials
 
-- **Client**: `client@test.com` / `Test@123456`
-- **KAM**: `kam@test.com` / `Test@123456`
-- **Credit Team**: `credit@test.com` / `Test@123456`
-- **NBFC**: `nbfc@test.com` / `Test@123456`
+Real User Accounts (see also [TEST_USERS.md](../TEST_USERS.md)):
+
+- **Client**: `vadukavsk@gmail.com` / `pass@123`
+- **KAM**: `Anya@sevenfincorp.email` / `pass@123`
+- **Credit Team**: `sagar@sevenfincorp.email` / `pass@123`
+- **NBFC**: `sagar@sevenfincorp.email` / `pass@123`
 
 ---
 
@@ -45,7 +47,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.1
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Ledger"** (icon: Indian rupee)
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of ledger entries with columns:
@@ -70,7 +72,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.1
 
 #### Steps:
-1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
+1. ✅ Login as CREDIT TEAM (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Ledger"** (icon: Indian rupee)
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of ledger entries from ALL clients
@@ -101,7 +103,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - CLIENT must have a positive balance in the ledger
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Ledger"**
 3. ✅ Verify your balance is greater than ₹0
 4. ✅ Look for a **"Request Payout"** button (usually at the top of the page or near the balance)
@@ -138,7 +140,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - A CLIENT must have submitted a payout request (complete M1.3 first)
 
 #### Steps:
-1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
+1. ✅ Login as CREDIT TEAM (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Ledger"**
 3. ✅ Look for a **"Payout Requests"** section or tab
 4. ✅ If there's a tab, click **"Payout Requests"**
@@ -173,7 +175,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - An application must be in "Approved" or "NBFC Approved" status
 
 #### Steps:
-1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
+1. ✅ Login as CREDIT TEAM (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Find an application with status **"Approved"** or **"NBFC Approved"**
 4. ✅ Click on the application to open the detail page
@@ -206,7 +208,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.4
 
 #### Steps:
-1. ✅ Login as KAM (`kam@test.com` / `Test@123456`)
+1. ✅ Login as KAM (`Anya@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Clients"** (icon: Users)
 3. ✅ Find a client in the list (e.g., "Test Corporation")
 4. ✅ Click on the client to open their detail page
@@ -237,7 +239,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - KAM should have configured form mappings for this client (M2.1)
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Click the **"New Application"** or **"+"** button (usually at the top right)
 4. ✅ Wait for the form to load
@@ -260,7 +262,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.6
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Click **"New Application"** or **"+"** button
 4. ✅ Fill in the form:
@@ -296,7 +298,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.7
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Click **"New Application"** or **"+"** button
 4. ✅ Fill in required fields (Applicant Name, Loan Product, Amount)
@@ -330,7 +332,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.9
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"** (icon: File Text)
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of applications
@@ -357,7 +359,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.9
 
 #### Steps:
-1. ✅ Login as KAM (`kam@test.com` / `Test@123456`)
+1. ✅ Login as KAM (`Anya@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of applications
@@ -382,7 +384,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.9
 
 #### Steps:
-1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
+1. ✅ Login as CREDIT TEAM (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of applications
@@ -405,7 +407,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.9
 
 #### Steps:
-1. ✅ Login as NBFC (`nbfc@test.com` / `Test@123456`)
+1. ✅ Login as NBFC (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Wait for the page to load
 4. ✅ Verify you see a table/list of applications
@@ -429,19 +431,19 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.8
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Find an application with status **"Draft"**
 4. ✅ Click on the application to open detail page
 5. ✅ Look for a **"Submit"** button
 6. ✅ Click **"Submit"**
 7. ✅ Verify the status changes to **"Pending KAM Review"** or **"Under KAM Review"**
-8. ✅ Logout and login as KAM (`kam@test.com` / `Test@123456`)
+8. ✅ Logout and login as KAM (`Anya@sevenfincorp.email` / `pass@123`)
 9. ✅ Navigate to the same application
 10. ✅ Look for **"Forward to Credit"** or **"Approve"** button
 11. ✅ Click the button
 12. ✅ Verify the status changes to **"Forwarded to Credit"** or **"Pending Credit Review"**
-13. ✅ Logout and login as CREDIT (`credit@test.com` / `Test@123456`)
+13. ✅ Logout and login as CREDIT (`sagar@sevenfincorp.email` / `pass@123`)
 14. ✅ Navigate to the same application
 15. ✅ Look for **"Send to NBFC"** or **"Assign NBFC"** button
 16. ✅ Click the button and assign an NBFC
@@ -490,7 +492,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - An application in "Pending KAM Review" or "Under KAM Review" status
 
 #### Steps:
-1. ✅ Login as KAM (`kam@test.com` / `Test@123456`)
+1. ✅ Login as KAM (`Anya@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Find an application with status **"Pending KAM Review"** or **"Under KAM Review"**
 4. ✅ Click on the application to open detail page
@@ -525,7 +527,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - KAM must have raised a query (complete M4.1 first)
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Find the application with the query (status should be "Query with Client")
 4. ✅ Click on the application to open detail page
@@ -556,7 +558,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - A query should be raised or status changed (complete M4.1 or M3.5)
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ Look at the top right of the page for a **notification bell icon** 🔔
 3. ✅ Verify the bell shows a number badge (e.g., "3") indicating unread notifications
 4. ✅ Click on the notification bell
@@ -587,7 +589,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.14
 
 #### Steps:
-1. ✅ Login as CLIENT (`client@test.com` / `Test@123456`)
+1. ✅ Login as CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 2. ✅ After login, you should land on the **Dashboard** page
 3. ✅ If not, click **"Dashboard"** in the left sidebar (icon: Home)
 4. ✅ Verify you see dashboard cards/sections showing:
@@ -617,7 +619,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.14
 
 #### Steps:
-1. ✅ Login as KAM (`kam@test.com` / `Test@123456`)
+1. ✅ Login as KAM (`Anya@sevenfincorp.email` / `pass@123`)
 2. ✅ Click **"Dashboard"** in the left sidebar
 3. ✅ Verify you see dashboard cards/sections showing:
    - **Managed Clients** count
@@ -638,7 +640,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.14
 
 #### Steps:
-1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
+1. ✅ Login as CREDIT TEAM (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ Click **"Dashboard"** in the left sidebar
 3. ✅ Verify you see dashboard cards/sections showing:
    - **Pending Reviews** count
@@ -708,7 +710,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 **Requirement:** P0.16
 
 #### Steps:
-1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
+1. ✅ Login as CREDIT TEAM (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Reports"** (icon: Bar Chart)
 3. ✅ Wait for the page to load
 4. ✅ Look for a **"Generate Report"** or **"Generate Daily Summary"** button
@@ -745,7 +747,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 - An application with documents uploaded
 
 #### Steps:
-1. ✅ Login as CREDIT TEAM (`credit@test.com` / `Test@123456`)
+1. ✅ Login as CREDIT TEAM (`sagar@sevenfincorp.email` / `pass@123`)
 2. ✅ In the left sidebar, click **"Applications"**
 3. ✅ Click on an application that has documents uploaded
 4. ✅ Scroll down to find the **"AI File Summary"** section (usually in the sidebar)
@@ -804,7 +806,7 @@ Use this to verify status transitions and that the UI only shows allowed next st
 4. ✅ Enter invalid credentials (wrong email or password)
 5. ✅ Click **"Login"** or **"Sign In"**
 6. ✅ Verify an error message appears (e.g., "Invalid credentials")
-7. ✅ Enter valid credentials for CLIENT (`client@test.com` / `Test@123456`)
+7. ✅ Enter valid credentials for CLIENT (`vadukavsk@gmail.com` / `pass@123`)
 8. ✅ Click **"Login"**
 9. ✅ Verify you are redirected to the Dashboard
 10. ✅ Verify you see the CLIENT dashboard (not KAM or CREDIT dashboard)

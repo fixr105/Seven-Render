@@ -86,7 +86,7 @@ npm run dev
 
 3. **Env:** Set `N8N_BASE_URL` (e.g. `https://your-instance.app.n8n.cloud`) with **no** trailing slash. For login, optional: `N8N_GET_USER_ACCOUNTS_URL`. For validate, the URL is always `N8N_BASE_URL/webhook/validate`.
 
-4. **Local dev without n8n (Email/Password only):** Set `E2E_USE_MOCK_USER_ACCOUNTS=1` and use **Sagar@gmail.com** / **pass@123**. The Username/Passcode (validate) flow has no mock; it always calls n8n.
+4. **Local / E2E login:** Use the real User Accounts documented in **TEST_USERS.md** (same defaults as `e2e/helpers/auth.ts`). There is no local mock User Accounts table — auth always resolves against n8n/Airtable.
 
 5. **Rahul@gmail.com (or other usernames) returns "temporarily unavailable":** The n8n `/webhook/validate` workflow looks up **User Accounts** in Airtable by **Username** and **Password**. If the user does not exist, or the workflow returns **empty** or **HTML**, you get this error. **Fix:**  
    - **Option A:** Add the user to **User Accounts** in Airtable: `Username` = `Rahul@gmail.com`, `Password` = `pass@123`, `Role` = your role (e.g. `credit_team`), `Account Status` = `Active`. Ensure the n8n validate workflow is **active** and queries this table.  

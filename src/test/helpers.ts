@@ -57,32 +57,33 @@ export const renderWithProviders = (ui: React.ReactElement, options?: Omit<Rende
   });
 };
 
+/** Unit-test auth fixtures — emails match real TEST_USERS / E2E defaults. */
 export const mockClientUser: UserContext = {
   id: 'user-1',
-  email: 'Sagar@gmail.com',
+  email: 'vadukavsk@gmail.com',
   role: 'client',
   clientId: 'CLIENT001',
-  name: 'Sagar',
+  name: 'Client',
 };
 
 export const mockKAMUser: UserContext = {
   id: 'user-2',
-  email: 'Sagar@gmail.com',
+  email: 'Anya@sevenfincorp.email',
   role: 'kam',
   kamId: 'KAM001',
-  name: 'Sagar',
+  name: 'Anya',
 };
 
 export const mockCreditUser: UserContext = {
   id: 'user-3',
-  email: 'Sagar@gmail.com',
+  email: 'sagar@sevenfincorp.email',
   role: 'credit_team',
   name: 'Sagar',
 };
 
 export const mockNBFCUser: UserContext = {
   id: 'user-4',
-  email: 'Sagar@gmail.com',
+  email: 'sagar@sevenfincorp.email',
   role: 'nbfc',
   nbfcId: 'NBFC001',
   name: 'Sagar',
