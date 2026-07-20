@@ -128,7 +128,7 @@ export class QueryService {
     const timestamp = new Date().toISOString();
 
     // Get parent query to determine original target
-    const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+    const auditLogs = await n8nClient.fetchTable('File Auditing Log');
     const parentQuery = findAuditLogEntryByIdentifier(
       auditLogs as Array<Record<string, unknown>>,
       parentQueryId
@@ -300,7 +300,7 @@ export class QueryService {
     userEmail: string,
     newMessage: string
   ): Promise<void> {
-    const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+    const auditLogs = await n8nClient.fetchTable('File Auditing Log');
     const query = findAuditLogEntryByIdentifier(
       auditLogs as Array<Record<string, unknown>>,
       queryId
@@ -359,7 +359,7 @@ export class QueryService {
     resolutionMessage?: string,
     resolverRole?: string
   ): Promise<void> {
-    const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+    const auditLogs = await n8nClient.fetchTable('File Auditing Log');
     const query = findAuditLogEntryByIdentifier(
       auditLogs as Array<Record<string, unknown>>,
       queryId

@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import { mapClientFromApi } from '../utils/applicationTransform';
 import { resolveApplicationStatus } from '../lib/statusUtils';
 import { resolveApplicationClientId } from '../utils/resolveApplicationClientId';
+
+/** Min interval between focus-triggered refetches (does not block explicit Refresh). */
+const FOCUS_REFETCH_TTL_MS = 60_000;
 
 export interface LoanApplication {
   id: string;
@@ -113,6 +116,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
   const { refreshUser } = useAuth();
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loading, setLoading] = useState(true);
+  const lastFetchAtRef = useRef(0);
   const unmapped = options?.unmapped ?? false;
   const loanProductId = options?.loanProductId;
   const statusIn = options?.statusIn;
@@ -121,7 +125,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
   const dateTo = options?.dateTo;
   const search = options?.search;
 
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async (forceRefresh: boolean = false) => {
     try {
       setLoading(true);
       const listParams: Parameters<typeof apiService.listApplications>[0] = {};
@@ -132,6 +136,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
       if (dateFrom) listParams.dateFrom = dateFrom;
       if (dateTo) listParams.dateTo = dateTo;
       if (search) listParams.search = search;
+      if (forceRefresh) listParams.forceRefresh = true;
       const response = await apiService.listApplications(
         Object.keys(listParams).length ? listParams : undefined
       );
@@ -142,6 +147,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
         const transformed = appsArray.map((app) => transformApplicationFromApi(app as unknown as Record<string, unknown>));
         
         setApplications(transformed);
+        lastFetchAtRef.current = Date.now();
       } else {
         console.error('Error fetching applications:', response.error);
         setApplications([]);
@@ -159,14 +165,18 @@ export const useApplications = (options?: UseApplicationsOptions) => {
     }
   }, [unmapped, loanProductId, statusIn, clientId, dateFrom, dateTo, search, refreshUser]);
 
-  // Fetch on mount and when unmapped toggle changes
+  // Fetch on mount and when filter options change (cached unless Refresh)
   useEffect(() => {
-    fetchApplications();
+    void fetchApplications(false);
   }, [fetchApplications]);
 
-  // Refetch when tab/window regains focus (user returns to app or navigates back)
+  // Throttled focus refetch: visible tab only, min 60s since last successful fetch, never forceRefresh
   useEffect(() => {
-    const handleFocus = () => fetchApplications();
+    const handleFocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastFetchAtRef.current < FOCUS_REFETCH_TTL_MS) return;
+      void fetchApplications(false);
+    };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [fetchApplications]);
@@ -174,7 +184,7 @@ export const useApplications = (options?: UseApplicationsOptions) => {
   const updateStatus = async (_applicationId: string, _newStatus: string) => {
     // Status updates should go through specific endpoints (e.g., submit, forward, etc.)
     // For now, just refetch
-    await fetchApplications();
+    await fetchApplications(false);
   };
 
   return { applications, loading, updateStatus, refetch: fetchApplications };

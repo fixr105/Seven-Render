@@ -52,8 +52,8 @@ export const CreditDashboard: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const fetchDashboard = () => {
-    apiService.getCreditDashboard().then((res) => {
+  const fetchDashboard = (forceRefresh: boolean = false) => {
+    apiService.getCreditDashboard(forceRefresh).then((res) => {
       setDashboardLoading(false);
       if (res.success && res.data?.pendingQueries) setPendingQueries(res.data.pendingQueries);
       else setPendingQueries([]);
@@ -63,7 +63,7 @@ export const CreditDashboard: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     setDashboardLoading(true);
-    apiService.getCreditDashboard().then((res) => {
+    apiService.getCreditDashboard(false).then((res) => {
       if (cancelled) return;
       setDashboardLoading(false);
       if (res.success && res.data?.pendingQueries) setPendingQueries(res.data.pendingQueries);
@@ -72,14 +72,11 @@ export const CreditDashboard: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Refetch dashboard when tab/window regains focus
+  // Keep dashboard:refresh; do not refetch on every window focus (useApplications handles list TTL)
   useEffect(() => {
-    const handleFocus = () => fetchDashboard();
-    const handleDashboardRefresh = () => fetchDashboard();
-    window.addEventListener('focus', handleFocus);
+    const handleDashboardRefresh = () => fetchDashboard(false);
     window.addEventListener('dashboard:refresh', handleDashboardRefresh);
     return () => {
-      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('dashboard:refresh', handleDashboardRefresh);
     };
   }, []);

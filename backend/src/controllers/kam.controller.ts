@@ -58,12 +58,13 @@ export class KAMController {
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');
       const managedClientIds = await rbacFilterService.getKAMManagedClientIds(req.user.kamId!);
 
-      // Fetch only the tables we need (no User Accounts; managed clients from Clients + getKAMManagedClientIds)
+      // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)
+      const useCache = req.query.forceRefresh !== 'true';
       const [clients, allApplications, allLedgerEntries, allAuditLogs] = await Promise.all([
-        n8nClient.fetchTable('Clients'),
-        n8nClient.fetchTable('Loan Application', false),
-        n8nClient.fetchTable('Commission Ledger'),
-        n8nClient.fetchTable('File Auditing Log'),
+        n8nClient.fetchTable('Clients', useCache),
+        n8nClient.fetchTable('Loan Application', useCache),
+        n8nClient.fetchTable('Commission Ledger', useCache),
+        n8nClient.fetchTable('File Auditing Log', useCache),
       ]);
 
       const applications = await rbacFilterService.filterLoanApplications(allApplications, req.user!);
@@ -304,7 +305,7 @@ export class KAMController {
       // If KAM ID is not set, try to get it from KAM Users table by email
       if (!kamId && req.user.email) {
         try {
-          const kamUsers = await n8nClient.fetchTable('KAM Users', false);
+          const kamUsers = await n8nClient.fetchTable('KAM Users', !bypassCache);
           console.log('[listClients] Fetched KAM Users:', kamUsers.length, 'records');
           const kamUser = kamUsers.find((k: any) => {
             const kEmail = (k['Email'] || k['Username'] || '').toLowerCase();
@@ -1458,7 +1459,7 @@ export class KAMController {
       }
 
       // Bypass cache so validation checks against the latest status
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -1776,7 +1777,7 @@ export class KAMController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -1847,7 +1848,7 @@ export class KAMController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });

@@ -103,7 +103,7 @@ type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const FIELD_AUTO_SAVE_DEBOUNCE_MS = 1500;
 const GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS = 2000;
-const KAM_SYNC_POLL_INTERVAL_MS = 20_000;
+const KAM_SYNC_POLL_INTERVAL_MS = 45_000;
 const PAN_MANUAL_FAILURE_MESSAGE =
   'PAN verification returned no results. Enter all details manually below.';
 
@@ -778,22 +778,22 @@ export const B2CEvApplicationWizard: React.FC = () => {
   useEffect(() => {
     if (!shouldPollKamUpdates) return;
 
-    const syncOnFocus = () => {
+    const syncIfVisible = () => {
       if (document.visibilityState === 'visible') {
         void syncKamManagedFieldsFromServer();
       }
     };
 
-    void syncKamManagedFieldsFromServer();
-    window.addEventListener('focus', syncOnFocus);
-    document.addEventListener('visibilitychange', syncOnFocus);
+    // visibilitychange only (avoids double-fire with focus); poll only while tab visible
+    void syncIfVisible();
+    document.addEventListener('visibilitychange', syncIfVisible);
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       void syncKamManagedFieldsFromServer();
     }, KAM_SYNC_POLL_INTERVAL_MS);
 
     return () => {
-      window.removeEventListener('focus', syncOnFocus);
-      document.removeEventListener('visibilitychange', syncOnFocus);
+      document.removeEventListener('visibilitychange', syncIfVisible);
       window.clearInterval(intervalId);
     };
   }, [shouldPollKamUpdates, syncKamManagedFieldsFromServer]);

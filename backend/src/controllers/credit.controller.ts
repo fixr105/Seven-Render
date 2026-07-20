@@ -23,10 +23,11 @@ export class CreditController {
    */
   async getDashboard(req: Request, res: Response): Promise<void> {
     try {
-      // Fetch only the tables we need
+      // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)
+      const useCache = req.query.forceRefresh !== 'true';
       const [applications, auditLogs] = await Promise.all([
-        n8nClient.fetchTable('Loan Application'),
-        n8nClient.fetchTable('File Auditing Log'),
+        n8nClient.fetchTable('Loan Application', useCache),
+        n8nClient.fetchTable('File Auditing Log', useCache),
       ]);
 
       // Files by stage
@@ -239,7 +240,7 @@ export class CreditController {
       const { id } = req.params;
       
       // Step 1: Fetch latest applications snapshot and find the specific one
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -449,7 +450,7 @@ export class CreditController {
         return;
       }
       // Bypass cache so we validate against current application status
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -1902,7 +1903,7 @@ export class CreditController {
         res.status(400).json({ success: false, error: 'productId is required' });
         return;
       }
-      const products = await n8nClient.fetchTable('Loan Products', false);
+      const products = await n8nClient.fetchTable('Loan Products');
       const product = (products as any[]).find(
         (p) =>
           (p['Product ID'] || p.productId || p.id || '').toString().trim() === productId.trim()

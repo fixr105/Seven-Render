@@ -423,13 +423,12 @@ export class ClientController {
         return;
       }
 
-      // Fetch only the tables we need
-      // Use Promise.allSettled to handle partial failures gracefully
-      // DISABLE CACHE to ensure webhooks are called every time (user requested manual refresh triggers webhooks)
+      // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)
+      const useCache = req.query.forceRefresh !== 'true';
       const results = await Promise.allSettled([
-        n8nClient.fetchTable('Loan Application', false), // Disable cache
-        n8nClient.fetchTable('Commission Ledger', false), // Disable cache
-        n8nClient.fetchTable('File Auditing Log', false), // Disable cache
+        n8nClient.fetchTable('Loan Application', useCache),
+        n8nClient.fetchTable('Commission Ledger', useCache),
+        n8nClient.fetchTable('File Auditing Log', useCache),
       ]);
       
       // Extract results, using empty arrays as fallback for failed requests
@@ -698,7 +697,7 @@ export class ClientController {
       const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
       // Fetch only the tables we need
       const [applications, auditLogs] = await Promise.all([
-        n8nClient.fetchTable('Loan Application', false),
+        n8nClient.fetchTable('Loan Application'),
         n8nClient.fetchTable('File Auditing Log'),
       ]);
 

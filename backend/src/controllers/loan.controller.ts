@@ -321,17 +321,16 @@ export class LoanController {
       console.log(`[listApplications] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
       console.log(`[listApplications] Fetching 3 tables in parallel...`);
 
-      // Fetch applications and related data from n8n webhooks
-      // DISABLE CACHE to ensure webhooks are called every time
-      // User requested that webhooks should trigger on manual refresh
+      // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)
+      const useCache = req.query.forceRefresh !== 'true';
       // Use Promise.allSettled to handle partial failures gracefully
       // All records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      console.log(`[listApplications] Fetching tables with cache DISABLED to trigger webhooks...`);
+      console.log(`[listApplications] Fetching tables useCache=${useCache}...`);
       const results = await Promise.allSettled([
-        n8nClient.fetchTable('Loan Application', false), // Disable cache
-        n8nClient.fetchTable('Clients', false), // Disable cache
-        n8nClient.fetchTable('Loan Products', false), // Disable cache
+        n8nClient.fetchTable('Loan Application', useCache),
+        n8nClient.fetchTable('Clients', useCache),
+        n8nClient.fetchTable('Loan Products', useCache),
       ]);
       
       console.log(`[listApplications] Promise.allSettled completed`);
@@ -544,7 +543,7 @@ export class LoanController {
   async getQueries(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -624,7 +623,7 @@ export class LoanController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -722,7 +721,7 @@ export class LoanController {
         return;
       }
 
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -774,7 +773,7 @@ export class LoanController {
       const { resolutionMessage } = req.body;
 
       // Step 1: Fetch applications and find the specific one
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
 
       if (!application) {
@@ -839,7 +838,7 @@ export class LoanController {
       const { message: bodyMessage, reply, newDocs, answers, b2cFulfillment } = req.body;
       const message = typeof bodyMessage === 'string' ? bodyMessage : (typeof reply === 'string' ? reply : '');
 
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       if (!application) {
         res.status(404).json({ success: false, error: 'Application not found' });
@@ -853,7 +852,7 @@ export class LoanController {
         return;
       }
 
-      const auditLogs = await n8nClient.fetchTable('File Auditing Log', false);
+      const auditLogs = await n8nClient.fetchTable('File Auditing Log');
       const rootQuery = findAuditLogEntryByIdentifier(
         auditLogs as Array<Record<string, unknown>>,
         queryId
@@ -1089,7 +1088,7 @@ export class LoanController {
       const { id } = req.params;
       
       // Step 1: Fetch latest application snapshot for detail/status actions
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
 
       const application = findLoanApplicationByParamId(applications, id);
 
@@ -1274,7 +1273,7 @@ export class LoanController {
       >;
       const metadataOnlyPatch = isB2cMetadataOnlyFormPatch(incomingFormData);
       // Fetch only Loan Application table (bypass cache — must see freshly created drafts)
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       const appClient = application?.Client || application?.['Client'];
 
@@ -1451,7 +1450,7 @@ export class LoanController {
       // Fetch only Loan Application table (bypass cache — must see freshly created drafts)
       // Records are automatically parsed by fetchTable() using N8nResponseParser
       // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       const appClient = application?.Client || application?.['Client'];
 
@@ -1585,7 +1584,7 @@ export class LoanController {
 
       const { id } = req.params;
       // Fetch only Loan Application table (bypass cache)
-      const applications = await n8nClient.fetchTable('Loan Application', false);
+      const applications = await n8nClient.fetchTable('Loan Application');
       const application = findLoanApplicationByParamId(applications, id);
       const appClient = application?.Client || application?.['Client'];
 

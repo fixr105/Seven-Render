@@ -57,11 +57,11 @@ export const KAMDashboard: React.FC = () => {
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (forceRefresh: boolean = false) => {
     try {
       setDashboardLoading(true);
       setDashboardError(null);
-      const res = await apiService.getKAMDashboard();
+      const res = await apiService.getKAMDashboard(forceRefresh);
       if (res.success && res.data) {
         const data = res.data;
         setDashboardData({
@@ -96,16 +96,13 @@ export const KAMDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchDashboard();
+    void fetchDashboard(false);
   }, []);
 
   useEffect(() => {
-    const handleFocus = () => fetchDashboard();
-    const handleDashboardRefresh = () => fetchDashboard();
-    window.addEventListener('focus', handleFocus);
+    const handleDashboardRefresh = () => void fetchDashboard(false);
     window.addEventListener('dashboard:refresh', handleDashboardRefresh);
     return () => {
-      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('dashboard:refresh', handleDashboardRefresh);
     };
   }, []);
@@ -329,7 +326,7 @@ export const KAMDashboard: React.FC = () => {
       <Card className="mb-6">
         <CardHeader className="flex items-center justify-between">
           <CardTitle>{t('pages.dashboards.actionCenter')}</CardTitle>
-          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => { refetch(); fetchDashboard(); }}>
+          <Button variant="tertiary" size="sm" icon={RefreshCw} onClick={() => { void refetch(true); void fetchDashboard(true); }}>
             {t('common.refresh')}
           </Button>
         </CardHeader>

@@ -7,7 +7,6 @@ import { Plus, FileText, Clock, IndianRupee, Package, Sparkles, Wallet } from 'l
 import { useAuth } from '../../auth/AuthContext';
 import { useApplications } from '../../hooks/useApplications';
 import { useLedger } from '../../hooks/useLedger';
-import { useNotifications } from '../../hooks/useNotifications';
 import { apiService } from '../../services/api';
 import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
 import { buildWizardResumePath } from '../../lib/b2cEvWizardResume';
@@ -120,7 +119,6 @@ export const ClientDashboard: React.FC = () => {
   const mix = useMemo(() => applicationMix(applications), [applications]);
 
   const { balance, loading: ledgerLoading, entries } = useLedger();
-  useNotifications();
   const [loanProducts, setLoanProducts] = useState<LoanProductCard[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());

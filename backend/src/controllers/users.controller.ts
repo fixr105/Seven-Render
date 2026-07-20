@@ -249,8 +249,9 @@ export class UsersController {
         return;
       }
 
-      // Fetch fresh rows so Last Login reflects the latest successful auth write.
-      const userAccounts = await n8nClient.fetchTable('User Accounts', false);
+      // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)
+      const useCache = req.query.forceRefresh !== 'true';
+      const userAccounts = await n8nClient.fetchTable('User Accounts', useCache);
 
       res.json({
         success: true,

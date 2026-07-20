@@ -36,8 +36,9 @@ export class NBFController {
         return;
       }
 
-      // Fetch only Loan Application table
-      const allApplications = await n8nClient.fetchTable('Loan Application', false);
+      // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)
+      const useCache = req.query.forceRefresh !== 'true';
+      const allApplications = await n8nClient.fetchTable('Loan Application', useCache);
 
       // Apply RBAC filtering using centralized service
       const { rbacFilterService } = await import('../services/rbac/rbacFilter.service.js');

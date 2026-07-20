@@ -28,11 +28,11 @@ export const useLedger = (options?: UseLedgerOptions) => {
   const [totalFeesDue, setTotalFeesDue] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const fetchLedger = useCallback(async () => {
+  const fetchLedger = useCallback(async (forceRefresh: boolean = false) => {
     if (userRole === 'client') {
       try {
         setLoading(true);
-        const response = await apiService.getClientLedger();
+        const response = await apiService.getClientLedger(forceRefresh);
         if (response.success && response.data) {
           const ledgerData = response.data as unknown as Record<string, unknown> | unknown[];
           const entriesList = Array.isArray(ledgerData)

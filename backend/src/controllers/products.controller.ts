@@ -56,11 +56,13 @@ export class ProductsController {
       console.log(`[listLoanProducts] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
       
       // Fetch Loan Products and Clients in parallel (Clients for KAM→product remapping)
-      console.log(`[listLoanProducts] Calling n8nClient.fetchTable('Loan Products') with cache DISABLED...`);
+      // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)
+      const useCache = req.query.forceRefresh !== 'true';
+      console.log(`[listLoanProducts] Calling n8nClient.fetchTable useCache=${useCache}...`);
       const [products, clients, kamUsers] = await Promise.all([
-        n8nClient.fetchTable('Loan Products', false, undefined, timeoutMs),
-        n8nClient.fetchTable('Clients', false).catch(() => [] as any[]),
-        n8nClient.fetchTable('KAM Users', false).catch(() => [] as any[]),
+        n8nClient.fetchTable('Loan Products', useCache, undefined, timeoutMs),
+        n8nClient.fetchTable('Clients', useCache).catch(() => [] as any[]),
+        n8nClient.fetchTable('KAM Users', useCache).catch(() => [] as any[]),
       ]);
       console.log(`[listLoanProducts] fetchTable returned ${products.length} products, ${clients.length} clients`);
 
@@ -155,8 +157,8 @@ export class ProductsController {
       const lookup = String(id ?? '').trim().toLowerCase();
       const [products, clients, kamUsers] = await Promise.all([
         n8nClient.fetchTable('Loan Products'),
-        n8nClient.fetchTable('Clients', false).catch(() => [] as any[]),
-        n8nClient.fetchTable('KAM Users', false).catch(() => [] as any[]),
+        n8nClient.fetchTable('Clients').catch(() => [] as any[]),
+        n8nClient.fetchTable('KAM Users').catch(() => [] as any[]),
       ]);
       
       const product = products.find((p: any) => {

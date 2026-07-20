@@ -128,7 +128,7 @@ describe('LoanController - P0 Tests', () => {
 
       await controller.listApplications(mockRequest as Request, mockResponse as Response);
 
-      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', false);
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', true);
       expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
 
       const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
@@ -166,7 +166,7 @@ describe('LoanController - P0 Tests', () => {
 
       await controller.listApplications(mockRequest as Request, mockResponse as Response);
 
-      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', false);
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', true);
       expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       
       const responseCall = (mockResponse.json as jest.Mock).mock.calls[0][0] as {
@@ -178,6 +178,33 @@ describe('LoanController - P0 Tests', () => {
       // CREDIT should see all applications
       const applications = responseCall.data;
       expect(applications.length).toBeGreaterThan(0);
+    });
+
+    it('should bypass cache when forceRefresh=true', async () => {
+      const creditUser: AuthUser = {
+        id: 'user-3',
+        email: 'Sagar@gmail.com',
+        role: UserRole.CREDIT,
+      };
+
+      mockRequest = {
+        user: creditUser,
+        query: { forceRefresh: 'true' },
+      };
+
+      (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
+        if (tableName === 'Loan Application') return mockLoanApplications;
+        if (tableName === 'Clients') return [];
+        if (tableName === 'Loan Products') return [];
+        return [];
+      });
+
+      await controller.listApplications(mockRequest as Request, mockResponse as Response);
+
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', false);
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Clients', false);
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Products', false);
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('should return 403 for unauthenticated requests', async () => {
@@ -509,7 +536,7 @@ describe('LoanController - P0 Tests', () => {
       expect(mockN8nClientInstance.postLoanApplication).toHaveBeenCalled();
     });
 
-    it('fetches Loan Application with cache disabled for form update', async () => {
+    it('fetches Loan Application with default cache for form update', async () => {
       (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
         if (tableName === 'Loan Application') {
           return [{
@@ -530,7 +557,8 @@ describe('LoanController - P0 Tests', () => {
 
       await controller.updateApplicationForm(mockRequest as Request, mockResponse as Response);
 
-      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application', false);
+      // Default cache (omit useCache → true); no hard-coded false
+      expect(mockN8nClientInstance.fetchTable).toHaveBeenCalledWith('Loan Application');
     });
 
     it('returns 400 when application is not in an editable status', async () => {

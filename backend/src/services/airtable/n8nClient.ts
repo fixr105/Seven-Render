@@ -415,11 +415,9 @@ export class N8nClient {
         // Always log successful webhook fetches
         console.log(`✅ [WEBHOOK SUCCESS] Fetched and parsed ${records.length} records from ${tableName} webhook`);
 
-        // Cache the parsed result (persists until invalidated)
-        if (useCache) {
-          // Cache holds indefinitely until explicitly invalidated via POST operations
-          cacheService.set(cacheKey, records);
-        }
+        // Always write-through so forceRefresh (useCache=false) still populates cache for later hits.
+        // useCache only gates whether we read from cache above.
+        cacheService.set(cacheKey, records);
 
         return records;
       } catch (fetchError: any) {

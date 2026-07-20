@@ -103,7 +103,7 @@ export async function findLoanProductRecordForApplication(
   const productCandidates = extractLoanProductMatchCandidates(application);
   if (productCandidates.length === 0) return undefined;
 
-  const products = await n8nClient.fetchTable('Loan Products', false);
+  const products = await n8nClient.fetchTable('Loan Products');
   const product = products.find(
     (p: any) =>
       productCandidates.includes(normalizeLookup(p.id)) ||

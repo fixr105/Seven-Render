@@ -1078,6 +1078,8 @@ class ApiService {
     search?: string;
     unmapped?: boolean;
     clientId?: string;
+    /** When true, backend bypasses n8n GET cache */
+    forceRefresh?: boolean;
   }): Promise<ApiResponse<LoanApplication[]>> {
     const queryParams = new URLSearchParams();
     if (params?.status) queryParams.append('status', params.status);
@@ -1088,6 +1090,7 @@ class ApiService {
     if (params?.search) queryParams.append('search', params.search);
     if (params?.unmapped) queryParams.append('unmapped', 'true');
     if (params?.clientId) queryParams.append('clientId', params.clientId);
+    if (params?.forceRefresh) queryParams.append('forceRefresh', 'true');
 
     const query = queryParams.toString();
     return this.request<LoanApplication[]>(
@@ -1107,8 +1110,9 @@ class ApiService {
   /**
    * Get KAM dashboard
    */
-  async getKAMDashboard(): Promise<ApiResponse<DashboardSummary>> {
-    return this.request<DashboardSummary>('/kam/dashboard');
+  async getKAMDashboard(forceRefresh: boolean = false): Promise<ApiResponse<DashboardSummary>> {
+    const url = forceRefresh ? '/kam/dashboard?forceRefresh=true' : '/kam/dashboard';
+    return this.request<DashboardSummary>(url);
   }
 
   /**
@@ -1576,8 +1580,9 @@ class ApiService {
   /**
    * Get credit team dashboard
    */
-  async getCreditDashboard(): Promise<ApiResponse<DashboardSummary>> {
-    return this.request<DashboardSummary>('/credit/dashboard');
+  async getCreditDashboard(forceRefresh: boolean = false): Promise<ApiResponse<DashboardSummary>> {
+    const url = forceRefresh ? '/credit/dashboard?forceRefresh=true' : '/credit/dashboard';
+    return this.request<DashboardSummary>(url);
   }
 
   /**
@@ -1794,8 +1799,9 @@ class ApiService {
   /**
    * Get NBFC dashboard
    */
-  async getNBFCDashboard(): Promise<ApiResponse<DashboardSummary>> {
-    return this.request<DashboardSummary>('/nbfc/dashboard');
+  async getNBFCDashboard(forceRefresh: boolean = false): Promise<ApiResponse<DashboardSummary>> {
+    const url = forceRefresh ? '/nbfc/dashboard?forceRefresh=true' : '/nbfc/dashboard';
+    return this.request<DashboardSummary>(url);
   }
 
   /**
@@ -1913,8 +1919,9 @@ class ApiService {
   /**
    * Get client commission ledger
    */
-  async getClientLedger(): Promise<ApiResponse<ClientLedgerResponse>> {
-    return this.request<ClientLedgerResponse>('/clients/me/ledger');
+  async getClientLedger(forceRefresh: boolean = false): Promise<ApiResponse<ClientLedgerResponse>> {
+    const url = forceRefresh ? '/clients/me/ledger?forceRefresh=true' : '/clients/me/ledger';
+    return this.request<ClientLedgerResponse>(url);
   }
 
   /**
@@ -2223,6 +2230,7 @@ class ApiService {
   async getNotifications(options?: {
     unreadOnly?: boolean;
     limit?: number;
+    forceRefresh?: boolean;
   }): Promise<ApiResponse<any[]>> {
     const params = new URLSearchParams();
     if (options?.unreadOnly) {
@@ -2230,6 +2238,9 @@ class ApiService {
     }
     if (options?.limit) {
       params.append('limit', options.limit.toString());
+    }
+    if (options?.forceRefresh) {
+      params.append('forceRefresh', 'true');
     }
     const queryString = params.toString();
     const url = queryString ? `/notifications?${queryString}` : '/notifications';
@@ -2266,7 +2277,10 @@ class ApiService {
   /**
    * List loan products
    */
-  async listLoanProducts(activeOnly?: boolean): Promise<ApiResponse<Array<{
+  async listLoanProducts(
+    activeOnly?: boolean,
+    forceRefresh: boolean = false
+  ): Promise<ApiResponse<Array<{
     id: string;
     productId: string;
     productName: string;
@@ -2279,8 +2293,11 @@ class ApiService {
     assignedKamIds?: string[];
     assignedKamNames?: string[];
   }>>> {
-    const query = activeOnly ? '?activeOnly=true' : '';
-    return this.request(`/loan-products${query}`);
+    const params = new URLSearchParams();
+    if (activeOnly) params.append('activeOnly', 'true');
+    if (forceRefresh) params.append('forceRefresh', 'true');
+    const query = params.toString();
+    return this.request(`/loan-products${query ? `?${query}` : ''}`);
   }
 
   /**

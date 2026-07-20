@@ -587,7 +587,7 @@ export const Applications: React.FC = () => {
               <Button
                 variant="secondary"
                 icon={RefreshCw}
-                onClick={refetch}
+                onClick={() => refetch(true)}
                 disabled={loading}
                 className={loading ? 'opacity-50 cursor-not-allowed' : ''}
               >
