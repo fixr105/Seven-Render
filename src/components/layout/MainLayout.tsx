@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Footer } from './Footer';
 import logo from '../ui/logo.png';
-import { Notification } from '../../hooks/useNotifications';
+import { useNotifications } from '../../hooks/useNotifications';
 import type { TranslatedSidebarNavItem } from '../../hooks/useSidebarItems';
 
 interface MainLayoutProps {
@@ -15,9 +15,13 @@ interface MainLayoutProps {
   pageTitle: string;
   userRole?: string;
   userName?: string;
+  /** @deprecated Notifications are loaded on demand in TopBar; prop kept for call-site compatibility. */
   notificationCount?: number;
-  notifications?: Notification[];
+  /** @deprecated */
+  notifications?: unknown;
+  /** @deprecated */
   onMarkAsRead?: (notificationId: string) => void;
+  /** @deprecated */
   onMarkAllAsRead?: () => void;
   /** When true, main content has no padding and fills the space (for NBFCTools 3-column layout) */
   fullBleed?: boolean;
@@ -33,14 +37,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   pageTitle,
   userRole = '',
   userName,
-  notificationCount,
-  notifications,
-  onMarkAsRead,
-  onMarkAllAsRead,
   fullBleed = false,
   hideSidebar = false,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { notifications, unreadCount, markAsRead, markAllAsRead, refetch } = useNotifications();
 
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-100 relative">
@@ -71,25 +72,21 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           <TopBar
             title={pageTitle}
             onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-            notificationCount={notificationCount}
+            notificationCount={unreadCount}
             userName={userName}
             notifications={notifications}
-            onMarkAsRead={onMarkAsRead}
-            onMarkAllAsRead={onMarkAllAsRead}
+            onMarkAsRead={markAsRead}
+            onMarkAllAsRead={markAllAsRead}
+            onLoadNotifications={refetch}
             hideSidebar={hideSidebar}
           />
         </div>
 
-        <main className={`flex-1 overflow-y-auto ${fullBleed ? 'p-0 overflow-hidden' : 'p-4 lg:p-6'}`}>
-          {fullBleed ? (
-            children
-          ) : (
-            <div className="max-w-7xl mx-auto min-h-[calc(100dvh-8rem)] animate-fade-in">
-              {children}
-            </div>
-          )}
+        <main className={`flex-1 overflow-y-auto ${fullBleed ? '' : 'p-4 md:p-6'}`}>
+          {children}
         </main>
-        <Footer />
+
+        {!fullBleed && <Footer />}
       </div>
     </div>
   );

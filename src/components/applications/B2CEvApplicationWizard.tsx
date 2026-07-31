@@ -74,16 +74,11 @@ import { B2cEvWizardStepper } from './B2cEvWizardStepper';
 import { CibilProbabilityBar } from './CibilProbabilityBar';
 import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
 import {
-  areAllComplianceItemsApproved,
   buildComplianceKamRequestMessage,
   COMPLIANCE_ITEMS,
   validateComplianceForSubmit,
   type ComplianceItemId,
 } from '../../lib/b2cEvCompliance';
-import {
-  hasKamManagedFieldChanges,
-  mergeKamManagedFieldsFromServer,
-} from '../../lib/b2cEvKamManagedFields';
 import {
   buildDoRequestMessage,
   isDoFulfilled,
@@ -103,7 +98,6 @@ type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const FIELD_AUTO_SAVE_DEBOUNCE_MS = 1500;
 const GEO_PHOTO_AUTO_SAVE_DEBOUNCE_MS = 2000;
-const KAM_SYNC_POLL_INTERVAL_MS = 45_000;
 const PAN_MANUAL_FAILURE_MESSAGE =
   'PAN verification returned no results. Enter all details manually below.';
 
@@ -728,76 +722,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load when dealer stage is opened
   }, [currentStage?.id, currentStep]);
 
-  const syncKamManagedFieldsFromServer = useCallback(async () => {
-    const draftId = editingDraftIdRef.current;
-    if (!draftId) return;
-
-    try {
-      const response = await apiService.getApplication(draftId);
-      if (!response.success || !response.data) return;
-
-      const app = response.data;
-      let serverFormData: Record<string, unknown> = {};
-      const rawForm = app.formData ?? (app as unknown as Record<string, unknown>).form_data;
-      if (rawForm != null) {
-        if (typeof rawForm === 'string') {
-          serverFormData = JSON.parse(rawForm) as Record<string, unknown>;
-        } else if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
-          serverFormData = rawForm as Record<string, unknown>;
-        }
-      }
-
-      const localFormData = formStateRef.current.form_data;
-      if (!hasKamManagedFieldChanges(localFormData, serverFormData)) return;
-
-      const mergedFormData = mergeKamManagedFieldsFromServer(localFormData, serverFormData);
-      commitFormState((prev) => ({
-        ...prev,
-        form_data: syncB2cEvComputedFields(mergedFormData),
-      }));
-
-      if (isDoFulfilled(mergedFormData)) {
-        setStepAdvanceMessage(
-          'DO approved by your KAM. Continue to Insurance and Vehicle details.'
-        );
-      }
-    } catch (error) {
-      console.warn('[B2CEvApplicationWizard] KAM field sync failed:', error);
-    }
-  }, [commitFormState]);
-
-  const shouldPollKamUpdates = useMemo(() => {
-    if (!editingDraftId) return false;
-    const formData = formState.form_data;
-    if (isGeoPhotosStage) return true;
-    if (!areAllComplianceItemsApproved(formData)) return true;
-    if (isDoRequested(formData) && !isDoFulfilled(formData)) return true;
-    return false;
-  }, [editingDraftId, formState.form_data, isGeoPhotosStage]);
-
-  useEffect(() => {
-    if (!shouldPollKamUpdates) return;
-
-    const syncIfVisible = () => {
-      if (document.visibilityState === 'visible') {
-        void syncKamManagedFieldsFromServer();
-      }
-    };
-
-    // visibilitychange only (avoids double-fire with focus); poll only while tab visible
-    void syncIfVisible();
-    document.addEventListener('visibilitychange', syncIfVisible);
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      void syncKamManagedFieldsFromServer();
-    }, KAM_SYNC_POLL_INTERVAL_MS);
-
-    return () => {
-      document.removeEventListener('visibilitychange', syncIfVisible);
-      window.clearInterval(intervalId);
-    };
-  }, [shouldPollKamUpdates, syncKamManagedFieldsFromServer]);
-
   useEffect(() => {
     if (!isGeoPhotosStage || !doFulfilled) return;
     setStepAdvanceMessage('DO approved by your KAM. Continue to Insurance and Vehicle details.');
@@ -817,13 +741,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
       ...withWizardMeta,
       '_meta.formTemplate': B2C_EV_FORM_TEMPLATE_ID,
     };
-  };
-
-  const canAutoSave = (): boolean => {
-    if (submitInFlightRef.current || saveInFlightRef.current) return false;
-    if (panLookupLoading || supportPanLookupLoading) return false;
-    if (!formStateRef.current.loan_product_id) return false;
-    return true;
   };
 
   const persistDraft = useCallback(
@@ -931,17 +848,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
   }, [persistDraft]);
 
   const scheduleAutoSave = useCallback(
-    (debounceMs = FIELD_AUTO_SAVE_DEBOUNCE_MS) => {
-      if (autoSaveTimerRef.current != null) {
-        window.clearTimeout(autoSaveTimerRef.current);
-      }
-      autoSaveTimerRef.current = window.setTimeout(() => {
-        autoSaveTimerRef.current = null;
-        if (!canAutoSave()) return;
-        void persistDraft(undefined, { silent: true }).catch(() => undefined);
-      }, debounceMs);
+    (_debounceMs = FIELD_AUTO_SAVE_DEBOUNCE_MS) => {
+      // Auto-save disabled — drafts persist only on explicit Save / Next / Submit.
     },
-    [persistDraft, panLookupLoading, supportPanLookupLoading]
+    []
   );
 
   const updateField = (key: string, value: string) => {
@@ -1381,11 +1291,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     if (currentStage?.id === 'product') {
       const lookupOk = await runPanLookup();
       if (!lookupOk) return;
-      try {
-        await persistDraft(undefined, { silent: true });
-      } catch (error) {
-        console.error('[B2CEvApplicationWizard] auto-save after PAN lookup failed:', error);
-      }
+      // Next is local only — persist on Save draft / Submit / KAM-write actions.
       advanceStep();
       return;
     }
@@ -1433,12 +1339,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return;
     }
 
-    try {
-      await persistDraft(undefined, { silent: true });
-    } catch (error) {
-      console.error('[B2CEvApplicationWizard] auto-save before step advance failed:', error);
-    }
-
+    // Next is local only — no n8n write on step advance.
     advanceStep();
   };
 
@@ -1477,18 +1378,60 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
     try {
       if (!saveAsDraft) {
-        const validationResponse = await apiService.validateApplicationSubmission({
-          productId: formState.loan_product_id,
-          applicantName: formState.applicant_name,
-          requestedLoanAmount: Number(formState.requested_loan_amount) || 0,
-          formData: formDataToSend,
-          clientSubmissionId,
-        });
+        // Single place write: no validateOnly preflight (server validates on submit/create).
+        let draftId = editingDraftId;
 
-        if (!validationResponse.success) {
+        if (!draftId) {
+          // No draft yet — create already under KAM review in one POST.
+          const createRes = await apiService.createApplication({
+            applicantName: formState.applicant_name,
+            productId: formState.loan_product_id,
+            requestedLoanAmount: Number(formState.requested_loan_amount) || 0,
+            formData: formDataToSend,
+            saveAsDraft: false,
+            clientSubmissionId,
+          });
+          if (!createRes.success) {
+            const missingFieldsErrors: Record<string, string> = {};
+            if (createRes.data?.missingFields && Array.isArray(createRes.data.missingFields)) {
+              createRes.data.missingFields.forEach(
+                (field: { fieldId: string; label: string; displayKey?: string }) => {
+                  const msg = `${field.label} is required`;
+                  missingFieldsErrors[field.fieldId] = msg;
+                  if (field.displayKey) missingFieldsErrors[field.displayKey] = msg;
+                }
+              );
+            }
+            if (createRes.data?.formatErrors && Array.isArray(createRes.data.formatErrors)) {
+              createRes.data.formatErrors.forEach((err: { fieldId: string; message: string }) => {
+                missingFieldsErrors[err.fieldId] = err.message;
+              });
+            }
+            if (Object.keys(missingFieldsErrors).length > 0) {
+              setFieldErrors(missingFieldsErrors);
+            }
+            throw new Error(createRes.error || 'Failed to submit application');
+          }
+          draftId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
+          if (!draftId) throw new Error('Application ID missing after submit');
+          setEditingDraftId(draftId);
+          alert('Application submitted successfully.');
+          navigate(`/applications/${draftId}`);
+          return;
+        }
+
+        // Existing draft — one submit POST that merges formData + status.
+        const submitRes = await apiService.submitApplication(draftId, {
+          clientSubmissionId,
+          formData: formDataToSend,
+          applicantName: formState.applicant_name,
+          productId: formState.loan_product_id,
+          requestedLoanAmount: formState.requested_loan_amount,
+        });
+        if (!submitRes.success) {
           const missingFieldsErrors: Record<string, string> = {};
-          if (validationResponse.data?.missingFields && Array.isArray(validationResponse.data.missingFields)) {
-            validationResponse.data.missingFields.forEach(
+          if (submitRes.data?.missingFields && Array.isArray(submitRes.data.missingFields)) {
+            submitRes.data.missingFields.forEach(
               (field: { fieldId: string; label: string; displayKey?: string }) => {
                 const msg = `${field.label} is required`;
                 missingFieldsErrors[field.fieldId] = msg;
@@ -1496,48 +1439,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
               }
             );
           }
-          if (validationResponse.data?.formatErrors && Array.isArray(validationResponse.data.formatErrors)) {
-            validationResponse.data.formatErrors.forEach((err: { fieldId: string; message: string }) => {
+          if (submitRes.data?.formatErrors && Array.isArray(submitRes.data.formatErrors)) {
+            submitRes.data.formatErrors.forEach((err: { fieldId: string; message: string }) => {
               missingFieldsErrors[err.fieldId] = err.message;
             });
           }
           if (Object.keys(missingFieldsErrors).length > 0) {
             setFieldErrors(missingFieldsErrors);
           }
-          throw new Error(validationResponse.error || 'Submission validation failed');
-        }
-
-        let draftId = editingDraftId;
-
-        if (!draftId) {
-          const createRes = await apiService.createApplication({
-            applicantName: formState.applicant_name,
-            productId: formState.loan_product_id,
-            requestedLoanAmount: Number(formState.requested_loan_amount) || 0,
-            formData: formDataToSend,
-            saveAsDraft: true,
-            clientSubmissionId,
-          });
-          if (!createRes.success) {
-            throw new Error(createRes.error || 'Failed to create draft');
-          }
-          draftId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
-          if (!draftId) throw new Error('Draft ID missing after create');
-          setEditingDraftId(draftId);
-        }
-
-        const updateRes = await apiService.updateApplicationForm(draftId, {
-          ...formDataToSend,
-          applicant_name: formState.applicant_name,
-          loan_product_id: formState.loan_product_id,
-          requested_loan_amount: formState.requested_loan_amount,
-        });
-        if (!updateRes.success) {
-          throw new Error(updateRes.error || 'Failed to update draft');
-        }
-
-        const submitRes = await apiService.submitApplication(draftId, { clientSubmissionId });
-        if (!submitRes.success) {
           throw new Error(submitRes.error || 'Submit failed');
         }
 
@@ -1549,30 +1458,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
       let draftId = editingDraftId;
 
       if (draftId) {
-        const updateRes = await apiService.updateApplicationForm(draftId, {
-          ...formDataToSend,
-          applicant_name: formState.applicant_name,
-          loan_product_id: formState.loan_product_id,
-          requested_loan_amount: formState.requested_loan_amount,
-        });
-        if (!updateRes.success) {
-          throw new Error(updateRes.error || 'Failed to update draft');
-        }
+        await persistDraft();
       } else {
-        const createRes = await apiService.createApplication({
-          applicantName: formState.applicant_name,
-          productId: formState.loan_product_id,
-          requestedLoanAmount: Number(formState.requested_loan_amount) || 0,
-          formData: formDataToSend,
-          saveAsDraft: true,
-          clientSubmissionId,
-        });
-        if (!createRes.success) {
-          throw new Error(createRes.error || 'Failed to save draft');
-        }
-        draftId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
-        if (!draftId) throw new Error('Draft ID missing after create');
-        setEditingDraftId(draftId);
+        const { draftId: createdId } = await persistDraft();
+        draftId = createdId;
       }
 
       alert('Draft saved successfully.');

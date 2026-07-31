@@ -15,7 +15,6 @@ import { TextArea } from '../components/ui/TextArea';
 import { Input } from '../components/ui/Input';
 import { Plus, Eye, MessageSquare, RefreshCw, FileText, X, Edit } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
-import { useApplicationQueryCounts } from '../hooks/useApplicationQueryCounts';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
 import { getStatusDisplayNameForViewer, getStatusColor, isClientEditableApplication, normalizeStatus, resolveApplicationStatus } from '../lib/statusUtils';
@@ -95,10 +94,8 @@ export const Applications: React.FC = () => {
   const [queryMessage, setQueryMessage] = useState('');
   const [queryFieldsRequested, setQueryFieldsRequested] = useState('');
   const [queryDocumentsRequested, setQueryDocumentsRequested] = useState('');
-  const queryCountsEnabled = userRole === 'credit_team' || userRole === 'kam';
-  const { queryCounts } = useApplicationQueryCounts(applications, {
-    enabled: queryCountsEnabled && !loading,
-  });
+  const queryCountsEnabled = false;
+  const queryCounts = {} as Record<string, { unresolved: number; lastActivity: string | null }>;
   const [submittingQuery, setSubmittingQuery] = useState(false);
   const [clientFilterDisplayName, setClientFilterDisplayName] = useState<string | null>(null);
 

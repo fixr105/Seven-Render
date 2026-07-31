@@ -66,100 +66,15 @@ export interface ForwardToCreditOptions {
  * Loan Workflow Service
  */
 export class LoanWorkflowService {
-  private async verifyLoanApplicationPersisted(options: {
-    fileId?: string;
-    clientSubmissionId?: string;
-    expectedStatus?: string;
-  }): Promise<any> {
-    let lastReadError: Error | null = null;
-
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      try {
-        const applications = await n8nClient.fetchTable('Loan Application', false);
-        const found = applications.find((app: any) => {
-          const appFileId = String(app['File ID'] || app.fileId || '').trim();
-          const appSubmissionId = readClientSubmissionId(app as Record<string, unknown>);
-          const fileIdMatches = options.fileId ? appFileId === options.fileId : false;
-          const submissionMatches = options.clientSubmissionId
-            ? appSubmissionId === options.clientSubmissionId
-            : false;
-          return fileIdMatches || submissionMatches;
-        });
-
-        if (found) {
-          if (options.expectedStatus) {
-            const status = resolveApplicationRecordStatus(found as Record<string, unknown>);
-            const expected = resolveApplicationRecordStatus({
-              Status: options.expectedStatus,
-            });
-            if (status !== expected) {
-              if (attempt < 5) {
-                await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
-                continue;
-              }
-              throw new Error(
-                `Loan application persisted with unexpected status ${String(found.Status ?? found.status ?? '(empty)')}; expected ${options.expectedStatus}`
-              );
-            }
-          }
-          return found;
-        }
-      } catch (error) {
-        lastReadError = error as Error;
-      }
-
-      if (attempt < 5) {
-        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
-      }
-    }
-
-    if (lastReadError) {
-      throw new Error(`Loan application persistence could not be confirmed: ${lastReadError.message}`);
-    }
-
-    throw new Error(
-      `Loan application persistence could not be confirmed for ${options.fileId || options.clientSubmissionId || 'unknown identifier'}`
-    );
-  }
-
   async findApplicationBySubmissionId(clientId: string, clientSubmissionId?: string): Promise<any | null> {
     if (!clientSubmissionId) return null;
-    const applications = await n8nClient.fetchTable('Loan Application', false);
+    // Prefer cache to avoid an uncached Loan Application GET on every create.
+    const applications = await n8nClient.fetchTable('Loan Application', true);
     return applications.find((app: any) => {
       const appClient = String(app.Client || app['Client'] || '').trim();
       const appSubmissionId = readClientSubmissionId(app as Record<string, unknown>);
       return appClient === clientId && appSubmissionId === clientSubmissionId;
     }) || null;
-  }
-
-  async findApplicationByFileId(fileId: string): Promise<any | null> {
-    const normalizedFileId = String(fileId || '').trim();
-    if (!normalizedFileId) return null;
-    const applications = await n8nClient.fetchTable('Loan Application', false);
-    return applications.find((app: any) => {
-      const appFileId = String(app['File ID'] || app.fileId || '').trim();
-      return appFileId === normalizedFileId;
-    }) || null;
-  }
-
-  private async recoverPersistedApplication(options: {
-    clientId: string;
-    fileId: string;
-    clientSubmissionId?: string;
-    fallbackStatus: LoanStatus;
-  }): Promise<{ applicationId: string; fileId: string; status: LoanStatus } | null> {
-    const recovered =
-      (options.clientSubmissionId
-        ? await this.findApplicationBySubmissionId(options.clientId, options.clientSubmissionId)
-        : null) ?? (await this.findApplicationByFileId(options.fileId));
-
-    if (!recovered) return null;
-
-    return {
-      applicationId: String(recovered.id),
-      fileId: String(recovered['File ID'] || recovered.fileId || options.fileId),
-      status: String(recovered.Status || recovered.status || options.fallbackStatus) as LoanStatus,
-    };
   }
 
   private async upsertExistingDraftApplication(
@@ -281,74 +196,70 @@ export class LoanWorkflowService {
       applicationData.Documents = options.documents.trim();
     }
 
-    // Create application via Loan Files webhook
+    // Create application via Loan Files webhook — trust POST ack (no verify GET storm).
     await n8nClient.postLoanApplication(applicationData, {
-      strictWriteAck: false,
+      strictWriteAck: !options.saveAsDraft,
       operationName: 'loan application create',
     });
-    let persistedRecord: Record<string, unknown> | null = null;
-    try {
-      persistedRecord = await this.verifyLoanApplicationPersisted({
-        fileId,
-        clientSubmissionId: options.clientSubmissionId,
-        expectedStatus: status,
-      });
-    } catch (verifyError) {
-      const recovered = await this.recoverPersistedApplication({
-        clientId: options.clientId,
-        fileId,
-        clientSubmissionId: options.clientSubmissionId,
-        fallbackStatus: status,
-      });
-      if (recovered) {
-        return recovered;
-      }
-      throw verifyError;
-    }
 
-    // Log application creation
-    await centralizedLogger.logApplicationCreated(
-      user,
-      fileId,
-      options.clientId,
-      options.applicantName
-    );
-
-    // If submitted (not draft), log status change and notify KAM
-    if (!options.saveAsDraft) {
-      // Log status change
-      await centralizedLogger.logStatusChange(
+    // One audit pair: create log for drafts; for immediate submit use submit-style file audit only.
+    if (options.saveAsDraft) {
+      await centralizedLogger.logApplicationCreated(
         user,
         fileId,
-        LoanStatus.DRAFT,
-        LoanStatus.UNDER_KAM_REVIEW,
-        'Application submitted by client'
+        options.clientId,
+        options.applicantName
       );
+    } else {
+      // Submitted on create: one File Auditing Log + one POSTLOG.
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: fileId,
+        Timestamp: new Date().toISOString(),
+        Actor: user.email,
+        'Action/Event Type': 'application_submitted',
+        'Details/Message': `Application submitted by client${options.applicantName ? ` (${options.applicantName})` : ''}`,
+        'Target User/Role': 'kam',
+        Resolved: 'False',
+      });
 
-      // Get client's assigned KAM for notification
-      const clients = await n8nClient.fetchTable('Clients');
-      const client = clients.find((c: any) => 
-        c.id === options.clientId || 
-        c['Client ID'] === options.clientId
-      );
+      const { logAdminActivity, AdminActionType } = await import('../../utils/adminLogger.js');
+      await logAdminActivity(user, {
+        actionType: AdminActionType.SUBMIT_APPLICATION,
+        description: `Application submitted${options.applicantName ? ` for ${options.applicantName}` : ''}`,
+        targetEntity: 'loan_application',
+        relatedFileId: fileId,
+        relatedClientId: options.clientId,
+      });
 
-      if (client && client['Assigned KAM']) {
-        // Create notification for KAM
-        await this.createNotification({
-          recipientUserId: client['Assigned KAM'],
-          recipientRole: UserRole.KAM,
-          relatedFileId: fileId,
-          relatedClientId: options.clientId,
-          notificationType: 'application_submitted',
-          title: 'New Application Submitted',
-          message: `New loan application submitted: ${fileId}${options.applicantName ? ` (${options.applicantName})` : ''}`,
-          channel: 'in_app',
-        });
+      // Notify KAM without extra GETs when Assigned KAM is unknown — best-effort Clients cache hit.
+      try {
+        const clients = await n8nClient.fetchTable('Clients', true);
+        const client = clients.find((c: any) =>
+          c.id === options.clientId ||
+          c['Client ID'] === options.clientId
+        );
+
+        if (client && client['Assigned KAM']) {
+          await this.createNotification({
+            recipientUserId: client['Assigned KAM'],
+            recipientRole: UserRole.KAM,
+            relatedFileId: fileId,
+            relatedClientId: options.clientId,
+            notificationType: 'application_submitted',
+            title: 'New Application Submitted',
+            message: `New loan application submitted: ${fileId}${options.applicantName ? ` (${options.applicantName})` : ''}`,
+            channel: 'in_app',
+          });
+        }
+      } catch (notifyError) {
+        console.warn('[LoanWorkflowService] KAM notify skipped:', notifyError);
       }
     }
 
     return {
-      applicationId: String(persistedRecord?.id ?? applicationId),
+      applicationId,
       fileId,
       status,
     };
@@ -360,16 +271,18 @@ export class LoanWorkflowService {
     options: {
       formConfigVersion?: string;
       clientSubmissionId?: string;
+      formData?: Record<string, any>;
     } = {}
   ): Promise<{ fileId: string; status: LoanStatus }> {
     const previousStatus = application.Status as LoanStatus;
     const newStatus = LoanStatus.UNDER_KAM_REVIEW;
 
-    if (!(await mayApplyTargetLoanStatus(application, newStatus))) {
-      throw new Error('Target status is not configured in Loan Products Applicable Statuses');
-    }
+    // Aggressive: skip Loan Products GET for mayApply — client submit from draft/query
+    // always targets UNDER_KAM_REVIEW which is a core transition.
 
-    const formDataFromRecord = mergeFormDataJson(application, {});
+    const formDataFromRecord = options.formData
+      ? mergeFormDataJson(application, options.formData)
+      : mergeFormDataJson(application, {});
     const promotedFields = resolveLoanApplicationPromotedFields(formDataFromRecord, application);
     const submitPayload = buildPromotedApplicationRecord(
       application,
@@ -397,28 +310,18 @@ export class LoanWorkflowService {
       operationName: 'loan application submit',
     });
 
-    await this.verifyLoanApplicationPersisted({
-      fileId: String(application['File ID'] || application.fileId || ''),
-      clientSubmissionId:
-        options.clientSubmissionId || readClientSubmissionId(application as Record<string, unknown>),
-      expectedStatus: newStatus,
+    // Single File Auditing Log entry; controller adds one POSTLOG for submit_application.
+    await n8nClient.postFileAuditLog({
+      id: `AUDIT-${Date.now()}`,
+      'Log Entry ID': `AUDIT-${Date.now()}`,
+      File: application['File ID'],
+      Timestamp: new Date().toISOString(),
+      Actor: user.email,
+      'Action/Event Type': 'status_change',
+      'Details/Message': `Status changed from ${previousStatus} to ${newStatus}: Application submitted by client`,
+      'Target User/Role': 'kam',
+      Resolved: 'False',
     });
-
-    await recordStatusChange(
-      user,
-      application['File ID'],
-      previousStatus,
-      newStatus,
-      'Application submitted by client'
-    );
-
-    await centralizedLogger.logStatusChange(
-      user,
-      application['File ID'],
-      previousStatus,
-      newStatus,
-      'Application submitted by client'
-    );
 
     return {
       fileId: String(application['File ID'] || application.fileId || ''),

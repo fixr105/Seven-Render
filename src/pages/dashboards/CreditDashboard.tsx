@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -6,11 +6,9 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { FileText, Clock, IndianRupee, AlertCircle, Send, Sparkles, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
-import { useApplicationQueryCounts } from '../../hooks/useApplicationQueryCounts';
 import { useLedger } from '../../hooks/useLedger';
 import { apiService } from '../../services/api';
 import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
-import { sortApplicationsByUnresolvedQueries } from '../../utils/applicationQuerySort';
 
 interface SlaPastDueItem {
   fileId: string;
@@ -23,19 +21,7 @@ export const CreditDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { applications, loading } = useApplications();
-  const { queryCounts } = useApplicationQueryCounts(applications, {
-    enabled: !loading && applications.length > 0,
-  });
-  const sortedApplications = useMemo(
-    () =>
-      sortApplicationsByUnresolvedQueries(
-        applications,
-        queryCounts,
-        (app) => app.id,
-        (app) => app.updated_at || app.created_at
-      ),
-    [applications, queryCounts]
-  );
+  const sortedApplications = applications;
   const { payoutRequests, loading: ledgerLoading } = useLedger();
   const [slaPastDue, setSlaPastDue] = useState<SlaPastDueItem[]>([]);
   const [slaLoading, setSlaLoading] = useState(true);
@@ -72,7 +58,7 @@ export const CreditDashboard: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Keep dashboard:refresh; do not refetch on every window focus (useApplications handles list TTL)
+  // Keep dashboard:refresh only — no focus auto-refetch
   useEffect(() => {
     const handleDashboardRefresh = () => fetchDashboard(false);
     window.addEventListener('dashboard:refresh', handleDashboardRefresh);

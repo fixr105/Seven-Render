@@ -818,57 +818,7 @@ export const LegacyNewApplication: React.FC = () => {
     });
 
     try {
-      if (!saveAsDraft) {
-        const validationResponse = await apiService.validateApplicationSubmission({
-          productId: formData.loan_product_id,
-          applicantName: formData.applicant_name,
-          formData: formDataToSend,
-          clientSubmissionId,
-        });
-
-        if (!validationResponse.success) {
-          const missingFieldsErrors: Record<string, string> = {};
-          if (validationResponse.data?.missingFields && Array.isArray(validationResponse.data.missingFields)) {
-            validationResponse.data.missingFields.forEach((field: { fieldId: string; label: string; displayKey?: string }) => {
-              const msg = `${field.label} is required`;
-              missingFieldsErrors[field.fieldId] = msg;
-              if (field.displayKey) missingFieldsErrors[field.displayKey] = msg;
-            });
-          }
-          if (validationResponse.data?.formatErrors && Array.isArray(validationResponse.data.formatErrors)) {
-            validationResponse.data.formatErrors.forEach((err: { fieldId: string; message: string }) => {
-              missingFieldsErrors[err.fieldId] = err.message;
-            });
-          }
-          if (Object.keys(missingFieldsErrors).length > 0) {
-            setFieldErrors(missingFieldsErrors);
-          }
-          throw new Error(validationResponse.error || 'Submission validation failed');
-        }
-
-        const preflightWarnings = validationResponse.data?.warnings ?? [];
-        const preflightDuplicate = validationResponse.data?.duplicateFound ?? null;
-        if (preflightWarnings.length > 0) {
-          setValidationWarnings(preflightWarnings);
-        }
-        if (preflightDuplicate) {
-          setDuplicateWarning(preflightDuplicate);
-        }
-        if (preflightWarnings.length > 0 || preflightDuplicate) {
-          const warningMessages = [
-            ...preflightWarnings,
-            ...(preflightDuplicate
-              ? [`Duplicate application found: ${preflightDuplicate.fileId ?? ''}`]
-              : []),
-          ];
-          const proceed = window.confirm(
-            `Application will be submitted with the following warnings:\n\n${warningMessages.join('\n')}\n\nDo you want to proceed?`
-          );
-          if (!proceed) {
-            return;
-          }
-        }
-      }
+      // Warnings/duplicates are handled by the place endpoint response; no validateOnly preflight.
 
       let response: {
         success: boolean;
@@ -891,22 +841,35 @@ export const LegacyNewApplication: React.FC = () => {
           loan_product_id: formData.loan_product_id,
           requested_loan_amount: formData.requested_loan_amount,
         };
-        const updateRes = await apiService.updateApplicationForm(editingDraftId, mergedFormPayload);
-        if (!updateRes.success) {
-          response = { success: false, error: updateRes.error || 'Failed to update draft' };
-        } else if (saveAsDraft) {
-          response = { success: true, data: { loanApplicationId: editingDraftId, fileId: editingDraftId } };
+        if (saveAsDraft) {
+          const updateRes = await apiService.updateApplicationForm(editingDraftId, mergedFormPayload);
+          response = updateRes.success
+            ? { success: true, data: { loanApplicationId: editingDraftId, fileId: editingDraftId } }
+            : { success: false, error: updateRes.error || 'Failed to update draft' };
         } else {
-          const submitRes = await apiService.submitApplication(editingDraftId, { clientSubmissionId });
+          // One submit POST merges formData + status — no prior updateApplicationForm.
+          const submitRes = await apiService.submitApplication(editingDraftId, {
+            clientSubmissionId,
+            formData: formDataToSend,
+            applicantName: formData.applicant_name,
+            productId: formData.loan_product_id,
+            requestedLoanAmount: formData.requested_loan_amount,
+          });
           response = submitRes.success
             ? {
                 success: true,
                 data: {
                   loanApplicationId: editingDraftId,
                   fileId: editingDraftId,
+                  warnings: submitRes.data?.warnings,
+                  duplicateFound: submitRes.data?.duplicateFound,
                 },
               }
-            : { success: false, error: submitRes.error || 'Failed to submit application' };
+            : {
+                success: false,
+                error: submitRes.error || 'Failed to submit application',
+                data: submitRes.data as typeof response.data,
+              };
         }
       } else {
         response = await apiService.createApplication({

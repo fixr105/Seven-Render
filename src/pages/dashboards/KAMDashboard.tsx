@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -14,10 +14,8 @@ import {
   Users,
 } from 'lucide-react';
 import { useApplications } from '../../hooks/useApplications';
-import { useApplicationQueryCounts } from '../../hooks/useApplicationQueryCounts';
 import { apiService } from '../../services/api';
 import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
-import { sortApplicationsByUnresolvedQueries } from '../../utils/applicationQuerySort';
 import type { DashboardSummary } from '../../services/api';
 
 type ClientWithMetrics = NonNullable<DashboardSummary['clients']>[number];
@@ -34,19 +32,7 @@ export const KAMDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { applications, loading, refetch } = useApplications();
-  const { queryCounts } = useApplicationQueryCounts(applications, {
-    enabled: !loading && applications.length > 0,
-  });
-  const sortedApplications = useMemo(
-    () =>
-      sortApplicationsByUnresolvedQueries(
-        applications,
-        queryCounts,
-        (app) => app.id,
-        (app) => app.updated_at || app.created_at
-      ),
-    [applications, queryCounts]
-  );
+  const sortedApplications = applications;
   const [dashboardData, setDashboardData] = useState<{
     clients: ClientWithMetrics[];
     summary: Summary | null;

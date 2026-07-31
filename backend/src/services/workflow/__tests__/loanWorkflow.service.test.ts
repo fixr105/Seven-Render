@@ -7,7 +7,16 @@ jest.mock('../../airtable/n8nClient.js', () => ({
   n8nClient: {
     fetchTable: jest.fn(),
     postLoanApplication: jest.fn(),
+    postFileAuditLog: jest.fn().mockResolvedValue({ success: true } as never),
   },
+}));
+
+jest.mock('../../../utils/adminLogger.js', () => ({
+  AdminActionType: {
+    SUBMIT_APPLICATION: 'submit_application',
+    CREATE_APPLICATION: 'create_application',
+  },
+  logAdminActivity: jest.fn().mockResolvedValue({} as never),
 }));
 
 jest.mock('../../statusTracking/statusStateMachine.js', () => ({
@@ -47,6 +56,7 @@ describe('LoanWorkflowService durability', () => {
   const mockN8nClient = n8nClient as unknown as {
     fetchTable: jest.Mock;
     postLoanApplication: jest.Mock;
+    postFileAuditLog: jest.Mock;
   };
   const clientUser = {
     id: 'user-1',
@@ -179,16 +189,8 @@ describe('LoanWorkflowService durability', () => {
     expect(storedFormData._documentsFolderLink).toBe('https://drive.google.com/drive/folders/abc123');
   });
 
-  it('verifies persisted status for draft submission', async () => {
+  it('submits draft with one loan POST and one file audit (no verify GET storm)', async () => {
     mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
-    mockN8nClient.fetchTable.mockResolvedValue([
-      {
-        id: 'rec-1',
-        'File ID': 'SF001',
-        Status: LoanStatus.UNDER_KAM_REVIEW,
-        'Client Submission ID': 'submit-456',
-      },
-    ] as never);
 
     const result = await service.submitExistingLoanApplication(clientUser as any, {
       id: 'rec-1',
@@ -214,18 +216,34 @@ describe('LoanWorkflowService durability', () => {
         operationName: 'loan application submit',
       })
     );
+    expect(mockN8nClient.postFileAuditLog).toHaveBeenCalledTimes(1);
+    expect(mockN8nClient.fetchTable).not.toHaveBeenCalled();
+  });
+
+  it('merges formData into submit payload when provided', async () => {
+    mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
+
+    await service.submitExistingLoanApplication(
+      clientUser as any,
+      {
+        id: 'rec-1',
+        'File ID': 'SF001',
+        Status: LoanStatus.DRAFT,
+        'Form Data': JSON.stringify({ pan: 'OLD' }),
+      },
+      {
+        formData: { pan: 'NEWPAN1234A', applicantName: 'Fresh' },
+        formConfigVersion: 'v1',
+      }
+    );
+
+    const posted = mockN8nClient.postLoanApplication.mock.calls[0][0];
+    const stored = JSON.parse(posted['Form Data']);
+    expect(stored.pan).toBe('NEWPAN1234A');
   });
 
   it('includes folder link in Documents when submitting an application', async () => {
     mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
-    mockN8nClient.fetchTable.mockResolvedValue([
-      {
-        id: 'rec-submit-folder',
-        'File ID': 'SFSUBMIT1',
-        Status: LoanStatus.UNDER_KAM_REVIEW,
-        'Client Submission ID': 'submit-folder-final',
-      },
-    ] as never);
 
     await service.submitExistingLoanApplication(
       clientUser as any,
@@ -256,38 +274,20 @@ describe('LoanWorkflowService durability', () => {
     );
   });
 
-  it('recovers when verify fails but the application was persisted', async () => {
+  it('creates submitted application without persistence verify GET loop', async () => {
     mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
-    let fetchCalls = 0;
-    mockN8nClient.fetchTable.mockImplementation(async () => {
-      fetchCalls += 1;
-      if (fetchCalls <= 6) {
-        return [] as never;
-      }
-      return [
-        {
-          id: 'rec-new',
-          Client: 'CLIENT001',
-          'File ID': 'SFNEW001',
-          Status: LoanStatus.UNDER_KAM_REVIEW,
-          'Client Submission ID': 'submit-789',
-        },
-      ] as never;
-    });
+    mockN8nClient.fetchTable.mockResolvedValue([] as never);
 
     const result = await service.createLoanApplication(clientUser as any, {
       clientId: 'CLIENT001',
       productId: 'LP001',
-      applicantName: 'Recover Test',
+      applicantName: 'Direct Submit',
       saveAsDraft: false,
       clientSubmissionId: 'submit-789',
     });
 
-    expect(result).toEqual({
-      applicationId: 'rec-new',
-      fileId: 'SFNEW001',
-      status: LoanStatus.UNDER_KAM_REVIEW,
-    });
+    expect(result.fileId).toMatch(/^SF/);
+    expect(result.status).toBe(LoanStatus.UNDER_KAM_REVIEW);
     expect(mockN8nClient.postLoanApplication).toHaveBeenCalledTimes(1);
     expect(mockN8nClient.postLoanApplication).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -295,31 +295,16 @@ describe('LoanWorkflowService durability', () => {
         Status: LoanStatus.UNDER_KAM_REVIEW,
       }),
       expect.objectContaining({
-        strictWriteAck: false,
+        strictWriteAck: true,
         operationName: 'loan application create',
       })
     );
+    expect(mockN8nClient.postFileAuditLog).toHaveBeenCalledTimes(1);
   });
 
   it('uses lenient webhook acknowledgement when creating draft applications', async () => {
-    let createdFileId = '';
-    mockN8nClient.postLoanApplication.mockImplementation(async (data: Record<string, unknown>) => {
-      createdFileId = String(data['File ID'] || '');
-      return { success: true } as never;
-    });
-    mockN8nClient.fetchTable.mockImplementation(async (tableName: string) => {
-      if (tableName !== 'Loan Application' || !createdFileId) {
-        return [] as never;
-      }
-      return [
-        {
-          id: 'rec-draft',
-          Client: 'CLIENT001',
-          'File ID': createdFileId,
-          Status: LoanStatus.DRAFT,
-        },
-      ] as never;
-    });
+    mockN8nClient.postLoanApplication.mockResolvedValue({ success: true } as never);
+    mockN8nClient.fetchTable.mockResolvedValue([] as never);
 
     await service.createLoanApplication(clientUser as any, {
       clientId: 'CLIENT001',

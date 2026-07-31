@@ -1048,7 +1048,13 @@ class ApiService {
    */
   async submitApplication(
     applicationId: string,
-    payload?: { clientSubmissionId?: string }
+    payload?: {
+      clientSubmissionId?: string;
+      formData?: Record<string, any>;
+      applicantName?: string;
+      productId?: string;
+      requestedLoanAmount?: number | string;
+    }
   ): Promise<ApiResponse> {
     return this.request(`/loan-applications/${applicationId}/submit`, {
       method: 'POST',

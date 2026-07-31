@@ -12,8 +12,6 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Eye, UserPlus, RefreshCw, Copy, Check, Package, Settings, FileText } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { useApplications } from '../hooks/useApplications';
-import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '../hooks/useNavigation';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
@@ -52,8 +50,6 @@ export const Clients: React.FC = () => {
     if (user?.email) return user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     return '';
   };
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const { applications } = useApplications();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -173,16 +169,11 @@ export const Clients: React.FC = () => {
       _count: {
         applications: resolveClientApplicationCount({
           client: c,
-          fallbackCount: applications.filter((a) => {
-            const applicationClientId = String(a.client_id || (a as any).Client || '').trim();
-            if (!applicationClientId) return false;
-            const candidateClientIds = [c.id, c.clientId].map((id) => String(id || '').trim()).filter(Boolean);
-            return candidateClientIds.includes(applicationClientId);
-          }).length,
+          fallbackCount: 0,
         }),
       },
     }));
-  }, [clients, applications]);
+  }, [clients]);
 
   const validatePhone = (phone: string): boolean => {
     if (!phone) {
@@ -571,10 +562,6 @@ export const Clients: React.FC = () => {
       pageTitle={t('pages.clients.pageTitle')}
       userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
       userName={getUserDisplayName()}
-      notificationCount={unreadCount}
-      notifications={notifications}
-      onMarkAsRead={markAsRead}
-      onMarkAllAsRead={markAllAsRead}
     >
       <div className="space-y-6">
       {import.meta.env.DEV && debugInfo && (

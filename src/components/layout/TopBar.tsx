@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Bell, Menu, User, LogOut, Smartphone } from 'lucide-react';
@@ -18,6 +18,8 @@ interface TopBarProps {
   notifications?: Notification[];
   onMarkAsRead?: (notificationId: string) => void;
   onMarkAllAsRead?: () => void;
+  /** Load notifications only when the bell dropdown is opened. */
+  onLoadNotifications?: () => void;
   hideSidebar?: boolean;
 }
 
@@ -29,6 +31,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   notifications = [],
   onMarkAsRead,
   onMarkAllAsRead,
+  onLoadNotifications,
   hideSidebar = false,
 }) => {
   const { t } = useTranslation();
@@ -57,10 +60,6 @@ export const TopBar: React.FC<TopBarProps> = ({
       setHasUnreadTools(false);
     }
   }, [user?.role]);
-
-  useEffect(() => {
-    if (user?.role === 'nbfc') fetchToolsUnread();
-  }, [user?.role, fetchToolsUnread]);
 
   const handleLogout = () => {
     logout();
@@ -116,7 +115,16 @@ export const TopBar: React.FC<TopBarProps> = ({
     if (isOnToolsPage) {
       navigate('/dashboard');
     } else {
+      void fetchToolsUnread();
       navigate('/nbfc/tools');
+    }
+  };
+
+  const toggleNotifications = () => {
+    const next = !showNotifications;
+    setShowNotifications(next);
+    if (next) {
+      onLoadNotifications?.();
     }
   };
 
@@ -157,7 +165,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
           <div className="relative">
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={toggleNotifications}
               className="relative p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
               aria-label={t('topbar.notifications')}
             >

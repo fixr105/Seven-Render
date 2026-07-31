@@ -347,8 +347,9 @@ describe('NewApplication Page - P0 Tests', () => {
       await user.click(screen.getByTestId('submit-application'));
 
       await waitFor(() => {
-        expect(apiService.validateApplicationSubmission).toHaveBeenCalled();
+        expect(apiService.createApplication).toHaveBeenCalled();
       });
+      expect(apiService.validateApplicationSubmission).not.toHaveBeenCalled();
       expect(
         screen.queryByText(/Use Copy Link or Open Link to access your folder link before submitting/i)
       ).not.toBeInTheDocument();
@@ -669,7 +670,7 @@ describe('NewApplication Page - P0 Tests', () => {
   });
 
   describe('Draft resume', () => {
-    it('loads draft via draftId and submits with updateApplicationForm + submitApplication', async () => {
+    it('loads draft via draftId and submits with submitApplication only (no update+validate chain)', async () => {
       const { useSearchParams } = await import('react-router-dom');
       vi.mocked(useSearchParams).mockReturnValue([
         new URLSearchParams('draftId=draft-123'),
@@ -687,8 +688,6 @@ describe('NewApplication Page - P0 Tests', () => {
           formData: { field1: 'value' },
         },
       });
-      (apiService.validateApplicationSubmission as any).mockResolvedValue({ success: true, data: {} });
-      (apiService.updateApplicationForm as any).mockResolvedValue({ success: true });
       (apiService.submitApplication as any).mockResolvedValue({ success: true });
 
       vi.mocked(useAuth).mockReturnValue({

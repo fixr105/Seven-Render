@@ -554,7 +554,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     }
   });
 
-  it('auto-saves draft after debounced field edit when product is selected', async () => {
+  it('does not auto-save draft after debounced field edit', async () => {
     renderWithProviders(<B2CEvApplicationWizard />);
 
     await waitFor(() => {
@@ -569,12 +569,29 @@ describe('B2CEvApplicationWizard submit gating', () => {
         await vi.advanceTimersByTimeAsync(1600);
       });
 
-      expect(apiService.createApplication).toHaveBeenCalledWith(
-        expect.objectContaining({ saveAsDraft: true, productId: 'LP001' })
-      );
+      expect(apiService.createApplication).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('does not persist draft on Next after product PAN lookup', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(apiService.lookupBorrowerPan).toHaveBeenCalled();
+    });
+
+    expect(apiService.createApplication).not.toHaveBeenCalled();
+    expect(apiService.updateApplicationForm).not.toHaveBeenCalled();
   });
 
   it('falls back to createApplication when updateApplicationForm returns Application not found', async () => {
@@ -610,15 +627,16 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('b2c-field-_meta-panLookup-mobileNumber')).toBeInTheDocument();
     });
 
-    await user.type(screen.getByTestId('b2c-field-_meta-panLookup-mobileNumber'), '9');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save draft/i })).not.toBeDisabled();
+    });
 
-    await waitFor(
-      () => {
-        expect(apiService.updateApplicationForm).toHaveBeenCalled();
-        expect(apiService.createApplication).toHaveBeenCalled();
-      },
-      { timeout: 3000 }
-    );
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(apiService.updateApplicationForm).toHaveBeenCalled();
+      expect(apiService.createApplication).toHaveBeenCalled();
+    });
   }, 10000);
 
   it('persists KAM request timestamp via updateApplicationForm after createClientQuery', async () => {

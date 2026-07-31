@@ -1344,7 +1344,6 @@ export class N8nClient {
       operationName: options.operationName || 'loan application sync',
     });
     this.invalidateCache('Loan Application');
-    this.invalidateCache('File Auditing Log');
     return result;
   }
 

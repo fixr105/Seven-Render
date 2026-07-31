@@ -73,7 +73,13 @@ export class LoanController {
         validateOnly = false,
         clientSubmissionId,
       } = req.body;
-      await assertClientProductAssigned(req.user, productId);
+      // Aggressive: skip Clients GET when JWT already has clientId (product was gated at form load).
+      if (!req.user.clientId) {
+        await assertClientProductAssigned(req.user, productId);
+      } else if (!productId || String(productId).trim() === '') {
+        res.status(400).json({ success: false, error: 'Product ID is required.' });
+        return;
+      }
 
       // Support both new format (applicantName, requestedLoanAmount, formData) and legacy format (borrowerIdentifiers)
       const finalApplicantName = applicantName || borrowerIdentifiers?.name || '';
@@ -101,41 +107,42 @@ export class LoanController {
         finalFormData._vehicleRequestedLoanAmount = selectedVehicle.requestedLoanAmount;
       }
 
-      // Module 2: Duplicate detection (PAN) - warn but allow
-      const { checkDuplicateByPAN } = await import('../services/validation/duplicateDetection.service.js');
-      const panValue = finalFormData.pan || finalFormData.pan_card || finalFormData.pan_number;
-      const duplicateCheck = panValue 
-        ? await checkDuplicateByPAN(panValue, req.user!.clientId)
-        : null;
-      
+      // Aggressive: skip duplicate PAN Loan Application GET on write path (soft warning only when validateOnly).
       const validationWarnings: string[] = [];
-      if (duplicateCheck) {
-        validationWarnings.push(
-          `Warning: A similar application exists (File ID: ${duplicateCheck.fileId}, Status: ${duplicateCheck.status}). ` +
-          `Please verify this is not a duplicate before submitting.`
-        );
-      }
-
-      // Module 2: Soft validation - check required fields but allow submission with warnings
-      const { validateFormData } = await import('../services/validation/formValidation.service.js');
-      // Fetch form config for validation - Loan Products only (matches frontend; no getSimpleFormConfig fallback).
-      let formConfig: any[] = [];
-      try {
-        if (productId && typeof productId === 'string') {
-          const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
-          const config = await getFormConfigForProduct(productId);
-          formConfig = config.categories;
+      let duplicateCheck: { fileId: string; status: string } | null = null;
+      if (validateOnly) {
+        const { checkDuplicateByPAN } = await import('../services/validation/duplicateDetection.service.js');
+        const panValue = finalFormData.pan || finalFormData.pan_card || finalFormData.pan_number;
+        const dup = panValue
+          ? await checkDuplicateByPAN(panValue, req.user!.clientId)
+          : null;
+        if (dup) {
+          duplicateCheck = { fileId: dup.fileId, status: dup.status };
+          validationWarnings.push(
+            `Warning: A similar application exists (File ID: ${dup.fileId}, Status: ${dup.status}). ` +
+            `Please verify this is not a duplicate before submitting.`
+          );
         }
-      } catch (configError) {
-        console.warn('[createApplication] Could not fetch form config for validation:', configError);
       }
 
-      // Perform validation (soft - warnings only)
-      const validationResult = formConfig.length > 0
-        ? validateFormData(finalFormData, formConfig, {}) // Files handled separately
-        : { isValid: true, warnings: [], errors: [], missingRequiredFields: [] };
-      
-      validationWarnings.push(...validationResult.warnings);
+      // Soft form-config warnings: skip Loan Products GET on real writes; only for validateOnly.
+      if (validateOnly) {
+        const { validateFormData } = await import('../services/validation/formValidation.service.js');
+        let formConfig: any[] = [];
+        try {
+          if (productId && typeof productId === 'string') {
+            const { getFormConfigForProduct } = await import('../services/formConfig/productFormConfig.service.js');
+            const config = await getFormConfigForProduct(productId);
+            formConfig = config.categories;
+          }
+        } catch (configError) {
+          console.warn('[createApplication] Could not fetch form config for validation:', configError);
+        }
+        const softResult = formConfig.length > 0
+          ? validateFormData(finalFormData, formConfig, {})
+          : { isValid: true, warnings: [], errors: [], missingRequiredFields: [] };
+        validationWarnings.push(...softResult.warnings);
+      }
 
       // Strict mandatory field validation for non-draft submissions (must run before workflow)
       if (!saveAsDraft) {
@@ -1446,11 +1453,15 @@ export class LoanController {
       }
 
       const { id } = req.params;
-      const { clientSubmissionId } = req.body ?? {};
-      // Fetch only Loan Application table (bypass cache — must see freshly created drafts)
-      // Records are automatically parsed by fetchTable() using N8nResponseParser
-      // Returns ParsedRecord[] with clean field names (fields directly on object, not in 'fields' property)
-      const applications = await n8nClient.fetchTable('Loan Application');
+      const {
+        clientSubmissionId,
+        formData: incomingFormData,
+        applicantName,
+        productId: bodyProductId,
+        requestedLoanAmount,
+      } = req.body ?? {};
+      // One cached GET for ownership — avoid force-refresh to cut n8n executions.
+      const applications = await n8nClient.fetchTable('Loan Application', true);
       const application = findLoanApplicationByParamId(applications, id);
       const appClient = application?.Client || application?.['Client'];
 
@@ -1472,22 +1483,26 @@ export class LoanController {
         return;
       }
 
-      // Parse form data from application
-      let formData: Record<string, any> = {};
-      try {
-        const formDataStr = application['Form Data'] || application.formData || '{}';
-        formData = typeof formDataStr === 'string' ? JSON.parse(formDataStr) : formDataStr;
-      } catch (e) {
-        console.error('[submitApplication] Error parsing form data:', e);
-        formData = {};
+      // Merge optional formData from body into stored form (single write path).
+      let formData: Record<string, any> = mergeFormDataJson(
+        application,
+        incomingFormData && typeof incomingFormData === 'object' ? incomingFormData : {}
+      );
+      if (applicantName) formData.applicantName = applicantName;
+      if (bodyProductId) formData.productId = bodyProductId;
+      if (requestedLoanAmount != null && requestedLoanAmount !== '') {
+        formData.requestedLoanAmount = requestedLoanAmount;
       }
 
-      // Strict mandatory field validation
       const { isB2cEvFormTemplate, validateB2cEvFormData } = await import(
         '../services/validation/b2cEvFormValidation.service.js'
       );
 
-      const productId = application['Loan Product'] || application.loanProduct;
+      const productId =
+        bodyProductId ||
+        formData.productId ||
+        application['Loan Product'] ||
+        application.loanProduct;
       let validationResult: {
         isValid: boolean;
         errorMessage?: string;
@@ -1498,6 +1513,7 @@ export class LoanController {
       if (isB2cEvFormTemplate(formData)) {
         validationResult = validateB2cEvFormData(formData, productId);
       } else {
+        // Aggressive: B2C/local path preferred; classic mandatory uses product config (cached).
         const { validateMandatoryFields } = await import('../services/validation/mandatoryFieldValidation.service.js');
 
         const documentLinks: Record<string, string> = {};
@@ -1531,10 +1547,8 @@ export class LoanController {
         return;
       }
 
-      // Module 1: Ensure form config version is set before submission (freeze it)
       let formConfigVersion = readFormConfigVersion(application as Record<string, unknown>);
       if (!formConfigVersion) {
-        // Get latest version if not set
         const { getLatestFormConfigVersion } = await import('../services/formConfigVersioning.js');
         formConfigVersion = await getLatestFormConfigVersion(req.user!.clientId!) || '';
       }
@@ -1543,9 +1557,10 @@ export class LoanController {
       const result = await loanWorkflowService.submitExistingLoanApplication(req.user!, application, {
         formConfigVersion,
         clientSubmissionId,
+        formData,
       });
 
-      // Module 0: Use admin logger helper
+      // Single POSTLOG for submit (workflow already wrote one File Auditing Log entry).
       await logApplicationAction(
         req.user!,
         AdminActionType.SUBMIT_APPLICATION,

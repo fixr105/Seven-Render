@@ -60,13 +60,8 @@ describe('LoanController.createApplication entitlement', () => {
     mockResponse.json = jest.fn().mockReturnValue(mockResponse);
   });
 
-  it('rejects unassigned product for client role', async () => {
-    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
-      if (tableName === 'Clients') {
-        return [{ id: 'recClient', 'Client ID': 'CL001', products: 'LP010 LP012' }];
-      }
-      return [];
-    });
+  it('skips Clients entitlement GET when JWT already has clientId', async () => {
+    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async () => []);
 
     const req = {
       user: {
@@ -77,7 +72,7 @@ describe('LoanController.createApplication entitlement', () => {
       },
       body: {
         productId: 'LP999',
-        applicantName: 'Unauthorized Product',
+        applicantName: 'Product gated at form load',
         requestedLoanAmount: 1000,
         formData: {},
         saveAsDraft: true,
@@ -86,39 +81,30 @@ describe('LoanController.createApplication entitlement', () => {
 
     await controller.createApplication(req, mockResponse as Response);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(403);
-    expect(mockResponse.json).toHaveBeenCalledWith({
-      success: false,
-      error: 'This product is not assigned to your account. Please contact your KAM to allocate products.',
-      code: 'PRODUCT_NOT_ASSIGNED',
-    });
+    expect(mockN8nClientInstance.fetchTable).not.toHaveBeenCalledWith(
+      'Clients',
+      expect.anything()
+    );
+    expect(mockCreateLoanApplication).toHaveBeenCalled();
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ loanApplicationId: 'APP-1', fileId: 'SF001' }),
+      })
+    );
   });
 
-  it('uses Contact Email/Phone variant to resolve client entitlements', async () => {
-    (mockN8nClientInstance.fetchTable as jest.Mock).mockImplementation(async (tableName: string) => {
-      if (tableName === 'Clients') {
-        return [
-          {
-            id: 'recClient',
-            'Client ID': 'CL001',
-            'Contact Email/Phone': 'client@example.com',
-            'Assigned Products': 'LP010',
-          },
-        ];
-      }
-      return [];
-    });
-
+  it('rejects create when productId is missing even with clientId', async () => {
     const req = {
       user: {
         id: 'u1',
         email: 'client@example.com',
         role: UserRole.CLIENT,
-        clientId: 'UNKNOWN',
+        clientId: 'CL001',
       },
       body: {
-        productId: 'LP999',
-        applicantName: 'Unauthorized Product',
+        productId: '',
+        applicantName: 'Missing Product',
         requestedLoanAmount: 1000,
         formData: {},
         saveAsDraft: true,
@@ -127,12 +113,12 @@ describe('LoanController.createApplication entitlement', () => {
 
     await controller.createApplication(req, mockResponse as Response);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(403);
+    expect(mockResponse.status).toHaveBeenCalledWith(400);
     expect(mockResponse.json).toHaveBeenCalledWith({
       success: false,
-      error: 'This product is not assigned to your account. Please contact your KAM to allocate products.',
-      code: 'PRODUCT_NOT_ASSIGNED',
+      error: 'Product ID is required.',
     });
+    expect(mockCreateLoanApplication).not.toHaveBeenCalled();
   });
 
   it('derives requested loan amount from selected vehicle', async () => {

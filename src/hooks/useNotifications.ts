@@ -50,15 +50,13 @@ export const useNotifications = () => {
     }
   }, [userRoleId]);
 
-  // Fetch on mount (including SPA navigation) when userRoleId is available.
+  // No mount auto-fetch — load only when the bell is opened (onDemand via refetch).
   useEffect(() => {
-    if (userRoleId) {
-      fetchNotifications();
-    } else {
+    if (!userRoleId) {
       setNotifications([]);
       setUnreadCount(0);
     }
-  }, [userRoleId, fetchNotifications]);
+  }, [userRoleId]);
 
   const markAsRead = async (notificationId: string) => {
     try {
