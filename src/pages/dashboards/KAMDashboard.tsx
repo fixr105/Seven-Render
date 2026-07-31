@@ -368,7 +368,7 @@ export const KAMDashboard: React.FC = () => {
             <div className="text-center py-8">
               <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
               <p className="text-error font-medium mb-2">{dashboardError}</p>
-              <Button variant="primary" onClick={fetchDashboard}>
+              <Button variant="primary" onClick={() => { void fetchDashboard(true); }}>
                 {t('common.retry')}
               </Button>
             </div>

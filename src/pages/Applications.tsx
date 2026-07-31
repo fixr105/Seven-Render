@@ -529,7 +529,7 @@ export const Applications: React.FC = () => {
               <Button 
                 variant="secondary" 
                 size="sm" 
-                onClick={refetch}
+                onClick={() => { void refetch(true); }}
                 className="ml-4"
               >
                 {t('common.refresh')}
@@ -775,14 +775,14 @@ export const Applications: React.FC = () => {
                     <p className="text-neutral-500 text-sm mb-4">
                       {t('pages.applications.noUnmappedHint')}
                     </p>
-                    <Button variant="tertiary" size="sm" onClick={refetch} className="mt-4">
+                    <Button variant="tertiary" size="sm" onClick={() => { void refetch(true); }} className="mt-4">
                       {t('common.refresh')}
                     </Button>
                   </>
                 ) : (
                   <>
                     <p className="text-neutral-500">{t('pages.applications.noApplications')}</p>
-                    <Button variant="tertiary" size="sm" onClick={refetch} className="mt-4">
+                    <Button variant="tertiary" size="sm" onClick={() => { void refetch(true); }} className="mt-4">
                       {t('common.refresh')}
                     </Button>
                   </>

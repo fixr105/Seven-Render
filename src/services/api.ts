@@ -1055,7 +1055,16 @@ class ApiService {
       productId?: string;
       requestedLoanAmount?: number | string;
     }
-  ): Promise<ApiResponse> {
+  ): Promise<
+    ApiResponse<{
+      fileId?: string;
+      status?: string;
+      warnings?: string[];
+      duplicateFound?: { fileId: string; status: string } | null;
+      missingFields?: Array<{ fieldId: string; label: string; displayKey?: string }>;
+      formatErrors?: Array<{ fieldId: string; message: string }>;
+    }>
+  > {
     return this.request(`/loan-applications/${applicationId}/submit`, {
       method: 'POST',
       body: JSON.stringify(payload ?? {}),
