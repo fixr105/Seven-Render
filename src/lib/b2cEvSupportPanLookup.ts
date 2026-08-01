@@ -1,7 +1,7 @@
 import type { SupportPersonType } from '../config/forms/b2cEvFormSchema';
 import { hasMeaningfulSupportPersonAutofill, type PanLookupFieldPrefix } from './b2cEvPanLookup';
 
-export const SUPPORT_PAN_LOOKUP_TIMEOUT_SECONDS = 120;
+export const SUPPORT_PAN_LOOKUP_TIMEOUT_SECONDS = 150;
 
 export const SUPPORT_PAN_LOOKUP_FIELD_KEYS = [
   '_meta.supportPanLookup.mobileNumber',

@@ -414,16 +414,18 @@ class ApiService {
       // Login, validate: 120s (cold start + multiple n8n webhooks: User Accounts, Clients, KAM Users, etc.)
       // Application creation: 60s
       // NBFC file uploads: 120s (large PDFs on slow networks)
+      // PAN lookup: 150s (external bureau/n8n can take a long time)
       // GET requests (incl /auth/me): 90s for n8n-backed endpoints
       // Other requests: 30s timeout
       const isAuthRequest = endpoint.includes('/auth/login') || endpoint.includes('/auth/validate');
       const isAuthMe = endpoint.includes('/auth/me');
       const isNBFCUpload = endpoint.includes('/nbfc/tools/raad') || endpoint.includes('/nbfc/tools/pager');
       const isDocumentUpload = endpoint.includes('/documents/upload');
-      const isPanLookupRequest = endpoint.includes('/client/pan-lookup');
+      const isPanLookupRequest =
+        endpoint.includes('/client/pan-lookup') || endpoint.includes('/pan-lookup');
       const timeoutMs = isAuthRequest ? 120000
         : isAuthMe ? 90000
-        : isPanLookupRequest ? 90000
+        : isPanLookupRequest ? 150000
         : isApplicationRequest ? 60000
         : isNBFCUpload ? 120000
         : isDocumentUpload ? 120000

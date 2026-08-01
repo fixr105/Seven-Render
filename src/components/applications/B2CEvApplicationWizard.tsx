@@ -443,8 +443,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   const panLookupLoadingMessage =
     panLookupCountdown > 0
-      ? `Fetching borrower details… ${panLookupCountdown}s remaining`
-      : 'Fetching borrower details…';
+      ? `Fetching borrower details (may take up to 150s)… ${panLookupCountdown}s remaining`
+      : 'Fetching borrower details (may take up to 150s)…';
 
   useEffect(() => {
     if (!supportPanLookupLoading) {
@@ -462,8 +462,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   const supportPanLookupLoadingMessage =
     supportPanLookupCountdown > 0
-      ? `Fetching support person details… ${supportPanLookupCountdown}s remaining`
-      : 'Fetching support person details…';
+      ? `Fetching support person details (may take up to 150s)… ${supportPanLookupCountdown}s remaining`
+      : 'Fetching support person details (may take up to 150s)…';
 
   const supportPersonStepIndex = useMemo(
     () => visibleStages.findIndex((stage) => stage.id === 'support-person'),

@@ -2,7 +2,7 @@ import { isValidEmailFormat, parseIndianMobile } from '../utils/basicApplication
 
 const GENDER_VALUES = new Set(['Male', 'Female', 'Other']);
 
-export const PAN_LOOKUP_TIMEOUT_SECONDS = 90;
+export const PAN_LOOKUP_TIMEOUT_SECONDS = 150;
 
 export type PanLookupFieldPrefix = 'borrower' | 'coApplicant' | 'guarantor';
 

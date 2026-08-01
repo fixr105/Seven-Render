@@ -9,7 +9,7 @@ import {
 } from './panLookup.mapper.js';
 
 const DEFAULT_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/postMMfrontPAN';
-const WEBHOOK_TIMEOUT_MS = 120_000;
+const WEBHOOK_TIMEOUT_MS = 150_000;
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_INITIAL_BACKOFF_MS = 300;
 
