@@ -100,7 +100,12 @@ async function callWebhookWithRetry(
       }
     } catch (error: unknown) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      if (attempt === WEBHOOK_MAX_ATTEMPTS) {
+      // Do not retry aborts/timeouts — a single attempt may already use the full 150s budget.
+      const isTimeout =
+        lastError.name === 'TimeoutError' ||
+        lastError.name === 'AbortError' ||
+        /aborted|timed? ?out/i.test(lastError.message);
+      if (isTimeout || attempt === WEBHOOK_MAX_ATTEMPTS) {
         return { error: lastError };
       }
     }
