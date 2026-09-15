@@ -43,6 +43,7 @@ export const AIRTABLE_TABLE_IDS = {
   USER_ACCOUNTS: 'tblQ1rT8wW3yA6cC9', // User Accounts
   VEHICLES: 'tblVehicles', // Vehicles (Make/Model/Loan Amount catalog)
   CLIENT_KYC: 'tblClientKYC', // Client KYC (dealer profile for B2C EV form auto-fill)
+  NBFC_BRE_CONFIG: 'tblNbfcBreConfig', // NBFC BRE Config (CIBIL chances / lender bands)
 } as const;
 
 /**
@@ -69,6 +70,7 @@ export const AIRTABLE_TABLE_NAMES = {
   USER_ACCOUNTS: 'User Accounts',
   VEHICLES: 'Vehicles',
   CLIENT_KYC: 'Client KYC',
+  NBFC_BRE_CONFIG: 'NBFC BRE Config',
 } as const;
 
 /**
@@ -196,6 +198,7 @@ export const N8N_GET_WEBHOOK_PATHS = {
   USER_ACCOUNT: 'useraccount',
   VEHICLES: 'VehiclesGET',
   CLIENT_KYC: 'getclientKYC',
+  NBFC_BRE_CONFIG: 'lenderbre',
 } as const;
 
 /**
@@ -239,6 +242,7 @@ export function getTableToGetWebhookPath(): Record<string, keyof typeof N8N_GET_
     [AIRTABLE_TABLE_NAMES.USER_ACCOUNTS]: 'USER_ACCOUNT',
     [AIRTABLE_TABLE_NAMES.VEHICLES]: 'VEHICLES',
     [AIRTABLE_TABLE_NAMES.CLIENT_KYC]: 'CLIENT_KYC',
+    [AIRTABLE_TABLE_NAMES.NBFC_BRE_CONFIG]: 'NBFC_BRE_CONFIG',
   };
 }
 
@@ -349,6 +353,8 @@ export const n8nEndpoints = {
     cibilRateMatrix:
       process.env.CIBIL_RATE_MATRIX_WEBHOOK_URL ||
       'https://fixrrahul.app.n8n.cloud/webhook/getmatrix',
+    nbfcBreConfig:
+      process.env.N8N_GET_NBFC_BRE_CONFIG_URL || getGetWebhookUrl('NBFC_BRE_CONFIG'),
   },
   vehicles: {
     post:

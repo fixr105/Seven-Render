@@ -17,7 +17,8 @@ export type LoanStatus =
   | 'rejected'
   | 'disbursed'
   | 'withdrawn'
-  | 'closed';
+  | 'closed'
+  | 'seven_one';
 
 const STATUS_ALIASES: Record<string, string> = {
   pending_kam_review: 'under_kam_review',

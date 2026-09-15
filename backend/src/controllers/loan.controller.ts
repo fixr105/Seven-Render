@@ -29,9 +29,10 @@ import {
   mergeFormDataJson,
   resolveLoanApplicationPromotedFields,
 } from '../utils/loanApplicationCoreFields.js';
-import { readFormConfigVersion } from '../utils/loanApplicationAirtableMapping.js';
+import { readFormConfigVersion, parseLoanApplicationFormData } from '../utils/loanApplicationAirtableMapping.js';
 import { isB2cMetadataOnlyFormPatch } from '../utils/b2cEvFormPatchGuards.js';
 import { auditLogEntryMatchesFile, findAuditLogEntryByIdentifier } from '../utils/auditLogLookup.js';
+import { validateTransition } from '../services/statusTracking/statusStateMachine.js';
 
 export class LoanController {
   /**
@@ -423,13 +424,13 @@ export class LoanController {
             .filter(Boolean)
         );
         filteredApplications = filteredApplications.filter((app: any) => {
-          const resolved = resolveStoredApplicationStatus(app.Status ?? app.status);
+          const resolved = resolveApplicationRecordStatus(app);
           return allowed.has(resolved);
         });
       } else if (status) {
         const wanted = String(status).trim().toLowerCase();
         filteredApplications = filteredApplications.filter((app: any) => {
-          const resolved = resolveStoredApplicationStatus(app.Status ?? app.status);
+          const resolved = resolveApplicationRecordStatus(app);
           return resolved === wanted;
         });
       }
@@ -499,8 +500,8 @@ export class LoanController {
           product: product?.['Product Name'] ?? app['Loan Product'] ?? app.loanProduct,
           productId: app['Loan Product'] || app.loanProduct,
           requestedAmount: app['Requested Loan Amount'] || app.requestedLoanAmount,
-          status: resolveStoredApplicationStatus(app.Status ?? app.status),
-          Status: resolveStoredApplicationStatus(app.Status ?? app.status),
+          status: resolveApplicationRecordStatus(app),
+          Status: resolveApplicationRecordStatus(app),
           creationDate: app['Creation Date'] || app['Created At'] || app.creationDate,
           submittedDate: app['Submitted Date'] || app.submittedDate,
           lastUpdated: app['Last Updated'] || app.updatedAt || app.lastUpdated,
@@ -1690,6 +1691,91 @@ export class LoanController {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to withdraw application',
+      });
+    }
+  }
+
+  /**
+   * Proceed with Seven One (CLIENT only)
+   * Allowed transition: draft → seven_one
+   */
+  async proceedSevenOne(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { id } = req.params;
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = findLoanApplicationByParamId(applications, id);
+      const appClient = application?.Client || application?.['Client'];
+
+      if (!application || !matchIds(appClient, req.user.clientId)) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      const previousStatus = resolveApplicationRecordStatus(application);
+      try {
+        validateTransition(previousStatus, LoanStatus.SEVEN_ONE, UserRole.CLIENT);
+      } catch (transitionError: any) {
+        res.status(400).json({
+          success: false,
+          error: transitionError?.message || 'Cannot proceed with Seven One in current status',
+        });
+        return;
+      }
+
+      const formData = {
+        ...parseLoanApplicationFormData(application as Record<string, unknown>),
+        '_meta.canonicalStatus': LoanStatus.SEVEN_ONE,
+      };
+
+      await n8nClient.postLoanApplication({
+        ...application,
+        Status: LoanStatus.SEVEN_ONE,
+        'Form Data': JSON.stringify(formData),
+        formData,
+        'Last Updated': new Date().toISOString(),
+      });
+
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: application['File ID'],
+        Timestamp: new Date().toISOString(),
+        Actor: req.user.email,
+        'Action/Event Type': 'client_proceed_seven_one',
+        'Details/Message': `Client proceeded with Seven One. Previous status: ${previousStatus}`,
+        'Target User/Role': 'kam',
+        Resolved: 'False',
+      });
+
+      await n8nClient.postAdminActivityLog({
+        id: `ACT-${Date.now()}`,
+        'Activity ID': `ACT-${Date.now()}`,
+        Timestamp: new Date().toISOString(),
+        'Performed By': req.user.email,
+        'Action Type': 'proceed_seven_one',
+        'Description/Details': `Client set loan application ${application['File ID']} to seven_one`,
+        'Target Entity': 'loan_application',
+      });
+
+      res.json({
+        success: true,
+        message: 'Proceeded with Seven One',
+        data: {
+          applicationId: application.id,
+          fileId: application['File ID'],
+          previousStatus,
+          newStatus: LoanStatus.SEVEN_ONE,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to proceed with Seven One',
       });
     }
   }

@@ -102,6 +102,10 @@ export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
     url: n8nEndpoints.get.clientKyc,
     tableName: AIRTABLE_TABLE_NAMES.CLIENT_KYC,
   },
+  [AIRTABLE_TABLE_NAMES.NBFC_BRE_CONFIG]: {
+    url: n8nEndpoints.get.nbfcBreConfig,
+    tableName: AIRTABLE_TABLE_NAMES.NBFC_BRE_CONFIG,
+  },
 };
 
 /**

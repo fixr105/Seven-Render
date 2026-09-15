@@ -1082,6 +1082,18 @@ class ApiService {
     });
   }
 
+  async proceedSevenOne(applicationId: string): Promise<ApiResponse> {
+    return this.request(`/loan-applications/${applicationId}/proceed-seven-one`, {
+      method: 'POST',
+    });
+  }
+
+  async getCibilChances(cibil: number): Promise<
+    ApiResponse<{ score: number; label: string; recommendedLender?: string | null }>
+  > {
+    return this.request(`/config/cibil-chances?cibil=${encodeURIComponent(String(cibil))}`);
+  }
+
   /**
    * List loan applications (filtered by role)
    */

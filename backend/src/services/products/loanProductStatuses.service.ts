@@ -31,6 +31,7 @@ export const CANONICAL_STATUS_ORDER: string[] = [
   LoanStatus.DISBURSED,
   LoanStatus.WITHDRAWN,
   LoanStatus.CLOSED,
+  LoanStatus.SEVEN_ONE,
 ];
 
 export function getDefaultApplicableStatuses(): ApplicableStatusEntry[] {

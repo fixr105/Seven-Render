@@ -24,6 +24,7 @@ const DEFAULT_STATUS_KEYS: string[] = [
   'disbursed',
   'withdrawn',
   'closed',
+  'seven_one',
 ];
 
 function defaultCatalogEntries(): ApplicableStatusEntry[] {

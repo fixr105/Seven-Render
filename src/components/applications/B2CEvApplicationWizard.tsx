@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { TextArea } from '../ui/TextArea';
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../ui/Modal';
 import {
   persistUsedClientWebhookLinks,
   readUsedClientWebhookLinks,
@@ -72,7 +73,11 @@ import { SupportPersonPanWizard } from './SupportPersonPanWizard';
 import { GeoTaggedPhotoUploads } from './GeoTaggedPhotoUploads';
 import { B2cEvWizardStepper } from './B2cEvWizardStepper';
 import { CibilProbabilityBar } from './CibilProbabilityBar';
-import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
+import {
+  fetchCibilChances,
+  getBorrowerCibilScoreFromFormData,
+  type CibilChances,
+} from '../../lib/b2cEvCibilProbability';
 import {
   buildComplianceKamRequestMessage,
   COMPLIANCE_ITEMS,
@@ -283,6 +288,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
   );
   const [clientSubmissionId] = useState(createClientSubmissionId);
   const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>('idle');
+  const [borrowerChances, setBorrowerChances] = useState<CibilChances | null>(null);
+  const [sevenOneComingSoonOpen, setSevenOneComingSoonOpen] = useState(false);
+  const [sevenOneLoading, setSevenOneLoading] = useState(false);
+  const lowScoreDraftSavedRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const saveInFlightRef = useRef(false);
   const formStateRef = useRef<WizardFormState>({
@@ -400,7 +409,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
       draftResumeAppliedRef.current = false;
       return;
     }
-    if (draftLoading || wizardStepParam || wizardStageParam) return;
+    // Wait until draft fetch finished and form_data is hydrated before applying resume.
+    if (draftLoading || !editingDraftId) return;
+    if (wizardStepParam || wizardStageParam) return;
     if (draftResumeAppliedRef.current) return;
 
     const resumeIndex = resolveWizardResumeStepIndex(formState.form_data, visibleStages);
@@ -412,6 +423,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   }, [
     draftIdParam,
     draftLoading,
+    editingDraftId,
     formState.form_data,
     visibleStages,
     wizardStepParam,
@@ -678,10 +690,14 @@ export const B2CEvApplicationWizard: React.FC = () => {
             parsedFormData = rawForm as Record<string, unknown>;
           }
         }
-        const productId =
+        const productIdFromApp =
           typeof app.loan_product === 'object' && app.loan_product
             ? String((app.loan_product as { code?: string }).code || '')
             : String(app.loanProduct || app.loan_product || '');
+        const productIdFromForm = String(
+          parsedFormData.loan_product_id || parsedFormData.loanProductId || ''
+        ).trim();
+        const productId = productIdFromApp.trim() || productIdFromForm;
 
         const canonicalDraftId = String(
           (app as { id?: string; loanApplicationId?: string }).id ||
@@ -846,6 +862,70 @@ export const B2CEvApplicationWizard: React.FC = () => {
     const { draftId } = await persistDraft();
     return draftId;
   }, [persistDraft]);
+
+  const persistDraftRef = useRef(persistDraft);
+  useEffect(() => {
+    persistDraftRef.current = persistDraft;
+  }, [persistDraft]);
+
+  const borrowerCibilScore =
+    currentStage?.id === 'borrower' && isPanLookupSuccessful(formState.form_data)
+      ? getBorrowerCibilScoreFromFormData(formState.form_data)
+      : null;
+
+  const lowCibilGateActive =
+    currentStage?.id === 'borrower' &&
+    borrowerChances != null &&
+    borrowerChances.score < 50;
+
+  useEffect(() => {
+    if (currentStage?.id !== 'borrower' || borrowerCibilScore == null) {
+      setBorrowerChances(null);
+      lowScoreDraftSavedRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    void fetchCibilChances(borrowerCibilScore)
+      .then(async (chances) => {
+        if (cancelled) return;
+        setBorrowerChances(chances);
+        if (chances.score < 50 && !lowScoreDraftSavedRef.current) {
+          lowScoreDraftSavedRef.current = true;
+          try {
+            await persistDraftRef.current(undefined, { silent: true });
+          } catch {
+            lowScoreDraftSavedRef.current = false;
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBorrowerChances(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStage?.id, borrowerCibilScore]);
+
+  const handleProceedSevenOne = useCallback(async () => {
+    setSevenOneLoading(true);
+    try {
+      const draftId = await ensureDraftSaved();
+      const res = await apiService.proceedSevenOne(draftId);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to proceed with Seven One');
+      }
+      setSevenOneComingSoonOpen(true);
+    } catch (error) {
+      console.error('[B2CEvApplicationWizard] proceed Seven One failed:', error);
+      setStepAdvanceMessage(
+        error instanceof Error ? error.message : 'Failed to proceed with Seven One'
+      );
+    } finally {
+      setSevenOneLoading(false);
+    }
+  }, [ensureDraftSaved]);
 
   const scheduleAutoSave = useCallback(
     (_debounceMs = FIELD_AUTO_SAVE_DEBOUNCE_MS) => {
@@ -1818,11 +1898,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
       {currentStage?.id === 'borrower' && (
         <CibilProbabilityBar
-          cibilScore={
-            isPanLookupSuccessful(formState.form_data)
-              ? getBorrowerCibilScoreFromFormData(formState.form_data)
-              : null
-          }
+          cibilScore={borrowerCibilScore}
+          chances={borrowerChances}
         />
       )}
 
@@ -1880,6 +1957,18 @@ export const B2CEvApplicationWizard: React.FC = () => {
             Save draft
           </Button>
 
+          {lowCibilGateActive && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void handleProceedSevenOne()}
+              disabled={loading || sevenOneLoading || panLookupLoading}
+              data-testid="b2c-proceed-seven-one"
+            >
+              {sevenOneLoading ? 'Processing…' : 'Proceed with Seven One'}
+            </Button>
+          )}
+
           {isGeoPhotosStage && doFulfilled ? (
             <Button
               type="button"
@@ -1890,7 +1979,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 loading ||
                 panLookupLoading ||
                 supportPanLookupLoading ||
-                supportNextDisabled
+                supportNextDisabled ||
+                lowCibilGateActive
               }
               data-testid="b2c-wizard-next"
               className="min-h-[52px] min-w-[12rem] px-8 text-base font-bold shadow-md"
@@ -1902,7 +1992,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
               type="button"
               icon={Send}
               onClick={() => void handleSubmit(false)}
-              disabled={loading || !canSubmitApplication}
+              disabled={loading || !canSubmitApplication || lowCibilGateActive}
               data-testid="b2c-submit-application"
               title={
                 !canSubmitApplication
@@ -1943,9 +2033,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
                 loading ||
                 panLookupLoading ||
                 supportPanLookupLoading ||
-                supportNextDisabled
+                supportNextDisabled ||
+                lowCibilGateActive
               }
               data-testid="b2c-wizard-next"
+              className={lowCibilGateActive ? 'opacity-50' : undefined}
             >
               {panLookupLoading
                 ? panLookupLoadingMessage
@@ -1956,6 +2048,25 @@ export const B2CEvApplicationWizard: React.FC = () => {
           )}
         </div>
       </div>
+
+      <Modal
+        isOpen={sevenOneComingSoonOpen}
+        onClose={() => setSevenOneComingSoonOpen(false)}
+        size="sm"
+        testId="b2c-seven-one-coming-soon"
+      >
+        <ModalHeader onClose={() => setSevenOneComingSoonOpen(false)}>Coming Soon</ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-neutral-700">
+            Seven One is coming soon. Your application has been saved with status Seven One.
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <Button type="button" onClick={() => setSevenOneComingSoonOpen(false)}>
+            OK
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {user?.clientId && (
         <p className="mt-4 text-xs text-neutral-500">

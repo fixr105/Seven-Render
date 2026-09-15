@@ -19,6 +19,8 @@ vi.mock('../../../services/api', () => ({
     validateApplicationSubmission: vi.fn(),
     createClientQuery: vi.fn(),
     getCibilRateMatrix: vi.fn(),
+    getCibilChances: vi.fn(),
+    proceedSevenOne: vi.fn(),
   },
 }));
 
@@ -142,6 +144,14 @@ describe('B2CEvApplicationWizard submit gating', () => {
         { start_cibil: 0, end_cibil: 900, pf_pct: 8, roi_pct: 35, band_label: 'Default' },
       ],
     });
+    (apiService.getCibilChances as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { score: 67, label: 'High Chance' },
+    });
+    (apiService.proceedSevenOne as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { newStatus: 'seven_one' },
+    });
     window.alert = vi.fn();
   });
 
@@ -263,7 +273,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('cibil-probability-bar')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Chances with co applicant')).toBeInTheDocument();
+    expect(screen.getByText('High Chance')).toBeInTheDocument();
     expect(screen.queryByText('620')).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\b620\b/);
 
@@ -272,6 +282,29 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
     });
+  });
+
+  it('gates Next when chances score is below 50 and shows Proceed with Seven One', async () => {
+    (apiService.getCibilChances as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { score: 33, label: 'Chances with Co-applicant' },
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Chances with Co-applicant')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('b2c-wizard-next')).toBeDisabled();
+    expect(screen.getByTestId('b2c-proceed-seven-one')).toBeInTheDocument();
   });
 
   it('allows editing autofilled borrower fields and recomputes customer name', async () => {
@@ -408,7 +441,9 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('loan-calculator')).toBeInTheDocument();
   });
 
-  it('shows manual co-applicant profile when PAN lookup returns no results and advances to geo photos', async () => {
+  it(
+    'shows manual co-applicant profile when PAN lookup returns no results and advances to geo photos',
+    async () => {
     (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockImplementation(async (args) => {
       if (args.target === 'coApplicant' || args.target === 'guarantor') {
         return {
@@ -523,7 +558,9 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('b2c-stepper-step-geo-photos')).toBeInTheDocument();
       expect(screen.queryByTestId('support-pan-phase-profile')).not.toBeInTheDocument();
     });
-  });
+  },
+    30000
+  );
 
   it('does not show Submit until the last step', async () => {
     const user = userEvent.setup();

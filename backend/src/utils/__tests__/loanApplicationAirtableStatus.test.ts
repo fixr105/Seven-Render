@@ -29,6 +29,7 @@ describe('mapLoanStatusForAirtablePost', () => {
     expect(mapLoanStatusForAirtablePost('approved')).toBe('DO Issued');
     expect(mapLoanStatusForAirtablePost('rejected')).toBe('Rejected');
     expect(mapLoanStatusForAirtablePost('disbursed')).toBe('Disbursed');
+    expect(mapLoanStatusForAirtablePost('seven_one')).toBeUndefined();
   });
 
   it('passes through valid Airtable labels unchanged', () => {

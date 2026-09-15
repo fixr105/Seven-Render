@@ -114,6 +114,7 @@ function getTargetRoleForStatus(status: LoanStatus): string {
     [LoanStatus.DISBURSED]: 'client',
     [LoanStatus.WITHDRAWN]: 'kam',
     [LoanStatus.CLOSED]: 'credit_team',
+    [LoanStatus.SEVEN_ONE]: 'kam',
   };
   return roleMap[status] || 'credit_team';
 }

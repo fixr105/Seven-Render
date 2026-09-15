@@ -30,6 +30,7 @@ export const STATUS_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
   [LoanStatus.DRAFT]: [
     LoanStatus.UNDER_KAM_REVIEW, // Client submits
     LoanStatus.WITHDRAWN, // Client withdraws
+    LoanStatus.SEVEN_ONE, // Client proceeds with Seven One (low CIBIL path)
   ],
   [LoanStatus.UNDER_KAM_REVIEW]: [
     LoanStatus.QUERY_WITH_CLIENT, // KAM raises query
@@ -76,6 +77,7 @@ export const STATUS_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
     LoanStatus.CLOSED, // File closed after withdrawal
   ],
   [LoanStatus.CLOSED]: [], // Terminal state - no transitions
+  [LoanStatus.SEVEN_ONE]: [], // Terminal for client Seven One path
 };
 
 /** Canonical LoanStatus values for lookup */
@@ -104,6 +106,7 @@ export function normalizeToCanonicalStatus(raw: string): LoanStatus {
     withdrawn: LoanStatus.WITHDRAWN,
     draft: LoanStatus.DRAFT,
     closed: LoanStatus.CLOSED,
+    seven_one: LoanStatus.SEVEN_ONE,
   };
   const canonical = aliasMap[key];
   if (canonical) return canonical;
@@ -120,6 +123,7 @@ export const ROLE_STATUS_PERMISSIONS: Record<UserRole, LoanStatus[]> = {
   [UserRole.CLIENT]: [
     LoanStatus.UNDER_KAM_REVIEW, // Submit draft
     LoanStatus.WITHDRAWN, // Withdraw application
+    LoanStatus.SEVEN_ONE, // Proceed with Seven One
   ],
   [UserRole.KAM]: [
     LoanStatus.QUERY_WITH_CLIENT, // Raise query
@@ -265,6 +269,7 @@ export function getStatusDisplayName(status: LoanStatus): string {
     [LoanStatus.SENT_TO_NBFC]: 'Sent to NBFC',
     [LoanStatus.WITHDRAWN]: 'Withdrawn',
     [LoanStatus.CLOSED]: 'Closed',
+    [LoanStatus.SEVEN_ONE]: 'Seven One',
   };
   return displayNames[status] ?? status;
 }
@@ -286,6 +291,7 @@ export function getStatusColor(status: LoanStatus): string {
     [LoanStatus.DISBURSED]: 'neutral',
     [LoanStatus.WITHDRAWN]: 'neutral',
     [LoanStatus.CLOSED]: 'neutral',
+    [LoanStatus.SEVEN_ONE]: 'neutral',
   };
   return colors[status] || 'neutral';
 }

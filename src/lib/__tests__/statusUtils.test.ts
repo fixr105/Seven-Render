@@ -109,6 +109,9 @@ describe('getStatusDisplayName', () => {
   it('returns display name for approved', () => {
     expect(getStatusDisplayName('approved')).toBe('Approved');
   });
+  it('returns display name for seven_one', () => {
+    expect(getStatusDisplayName('seven_one')).toBe('Seven One');
+  });
   it('returns display name for rejected', () => {
     expect(getStatusDisplayName('rejected')).toBe('Rejected');
   });

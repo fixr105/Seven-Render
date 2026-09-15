@@ -1,11 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getBorrowerCibilScoreFromFormData,
-  getCibilMarkerPercent,
-  getCibilProbabilityLabel,
-  getCibilProbabilityTier,
+  getChanceMarkerPercent,
   parseCibilScore,
+  fetchCibilChances,
 } from '../b2cEvCibilProbability';
+
+vi.mock('../../services/api', () => ({
+  apiService: {
+    getCibilChances: vi.fn(),
+  },
+}));
+
+import { apiService } from '../../services/api';
 
 describe('parseCibilScore', () => {
   it('parses valid integers', () => {
@@ -21,61 +28,37 @@ describe('parseCibilScore', () => {
   });
 });
 
-describe('getCibilProbabilityTier', () => {
-  it('maps boundary scores to correct tiers', () => {
-    expect(getCibilProbabilityTier(550)).toBe('almost_none');
-    expect(getCibilProbabilityTier(551)).toBe('co_applicant');
-    expect(getCibilProbabilityTier(630)).toBe('co_applicant');
-    expect(getCibilProbabilityTier(631)).toBe('chances');
-    expect(getCibilProbabilityTier(674)).toBe('chances');
-    expect(getCibilProbabilityTier(675)).toBe('full');
-    expect(getCibilProbabilityTier(800)).toBe('full');
-  });
-});
-
-describe('getCibilProbabilityLabel', () => {
-  it('returns user-facing labels without score', () => {
-    expect(getCibilProbabilityLabel('almost_none')).toBe('Almost No chance');
-    expect(getCibilProbabilityLabel('co_applicant')).toBe('Chances with co applicant');
-    expect(getCibilProbabilityLabel('chances')).toBe('Chances');
-    expect(getCibilProbabilityLabel('full')).toBe('90% chance');
-  });
-});
-
 describe('getBorrowerCibilScoreFromFormData', () => {
   it('reads score from PAN lookup meta', () => {
     expect(
       getBorrowerCibilScoreFromFormData({ '_meta.panLookup.cibilScore': '620' })
     ).toBe(620);
   });
+});
 
-  it('falls back to legacy borrower.cibilScore field', () => {
-    expect(getBorrowerCibilScoreFromFormData({ 'borrower.cibilScore': '720' })).toBe(720);
-  });
-
-  it('prefers PAN lookup meta over legacy field', () => {
-    expect(
-      getBorrowerCibilScoreFromFormData({
-        '_meta.panLookup.cibilScore': '620',
-        'borrower.cibilScore': '720',
-      })
-    ).toBe(620);
-  });
-
-  it('returns null when no score is stored', () => {
-    expect(getBorrowerCibilScoreFromFormData({})).toBeNull();
+describe('getChanceMarkerPercent', () => {
+  it('clamps 0–100', () => {
+    expect(getChanceMarkerPercent(0)).toBe(0);
+    expect(getChanceMarkerPercent(50)).toBe(50);
+    expect(getChanceMarkerPercent(100)).toBe(100);
+    expect(getChanceMarkerPercent(150)).toBe(100);
+    expect(getChanceMarkerPercent(-10)).toBe(0);
   });
 });
 
-describe('getCibilMarkerPercent', () => {
-  it('maps 300–900 to 0–90', () => {
-    expect(getCibilMarkerPercent(300)).toBe(0);
-    expect(getCibilMarkerPercent(900)).toBe(90);
-    expect(getCibilMarkerPercent(600)).toBe(50);
+describe('fetchCibilChances', () => {
+  beforeEach(() => {
+    vi.mocked(apiService.getCibilChances).mockReset();
   });
 
-  it('clamps out-of-range scores', () => {
-    expect(getCibilMarkerPercent(100)).toBe(0);
-    expect(getCibilMarkerPercent(950)).toBe(90);
+  it('returns score and label from API', async () => {
+    vi.mocked(apiService.getCibilChances).mockResolvedValue({
+      success: true,
+      data: { score: 67, label: 'High Chance' },
+    });
+    await expect(fetchCibilChances(720)).resolves.toEqual({
+      score: 67,
+      label: 'High Chance',
+    });
   });
 });

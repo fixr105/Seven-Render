@@ -229,6 +229,8 @@
     "disbursed": "Disbursed",
     "withdrawn": "Withdrawn",
     "closed": "Closed",
+    "seven_one": "Seven One",
+    "technical_seven_one": "Seven One",
     "technical_under_kam_review": "Under KAM Review",
     "technical_query_with_client": "Query With Client",
     "technical_pending_credit_review": "Pending Credit Review",

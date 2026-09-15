@@ -24,6 +24,7 @@ export enum LoanStatus {
   DISBURSED = 'disbursed',
   WITHDRAWN = 'withdrawn',
   CLOSED = 'closed',
+  SEVEN_ONE = 'seven_one',
 }
 
 export enum LenderDecisionStatus {

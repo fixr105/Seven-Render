@@ -1,7 +1,9 @@
-export type CibilProbabilityTier = 'almost_none' | 'co_applicant' | 'chances' | 'full';
+import { apiService } from '../services/api';
 
-const CIBIL_DISPLAY_MIN = 300;
-const CIBIL_DISPLAY_MAX = 900;
+export type CibilChances = {
+  score: number;
+  label: string;
+};
 
 export function parseCibilScore(raw: unknown): number | null {
   if (raw == null) return null;
@@ -22,35 +24,25 @@ export function getBorrowerCibilScoreFromFormData(
   );
 }
 
-export function getCibilProbabilityTier(score: number): CibilProbabilityTier {
-  if (score <= 550) return 'almost_none';
-  if (score <= 630) return 'co_applicant';
-  if (score <= 674) return 'chances';
-  return 'full';
+/** Clamp chance score for bar marker (0–100). */
+export function getChanceMarkerPercent(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  return Math.min(100, Math.max(0, score));
 }
 
-export function getCibilProbabilityLabel(tier: CibilProbabilityTier): string {
-  switch (tier) {
-    case 'almost_none':
-      return 'Almost No chance';
-    case 'co_applicant':
-      return 'Chances with co applicant';
-    case 'chances':
-      return 'Chances';
-    case 'full':
-      return '90% chance';
-    default: {
-      const _exhaustive: never = tier;
-      return _exhaustive;
-    }
+/**
+ * Fetch dynamic CIBIL chances from backend BRE calculator.
+ * Never exposes lender names (client-safe endpoint response).
+ */
+export async function fetchCibilChances(cibil: number): Promise<CibilChances> {
+  const res = await apiService.getCibilChances(cibil);
+  if (!res.success || !res.data) {
+    throw new Error(res.error || 'Failed to load CIBIL chances');
   }
-}
-
-const CIBIL_MARKER_MAX_PERCENT = 90;
-
-export function getCibilMarkerPercent(score: number): number {
-  const clamped = Math.min(Math.max(score, CIBIL_DISPLAY_MIN), CIBIL_DISPLAY_MAX);
-  const range = CIBIL_DISPLAY_MAX - CIBIL_DISPLAY_MIN;
-  const rawPercent = ((clamped - CIBIL_DISPLAY_MIN) / range) * 100;
-  return Math.min(rawPercent, CIBIL_MARKER_MAX_PERCENT);
+  const score = Number(res.data.score);
+  const label = String(res.data.label ?? '');
+  return {
+    score: Number.isFinite(score) ? score : 0,
+    label: label || 'Almost No Chance',
+  };
 }

@@ -8,6 +8,7 @@ import { LoanStatus } from '../config/constants.js';
 import { normalizeApplicableStatusKey } from '../services/products/loanProductStatuses.service.js';
 import { normalizeDynamicStatus } from '../services/statusTracking/dynamicStatus.service.js';
 import { normalizeToCanonicalStatus } from '../services/statusTracking/statusStateMachine.js';
+import { parseLoanApplicationFormData } from './loanApplicationAirtableMapping.js';
 
 const CANONICAL_STATUS_SET = new Set<string>(Object.values(LoanStatus));
 
@@ -41,6 +42,9 @@ const CANONICAL_TO_AIRTABLE_LABEL: Record<LoanStatus, LoanApplicationAirtableSta
     [LoanStatus.DISBURSED]: 'Disbursed',
     [LoanStatus.WITHDRAWN]: 'Rejected',
     [LoanStatus.CLOSED]: 'Disbursed',
+    // Omit until "Seven One" is added to the Airtable Status single-select.
+    // Persistence uses Form Data `_meta.canonicalStatus` instead.
+    [LoanStatus.SEVEN_ONE]: null,
   };
 
 /** Primary canonical status for each Airtable label (workflow path, not every alias). */
@@ -120,5 +124,17 @@ export function resolveStoredApplicationStatus(raw: unknown): LoanStatus {
 export function resolveApplicationRecordStatus(
   application: Record<string, unknown>
 ): LoanStatus {
+  // Prefer Form Data override when Airtable Status single-select cannot store the value yet
+  // (e.g. seven_one / "Seven One" not yet added as an option).
+  try {
+    const formData = parseLoanApplicationFormData(application);
+    const metaRaw =
+      formData['_meta.canonicalStatus'] ?? formData['_meta.workflowStatus'];
+    if (metaRaw != null && String(metaRaw).trim() !== '') {
+      return normalizeToCanonicalStatus(String(metaRaw));
+    }
+  } catch {
+    // fall through to Status column
+  }
   return resolveStoredApplicationStatus(application.Status ?? application.status);
 }

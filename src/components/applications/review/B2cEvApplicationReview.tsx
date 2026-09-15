@@ -108,13 +108,45 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
     ? getBorrowerCibilScoreFromFormData(formData)
     : null;
 
+  const isStaff =
+    userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin';
+  const [recommendedLender, setRecommendedLender] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isStaff || cibilScore == null) {
+      setRecommendedLender(null);
+      return;
+    }
+    let cancelled = false;
+    void apiService.getCibilChances(cibilScore).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data?.recommendedLender) {
+        setRecommendedLender(String(res.data.recommendedLender));
+      } else {
+        setRecommendedLender(null);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isStaff, cibilScore]);
+
   return (
     <div className="space-y-4" data-testid="b2c-ev-application-review">
       {cibilScore != null && (
         <CibilProbabilityBar cibilScore={cibilScore} />
       )}
 
-      {clientId && (userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') && (
+      {isStaff && recommendedLender && (
+        <p
+          className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-800"
+          data-testid="b2c-recommended-lender"
+        >
+          <span className="font-semibold">Recommended Lender:</span> {recommendedLender}
+        </p>
+      )}
+
+      {clientId && isStaff && (
         <KamClientKycPanel clientId={clientId} />
       )}
 
