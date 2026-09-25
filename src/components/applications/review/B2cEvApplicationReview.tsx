@@ -142,7 +142,7 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
           className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-800"
           data-testid="b2c-recommended-lender"
         >
-          <span className="font-semibold">Recommended Lender:</span> {recommendedLender}
+          <span className="text-neutral-500">Recommended Lender:</span> {recommendedLender}
         </p>
       )}
 

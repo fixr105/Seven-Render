@@ -21,6 +21,7 @@ export const LOAN_APPLICATION_AIRTABLE_STATUS_LABELS = [
   'DO Issued',
   'Disbursed',
   'Rejected',
+  'Seven One',
 ] as const;
 
 export type LoanApplicationAirtableStatusLabel =
@@ -42,9 +43,7 @@ const CANONICAL_TO_AIRTABLE_LABEL: Record<LoanStatus, LoanApplicationAirtableSta
     [LoanStatus.DISBURSED]: 'Disbursed',
     [LoanStatus.WITHDRAWN]: 'Rejected',
     [LoanStatus.CLOSED]: 'Disbursed',
-    // Omit until "Seven One" is added to the Airtable Status single-select.
-    // Persistence uses Form Data `_meta.canonicalStatus` instead.
-    [LoanStatus.SEVEN_ONE]: null,
+    [LoanStatus.SEVEN_ONE]: 'Seven One',
   };
 
 /** Primary canonical status for each Airtable label (workflow path, not every alias). */
@@ -59,6 +58,7 @@ const AIRTABLE_LABEL_TO_CANONICAL: Record<
   'DO Issued': LoanStatus.SENT_TO_NBFC,
   Disbursed: LoanStatus.DISBURSED,
   Rejected: LoanStatus.REJECTED,
+  'Seven One': LoanStatus.SEVEN_ONE,
 };
 
 function normalizeAirtableLabel(raw: string): string {

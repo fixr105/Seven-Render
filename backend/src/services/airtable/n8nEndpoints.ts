@@ -44,6 +44,7 @@ export const AIRTABLE_TABLE_IDS = {
   VEHICLES: 'tblVehicles', // Vehicles (Make/Model/Loan Amount catalog)
   CLIENT_KYC: 'tblClientKYC', // Client KYC (dealer profile for B2C EV form auto-fill)
   NBFC_BRE_CONFIG: 'tblNbfcBreConfig', // NBFC BRE Config (CIBIL chances / lender bands)
+  NBFC_BRE_CHECKPOINTS: 'tblNbfcBreCheckpoints', // NBFC BRE Checkpoints (pass/fail rules)
 } as const;
 
 /**
@@ -71,6 +72,7 @@ export const AIRTABLE_TABLE_NAMES = {
   VEHICLES: 'Vehicles',
   CLIENT_KYC: 'Client KYC',
   NBFC_BRE_CONFIG: 'NBFC BRE Config',
+  NBFC_BRE_CHECKPOINTS: 'NBFC BRE Checkpoints',
 } as const;
 
 /**
@@ -198,7 +200,11 @@ export const N8N_GET_WEBHOOK_PATHS = {
   USER_ACCOUNT: 'useraccount',
   VEHICLES: 'VehiclesGET',
   CLIENT_KYC: 'getclientKYC',
+  /** Lender BRE pricing bands. Alias of NBFC_BRE_CONFIG. */
+  LENDER_BRE: 'lenderbre',
   NBFC_BRE_CONFIG: 'lenderbre',
+  /** Lender BRE pass/fail checkpoints. */
+  LENDER_BRE_CHECKPOINTS: 'lenderbreconfig',
 } as const;
 
 /**
@@ -243,6 +249,7 @@ export function getTableToGetWebhookPath(): Record<string, keyof typeof N8N_GET_
     [AIRTABLE_TABLE_NAMES.VEHICLES]: 'VEHICLES',
     [AIRTABLE_TABLE_NAMES.CLIENT_KYC]: 'CLIENT_KYC',
     [AIRTABLE_TABLE_NAMES.NBFC_BRE_CONFIG]: 'NBFC_BRE_CONFIG',
+    [AIRTABLE_TABLE_NAMES.NBFC_BRE_CHECKPOINTS]: 'LENDER_BRE_CHECKPOINTS',
   };
 }
 
@@ -354,7 +361,9 @@ export const n8nEndpoints = {
       process.env.CIBIL_RATE_MATRIX_WEBHOOK_URL ||
       'https://fixrrahul.app.n8n.cloud/webhook/getmatrix',
     nbfcBreConfig:
-      process.env.N8N_GET_NBFC_BRE_CONFIG_URL || getGetWebhookUrl('NBFC_BRE_CONFIG'),
+      process.env.N8N_GET_NBFC_BRE_CONFIG_URL || getGetWebhookUrl('LENDER_BRE'),
+    lenderBreCheckpoints:
+      process.env.N8N_GET_LENDER_BRE_CHECKPOINTS_URL || getGetWebhookUrl('LENDER_BRE_CHECKPOINTS'),
   },
   vehicles: {
     post:

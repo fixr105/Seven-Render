@@ -106,6 +106,10 @@ export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
     url: n8nEndpoints.get.nbfcBreConfig,
     tableName: AIRTABLE_TABLE_NAMES.NBFC_BRE_CONFIG,
   },
+  [AIRTABLE_TABLE_NAMES.NBFC_BRE_CHECKPOINTS]: {
+    url: n8nEndpoints.get.lenderBreCheckpoints,
+    tableName: AIRTABLE_TABLE_NAMES.NBFC_BRE_CHECKPOINTS,
+  },
 };
 
 /**
