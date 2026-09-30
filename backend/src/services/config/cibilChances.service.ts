@@ -11,26 +11,30 @@ import { AIRTABLE_TABLE_NAMES } from '../airtable/n8nEndpoints.js';
 import { defaultLogger } from '../../utils/logger.js';
 import {
   calculateChancesFromRows,
+  loanProductMatches,
   normalizeBreRecord,
+  selectRecommendedLender,
   type CibilChancesResult,
-  type CibilChancesStaffResult,
   type NbfcBreRow,
+  type RecommendedLenderResult,
 } from './cibilChances.logic.js';
 import {
   evaluateCheckpoints,
   normalizeCheckpointRecord,
   type ApplicantParameters,
   type BreCheckpointDecision,
+  type LenderBreCheckpoint,
 } from './lenderBreCheckpoints.logic.js';
 
 export type {
   CibilChancesResult,
-  CibilChancesStaffResult,
   NbfcBreRow,
+  RecommendedLenderResult,
 } from './cibilChances.logic.js';
 
 export {
   calculateChancesFromRows,
+  loanProductMatches,
   mapScoreToLabel,
   normalizeBreRecord,
   pickRecommendedLender,
@@ -51,17 +55,41 @@ export class CibilChancesService {
     }
   }
 
-  /** Client-safe result — never includes lender names. */
-  static async calculateChances(cibil: number): Promise<CibilChancesResult> {
+  /** Client-safe result — never includes lender names. Scoped to one loan product. */
+  static async calculateChances(cibil: number, loanProductId: string): Promise<CibilChancesResult> {
     const rows = await CibilChancesService.fetchActiveRows();
-    const { score, label } = calculateChancesFromRows(cibil, rows);
-    return { score, label };
+    return calculateChancesFromRows(cibil, rows, loanProductId);
   }
 
-  /** Staff result — includes recommended lender. */
-  static async calculateChancesForStaff(cibil: number): Promise<CibilChancesStaffResult> {
-    const rows = await CibilChancesService.fetchActiveRows();
-    return calculateChancesFromRows(cibil, rows);
+  static async fetchActiveCheckpoints(): Promise<LenderBreCheckpoint[]> {
+    const records = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.NBFC_BRE_CHECKPOINTS, true);
+    return records
+      .map((record) => normalizeCheckpointRecord(record))
+      .filter((rule): rule is LenderBreCheckpoint => rule != null && rule.active);
+  }
+
+  /**
+   * Lowest-ROI lender that matches the product, an eligible CIBIL band, and approved checkpoints.
+   * Never call this for the client role.
+   */
+  static async getRecommendedLender(
+    cibil: number,
+    loanProductId: string,
+    applicant: ApplicantParameters
+  ): Promise<RecommendedLenderResult> {
+    const rows = (await CibilChancesService.fetchActiveRows()).filter((row) =>
+      loanProductMatches(row, loanProductId)
+    );
+    const rules = await CibilChancesService.fetchActiveCheckpoints();
+    const statusByUser = new Map<string, string>();
+    for (const userId of new Set(rows.map((row) => row.userId).filter(Boolean))) {
+      const decision = evaluateCheckpoints(
+        rules.filter((rule) => rule.userId === userId),
+        applicant
+      );
+      statusByUser.set(userId, decision.status);
+    }
+    return selectRecommendedLender(rows, cibil, loanProductId, statusByUser);
   }
 
   /**
@@ -75,10 +103,7 @@ export class CibilChancesService {
     options?: { bureauReportMissing?: boolean }
   ): Promise<BreCheckpointDecision> {
     const target = userId.trim();
-    const records = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.NBFC_BRE_CHECKPOINTS, true);
-    const rules = records
-      .map((record) => normalizeCheckpointRecord(record))
-      .filter((rule) => rule != null && rule.active && rule.userId === target);
+    const rules = (await CibilChancesService.fetchActiveCheckpoints()).filter((rule) => rule.userId === target);
     return evaluateCheckpoints(rules, applicant, options);
   }
 }

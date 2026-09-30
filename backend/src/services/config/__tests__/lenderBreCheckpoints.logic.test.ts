@@ -64,7 +64,16 @@ describe('evaluateCheckpoints', () => {
       evaluateCheckpoints([checkpoint({ parameter: 'cibil_score', rejectionCode: 'CIBIL', operator: 'less_than', threshold: 650 })], applicant, {
         bureauReportMissing: true,
       })
-    ).toEqual({ status: 'Pending', reason: 'BUREAU_REPORT_MISSING' });
+    ).toEqual({ status: 'Pending', reason: 'BUREAU_REPORT_MISSING', failedRules: [] });
+  });
+
+  it('returns Pending when bureau_report_present is false', () => {
+    expect(
+      evaluateCheckpoints(
+        [checkpoint({ parameter: 'cibil_score', rejectionCode: 'CIBIL', operator: 'less_than', threshold: 650 })],
+        { ...applicant, bureau_report_present: false }
+      )
+    ).toEqual({ status: 'Pending', reason: 'BUREAU_REPORT_MISSING', failedRules: [] });
   });
 
   it('approves when every active checkpoint passes', () => {
@@ -75,6 +84,7 @@ describe('evaluateCheckpoints', () => {
     expect(evaluateCheckpoints(rules, applicant)).toEqual({
       status: 'BRE APPROVED',
       reason: 'ELIGIBLE',
+      failedRules: [],
     });
   });
 
@@ -115,6 +125,6 @@ describe('evaluateCheckpoints', () => {
         [checkpoint({ parameter: 'cibil_score', rejectionCode: 'LOW_CIBIL', operator: 'less_than', threshold: 900, active: false })],
         applicant
       )
-    ).toEqual({ status: 'BRE APPROVED', reason: 'ELIGIBLE' });
+    ).toEqual({ status: 'BRE APPROVED', reason: 'ELIGIBLE', failedRules: [] });
   });
 });

@@ -3,6 +3,7 @@
  */
 
 export interface NbfcBreRow {
+  userId: string;
   lenderName: string;
   minCibil: number;
   maxCibil: number;
@@ -10,7 +11,8 @@ export interface NbfcBreRow {
   roi: number;
   pf: number;
   active: boolean;
-  loanProduct?: string;
+  /** Ids and names extracted from the Loan Product field. */
+  loanProductKeys: string[];
 }
 
 export interface CibilChancesResult {
@@ -18,8 +20,15 @@ export interface CibilChancesResult {
   label: string;
 }
 
-export interface CibilChancesStaffResult extends CibilChancesResult {
+export interface LenderCandidate {
+  userId: string;
+  lenderName: string;
+  roi: number;
+}
+
+export interface RecommendedLenderResult {
   recommendedLender: string | null;
+  recommendedLenderROI: number | null;
 }
 
 function coerceBoolean(value: unknown): boolean {
@@ -39,6 +48,25 @@ function coerceNumber(value: unknown): number | null {
     return Number.isFinite(n) ? n : null;
   }
   return null;
+}
+
+function collectLookupKeys(value: unknown, into: string[]): void {
+  if (value == null) return;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const text = String(value).trim();
+    if (text) into.push(text);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectLookupKeys(item, into);
+    return;
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    for (const key of ['id', 'name', 'Product ID', 'productId', 'Loan Product']) {
+      if (obj[key] != null) collectLookupKeys(obj[key], into);
+    }
+  }
 }
 
 function partnerNameFromValue(value: unknown): string {
@@ -92,15 +120,11 @@ export function normalizeBreRecord(raw: unknown): NbfcBreRow | null {
 
   const roi = coerceNumber(readField(fields, 'ROI', 'roi', 'roi_pct')) ?? Number.POSITIVE_INFINITY;
   const pf = coerceNumber(readField(fields, 'PF', 'pf', 'pf_pct')) ?? Number.POSITIVE_INFINITY;
-  const loanProductRaw = readField(fields, 'Loan Product', 'loan_product', 'loanProduct');
-  const loanProduct =
-    loanProductRaw == null
-      ? undefined
-      : Array.isArray(loanProductRaw)
-        ? partnerNameFromValue(loanProductRaw) || undefined
-        : String(loanProductRaw).trim() || undefined;
+  const loanProductKeys: string[] = [];
+  collectLookupKeys(readField(fields, 'Loan Product', 'loan_product', 'loanProduct'), loanProductKeys);
 
   return {
+    userId: String(readField(fields, 'UserID', 'User ID', 'userId') ?? '').trim(),
     lenderName,
     minCibil,
     maxCibil,
@@ -108,8 +132,15 @@ export function normalizeBreRecord(raw: unknown): NbfcBreRow | null {
     roi,
     pf,
     active: coerceBoolean(readField(fields, 'Active', 'active')),
-    loanProduct,
+    loanProductKeys,
   };
+}
+
+/** Case-insensitive match of a product id against any extracted Loan Product key. */
+export function loanProductMatches(row: NbfcBreRow, loanProductId: string): boolean {
+  const target = loanProductId.trim().toLowerCase();
+  if (!target) return false;
+  return row.loanProductKeys.some((key) => key.trim().toLowerCase() === target);
 }
 
 export function mapScoreToLabel(score: number): string {
@@ -119,45 +150,79 @@ export function mapScoreToLabel(score: number): string {
   return 'High Chance';
 }
 
-export function pickRecommendedLender(matchingEligible: NbfcBreRow[]): string | null {
-  if (matchingEligible.length === 0) return null;
-  const sorted = [...matchingEligible].sort((a, b) => {
-    if (a.roi !== b.roi) return a.roi - b.roi;
-    if (a.pf !== b.pf) return a.pf - b.pf;
-    return a.lenderName.localeCompare(b.lenderName);
-  });
-  return sorted[0]?.lenderName ?? null;
+/**
+ * Lenders need an eligible product band and a BRE APPROVED checkpoint result.
+ * Missing checkpoint status is not approval.
+ */
+export function selectRecommendedLender(
+  rows: NbfcBreRow[],
+  cibil: number,
+  loanProductId: string,
+  checkpointStatusByUserId: ReadonlyMap<string, string>
+): RecommendedLenderResult {
+  const userIds = [...new Set(rows.map((row) => row.userId).filter(Boolean))];
+  const candidates: LenderCandidate[] = [];
+  for (const userId of userIds) {
+    if (checkpointStatusByUserId.get(userId) !== 'BRE APPROVED') continue;
+    const band = eligibleBandForLender(rows, userId, cibil, loanProductId);
+    if (!band) continue;
+    candidates.push({ userId, lenderName: band.lenderName, roi: band.roi });
+  }
+  return pickRecommendedLender(candidates);
 }
 
-/** Pure calculator — used by service and unit tests. */
-export function calculateChancesFromRows(cibil: number, rows: NbfcBreRow[]): CibilChancesStaffResult {
-  const active = rows.filter((r) => r.active);
-  const matching = active.filter((r) => r.minCibil <= cibil && cibil <= r.maxCibil);
-
-  const totalLenders = new Set(matching.map((r) => r.lenderName));
-  const eligibleRows = matching.filter((r) => r.eligible);
-  const eligibleLenders = new Set(eligibleRows.map((r) => r.lenderName));
-
-  const total = totalLenders.size;
-  const eligible = eligibleLenders.size;
-  const score = total === 0 ? 0 : Math.round((eligible / total) * 100);
-  const label = mapScoreToLabel(score);
-
-  const bestEligibleByLender = new Map<string, NbfcBreRow>();
-  for (const row of eligibleRows) {
-    const existing = bestEligibleByLender.get(row.lenderName);
-    if (
-      !existing ||
-      row.roi < existing.roi ||
-      (row.roi === existing.roi && row.pf < existing.pf)
-    ) {
-      bestEligibleByLender.set(row.lenderName, row);
-    }
+/** Lowest ROI, then lender name. Callers must already drop lenders that failed checkpoints. */
+export function pickRecommendedLender(candidates: LenderCandidate[]): RecommendedLenderResult {
+  if (candidates.length === 0) {
+    return { recommendedLender: null, recommendedLenderROI: null };
   }
-
+  const sorted = [...candidates].sort((a, b) => {
+    if (a.roi !== b.roi) return a.roi - b.roi;
+    return a.lenderName.localeCompare(b.lenderName);
+  });
+  const best = sorted[0];
+  if (!best) return { recommendedLender: null, recommendedLenderROI: null };
   return {
-    score,
-    label,
-    recommendedLender: pickRecommendedLender([...bestEligibleByLender.values()]),
+    recommendedLender: best.lenderName,
+    recommendedLenderROI: Number.isFinite(best.roi) ? best.roi : null,
   };
+}
+
+/** Eligible product band for one lender with the lowest ROI, or null. */
+export function eligibleBandForLender(
+  rows: NbfcBreRow[],
+  userId: string,
+  cibil: number,
+  loanProductId: string
+): NbfcBreRow | null {
+  const matches = rows.filter(
+    (row) =>
+      row.active &&
+      row.eligible &&
+      row.userId === userId &&
+      loanProductMatches(row, loanProductId) &&
+      row.minCibil <= cibil &&
+      cibil <= row.maxCibil
+  );
+  if (matches.length === 0) return null;
+  return [...matches].sort((a, b) => a.roi - b.roi)[0] ?? null;
+}
+
+/** Row ratio for one product and CIBIL band. No lender fields. */
+export function calculateChancesFromRows(
+  cibil: number,
+  rows: NbfcBreRow[],
+  loanProductId: string
+): CibilChancesResult {
+  const matching = rows.filter(
+    (row) =>
+      row.active &&
+      loanProductMatches(row, loanProductId) &&
+      row.minCibil <= cibil &&
+      cibil <= row.maxCibil
+  );
+  const total = matching.length;
+  const eligible = matching.filter((row) => row.eligible).length;
+  const score = total === 0 ? 0 : Math.round((eligible / total) * 100);
+  return { score, label: mapScoreToLabel(score) };
 }

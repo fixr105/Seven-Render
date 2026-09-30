@@ -29,12 +29,13 @@ describe('CibilProbabilityBar', () => {
       score: 40,
       label: 'Chances with Co-applicant',
     });
-    render(<CibilProbabilityBar cibilScore={620} />);
+    render(<CibilProbabilityBar cibilScore={620} loanProductId="LP016" />);
     await waitFor(() => {
       expect(screen.getByTestId('cibil-probability-bar')).toBeInTheDocument();
     });
     expect(screen.getByText('Chances with Co-applicant')).toBeInTheDocument();
     expect(screen.getByTestId('cibil-probability-marker')).toBeInTheDocument();
+    expect(fetchCibilChances).toHaveBeenCalledWith(620, 'LP016');
   });
 
   it('uses controlled chances without fetching', () => {

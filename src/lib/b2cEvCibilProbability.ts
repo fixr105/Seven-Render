@@ -34,8 +34,8 @@ export function getChanceMarkerPercent(score: number): number {
  * Fetch dynamic CIBIL chances from backend BRE calculator.
  * Never exposes lender names (client-safe endpoint response).
  */
-export async function fetchCibilChances(cibil: number): Promise<CibilChances> {
-  const res = await apiService.getCibilChances(cibil);
+export async function fetchCibilChances(cibil: number, loanProductId: string): Promise<CibilChances> {
+  const res = await apiService.getCibilChances(cibil, loanProductId);
   if (!res.success || !res.data) {
     throw new Error(res.error || 'Failed to load CIBIL chances');
   }

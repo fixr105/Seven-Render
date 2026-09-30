@@ -7,6 +7,7 @@ import {
 
 interface CibilProbabilityBarProps {
   cibilScore: number | null;
+  loanProductId?: string;
   /** Optional controlled result — when set, skips fetch. */
   chances?: CibilChances | null;
   onChancesLoaded?: (chances: CibilChances) => void;
@@ -14,6 +15,7 @@ interface CibilProbabilityBarProps {
 
 export const CibilProbabilityBar: React.FC<CibilProbabilityBarProps> = ({
   cibilScore,
+  loanProductId,
   chances: controlledChances,
   onChancesLoaded,
 }) => {
@@ -26,16 +28,17 @@ export const CibilProbabilityBar: React.FC<CibilProbabilityBarProps> = ({
       setFetched(controlledChances);
       return;
     }
-    if (cibilScore == null) {
+    if (cibilScore == null || !loanProductId?.trim()) {
       setFetched(null);
       setError(null);
+      setLoading(false);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void fetchCibilChances(cibilScore)
+    void fetchCibilChances(cibilScore, loanProductId.trim())
       .then((data) => {
         if (cancelled) return;
         setFetched(data);
@@ -53,7 +56,7 @@ export const CibilProbabilityBar: React.FC<CibilProbabilityBarProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [cibilScore, controlledChances, onChancesLoaded]);
+  }, [cibilScore, loanProductId, controlledChances, onChancesLoaded]);
 
   if (cibilScore == null) return null;
 

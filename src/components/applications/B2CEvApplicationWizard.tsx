@@ -879,14 +879,15 @@ export const B2CEvApplicationWizard: React.FC = () => {
     borrowerChances.score < 50;
 
   useEffect(() => {
-    if (currentStage?.id !== 'borrower' || borrowerCibilScore == null) {
+    const loanProductId = formState.loan_product_id.trim();
+    if (currentStage?.id !== 'borrower' || borrowerCibilScore == null || !loanProductId) {
       setBorrowerChances(null);
       lowScoreDraftSavedRef.current = false;
       return;
     }
 
     let cancelled = false;
-    void fetchCibilChances(borrowerCibilScore)
+    void fetchCibilChances(borrowerCibilScore, loanProductId)
       .then(async (chances) => {
         if (cancelled) return;
         setBorrowerChances(chances);
@@ -906,7 +907,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [currentStage?.id, borrowerCibilScore]);
+  }, [currentStage?.id, borrowerCibilScore, formState.loan_product_id]);
 
   const handleProceedSevenOne = useCallback(async () => {
     setSevenOneLoading(true);
@@ -1899,6 +1900,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       {currentStage?.id === 'borrower' && (
         <CibilProbabilityBar
           cibilScore={borrowerCibilScore}
+          loanProductId={formState.loan_product_id}
           chances={borrowerChances}
         />
       )}

@@ -41,15 +41,34 @@ router.get('/cibil-chances', async (req: Request, res: Response) => {
       return;
     }
 
-    const role = req.user?.role ?? '';
-    if (STAFF_ROLES.has(role)) {
-      const data = await CibilChancesService.calculateChancesForStaff(cibil);
-      res.json({ success: true, data });
+    const rawProduct = req.query.loanProduct;
+    const loanProduct = (Array.isArray(rawProduct) ? rawProduct[0] : rawProduct) ?? '';
+    if (typeof loanProduct !== 'string' || loanProduct.trim() === '') {
+      res.status(400).json({ success: false, error: 'Query param loanProduct is required' });
       return;
     }
 
-    const data = await CibilChancesService.calculateChances(cibil);
-    res.json({ success: true, data });
+    const chances = await CibilChancesService.calculateChances(cibil, loanProduct.trim());
+    const role = req.user?.role ?? '';
+    if (!STAFF_ROLES.has(role)) {
+      res.json({ success: true, data: { score: chances.score, label: chances.label } });
+      return;
+    }
+
+    const recommendation = await CibilChancesService.getRecommendedLender(
+      cibil,
+      loanProduct.trim(),
+      readApplicant(req.query)
+    );
+    res.json({
+      success: true,
+      data: {
+        score: chances.score,
+        label: chances.label,
+        recommendedLender: recommendation.recommendedLender,
+        recommendedLenderROI: recommendation.recommendedLenderROI,
+      },
+    });
   } catch (error) {
     defaultLogger.error('Failed to calculate CIBIL chances', {
       error: error instanceof Error ? error.message : String(error),
@@ -60,16 +79,21 @@ router.get('/cibil-chances', async (req: Request, res: Response) => {
 
 const NUMERIC_APPLICANT_FIELDS = [
   'cibil_score',
+  'emi_overdue',
+  'cc_overdue',
+  'enquiries_30d',
+  'loan_amount',
+] as const;
+
+const BOOLEAN_APPLICANT_FIELDS = [
   'dpd_3m',
   'dpd_6m',
   'overdue_12m',
   'dpd_60plus_24m',
   'dpd_90plus_36m',
-  'emi_overdue',
-  'cc_overdue',
-  'enquiries_30d',
   'written_off_3y',
-  'loan_amount',
+  'ntc_bank_statement',
+  'bureau_report_present',
 ] as const;
 
 function queryFlag(value: unknown): boolean {
@@ -87,8 +111,11 @@ function readApplicant(query: Request['query']): ApplicantParameters {
     const n = Number(text);
     if (Number.isFinite(n)) applicant[field] = n;
   }
-  if (query.ntc_bank_statement != null && String(query.ntc_bank_statement).trim() !== '') {
-    applicant.ntc_bank_statement = queryFlag(query.ntc_bank_statement);
+  for (const field of BOOLEAN_APPLICANT_FIELDS) {
+    const raw = query[field];
+    const text = Array.isArray(raw) ? raw[0] : raw;
+    if (text == null || String(text).trim() === '') continue;
+    applicant[field] = queryFlag(text);
   }
   return applicant;
 }

@@ -17,10 +17,11 @@ export interface LenderBreCheckpoint {
 
 export type ApplicantParameters = Record<string, number | boolean | null | undefined>;
 
-export type BreCheckpointDecision =
-  | { status: 'Pending'; reason: 'BUREAU_REPORT_MISSING' }
-  | { status: 'BRE REJECTED'; reason: string; failedRules: string[] }
-  | { status: 'BRE APPROVED'; reason: 'ELIGIBLE' };
+export type BreCheckpointDecision = {
+  status: 'Pending' | 'BRE REJECTED' | 'BRE APPROVED';
+  reason: string;
+  failedRules: string[];
+};
 
 function coerceBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
@@ -101,8 +102,8 @@ export function evaluateCheckpoints(
   applicant: ApplicantParameters,
   options?: { bureauReportMissing?: boolean }
 ): BreCheckpointDecision {
-  if (options?.bureauReportMissing) {
-    return { status: 'Pending', reason: 'BUREAU_REPORT_MISSING' };
+  if (options?.bureauReportMissing || applicant.bureau_report_present === false) {
+    return { status: 'Pending', reason: 'BUREAU_REPORT_MISSING', failedRules: [] };
   }
 
   const active = checkpoints.filter((rule) => rule.active);
@@ -110,5 +111,5 @@ export function evaluateCheckpoints(
   if (failedRules.length > 0) {
     return { status: 'BRE REJECTED', reason: failedRules[0] ?? 'INELIGIBLE', failedRules };
   }
-  return { status: 'BRE APPROVED', reason: 'ELIGIBLE' };
+  return { status: 'BRE APPROVED', reason: 'ELIGIBLE', failedRules: [] };
 }

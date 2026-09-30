@@ -56,9 +56,10 @@ describe('fetchCibilChances', () => {
       success: true,
       data: { score: 67, label: 'High Chance' },
     });
-    await expect(fetchCibilChances(720)).resolves.toEqual({
+    await expect(fetchCibilChances(720, 'LP016')).resolves.toEqual({
       score: 67,
       label: 'High Chance',
     });
+    expect(apiService.getCibilChances).toHaveBeenCalledWith(720, 'LP016');
   });
 });

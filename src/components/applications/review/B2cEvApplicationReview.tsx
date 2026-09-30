@@ -19,6 +19,37 @@ function readString(value: unknown): string {
   return String(value).trim();
 }
 
+const BUREAU_FORM_KEYS = [
+  'dpd_3m',
+  'dpd_6m',
+  'overdue_12m',
+  'dpd_60plus_24m',
+  'dpd_90plus_36m',
+  'emi_overdue',
+  'cc_overdue',
+  'enquiries_30d',
+  'written_off_3y',
+  'loan_amount',
+  'ntc_bank_statement',
+  'bureau_report_present',
+] as const;
+
+function bureauParamsFromFormData(
+  formData: Record<string, unknown>
+): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {};
+  for (const key of BUREAU_FORM_KEYS) {
+    const raw = formData[key] ?? formData[`_meta.bureau.${key}`];
+    if (raw == null || readString(raw) === '') continue;
+    if (typeof raw === 'number' || typeof raw === 'boolean') {
+      params[key] = raw;
+    } else {
+      params[key] = readString(raw);
+    }
+  }
+  return params;
+}
+
 /** Review-only stage titles that read more clearly than the client-facing wizard titles. */
 const REVIEW_STAGE_TITLES: Record<string, string> = {
   product: 'Applicant Verification (PAN)',
@@ -110,39 +141,53 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
 
   const isStaff =
     userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin';
-  const [recommendedLender, setRecommendedLender] = useState<string | null>(null);
+  const [recommendation, setRecommendation] = useState<{
+    lender: string | null;
+    roi: number | null;
+    loaded: boolean;
+  }>({ lender: null, roi: null, loaded: false });
 
   useEffect(() => {
-    if (!isStaff || cibilScore == null) {
-      setRecommendedLender(null);
+    if (!isStaff || cibilScore == null || !productId) {
+      setRecommendation({ lender: null, roi: null, loaded: false });
       return;
     }
     let cancelled = false;
-    void apiService.getCibilChances(cibilScore).then((res) => {
+    void apiService.getCibilChances(cibilScore, productId, bureauParamsFromFormData(formData)).then((res) => {
       if (cancelled) return;
-      if (res.success && res.data?.recommendedLender) {
-        setRecommendedLender(String(res.data.recommendedLender));
-      } else {
-        setRecommendedLender(null);
-      }
+      const lender = res.success && res.data?.recommendedLender ? String(res.data.recommendedLender) : null;
+      const roiRaw = res.data?.recommendedLenderROI;
+      const roi = typeof roiRaw === 'number' && Number.isFinite(roiRaw) ? roiRaw : null;
+      setRecommendation({ lender, roi, loaded: true });
     });
     return () => {
       cancelled = true;
     };
-  }, [isStaff, cibilScore]);
+  }, [isStaff, cibilScore, productId, formData]);
 
   return (
     <div className="space-y-4" data-testid="b2c-ev-application-review">
       {cibilScore != null && (
-        <CibilProbabilityBar cibilScore={cibilScore} />
+        <CibilProbabilityBar cibilScore={cibilScore} loanProductId={productId} />
       )}
 
-      {isStaff && recommendedLender && (
+      {isStaff && recommendation.loaded && (
         <p
-          className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-800"
+          className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600"
           data-testid="b2c-recommended-lender"
         >
-          <span className="text-neutral-500">Recommended Lender:</span> {recommendedLender}
+          {recommendation.lender ? (
+            <>
+              <span className="text-neutral-500">Recommended Lender:</span> {recommendation.lender}
+              {recommendation.roi != null && (
+                <span className="mt-1 block text-neutral-500">
+                  Best Rate: {recommendation.roi}%
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-neutral-500">No eligible lender found for current profile</span>
+          )}
         </p>
       )}
 

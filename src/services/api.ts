@@ -1088,10 +1088,29 @@ class ApiService {
     });
   }
 
-  async getCibilChances(cibil: number): Promise<
-    ApiResponse<{ score: number; label: string; recommendedLender?: string | null }>
+  async getCibilChances(
+    cibil: number,
+    loanProduct: string,
+    applicant?: Record<string, string | number | boolean>
+  ): Promise<
+    ApiResponse<{
+      score: number;
+      label: string;
+      recommendedLender?: string | null;
+      recommendedLenderROI?: number | null;
+    }>
   > {
-    return this.request(`/config/cibil-chances?cibil=${encodeURIComponent(String(cibil))}`);
+    const params = new URLSearchParams({
+      cibil: String(cibil),
+      loanProduct,
+    });
+    if (applicant) {
+      for (const [key, value] of Object.entries(applicant)) {
+        if (value == null || value === '') continue;
+        params.set(key, String(value));
+      }
+    }
+    return this.request(`/config/cibil-chances?${params.toString()}`);
   }
 
   /**
