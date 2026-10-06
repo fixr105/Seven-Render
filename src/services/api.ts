@@ -1744,6 +1744,23 @@ class ApiService {
   }
 
   /**
+   * KAM selects a lender without sending the file to NBFC.
+   */
+  async selectKamLender(
+    applicationId: string,
+    nbfcId: string,
+    recommendedLender?: string
+  ): Promise<ApiResponse<{ nbfcId: string; lenderName: string; status: string }>> {
+    return this.request(`/kam/loan-applications/${applicationId}/select-lender`, {
+      method: 'POST',
+      body: JSON.stringify({
+        nbfcId,
+        ...(recommendedLender ? { recommendedLender } : {}),
+      }),
+    });
+  }
+
+  /**
    * Capture NBFC decision
    */
   async captureNBFCDecision(

@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import { productsController } from '../controllers/products.controller.js';
 import { nbfcPartnersController } from '../controllers/nbfc.controller.js';
-import { requireCreditOrAdmin, requireCreditOrNBFCOrAdmin } from '../middleware/rbac.middleware.js';
+import { requireCreditOrAdmin, requireCreditOrKAMOrNBFCOrAdmin } from '../middleware/rbac.middleware.js';
 
 const router = Router();
 
@@ -31,8 +31,8 @@ router.get('/loan-products', async (req, res, next) => {
 router.get('/loan-products/:id', productsController.getLoanProduct.bind(productsController));
 
 // NBFC Partners - Credit, NBFC, and Admin
-router.get('/nbfc-partners', requireCreditOrNBFCOrAdmin, productsController.listNBFCPartners.bind(productsController));
-router.get('/nbfc-partners/:id', requireCreditOrNBFCOrAdmin, productsController.getNBFCPartner.bind(productsController));
+router.get('/nbfc-partners', requireCreditOrKAMOrNBFCOrAdmin, productsController.listNBFCPartners.bind(productsController));
+router.get('/nbfc-partners/:id', requireCreditOrKAMOrNBFCOrAdmin, productsController.getNBFCPartner.bind(productsController));
 router.post('/nbfc-partners', requireCreditOrAdmin, nbfcPartnersController.createPartner.bind(nbfcPartnersController));
 router.patch('/nbfc-partners/:id', requireCreditOrAdmin, nbfcPartnersController.updatePartner.bind(nbfcPartnersController));
 router.delete('/nbfc-partners/:id', requireCreditOrAdmin, nbfcPartnersController.deactivatePartner.bind(nbfcPartnersController));

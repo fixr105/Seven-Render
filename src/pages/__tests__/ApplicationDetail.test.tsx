@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ApplicationDetail } from '../ApplicationDetail';
 import { apiService } from '../../services/api';
@@ -60,6 +60,9 @@ vi.mock('../../services/api', () => {
     withdrawApplication: vi.fn().mockResolvedValue({ success: true }),
     captureNBFCDecision: vi.fn().mockResolvedValue({ success: true }),
     listNBFCPartners: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    listCreditTeamUsers: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getCibilChances: vi.fn().mockResolvedValue({ success: true, data: { score: 80, label: 'High Chance' } }),
+    selectKamLender: vi.fn().mockResolvedValue({ success: true, data: { nbfcId: 'rec-enn', lenderName: 'ENN ENN Capital', status: 'under_kam_review' } }),
     submitApplication: vi.fn(),
   };
   return {
@@ -314,8 +317,7 @@ describe('ApplicationDetail Page - P0 Tests', () => {
       expect(screen.getByText(/Here are the additional details/i)).toBeInTheDocument();
 
       // Check that query status badges are shown
-      const openBadge = screen.queryByText(/Open/i);
-      expect(openBadge).toBeInTheDocument();
+      expect(screen.getAllByText(/Open/i).length).toBeGreaterThan(0);
     });
 
     it('should show empty state when no queries exist', async () => {
@@ -740,13 +742,66 @@ describe('ApplicationDetail Page - P0 Tests', () => {
 
       await user.click(await screen.findByRole('button', { name: /update status/i }));
 
-      expect(await screen.findByRole('option', { name: 'Submitted' })).toHaveValue('under_kam_review');
-      expect(screen.getByRole('option', { name: 'Qualified' })).toHaveValue('in_negotiation');
-      expect(screen.getByRole('option', { name: 'Dealer Unresponsive' })).toHaveValue('query_with_client');
-      expect(screen.getByRole('option', { name: 'Under Finance Review' })).toHaveValue('pending_credit_review');
-      expect(screen.getByRole('option', { name: 'DO Issued' })).toHaveValue('approved');
-      expect(screen.getByRole('option', { name: 'Disbursed' })).toHaveValue('disbursed');
-      expect(screen.getByRole('option', { name: 'Rejected' })).toHaveValue('rejected');
+      const statusModal = await screen.findByTestId('status-modal');
+      expect(
+        within(statusModal).getByRole('option', { name: 'Dealer Unresponsive' })
+      ).toHaveValue('query_with_client');
+      expect(
+        within(statusModal).getByRole('option', { name: 'Under Finance Review' })
+      ).toHaveValue('pending_credit_review');
+      expect(within(statusModal).queryByRole('option', { name: 'Submitted' })).not.toBeInTheDocument();
+    });
+
+    it('lets KAM override the recommended lender without assigning to NBFC', async () => {
+      authState.user = mockKAMUser;
+      (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        data: {
+          ...mockApplication,
+          status: 'under_kam_review',
+          Status: 'under_kam_review',
+          form_data: {
+            '_meta.panLookup.status': 'success',
+            '_meta.panLookup.cibilScore': '720',
+            loan_product_id: 'LP001',
+          },
+        },
+      });
+      (apiService.listNBFCPartners as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        data: [
+          { id: 'rec-fintree', lenderId: 'NBFC-010', lenderName: 'Fintree', active: true },
+          { id: 'rec-enn', lenderId: 'NBFC-011', lenderName: 'ENN ENN Capital', active: true },
+        ],
+      });
+      (apiService.getCibilChances as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        data: { score: 80, label: 'High Chance', recommendedLender: 'Fintree', recommendedLenderROI: 22 },
+      });
+
+      const user = userEvent.setup();
+      renderWithProviders(<ApplicationDetail />, {
+        authContext: {
+          user: mockKAMUser,
+          loading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          refreshUser: vi.fn(),
+          hasRole: vi.fn(() => true),
+          signInAsTestUser: vi.fn(),
+        },
+      });
+
+      expect(await screen.findByTestId('kam-select-lender')).toBeInTheDocument();
+      expect(await screen.findByTestId('kam-recommended-lender')).toHaveTextContent('Fintree');
+      expect(screen.queryByText(/this will set status to sent to nbfc/i)).not.toBeInTheDocument();
+
+      await user.selectOptions(screen.getByTestId('kam-lender-select'), 'rec-enn');
+      await user.click(screen.getByTestId('kam-save-lender'));
+
+      await waitFor(() => {
+        expect(apiService.selectKamLender).toHaveBeenCalledWith('app1', 'rec-enn', 'Fintree');
+      });
     });
 
   });

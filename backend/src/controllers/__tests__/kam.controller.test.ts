@@ -16,6 +16,12 @@ let loanAppsStore: Record<string, unknown>[] = [];
 const mockFetchTable = jest.fn(async (tableName: string) => {
   if (tableName === 'Loan Application') return [...loanAppsStore];
   if (tableName === 'File Auditing Log') return [];
+  if (tableName === 'NBFC Partners') {
+    return [
+      { id: 'rec-fintree', 'Lender ID': 'NBFC-010', 'Lender Name': 'Fintree', Active: 'True' },
+      { id: 'rec-enn', 'Lender ID': 'NBFC-011', 'Lender Name': 'ENN ENN Capital', Active: 'True' },
+    ];
+  }
   return [];
 });
 
@@ -40,7 +46,7 @@ jest.mock('../../services/airtable/n8nClient.js', () => ({
 
 jest.mock('../../utils/adminLogger.js', () => ({
   logAdminActivity: jest.fn(async () => {}),
-  AdminActionType: { UPDATE_APPLICATION: 'update_application' },
+  AdminActionType: { UPDATE_APPLICATION: 'update_application', ASSIGN_NBFC: 'assign_nbfc' },
 }));
 
 jest.mock('../../services/rbac/rbacFilter.service.js', () => ({
@@ -161,6 +167,33 @@ describe('KAMController application mutations', () => {
     );
     expect(res.statusCode).toBe(200);
     expect(mockPostLoanApplication).toHaveBeenCalled();
+  });
+
+  it('selectLender writes Assigned NBFC without changing status', async () => {
+    const res = createMockResponse();
+    await controller.selectLender(
+      kamRequest({ id: 'rec-managed' }, { nbfcId: 'rec-enn' }),
+      res
+    );
+    expect(res.statusCode).toBe(200);
+    const updated = loanAppsStore.find((a) => a.id === 'rec-managed');
+    expect(updated?.['Assigned NBFC']).toBe('rec-enn');
+    expect(updated?.Status).toBe(LoanStatus.UNDER_KAM_REVIEW);
+    const formData = JSON.parse(String(updated?.['Form Data'] || '{}')) as Record<string, unknown>;
+    expect(formData['_meta.kamSelectedLenderId']).toBe('rec-enn');
+    expect(formData['_meta.kamSelectedLenderName']).toBe('ENN ENN Capital');
+    expect(updated?.Status).not.toBe(LoanStatus.SENT_TO_NBFC);
+    expect(updated).not.toHaveProperty('sent_to_nbfc');
+  });
+
+  it('selectLender denies unmanaged applications', async () => {
+    const res = createMockResponse();
+    await controller.selectLender(
+      kamRequest({ id: 'rec-other' }, { nbfcId: 'rec-enn' }),
+      res
+    );
+    expect(res.statusCode).toBe(403);
+    expect(mockPostLoanApplication).not.toHaveBeenCalled();
   });
 
   it('raiseQuery sets status to query_with_client for managed app', async () => {

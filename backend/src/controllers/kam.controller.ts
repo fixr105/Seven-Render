@@ -30,6 +30,7 @@ import {
 } from '../utils/kamClientAccess.js';
 import { scanApplicationsForPendingB2cActions } from '../services/b2cEv/b2cEvKamActions.service.js';
 import { resolveApplicationRecordStatus } from '../utils/loanApplicationAirtableStatus.js';
+import { mergeFormDataPatch, parseFormDataField } from '../utils/mergeFormDataPatch.js';
 
 /** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
 const FORWARDED_STATUSES: string[] = [
@@ -1201,7 +1202,6 @@ export class KAMController {
 
       let formDataToStore: string | undefined = application['Form Data'];
       if (formData && Object.keys(formData).length > 0) {
-        const { mergeFormDataPatch, parseFormDataField } = await import('../utils/mergeFormDataPatch.js');
         const { isB2cEvFormTemplate } = await import(
           '../services/validation/b2cEvFormValidation.service.js'
         );
@@ -1917,6 +1917,132 @@ export class KAMController {
         return;
       }
       const message = error instanceof Error ? error.message : 'Failed to update DO request';
+      res.status(500).json({ success: false, error: message });
+    }
+  }
+
+  /**
+   * POST /kam/loan-applications/:id/select-lender
+   * KAM override of the BRE-recommended lender. Writes Assigned NBFC only; does not send to NBFC.
+   */
+  async selectLender(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || req.user.role !== 'kam') {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      const { id } = req.params;
+      const nbfcId = typeof req.body?.nbfcId === 'string' ? req.body.nbfcId.trim() : '';
+      if (!nbfcId) {
+        res.status(400).json({ success: false, error: 'nbfcId is required' });
+        return;
+      }
+
+      const applications = await n8nClient.fetchTable('Loan Application');
+      const application = findLoanApplicationByParamId(applications, id);
+      if (!application) {
+        res.status(404).json({ success: false, error: 'Application not found' });
+        return;
+      }
+
+      try {
+        await assertKAMCanMutateApplication(req.user, application);
+      } catch (err) {
+        if (err instanceof KamAccessError) {
+          res.status(err.statusCode).json({ success: false, error: err.message });
+          return;
+        }
+        throw err;
+      }
+
+      const statusKey = resolveApplicationRecordStatus(application);
+      if (
+        statusKey !== LoanStatus.UNDER_KAM_REVIEW &&
+        statusKey !== LoanStatus.QUERY_WITH_CLIENT
+      ) {
+        res.status(400).json({
+          success: false,
+          error: 'Lender can be selected only while the file is with KAM',
+        });
+        return;
+      }
+
+      const partners = await n8nClient.fetchTable('NBFC Partners');
+      const partner = partners.find((row: Record<string, unknown>) => {
+        const recordId = String(row.id ?? '').trim();
+        const lenderId = String(row['Lender ID'] ?? row.lenderId ?? '').trim();
+        return recordId === nbfcId || lenderId === nbfcId;
+      });
+      if (!partner) {
+        res.status(400).json({ success: false, error: 'NBFC partner not found' });
+        return;
+      }
+
+      const assignedId = String(partner.id || nbfcId).trim();
+      const lenderName = String(partner['Lender Name'] ?? partner.lenderName ?? assignedId).trim();
+      const recommendedLender =
+        typeof req.body?.recommendedLender === 'string' ? req.body.recommendedLender.trim() : '';
+
+      const existingFormData = parseFormDataField(application['Form Data']);
+      const mergedFormData = mergeFormDataPatch(existingFormData, {
+        '_meta.kamSelectedLenderId': assignedId,
+        '_meta.kamSelectedLenderName': lenderName,
+        ...(recommendedLender
+          ? { '_meta.recommendedLenderAtSelection': recommendedLender }
+          : {}),
+      });
+
+      await n8nClient.postLoanApplication({
+        ...application,
+        'Assigned NBFC': assignedId,
+        Status: application.Status ?? statusKey,
+        'Form Data': JSON.stringify(mergedFormData),
+        formData: mergedFormData,
+        'Last Updated': new Date().toISOString(),
+      });
+
+      await n8nClient.postFileAuditLog({
+        id: `AUDIT-${Date.now()}`,
+        'Log Entry ID': `AUDIT-${Date.now()}`,
+        File: application['File ID'],
+        Timestamp: new Date().toISOString(),
+        Actor: req.user.email,
+        'Action/Event Type': 'kam_select_lender',
+        'Details/Message': recommendedLender
+          ? `KAM selected ${lenderName} (override of recommended ${recommendedLender})`
+          : `KAM selected ${lenderName}`,
+        'Target User/Role': 'credit_team',
+        Resolved: 'False',
+      });
+
+      await logAdminActivity(req.user, {
+        actionType: AdminActionType.ASSIGN_NBFC,
+        description: `KAM selected lender ${lenderName} for ${application['File ID']}`,
+        targetEntity: 'loan_application',
+        relatedFileId: String(application['File ID'] ?? ''),
+        metadata: {
+          nbfcId: assignedId,
+          lenderName,
+          recommendedLender: recommendedLender || null,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Lender selected',
+        data: {
+          nbfcId: assignedId,
+          lenderName,
+          status: statusKey,
+        },
+      });
+    } catch (error: unknown) {
+      if (error instanceof KamAccessError) {
+        res.status(error.statusCode).json({ success: false, error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Failed to select lender';
       res.status(500).json({ success: false, error: message });
     }
   }

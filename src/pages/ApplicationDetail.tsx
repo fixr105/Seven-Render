@@ -24,6 +24,7 @@ import {
   statusRequiresDisbursementFields,
 } from '../lib/applicationStatusMutations';
 import { mergeFormDataPatch } from '../lib/mergeFormDataPatch';
+import { getBorrowerCibilScoreFromFormData } from '../lib/b2cEvCibilProbability';
 import { isB2cEvFormTemplate } from '../lib/b2cEvFormTemplate';
 import { B2cEvApplicationReview } from '../components/applications/review/B2cEvApplicationReview';
 import { ApplicationDocumentsPanel } from '../components/applications/ApplicationDocumentsPanel';
@@ -160,7 +161,7 @@ export const ApplicationDetail: React.FC = () => {
   const [editingQueryId, setEditingQueryId] = useState<string | null>(null);
   const [editMessage, setEditMessage] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
-  const [nbfcPartners, setNbfcPartners] = useState<Array<{ id: string; lenderName: string }>>([]);
+  const [nbfcPartners, setNbfcPartners] = useState<Array<{ id: string; lenderId?: string; lenderName: string }>>([]);
   const [priorityNbfcSelections, setPriorityNbfcSelections] = useState<{ priority: 1 | 2 | 3; nbfcId: string }[]>([
     { priority: 1, nbfcId: '' },
     { priority: 2, nbfcId: '' },
@@ -168,6 +169,12 @@ export const ApplicationDetail: React.FC = () => {
   ]);
   const [assignNbfcSubmitting, setAssignNbfcSubmitting] = useState(false);
   const [assignNbfcError, setAssignNbfcError] = useState<string | null>(null);
+  const [kamLenderId, setKamLenderId] = useState('');
+  const [kamLenderSaving, setKamLenderSaving] = useState(false);
+  const [kamLenderError, setKamLenderError] = useState<string | null>(null);
+  const [kamLenderSaved, setKamLenderSaved] = useState(false);
+  const [recommendedLenderName, setRecommendedLenderName] = useState<string | null>(null);
+  const [recommendedLenderRoi, setRecommendedLenderRoi] = useState<number | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [submittingReplyForId, setSubmittingReplyForId] = useState<string | null>(null);
   const [fieldIdToLabel, setFieldIdToLabel] = useState<Record<string, string>>({});
@@ -248,23 +255,39 @@ export const ApplicationDetail: React.FC = () => {
   }, [userRole]);
 
   const showAssignNbfcSection = (userRole === 'credit_team' || userRole === 'admin') && Boolean(application);
+  const needsNbfcPartners =
+    (userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') && Boolean(application);
+
+  useEffect(() => {
+    if (!needsNbfcPartners) {
+      setNbfcPartners([]);
+      return;
+    }
+    apiService.listNBFCPartners().then((res) => {
+      if (res.success && res.data) {
+        setNbfcPartners(
+          res.data
+            .filter((p: { active?: boolean }) => p.active !== false)
+            .map((p: { id: string; lenderId?: string; lenderName: string }) => ({
+              id: p.id,
+              lenderId: p.lenderId,
+              lenderName: p.lenderName || p.id,
+            }))
+        );
+      }
+    }).catch(() => setNbfcPartners([]));
+  }, [needsNbfcPartners]);
 
   useEffect(() => {
     if (showAssignNbfcSection) {
-      apiService.listNBFCPartners().then((res) => {
-        if (res.success && res.data) {
-          setNbfcPartners(res.data.filter((p: { active?: boolean }) => p.active !== false).map((p: { id: string; lenderName: string }) => ({ id: p.id, lenderName: p.lenderName || p.id })));
-        }
-      }).catch(() => setNbfcPartners([]));
-    } else {
-      setNbfcPartners([]);
-      setPriorityNbfcSelections([
-        { priority: 1, nbfcId: '' },
-        { priority: 2, nbfcId: '' },
-        { priority: 3, nbfcId: '' },
-      ]);
-      setAssignNbfcError(null);
+      return;
     }
+    setPriorityNbfcSelections([
+      { priority: 1, nbfcId: '' },
+      { priority: 2, nbfcId: '' },
+      { priority: 3, nbfcId: '' },
+    ]);
+    setAssignNbfcError(null);
   }, [showAssignNbfcSection]);
 
   // Fetch form config for old key mapping (field-* → human-readable label)
@@ -983,6 +1006,78 @@ export const ApplicationDetail: React.FC = () => {
   const canEditApplication =
     userRole === 'kam' &&
     (applicationStatusKey === 'under_kam_review' || applicationStatusKey === 'query_with_client');
+  const showKamSelectLenderSection = canEditApplication && Boolean(application);
+
+  useEffect(() => {
+    if (!showKamSelectLenderSection || !application) {
+      setRecommendedLenderName(null);
+      setRecommendedLenderRoi(null);
+      return;
+    }
+    const formData = parseApplicationFormData();
+    const cibil = getBorrowerCibilScoreFromFormData(formData);
+    const productId =
+      productIdForConfig ||
+      String(formData.loan_product_id ?? formData.productId ?? '').trim();
+    if (cibil == null || !productId) {
+      setRecommendedLenderName(null);
+      setRecommendedLenderRoi(null);
+      return;
+    }
+    let cancelled = false;
+    void apiService.getCibilChances(cibil, productId).then((res) => {
+      if (cancelled) return;
+      setRecommendedLenderName(
+        res.success && res.data?.recommendedLender ? String(res.data.recommendedLender) : null
+      );
+      const roi = res.data?.recommendedLenderROI;
+      setRecommendedLenderRoi(typeof roi === 'number' && Number.isFinite(roi) ? roi : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showKamSelectLenderSection, application, productIdForConfig]);
+
+  useEffect(() => {
+    setKamLenderId('');
+    setKamLenderError(null);
+    setKamLenderSaved(false);
+  }, [application?.id]);
+
+  useEffect(() => {
+    if (!showKamSelectLenderSection || !application) return;
+    setKamLenderId((current) => {
+      if (current) return current;
+      const formData = parseApplicationFormData();
+      const assigned = String(
+        application.assigned_nbfc_id ?? formData['_meta.kamSelectedLenderId'] ?? ''
+      )
+        .split(',')[0]
+        .trim();
+      const byAssigned = nbfcPartners.find(
+        (p) => p.id === assigned || p.lenderId === assigned
+      );
+      if (byAssigned) return byAssigned.id;
+      if (recommendedLenderName) {
+        const name = recommendedLenderName.toLowerCase();
+        const byName = nbfcPartners.find((p) => p.lenderName.toLowerCase() === name);
+        if (byName) return byName.id;
+      }
+      return current;
+    });
+  }, [showKamSelectLenderSection, application, nbfcPartners, recommendedLenderName]);
+
+  useEffect(() => {
+    if (!showAssignNbfcSection || !application?.assigned_nbfc_id) return;
+    const first = String(application.assigned_nbfc_id).split(',')[0].trim();
+    const match = nbfcPartners.find((p) => p.id === first || p.lenderId === first);
+    if (!match) return;
+    setPriorityNbfcSelections((current) =>
+      current.map((item) =>
+        item.priority === 1 && !item.nbfcId ? { ...item, nbfcId: match.id } : item
+      )
+    );
+  }, [showAssignNbfcSection, application?.assigned_nbfc_id, nbfcPartners]);
   const canWithdrawApplication =
     userRole === 'client' && WITHDRAWABLE_CLIENT_STATUSES.has(applicationStatusKey);
   const canContinueEditingApplication =
@@ -1332,6 +1427,98 @@ export const ApplicationDetail: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* KAM selects lender (override recommendation; Credit still sends to NBFC) */}
+          {showKamSelectLenderSection && (
+            <Card className="border-brand-primary/20 bg-brand-primary/5">
+              <div data-testid="kam-select-lender">
+              <CardHeader>
+                <CardTitle>{t('pages.applicationDetail.selectLender')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-neutral-600 mb-3">
+                  {t('pages.applicationDetail.selectLenderDescription')}
+                </p>
+                {recommendedLenderName ? (
+                  <p className="mb-3 text-sm text-neutral-500" data-testid="kam-recommended-lender">
+                    {t('pages.applicationDetail.recommendedLender')}: {recommendedLenderName}
+                    {recommendedLenderRoi != null && (
+                      <span className="mt-1 block">
+                        {t('pages.applicationDetail.bestRate', { roi: recommendedLenderRoi })}
+                      </span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="mb-3 text-sm text-neutral-500">
+                    {t('pages.applicationDetail.noEligibleLender')}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-end gap-3">
+                  <Select
+                    label={t('pages.applicationDetail.selectNbfc')}
+                    data-testid="kam-lender-select"
+                    options={[
+                      { value: '', label: t('pages.applicationDetail.selectNbfc') },
+                      ...nbfcPartners.map((p) => ({ value: p.id, label: p.lenderName })),
+                    ]}
+                    value={kamLenderId}
+                    onChange={(e) => {
+                      setKamLenderId(e.target.value);
+                      setKamLenderSaved(false);
+                      setKamLenderError(null);
+                    }}
+                  />
+                  <Button
+                    variant="secondary"
+                    data-testid="kam-save-lender"
+                    onClick={async () => {
+                      if (!id || !kamLenderId) {
+                        setKamLenderError(t('pages.applicationDetail.selectAtLeastOneNbfc'));
+                        return;
+                      }
+                      setKamLenderSaving(true);
+                      setKamLenderError(null);
+                      setKamLenderSaved(false);
+                      try {
+                        const res = await apiService.selectKamLender(
+                          application?.id ?? id,
+                          kamLenderId,
+                          recommendedLenderName ?? undefined
+                        );
+                        if (res.success) {
+                          setKamLenderSaved(true);
+                          fetchApplicationDetails();
+                        } else {
+                          setKamLenderError(
+                            res.error || t('pages.applicationDetail.failedToSelectLender')
+                          );
+                        }
+                      } catch (err: unknown) {
+                        setKamLenderError(
+                          err instanceof Error
+                            ? err.message
+                            : t('pages.applicationDetail.failedToSelectLender')
+                        );
+                      } finally {
+                        setKamLenderSaving(false);
+                      }
+                    }}
+                    disabled={kamLenderSaving || !kamLenderId}
+                    loading={kamLenderSaving}
+                  >
+                    {t('pages.applicationDetail.saveLenderSelection')}
+                  </Button>
+                </div>
+                {kamLenderError && (
+                  <p className="mt-2 text-sm text-error">{kamLenderError}</p>
+                )}
+                {kamLenderSaved && !kamLenderError && (
+                  <p className="mt-2 text-sm text-neutral-600">{t('pages.applicationDetail.lenderSaved')}</p>
+                )}
+              </CardContent>
+              </div>
+            </Card>
+          )}
 
           {/* Assign to NBFC (Credit/Admin can assign from any stage) */}
           {showAssignNbfcSection && (

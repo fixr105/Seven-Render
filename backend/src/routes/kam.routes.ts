@@ -35,6 +35,7 @@ router.post('/loan-applications/:id/edit', kamController.editApplication.bind(ka
 router.post('/loan-applications/:id/status', kamController.updateStatus.bind(kamController));
 router.post('/loan-applications/:id/queries', kamController.raiseQuery.bind(kamController));
 router.post('/loan-applications/:id/forward-to-credit', kamController.forwardToCredit.bind(kamController));
+router.post('/loan-applications/:id/select-lender', kamController.selectLender.bind(kamController));
 router.get('/ledger', ledgerController.getKAMLedger.bind(ledgerController));
 
 export default router;
