@@ -54,7 +54,16 @@ function collectLookupKeys(value: unknown, into: string[]): void {
   if (value == null) return;
   if (typeof value === 'string' || typeof value === 'number') {
     const text = String(value).trim();
-    if (text) into.push(text);
+    if (!text) return;
+    // Airtable often stores multi-select as "LP012, LP016"
+    if (text.includes(',')) {
+      for (const part of text.split(',')) {
+        const piece = part.trim();
+        if (piece) into.push(piece);
+      }
+      return;
+    }
+    into.push(text);
     return;
   }
   if (Array.isArray(value)) {

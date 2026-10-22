@@ -202,6 +202,10 @@ export function extractCibilScore(record: Record<string, unknown>): string {
     'experian_score',
     'experianScore',
     'Experian Score',
+    'credit score',
+    'Credit Score',
+    'credit_score',
+    'creditScore',
     'SCORE-VALUE',
     'SCORE_VALUE',
   ]);

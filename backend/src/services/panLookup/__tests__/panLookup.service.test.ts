@@ -26,6 +26,7 @@ describe('panLookup.mapper', () => {
     expect(extractCibilScore({ experian_score: '731' })).toBe('731');
     expect(extractCibilScore({ experianScore: '680' })).toBe('680');
     expect(extractCibilScore({ 'Experian Score': '701' })).toBe('701');
+    expect(extractCibilScore({ 'credit score': '807' })).toBe('807');
     expect(extractCibilScore({ 'SCORE-VALUE': '712' })).toBe('712');
   });
 

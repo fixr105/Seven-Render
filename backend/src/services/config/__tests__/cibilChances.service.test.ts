@@ -67,6 +67,21 @@ describe('normalizeBreRecord', () => {
   it('returns null when lender or CIBIL band missing', () => {
     expect(normalizeBreRecord({ fields: { 'Min CIBIL': 300, 'Max CIBIL': 900 } })).toBeNull();
   });
+
+  it('splits comma-separated Loan Product ids so each product matches', () => {
+    const normalized = normalizeBreRecord({
+      'NBFC Partner': 'Fintree',
+      UserID: 'NBFC-010',
+      'Min CIBIL': 680,
+      'Max CIBIL': 900,
+      Eligible: true,
+      Active: true,
+      'Loan Product': 'LP012, LP016',
+    });
+    expect(normalized?.loanProductKeys).toEqual(['LP012', 'LP016']);
+    expect(loanProductMatches(normalized!, 'LP012')).toBe(true);
+    expect(loanProductMatches(normalized!, 'LP016')).toBe(true);
+  });
 });
 
 describe('loanProductMatches', () => {
