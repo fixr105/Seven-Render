@@ -2,6 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   evaluateCheckpoints,
   normalizeCheckpointRecord,
+  withBureauScore,
   type ApplicantParameters,
   type LenderBreCheckpoint,
 } from '../lenderBreCheckpoints.logic.js';
@@ -126,5 +127,32 @@ describe('evaluateCheckpoints', () => {
         applicant
       )
     ).toEqual({ status: 'BRE APPROVED', reason: 'ELIGIBLE', failedRules: [] });
+  });
+});
+
+describe('withBureauScore', () => {
+  it('injects the bureau score as cibil_score when missing so BRE can assess it', () => {
+    expect(withBureauScore({ enquiries_30d: 1 }, 720)).toEqual({
+      enquiries_30d: 1,
+      cibil_score: 720,
+    });
+  });
+
+  it('does not overwrite an explicit cibil_score from the applicant payload', () => {
+    expect(withBureauScore({ cibil_score: 650 }, 720)).toEqual({ cibil_score: 650 });
+  });
+
+  it('lets BRE reject on cibil_score when only the bureau score query param is provided', () => {
+    const applicantFromQuery = withBureauScore({}, 580);
+    expect(
+      evaluateCheckpoints(
+        [checkpoint({ parameter: 'cibil_score', rejectionCode: 'LOW_CIBIL', operator: 'less_than', threshold: 650 })],
+        applicantFromQuery
+      )
+    ).toEqual({
+      status: 'BRE REJECTED',
+      reason: 'LOW_CIBIL',
+      failedRules: ['LOW_CIBIL'],
+    });
   });
 });

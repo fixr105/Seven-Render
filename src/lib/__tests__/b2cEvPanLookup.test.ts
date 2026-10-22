@@ -4,6 +4,7 @@ import {
   buildPanLookupInputHash,
   clearBorrowerFields,
   convertDobToIsoDate,
+  extractCibilScore,
   hasMeaningfulBorrowerAutofill,
   isPanLookupManual,
   mapPanLookupOutputToFormDataPatch,
@@ -13,6 +14,11 @@ import {
 import { createInitialB2cEvFormData } from '../../config/forms/b2cEvFormSchema';
 
 describe('b2cEvPanLookup', () => {
+  it('extracts Experian bureau score aliases the same way as CIBIL', () => {
+    expect(extractCibilScore({ experian_score: '731' })).toBe('731');
+    expect(extractCibilScore({ 'SCORE-VALUE': '712' })).toBe('712');
+  });
+
   it('converts DD-MM-YYYY and DD/MM/YYYY dates to ISO', () => {
     expect(convertDobToIsoDate('07-04-1993')).toBe('1993-04-07');
     expect(convertDobToIsoDate('07/04/1993')).toBe('1993-04-07');

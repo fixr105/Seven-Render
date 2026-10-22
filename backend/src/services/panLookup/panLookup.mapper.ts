@@ -321,6 +321,12 @@ export function extractCibilScore(record: Record<string, unknown>): string {
     'CIBIL_Score',
     'CIBIL Score',
     'cibil',
+    // Experian / Unifers bureau aliases — same BRE path via `_meta.panLookup.cibilScore`
+    'experian_score',
+    'experianScore',
+    'Experian Score',
+    'SCORE-VALUE',
+    'SCORE_VALUE',
   ]);
 }
 

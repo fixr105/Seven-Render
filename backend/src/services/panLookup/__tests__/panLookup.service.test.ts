@@ -12,6 +12,7 @@ jest.mock('../../../utils/logger.js', () => ({
 
 import {
   convertDobToIsoDate,
+  extractCibilScore,
   hasBorrowerPatchData,
   hasSupportPersonPatchData,
   mapPanLookupOutputToFormDataPatch,
@@ -21,6 +22,13 @@ import {
 import { validatePanLookupRequest } from '../panLookup.service.js';
 
 describe('panLookup.mapper', () => {
+  it('extracts Experian bureau score aliases into the same cibil score field', () => {
+    expect(extractCibilScore({ experian_score: '731' })).toBe('731');
+    expect(extractCibilScore({ experianScore: '680' })).toBe('680');
+    expect(extractCibilScore({ 'Experian Score': '701' })).toBe('701');
+    expect(extractCibilScore({ 'SCORE-VALUE': '712' })).toBe('712');
+  });
+
   it('parses array webhook response with output wrapper', () => {
     const payload = [
       {

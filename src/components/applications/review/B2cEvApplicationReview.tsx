@@ -47,6 +47,11 @@ function bureauParamsFromFormData(
       params[key] = readString(raw);
     }
   }
+  // Bureau score (CIBIL or Experian) lives in PAN-lookup meta; BRE checkpoints key on cibil_score.
+  if (params.cibil_score == null) {
+    const score = getBorrowerCibilScoreFromFormData(formData);
+    if (score != null) params.cibil_score = score;
+  }
   return params;
 }
 

@@ -8,7 +8,10 @@ import { authenticate } from '../auth/auth.middleware.js';
 import { requireCreditOrAdmin } from '../middleware/rbac.middleware.js';
 import { CibilRateMatrixService } from '../services/config/cibilRateMatrix.service.js';
 import { CibilChancesService } from '../services/config/cibilChances.service.js';
-import type { ApplicantParameters } from '../services/config/lenderBreCheckpoints.logic.js';
+import {
+  withBureauScore,
+  type ApplicantParameters,
+} from '../services/config/lenderBreCheckpoints.logic.js';
 import { defaultLogger } from '../utils/logger.js';
 
 const router = Router();
@@ -58,7 +61,7 @@ router.get('/cibil-chances', async (req: Request, res: Response) => {
     const recommendation = await CibilChancesService.getRecommendedLender(
       cibil,
       loanProduct.trim(),
-      readApplicant(req.query)
+      withBureauScore(readApplicant(req.query), cibil)
     );
     res.json({
       success: true,
@@ -129,9 +132,15 @@ router.get('/lender-bre-checkpoints', requireCreditOrAdmin, async (req: Request,
       return;
     }
 
+    const rawCibil = req.query.cibil;
+    const bureauScore =
+      typeof rawCibil === 'string' ? Number.parseInt(rawCibil, 10) : Number.NaN;
+    const applicant = Number.isFinite(bureauScore)
+      ? withBureauScore(readApplicant(req.query), bureauScore)
+      : readApplicant(req.query);
     const data = await CibilChancesService.evaluateLenderCheckpoints(
       userId,
-      readApplicant(req.query),
+      applicant,
       { bureauReportMissing: queryFlag(req.query.bureauReportMissing) }
     );
     res.json({ success: true, data });

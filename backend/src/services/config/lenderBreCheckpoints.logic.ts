@@ -113,3 +113,17 @@ export function evaluateCheckpoints(
   }
   return { status: 'BRE APPROVED', reason: 'ELIGIBLE', failedRules: [] };
 }
+
+/**
+ * Map the bureau score query param (`cibil`, whether sourced from CIBIL or Experian)
+ * onto `cibil_score` so lender BRE checkpoints that key on `cibil_score` actually run.
+ * Does not overwrite an explicit applicant cibil_score.
+ */
+export function withBureauScore(
+  applicant: ApplicantParameters,
+  bureauScore: number
+): ApplicantParameters {
+  if (!Number.isFinite(bureauScore)) return applicant;
+  if (applicant.cibil_score != null) return applicant;
+  return { ...applicant, cibil_score: bureauScore };
+}
