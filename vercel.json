@@ -6,9 +6,13 @@
   "installCommand": "npm install && cd backend && npm install",
   "framework": "vite",
   "rewrites": [
+    { "source": "/engine/airtable_get", "destination": "https://fixrrahul.app.n8n.cloud/webhook/airtable_get" },
+    { "source": "/engine/airtable_write", "destination": "https://fixrrahul.app.n8n.cloud/webhook/airtable_write" },
+    { "source": "/engine/qualify", "destination": "https://fixrrahul.app.n8n.cloud/webhook/qualify" },
+    { "source": "/engine/:path*", "destination": "https://n8n-fvmj.srv1499064.hstgr.cloud/webhook/:path*" },
     { "source": "/api/(.*)", "destination": "/api" },
     {
-      "source": "/((?!api/|assets/|icons/|videos/|sw.js|manifest.webmanifest).*)",
+      "source": "/((?!api/|engine/|assets/|icons/|videos/|sw.js|manifest.webmanifest).*)",
       "destination": "/index.html"
     }
   ],

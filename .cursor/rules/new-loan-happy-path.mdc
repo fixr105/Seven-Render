@@ -1,0 +1,20 @@
+---
+description: New Loan Application happy path is locked; confirm before changing anything that leads to it
+alwaysApply: true
+---
+
+# New Loan Application happy path
+
+The happy state is the New Loan Application wizard at `/applications/new` (including `/dealer/new?productId=` redirecting there).
+
+What the user sees on step 1:
+
+- MainLayout with the navy sidebar
+- Stepper: Loan Product, Borrower, Loan Details, Dealer, Co-applicant / Guarantor, Geo-tagged Photos, Insurance, Vehicle Details
+- Loan product already selected (B2C EV for `productId=LP012`)
+- Only Mobile Number, PAN Number, Full Name, and Borrower Email
+- Back, Save draft, and Next
+
+Next calls `/engine/qualify`. A pass moves to Borrower and copies only the typed name, mobile, and PAN. A fail shows “This application does not meet current lending criteria.” with Back to Home only. The score, kill codes, and “Qualification is waiting on bureau data.” stay off this screen.
+
+Do not edit this screen, the route that opens it, the dashboard or Applications links that open it, or the Engine qualify decision on Next, without asking the user first and waiting for a yes. That includes restoring the old Applicant card (DOB, employment, income, obligations) and sending this step back through `postMMfrontPAN`.

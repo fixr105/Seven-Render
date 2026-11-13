@@ -3,8 +3,13 @@ import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { B2CEvApplicationWizard } from '../B2CEvApplicationWizard';
 import { apiService } from '../../../services/api';
+import { enginePost } from '../../../services/engineClient';
 import { renderWithProviders, mockClientUser } from '../../../test/helpers';
 import { createInitialB2cEvFormData } from '../../../config/forms/b2cEvFormSchema';
+
+vi.mock('../../../services/engineClient', () => ({
+  enginePost: vi.fn(),
+}));
 
 vi.mock('../../../services/api', () => ({
   apiService: {
@@ -12,6 +17,7 @@ vi.mock('../../../services/api', () => ({
     getClientKyc: vi.fn(),
     getFormConfig: vi.fn(),
     lookupBorrowerPan: vi.fn(),
+    qualifyProduct: vi.fn(),
     getApplication: vi.fn(),
     createApplication: vi.fn(),
     updateApplicationForm: vi.fn(),
@@ -70,6 +76,25 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+const leaveProductStep = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByTestId('b2c-wizard-next'));
+  await waitFor(() => {
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+  }, { timeout: 5000 });
+};
+
+const fillBorrowerRequired = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.selectOptions(screen.getByTestId('b2c-field-borrower-gender'), 'Male');
+  await user.type(screen.getByTestId('b2c-field-borrower-dob'), '1993-04-07');
+  await user.type(screen.getByTestId('b2c-field-borrower-fatherName'), 'JOSEPH');
+  await user.type(screen.getByTestId('b2c-field-borrower-email'), 'rahul@example.com');
+  await user.type(screen.getByTestId('b2c-field-borrower-address-line1'), '107 Villa');
+  await user.type(screen.getByTestId('b2c-field-borrower-address-village'), 'Bhavnagar');
+  await user.type(screen.getByTestId('b2c-field-borrower-address-pincode'), '364002');
+  await user.type(screen.getByTestId('b2c-field-borrower-address-district'), 'Bhavnagar');
+  await user.type(screen.getByTestId('b2c-field-borrower-address-state'), 'Gujarat');
+};
+
 const fillStageOne = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.selectOptions(screen.getByTestId('b2c-loan-product-select'), 'LP001');
   await user.type(screen.getByTestId('b2c-field-_meta-panLookup-mobileNumber'), '9687599179');
@@ -123,7 +148,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
           'borrower.address.pincode': '364002',
           'borrower.address.district': 'Bhavnagar',
           'borrower.address.state': 'Gujarat',
-          '_meta.panLookup.cibilScore': '620',
+          '_meta.panLookup.cibilScore': '720',
         },
         lookupAt: '2026-04-07T12:00:00.000Z',
       },
@@ -152,6 +177,24 @@ describe('B2CEvApplicationWizard submit gating', () => {
       success: true,
       data: { newStatus: 'seven_one' },
     });
+    (apiService.qualifyProduct as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        outcome: 'approved',
+        chanceLabel: 'High Chance',
+        roi: 14.5,
+        pf: 2.5,
+        lenderName: 'Fintree',
+        assignedUserId: 'NBFC-OK',
+      },
+    });
+    vi.mocked(enginePost).mockResolvedValue({
+      ok: true,
+      pass: true,
+      score: 720,
+      is_ntc: false,
+      cached: false,
+    });
     window.alert = vi.fn();
   });
 
@@ -165,6 +208,24 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.queryByTestId('b2c-submit-application')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save draft/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
+  });
+
+  it('advances past loan product without engine qualify (qualify runs after final submit)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await leaveProductStep(user);
+
+    expect(enginePost).not.toHaveBeenCalledWith('qualify', expect.anything());
+    expect(apiService.lookupBorrowerPan).not.toHaveBeenCalled();
+    expect(apiService.qualifyProduct).not.toHaveBeenCalled();
+    expect(screen.queryByText(/waiting on bureau data/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
   });
 
   it('Save draft calls createApplication with saveAsDraft true', async () => {
@@ -186,12 +247,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(apiService.submitApplication).not.toHaveBeenCalled();
   });
 
-  it('advances to manual borrower profile when PAN lookup returns no results', async () => {
-    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValue({
-      success: false,
-      error: 'PAN lookup returned no borrower details',
-    });
-
+  it('copies the typed name, mobile, and PAN onto the borrower step', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
 
@@ -200,62 +256,18 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await leaveProductStep(user);
 
-    await waitFor(() => {
-      expect(screen.getByTestId('borrower-pan-manual-message')).toBeInTheDocument();
-    });
-
-    expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('');
-    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('');
-    expect(screen.getByTestId('b2c-field-borrower-pan')).toHaveValue('');
-    expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
-    expect(apiService.lookupBorrowerPan).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('borrower-pan-manual-message')).toBeInTheDocument();
-    });
-    expect(apiService.lookupBorrowerPan).toHaveBeenCalledTimes(1);
-  });
-
-  it('autofills borrower profile and address on a single stage after successful PAN lookup', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<B2CEvApplicationWizard />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
-    });
-
-    await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(apiService.lookupBorrowerPan).toHaveBeenCalledWith({
-        mobileNumber: '9687599179',
-        panNumber: 'BAIPG3083L',
-        fullName: 'RAHUL YADAV',
-        borrowerEmail: null,
-      });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
-    });
-
-    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('GONSALVES');
+    expect(apiService.lookupBorrowerPan).not.toHaveBeenCalled();
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
+    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('YADAV');
     expect(screen.getByTestId('b2c-field-borrower-firstName')).not.toBeDisabled();
     expect(screen.getByTestId('b2c-field-borrower-drivingLicense')).toHaveValue('');
-    expect(screen.getByTestId('b2c-field-borrower-drivingLicense')).not.toBeDisabled();
     expect(screen.getByTestId('b2c-field-borrower-pan')).toBeDisabled();
-    expect(screen.getByTestId('b2c-field-borrower-address-line1')).toHaveValue(
-      '107, Villa De Flores, Catholic Society, Vidhyanagar, Bhavnagar'
-    );
-    expect(screen.getByTestId('b2c-field-borrower-address-village')).toHaveValue('Bhavnagar');
-    expect(screen.getByTestId('b2c-field-borrower-address-pincode')).toHaveValue('364002');
-    expect(screen.getByText('Address')).toBeInTheDocument();
+    expect(screen.getByTestId('b2c-field-borrower-pan')).toHaveValue('BAIPG3083L');
+    expect(screen.getByTestId('b2c-field-borrower-mobile')).toHaveValue('9687599179');
+    expect(screen.getByTestId('b2c-field-borrower-address-line1')).toHaveValue('');
+    expect(screen.getByTestId('b2c-field-borrower-address-state')).toHaveValue('');
   });
 
   it('shows CIBIL probability bar on borrower step without displaying the numeric score', async () => {
@@ -267,24 +279,15 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await leaveProductStep(user);
 
-    await waitFor(() => {
-      expect(screen.getByTestId('cibil-probability-bar')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('High Chance')).toBeInTheDocument();
-    expect(screen.queryByText('620')).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/\b620\b/);
-
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
-    });
+    expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
+    expect(screen.queryByText('720')).not.toBeInTheDocument();
+    expect(screen.queryByText('High Chance')).not.toBeInTheDocument();
+    expect(screen.getByTestId('b2c-wizard-next')).toBeEnabled();
   });
 
-  it('gates Next when chances score is below 50 and shows Proceed with Seven One', async () => {
+  it('does not block Next from a bureau score after an engine pass', async () => {
     (apiService.getCibilChances as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       data: { score: 33, label: 'Chances with Co-applicant' },
@@ -297,14 +300,11 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await leaveProductStep(user);
 
-    await waitFor(() => {
-      expect(screen.getByText('Chances with Co-applicant')).toBeInTheDocument();
-    });
-
-    expect(screen.getByTestId('b2c-wizard-next')).toBeDisabled();
-    expect(screen.getByTestId('b2c-proceed-seven-one')).toBeInTheDocument();
+    expect(screen.queryByText('Chances with Co-applicant')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('b2c-proceed-seven-one')).not.toBeInTheDocument();
+    expect(screen.getByTestId('b2c-wizard-next')).toBeEnabled();
   });
 
   it('allows editing autofilled borrower fields and recomputes customer name', async () => {
@@ -316,7 +316,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await leaveProductStep(user);
 
     await waitFor(() => {
       expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
@@ -327,23 +327,11 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await user.type(firstNameInput, 'AMIT');
 
     expect(firstNameInput).toHaveValue('AMIT');
-    expect(screen.getByTestId('b2c-field-borrower-customerName')).toHaveValue('AMIT GONSALVES');
+    expect(screen.getByTestId('b2c-field-borrower-customerName')).toHaveValue('AMIT YADAV');
     expect(screen.getByTestId('b2c-field-borrower-pan')).toBeDisabled();
   });
 
-  it('shows gender select placeholder when PAN JSON omits gender', async () => {
-    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      success: true,
-      data: {
-        formDataPatch: {
-          'borrower.firstName': 'RAHUL',
-          'borrower.lastName': 'GONSALVES',
-          'borrower.customerName': 'RAHUL GONSALVES',
-        },
-        lookupAt: '2026-04-07T12:00:00.000Z',
-      },
-    });
-
+  it('shows gender select placeholder until the borrower chooses one', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
 
@@ -352,7 +340,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await leaveProductStep(user);
 
     await waitFor(() => {
       expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
@@ -393,11 +381,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
-    });
+    await leaveProductStep(user);
+    await fillBorrowerRequired(user);
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -421,11 +406,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
-    });
+    await leaveProductStep(user);
+    await fillBorrowerRequired(user);
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -502,11 +484,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
-    });
+    await leaveProductStep(user);
+    await fillBorrowerRequired(user);
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -571,7 +550,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await leaveProductStep(user);
     await user.click(screen.getByTestId('b2c-wizard-next'));
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -612,7 +591,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     }
   });
 
-  it('does not persist draft on Next after product PAN lookup', async () => {
+  it('does not persist draft on Next after product step', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
 
@@ -621,12 +600,10 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await leaveProductStep(user);
 
-    await waitFor(() => {
-      expect(apiService.lookupBorrowerPan).toHaveBeenCalled();
-    });
-
+    expect(apiService.lookupBorrowerPan).not.toHaveBeenCalled();
+    expect(enginePost).not.toHaveBeenCalledWith('qualify', expect.anything());
     expect(apiService.createApplication).not.toHaveBeenCalled();
     expect(apiService.updateApplicationForm).not.toHaveBeenCalled();
   });

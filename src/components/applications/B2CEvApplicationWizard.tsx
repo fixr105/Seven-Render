@@ -19,6 +19,9 @@ import { useNotifications } from '../../hooks/useNotifications';
 import { useNavigation } from '../../hooks/useNavigation';
 import { useSidebarItems } from '../../hooks/useSidebarItems';
 import { apiService, type ClientKycDealerProfile } from '../../services/api';
+import type { SubmittedApplication } from '../../pages/dealer/ApplicationFormStep';
+import { DealerPostSubmitFlow } from '../../pages/dealer/DealerPostSubmitFlow';
+import { canonicalFromWizardFormData } from '../../pages/dealer/wizardCanonical';
 import { isClientEditableApplication, resolveApplicationStatus } from '../../lib/statusUtils';
 import {
   buildWizardResumeSearchParams,
@@ -44,11 +47,8 @@ import {
   validateSupportPersonStageAccessible,
 } from '../../lib/b2cEvFormValidation';
 import {
-  applyBorrowerManualProfilePhase,
   buildPanLookupInputHash,
-  clearBorrowerFields,
   getPanLookupPayload,
-  hasMeaningfulBorrowerAutofill,
   hasMeaningfulSupportPersonAutofill,
   isPanLookupManual,
   isPanLookupProfileReady,
@@ -56,8 +56,12 @@ import {
   migratePanLookupDraftFields,
   PAN_LOOKUP_FIELD_KEYS,
   PAN_LOOKUP_TIMEOUT_SECONDS,
-  shouldRefetchPanLookup,
 } from '../../lib/b2cEvPanLookup';
+import {
+  clearProductQualification,
+  hasProductQualificationMeta,
+  qualificationInputHash,
+} from '../../lib/productQualification';
 import {
   buildSupportPanLookupInputHash,
   clearSupportPersonProfileFields,
@@ -169,6 +173,31 @@ function readFieldValue(formData: Record<string, unknown>, key: string): string 
   return String(value);
 }
 
+function setBlankField(formData: Record<string, unknown>, key: string, value: string): void {
+  const nextValue = value.trim();
+  if (!nextValue) return;
+  if (readFieldValue(formData, key).trim()) return;
+  formData[key] = nextValue;
+}
+
+/** Copy the name, mobile, and PAN the user typed. Does not copy bureau report fields. */
+function applyTypedBorrowerIdentity(formData: Record<string, unknown>): Record<string, unknown> {
+  const typed = getPanLookupPayload(formData);
+  const next: Record<string, unknown> = { ...formData };
+  const nameParts = typed.fullName.trim().split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] ?? '';
+  const lastName = nameParts.slice(1).join(' ');
+  setBlankField(next, 'borrower.firstName', firstName);
+  setBlankField(next, 'borrower.lastName', lastName);
+  setBlankField(next, 'borrower.mobile', typed.mobileNumber);
+  setBlankField(next, 'borrower.pan', typed.panNumber);
+  setBlankField(next, 'borrower.email', typed.borrowerEmail ?? '');
+  delete next['_meta.panLookup.cibilScore'];
+  delete next['borrower.cibilScore'];
+  next['_meta.panLookup.status'] = 'success';
+  return syncB2cEvComputedFields(next);
+}
+
 function isFieldReadOnly(field: B2cEvFieldDef, formData: Record<string, unknown>): boolean {
   if (field.key === 'borrower.pan' && isPanLookupManual(formData)) {
     return false;
@@ -275,6 +304,9 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [stepAdvanceMessage, setStepAdvanceMessage] = useState<string | null>(null);
   const [panLookupLoading, setPanLookupLoading] = useState(false);
   const [panLookupError, setPanLookupError] = useState<string | null>(null);
+  const [postSubmitApplication, setPostSubmitApplication] = useState<SubmittedApplication | null>(
+    null
+  );
   const [panLookupCountdown, setPanLookupCountdown] = useState(0);
   const [supportPanLookupLoading, setSupportPanLookupLoading] = useState(false);
   const [supportPanLookupError, setSupportPanLookupError] = useState<string | null>(null);
@@ -364,11 +396,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
   }, []);
 
   const commitFormState = useCallback((updater: (prev: WizardFormState) => WizardFormState) => {
-    setFormState((prev) => {
-      const next = updater(prev);
-      formStateRef.current = next;
-      return next;
-    });
+    const next = updater(formStateRef.current);
+    formStateRef.current = next;
+    setFormState(next);
+    return next;
   }, []);
 
   useEffect(() => {
@@ -484,6 +515,20 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const supportPanPhase = getSupportPanLookupPhase(formState.form_data);
   const supportNextDisabled =
     currentStage?.id === 'support-person' && supportPanPhase !== 'profile';
+  const productQualificationHash = qualificationInputHash(
+    formState.loan_product_id,
+    buildPanLookupInputHash(formState.form_data)
+  );
+  useEffect(() => {
+    if (panLookupLoading) return;
+    const storedHash = String(formState.form_data['_meta.qualification.inputHash'] ?? '').trim();
+    if (!storedHash || storedHash === productQualificationHash) return;
+    if (!hasProductQualificationMeta(formState.form_data)) return;
+    commitFormState((prev) => ({
+      ...prev,
+      form_data: clearProductQualification(prev.form_data),
+    }));
+  }, [commitFormState, formState.form_data, panLookupLoading, productQualificationHash]);
 
   const geoPhotosStepIndex = useMemo(
     () => visibleStages.findIndex((stage) => stage.id === 'geo-photos'),
@@ -875,6 +920,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   const lowCibilGateActive =
     currentStage?.id === 'borrower' &&
+    borrowerCibilScore !== -1 &&
     borrowerChances != null &&
     borrowerChances.score < 50;
 
@@ -891,7 +937,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       .then(async (chances) => {
         if (cancelled) return;
         setBorrowerChances(chances);
-        if (chances.score < 50 && !lowScoreDraftSavedRef.current) {
+        if (borrowerCibilScore !== -1 && chances.score < 50 && !lowScoreDraftSavedRef.current) {
           lowScoreDraftSavedRef.current = true;
           try {
             await persistDraftRef.current(undefined, { silent: true });
@@ -1179,69 +1225,24 @@ export const B2CEvApplicationWizard: React.FC = () => {
     setWizardStep(currentStepRef.current + 1);
   };
 
-  const runPanLookup = async (): Promise<boolean> => {
-    cancelScheduledAutoSave();
-    const currentFormData = formStateRef.current.form_data;
-    const inputHash = buildPanLookupInputHash(currentFormData);
-
-    if (!shouldRefetchPanLookup(currentFormData)) {
-      return true;
-    }
-
-    setPanLookupLoading(true);
-    setPanLookupError(null);
-
-    const applyManualFailure = (message: string) => {
-      setPanLookupError(message);
-      commitFormState((prev) => ({
-        ...prev,
-        form_data: applyBorrowerManualProfilePhase(prev.form_data, inputHash),
-      }));
-      return true;
-    };
-
-    try {
-      const payload = getPanLookupPayload(formStateRef.current.form_data);
-      const response = await apiService.lookupBorrowerPan({
-        mobileNumber: payload.mobileNumber,
-        panNumber: payload.panNumber,
-        fullName: payload.fullName,
-        borrowerEmail: payload.borrowerEmail ?? null,
-      });
-
-      if (!response.success || !response.data?.formDataPatch) {
-        return applyManualFailure(
-          response.error || PAN_MANUAL_FAILURE_MESSAGE
-        );
-      }
-
-      if (!hasMeaningfulBorrowerAutofill(response.data.formDataPatch)) {
-        return applyManualFailure(PAN_MANUAL_FAILURE_MESSAGE);
-      }
-
-      commitFormState((prev) => {
-        const cleared = clearBorrowerFields(prev.form_data);
-        const patched = syncB2cEvComputedFields({
-          ...cleared,
-          ...response.data!.formDataPatch,
-          '_meta.panLookup.status': 'success',
-          '_meta.panLookup.inputHash': inputHash,
-          '_meta.panLookup.completedAt': response.data!.lookupAt,
-        });
-        return {
-          ...prev,
-          applicant_name: readFieldValue(patched, 'borrower.customerName'),
-          form_data: patched,
-        };
-      });
-      return true;
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : PAN_MANUAL_FAILURE_MESSAGE;
-      return applyManualFailure(message);
-    } finally {
-      setPanLookupLoading(false);
-    }
+  const enterPostSubmitFlow = (recordId: string, fileId: string) => {
+    const formData = formStateRef.current.form_data;
+    const canonical = canonicalFromWizardFormData(
+      formData,
+      formStateRef.current.requested_loan_amount
+    );
+    setPostSubmitApplication({
+      recordId,
+      fileId: fileId || recordId,
+      values: Object.fromEntries(
+        Object.entries(formData).map(([key, value]) => [
+          key,
+          typeof value === 'boolean' ? value : String(value ?? ''),
+        ])
+      ),
+      canonical,
+      includeCoApplicant: Boolean(canonical.coApplicant),
+    });
   };
 
   const handleSupportTypeChange = (type: SupportPersonType) => {
@@ -1370,9 +1371,16 @@ export const B2CEvApplicationWizard: React.FC = () => {
     setFieldErrors({});
 
     if (currentStage?.id === 'product') {
-      const lookupOk = await runPanLookup();
-      if (!lookupOk) return;
-      // Next is local only — persist on Save draft / Submit / KAM-write actions.
+      commitFormState((prev) => {
+        const formData = applyTypedBorrowerIdentity(prev.form_data);
+        return {
+          ...prev,
+          applicant_name:
+            readFieldValue(formData, 'borrower.customerName') ||
+            readFieldValue(formData, '_meta.panLookup.fullName'),
+          form_data: formData,
+        };
+      });
       advanceStep();
       return;
     }
@@ -1493,11 +1501,12 @@ export const B2CEvApplicationWizard: React.FC = () => {
             }
             throw new Error(createRes.error || 'Failed to submit application');
           }
-          draftId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
-          if (!draftId) throw new Error('Application ID missing after submit');
-          setEditingDraftId(draftId);
-          alert('Application submitted successfully.');
-          navigate(`/applications/${draftId}`);
+          const createdRecordId = createRes.data?.loanApplicationId || createRes.data?.fileId || null;
+          const createdFileId = createRes.data?.fileId || createdRecordId;
+          if (!createdRecordId) throw new Error('Application ID missing after submit');
+          draftId = createdRecordId;
+          setEditingDraftId(createdRecordId);
+          enterPostSubmitFlow(createdRecordId, createdFileId || createdRecordId);
           return;
         }
 
@@ -1531,8 +1540,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
           throw new Error(submitRes.error || 'Submit failed');
         }
 
-        alert('Application submitted successfully.');
-        navigate(`/applications/${draftId}`);
+        const submittedFileId = submitRes.data?.fileId || draftId;
+        enterPostSubmitFlow(draftId, submittedFileId);
         return;
       }
 
@@ -1617,6 +1626,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
               </p>
             )}
           </div>
+
         </div>
       );
     }
@@ -1814,6 +1824,31 @@ export const B2CEvApplicationWizard: React.FC = () => {
         onMarkAllAsRead={markAllAsRead}
       >
         <div className="p-8 text-center text-neutral-600">Loading draft...</div>
+      </MainLayout>
+    );
+  }
+
+  if (postSubmitApplication) {
+    return (
+      <MainLayout
+        sidebarItems={sidebarItems}
+        activeItem={activeItem}
+        onItemClick={handleNavigation}
+        pageTitle={t('pages.newApplication.pageTitle')}
+        userRole={userRole?.replace('_', ' ').toUpperCase() || 'USER'}
+        userName={getUserDisplayName()}
+        notificationCount={unreadCount}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
+      >
+        <div className="mx-auto w-full max-w-[600px] space-y-4 bg-white">
+          <DealerPostSubmitFlow
+            application={postSubmitApplication}
+            productId={formState.loan_product_id || 'ev_dealer'}
+            formFields={formState.form_data}
+          />
+        </div>
       </MainLayout>
     );
   }

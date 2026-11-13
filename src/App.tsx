@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -29,6 +29,15 @@ import { getProfileCompletion } from './auth/profileCompletion';
 import { getIsPromptDismissedForSession, getProfilePromptDismissKey, shouldShowProfilePrompt } from './auth/profilePromptSession';
 import { BuildYourProfilePrompt } from './components/BuildYourProfilePrompt';
 import { apiService } from './services/api';
+
+function DealerNewApplicationRedirect() {
+  const [searchParams] = useSearchParams();
+  const productId = searchParams.get('productId')?.trim() ?? '';
+  const target = productId
+    ? `/applications/new?productId=${encodeURIComponent(productId)}`
+    : '/applications/new';
+  return <Navigate to={target} replace />;
+}
 
 function App() {
   return (
@@ -129,6 +138,17 @@ function AppRoutes() {
           <ErrorBoundary>
             <ProtectedRoute allowedRoles={['client']}>
               <NewApplication />
+            </ProtectedRoute>
+          </ErrorBoundary>
+        }
+      />
+
+        <Route
+        path="/dealer/new"
+        element={
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['client']}>
+              <DealerNewApplicationRedirect />
             </ProtectedRoute>
           </ErrorBoundary>
         }
