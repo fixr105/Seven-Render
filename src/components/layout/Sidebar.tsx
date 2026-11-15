@@ -1,6 +1,9 @@
 import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { LucideIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../auth/AuthContext';
+import logo from '../ui/logo.png';
 
 interface NavItem {
   id: string;
@@ -22,39 +25,53 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick, isOpen, onToggle, userRole, userName }) => {
   const { t } = useTranslation();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 z-40 bg-sf-overlay lg:hidden"
           onClick={onToggle}
         />
       )}
 
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-brand-primary text-white z-50
+          fixed top-0 left-0 z-50 flex h-full w-64 flex-col border-r border-sf-border bg-sf-surface text-sf-text
           transition-transform duration-300 ease-in-out motion-reduce:transition-none
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 lg:static lg:z-auto
-          w-64 flex flex-col shadow-level-2
+          lg:static lg:z-auto lg:translate-x-0
         `}
       >
-        <div className="h-16 flex-shrink-0 lg:hidden">
-          <div className="flex items-center justify-end p-4">
+        <div className="border-b border-sf-border px-4 py-4">
+          <div className="flex items-start justify-between gap-2">
+            <Link
+              to="/dashboard"
+              className="flex min-h-11 items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy"
+            >
+              <img src={logo} alt="SEVEN FINCORP Logo" className="h-10 w-auto max-w-full object-contain" />
+            </Link>
             <button
               onClick={onToggle}
-              className="p-2 min-h-[44px] min-w-[44px] rounded hover:bg-brand-primary/20 transition-colors touch-manipulation"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-sf-text hover:bg-sf-soft lg:hidden"
               aria-label={t('nav.closeMenu')}
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
           </div>
+          {userRole ? (
+            <p className="mt-2 text-[11px] uppercase tracking-[0.1em] text-sf-quiet">{userRole}</p>
+          ) : null}
         </div>
-        <div className="h-16 flex-shrink-0 hidden lg:block" />
 
-        <nav data-testid="sidebar-nav" className="flex-1 overflow-y-auto py-4">
+        <nav data-testid="sidebar-nav" className="flex-1 overflow-y-auto px-2 py-3">
           {(items || []).map((item) => {
             const Icon = item.icon;
             const isActive = activeItem === item.id;
@@ -67,15 +84,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
                   if (window.innerWidth < 1024) onToggle();
                 }}
                 className={`
-                  w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-left transition-all duration-200 cursor-pointer border-l-4 touch-manipulation motion-reduce:transition-none
-                  focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-primary
+                  flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 px-3 text-left text-sm leading-5 touch-manipulation
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy
                   ${isActive
-                    ? 'bg-white/10 text-white border-brand-secondary'
-                    : 'border-transparent text-white/85 hover:bg-white/10 hover:text-white hover:border-white/40'
+                    ? 'border-sf-navy bg-sf-navy-50 font-semibold text-sf-navy'
+                    : 'border-transparent font-normal text-sf-text hover:bg-sf-soft'
                   }
                 `}
               >
-                <Icon className="w-5 h-5 flex-shrink-0" />
+                <Icon className="h-5 w-5 flex-shrink-0" />
                 <span className="flex-1">{item.label}</span>
                 {item.badge && item.badge > 0 && (
                   <span className="bg-error text-white text-xs font-medium px-2 py-0.5 rounded-full">
@@ -87,16 +104,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
           })}
         </nav>
 
-        <div className="p-4 border-t border-brand-primary/30">
+        <div className="border-t border-sf-border p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center border border-white/30">
-              <span className="text-sm font-medium text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sf-navy-light">
+              <span className="text-sm font-medium text-sf-navy">
                 {(userName || 'U').charAt(0).toUpperCase()}
               </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{userName || ''}</p>
-              <p className="text-xs text-white/70 truncate">{userRole}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-sf-text">{userName || ''}</p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex min-h-11 items-center text-sm text-sf-quiet"
+              >
+                {t('topbar.logout')}
+              </button>
             </div>
           </div>
         </div>

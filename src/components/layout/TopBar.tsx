@@ -32,7 +32,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   onMarkAsRead,
   onMarkAllAsRead,
   onLoadNotifications,
-  hideSidebar = false,
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -130,22 +129,22 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <header
-      className={`bg-white border-b border-neutral-200 shadow-sm sticky top-0 z-30 w-full pt-safe ${hideSidebar ? '' : 'lg:ml-[-256px] lg:w-[calc(100%+256px)]'}`}
+      className="sticky top-0 z-30 w-full border-b border-sf-border bg-sf-surface pt-safe"
       aria-label={title ? t('topbar.pageTitle', { title }) : undefined}
     >
-      <div className="flex items-center justify-between h-16 w-full">
-        <div className={`flex items-center gap-4 pl-4 flex-1 min-w-0 ${hideSidebar ? 'lg:pl-4' : 'lg:pl-64'}`}>
+      <div className="flex h-14 w-full items-center justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-4 pl-4">
           <button
             onClick={onMenuToggle}
-            className="lg:hidden p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-sf-text hover:bg-sf-soft lg:hidden"
             aria-label={t('topbar.toggleMenu')}
           >
-            <Menu className="w-5 h-5 text-neutral-700" />
+            <Menu className="h-5 w-5" />
           </button>
-          {title ? (
-            <h2 className="text-lg font-semibold text-neutral-900 truncate">
+          {title && !location.pathname.startsWith('/applications/new') ? (
+            <p className="truncate text-sm font-medium leading-5 text-sf-text">
               {title}
-            </h2>
+            </p>
           ) : null}
         </div>
 
@@ -154,7 +153,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           {user?.role === 'nbfc' && (
             <button
               onClick={handleToolsClick}
-              className="relative bg-[#332f78] text-white text-sm px-3 py-1.5 rounded-full hover:opacity-90 transition-opacity touch-manipulation"
+              className="relative inline-flex min-h-11 items-center rounded-full bg-sf-navy px-3 text-sm text-white hover:opacity-90"
               aria-label={isOnToolsPage ? t('topbar.backToDashboard') : t('topbar.aiTools')}
             >
               {isOnToolsPage ? t('topbar.backToDashboard') : t('topbar.tools')}
@@ -248,8 +247,8 @@ export const TopBar: React.FC<TopBarProps> = ({
               className="flex items-center gap-2 p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation"
               aria-label={t('topbar.userMenu')}
             >
-              <div className="w-8 h-8 bg-brand-primary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-white">{(userName || 'U').charAt(0).toUpperCase()}</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sf-navy-light">
+                <span className="text-sm font-medium text-sf-navy">{(userName || 'U').charAt(0).toUpperCase()}</span>
               </div>
             </button>
 
