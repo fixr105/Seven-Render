@@ -22,6 +22,7 @@ interface DataTableProps<T> {
   getRowClassName?: (row: T) => string;
   /** Optional data-testid prefix for rows (e.g. "application-row" yields "application-row-{key}") */
   rowTestId?: string;
+  density?: 'default' | 'compact';
 }
 
 export function DataTable<T>({
@@ -36,7 +37,9 @@ export function DataTable<T>({
   emptyMessage = 'No data available',
   getRowClassName,
   rowTestId,
+  density = 'default',
 }: DataTableProps<T>) {
+  const cellPad = density === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
   const handleSort = (column: Column<T>) => {
     if (column.sortable && onSort) {
       onSort(column.key);
@@ -70,7 +73,7 @@ export function DataTable<T>({
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className={`px-4 py-3 text-sm font-semibold text-neutral-700 ${
+                  className={`${cellPad} text-sm font-semibold text-neutral-700 ${
                     column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left'
                   } ${column.sortable ? 'cursor-pointer hover:bg-neutral-200 select-none' : ''}`}
                   onClick={() => column.sortable && handleSort(column)}
@@ -100,7 +103,7 @@ export function DataTable<T>({
                   return (
                     <td
                       key={column.key}
-                      className={`px-4 py-3 text-sm text-neutral-900 ${
+                      className={`${cellPad} text-sm text-neutral-900 ${
                         column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left'
                       }`}
                     >
@@ -122,7 +125,7 @@ export function DataTable<T>({
           return (
           <div
             key={keyExtractor(row)}
-            className={`p-4 ${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} ${rowClassName} transition-colors`}
+            className={`${density === 'compact' ? 'p-3' : 'p-4'} ${onRowClick ? 'cursor-pointer hover:bg-neutral-50' : ''} ${rowClassName} transition-colors`}
             onClick={() => onRowClick?.(row)}
             data-testid={rowTestId ? `${rowTestId}-${keyExtractor(row)}` : undefined}
           >
