@@ -36,7 +36,7 @@ export default {
       },
       fontFamily: {
         sans: ['Lato', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
+        inter: ['Lato', 'sans-serif'],
         michroma: ['Michroma', 'sans-serif'],
       },
       fontSize: {
