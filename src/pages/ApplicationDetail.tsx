@@ -1144,7 +1144,7 @@ export const ApplicationDetail: React.FC = () => {
         onMarkAllAsRead={markAllAsRead}
       >
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full"></div>
+          <div className="animate-spin w-12 h-12 border-4 border-sf-navy border-t-transparent rounded-full"></div>
         </div>
       </MainLayout>
     );
@@ -1430,7 +1430,7 @@ export const ApplicationDetail: React.FC = () => {
 
           {/* KAM selects lender (override recommendation; Credit still sends to NBFC) */}
           {showKamSelectLenderSection && (
-            <Card className="border-brand-primary/20 bg-brand-primary/5">
+            <Card className="border-sf-navy/20 bg-sf-navy/5">
               <div data-testid="kam-select-lender">
               <CardHeader>
                 <CardTitle>{t('pages.applicationDetail.selectLender')}</CardTitle>
@@ -1522,7 +1522,7 @@ export const ApplicationDetail: React.FC = () => {
 
           {/* Assign to NBFC (Credit/Admin can assign from any stage) */}
           {showAssignNbfcSection && (
-            <Card className="border-brand-primary/20 bg-brand-primary/5">
+            <Card className="border-sf-navy/20 bg-sf-navy/5">
               <CardHeader>
                 <CardTitle>{t('pages.applicationDetail.assignToNbfc')}</CardTitle>
               </CardHeader>
@@ -1682,7 +1682,7 @@ export const ApplicationDetail: React.FC = () => {
                               href={String(folderLink).startsWith('http') ? String(folderLink) : `https://${String(folderLink)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-brand-primary hover:underline"
+                              className="text-sf-navy hover:underline"
                             >
                               {String(folderLink)}
                             </a>
@@ -1916,7 +1916,7 @@ export const ApplicationDetail: React.FC = () => {
                             key={msg.id}
                             className={`rounded-lg p-3 ${
                               msg.actorLabel === t('pages.applicationDetail.you')
-                                ? 'bg-brand-primary/10 ml-6 border border-brand-primary/20'
+                                ? 'bg-sf-navy/10 ml-6 border border-sf-navy/20'
                                 : 'bg-neutral-50 mr-6 border border-neutral-200'
                             }`}
                           >
@@ -2018,7 +2018,7 @@ export const ApplicationDetail: React.FC = () => {
                       {index !== statusHistory.length - 1 && (
                         <div className="absolute left-2 top-6 bottom-0 w-0.5 bg-neutral-200" />
                       )}
-                      <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-brand-primary" />
+                      <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-sf-navy" />
                       <div>
                         <Badge variant={getStatusVariant(item.to_status)}>
                           {getStatusDisplayNameForViewer(item.to_status || '', userRole || '')}
@@ -2138,7 +2138,7 @@ export const ApplicationDetail: React.FC = () => {
           <Card>
             <CardHeader className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-brand-primary" />
+                <Sparkles className="w-5 h-5 text-sf-navy" />
                 {t('pages.applicationDetail.aiFileSummary')}
               </CardTitle>
               <Button
@@ -2155,7 +2155,7 @@ export const ApplicationDetail: React.FC = () => {
             <CardContent>
               {generatingSummary ? (
                 <div className="text-center py-8">
-                  <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                  <div className="animate-spin w-8 h-8 border-4 border-sf-navy border-t-transparent rounded-full mx-auto mb-2"></div>
                   <p className="text-sm text-neutral-600">{t('pages.applicationDetail.generatingSummary')}</p>
                   <p className="text-xs text-neutral-500 mt-1">{t('pages.applicationDetail.generatingSummaryHint')}</p>
                 </div>
@@ -2285,7 +2285,7 @@ export const ApplicationDetail: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sf-navy"
                     placeholder={t('pages.applicationDetail.enterApprovedAmount')}
                     value={approvedAmount}
                     onChange={(e) => setApprovedAmount(e.target.value)}

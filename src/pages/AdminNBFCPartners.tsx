@@ -189,7 +189,8 @@ export const AdminNBFCPartners: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
-      <div className="p-6">
+      <div className="space-y-4 p-6">
+        <h1 className="sf-page-title">{t('pages.adminNbfcPartners.pageTitle')}</h1>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">

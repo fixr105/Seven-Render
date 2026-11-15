@@ -271,6 +271,7 @@ export const Reports: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
           <PageHero
+            title={t('pages.reports.pageTitle')}
             description={t('pages.reports.description')}
           />
           <div className="flex flex-wrap gap-1 border-b border-neutral-200">
@@ -281,7 +282,7 @@ export const Reports: React.FC = () => {
                 onClick={() => setReportTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t border-b-2 -mb-px transition-colors ${
                   reportTab === tab.id
-                    ? 'border-brand-primary text-brand-primary bg-neutral-50'
+                    ? 'border-sf-navy text-sf-navy bg-neutral-50'
                     : 'border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
                 }`}
               >
@@ -540,7 +541,7 @@ export const Reports: React.FC = () => {
           <CardContent>
             {latestLoading ? (
               <div className="flex items-center gap-3 py-4">
-                <div className="animate-spin w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+                <div className="animate-spin w-8 h-8 border-2 border-sf-navy border-t-transparent rounded-full" />
                 <span className="text-sm text-neutral-500">{t('pages.reports.loadingLatestReport')}</span>
               </div>
             ) : latestReport ? (
@@ -611,7 +612,7 @@ export const Reports: React.FC = () => {
               </div>
             ) : loading ? (
               <div className="text-center py-10">
-                <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-2" />
+                <div className="animate-spin w-8 h-8 border-4 border-sf-navy border-t-transparent rounded-full mx-auto mb-2" />
                 <p className="text-sm text-neutral-500">{t('pages.reports.loadingReports')}</p>
               </div>
             ) : reports.length === 0 ? (

@@ -142,8 +142,8 @@ export const NBFCDashboard: React.FC = () => {
               <p className="text-2xl font-bold text-neutral-900 mt-1">{assignedApplications.length}</p>
               <p className="text-xs text-neutral-500 mt-1">{t('nav.applications')}</p>
             </div>
-            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
-              <FileText className="w-6 h-6 text-brand-primary" />
+            <div className="w-12 h-12 bg-sf-navy/20 rounded-full flex items-center justify-center">
+              <FileText className="w-6 h-6 text-sf-navy" />
             </div>
           </CardContent>
         </Card>
@@ -193,9 +193,9 @@ export const NBFCDashboard: React.FC = () => {
       </Card>
 
       {/* AI features hint */}
-      <Card className="mb-6 border-brand-primary/20 bg-brand-primary/5">
+      <Card className="mb-6 border-sf-navy/20 bg-sf-navy/5">
         <CardContent className="py-3 flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-brand-primary flex-shrink-0" />
+          <Sparkles className="w-5 h-5 text-sf-navy flex-shrink-0" />
           <p className="text-sm text-neutral-700">
             {t('pages.dashboards.aiInsightsDescription')}
           </p>
@@ -248,7 +248,7 @@ export const NBFCDashboard: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="mb-4 p-3 bg-brand-primary/10 border border-brand-primary/30 rounded text-sm text-brand-primary">
+              <div className="mb-4 p-3 bg-sf-navy/10 border border-sf-navy/30 rounded text-sm text-sf-navy">
                 <AlertCircle className="w-4 h-4 inline mr-2" />
                 {t('pages.dashboards.reviewHint')}
               </div>

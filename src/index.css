@@ -87,6 +87,21 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  .sf-page-title {
+    font-family: Michroma, sans-serif;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 400;
+    color: #080B53;
+  }
+
+  @media (min-width: 768px) {
+    .sf-page-title {
+      font-size: 22px;
+      line-height: 28px;
+    }
+  }
+
   h1 {
     @apply text-2xl font-bold text-neutral-900;
   }

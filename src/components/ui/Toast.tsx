@@ -19,36 +19,24 @@ export const Toast: React.FC<ToastProps> = ({ type, message, onClose, duration =
   }, [duration, onClose]);
 
   const config = {
-    success: {
-      bg: 'bg-success',
-      icon: CheckCircle,
-    },
-    error: {
-      bg: 'bg-error',
-      icon: AlertCircle,
-    },
-    info: {
-      bg: 'bg-info',
-      icon: Info,
-    },
-    warning: {
-      bg: 'bg-warning',
-      icon: AlertTriangle,
-    },
+    success: { iconClass: 'text-sf-success', icon: CheckCircle },
+    error: { iconClass: 'text-sf-error', icon: AlertCircle },
+    info: { iconClass: 'text-sf-info', icon: Info },
+    warning: { iconClass: 'text-sf-warning', icon: AlertTriangle },
   };
 
-  const { bg, icon: Icon } = config[type];
+  const { iconClass, icon: Icon } = config[type];
 
   return (
-    <div className={`${bg} text-white rounded shadow-level-2 p-4 flex items-start gap-3 w-[calc(100vw-2rem)] sm:min-w-[280px] sm:max-w-md animate-slide-in`}>
-      <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" />
-      <p className="flex-1 text-sm">{message}</p>
+    <div className="flex w-[calc(100vw-2rem)] items-start gap-3 rounded-lg border border-sf-border bg-sf-surface p-4 text-sf-text shadow-sf-shadow-md animate-slide-in sm:min-w-[280px] sm:max-w-md">
+      <Icon className={`mt-0.5 h-5 w-5 flex-shrink-0 ${iconClass}`} />
+      <p className="flex-1 text-sm leading-5">{message}</p>
       <button
         onClick={onClose}
-        className="flex-shrink-0 hover:bg-white hover:bg-opacity-20 rounded p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation transition-colors"
+        className="inline-flex min-h-11 min-w-11 flex-shrink-0 items-center justify-center rounded-lg text-sf-quiet hover:bg-sf-soft"
         aria-label="Close notification"
       >
-        <X className="w-4 h-4" />
+        <X className="h-4 w-4" />
       </button>
     </div>
   );
@@ -61,7 +49,7 @@ interface ToastContainerProps {
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onRemove }) => {
   return (
-    <div className="fixed bottom-4 right-4 pb-safe z-50 flex flex-col gap-2">
+    <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2 pb-safe">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}

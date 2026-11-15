@@ -38,9 +38,9 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 bg-sf-overlay" onClick={onClose} />
       <div
-        className={`relative bg-white rounded-lg shadow-level-3 w-full ${sizeClasses[size]} max-h-[90dvh] flex flex-col border border-neutral-200`}
+        className={`relative flex max-h-[90dvh] w-full flex-col rounded-[12px] border border-sf-border bg-sf-surface shadow-sf-shadow-lg ${sizeClasses[size]}`}
         data-testid={testId}
       >
         {children}
@@ -56,15 +56,15 @@ interface ModalHeaderProps {
 
 export const ModalHeader: React.FC<ModalHeaderProps> = ({ children, onClose }) => {
   return (
-    <div className="flex items-center justify-between p-4 border-b border-neutral-200">
-      <h2 className="text-lg font-semibold text-neutral-900">{children}</h2>
+    <div className="flex items-center justify-between border-b border-sf-border p-4">
+      <h2 className="text-base font-semibold leading-6 text-sf-text">{children}</h2>
       {onClose && (
         <button
           onClick={onClose}
-          className="p-2 min-h-[44px] min-w-[44px] rounded hover:bg-neutral-100 transition-colors touch-manipulation flex items-center justify-center"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-sf-quiet hover:bg-sf-soft"
           aria-label="Close modal"
         >
-          <X className="w-5 h-5 text-neutral-500" />
+          <X className="h-5 w-5" />
         </button>
       )}
     </div>
@@ -87,7 +87,7 @@ interface ModalFooterProps {
 
 export const ModalFooter: React.FC<ModalFooterProps> = ({ children, className = '' }) => {
   return (
-    <div className={`flex items-center justify-end gap-2 p-4 border-t border-neutral-200 ${className}`}>
+    <div className={`flex items-center justify-end gap-2 border-t border-sf-border p-4 ${className}`}>
       {children}
     </div>
   );

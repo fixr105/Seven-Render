@@ -124,10 +124,10 @@ export const Ledger: React.FC = () => {
     if (!dateString) return '-';
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-IN', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
       });
     } catch {
       return dateString;
@@ -352,6 +352,7 @@ export const Ledger: React.FC = () => {
     >
       <div className="space-y-6">
         <PageHero
+          title="Payouts"
           description={t('pages.ledger.description')}
         />
         {/* KAM: Client selector */}
@@ -576,7 +577,7 @@ export const Ledger: React.FC = () => {
                 <p className="text-neutral-600">
                   {userRole === 'kam' && !selectedClientId
                     ? t('pages.ledger.selectClientToView')
-                    : t('pages.ledger.noEntries')}
+                    : 'No payouts yet.'}
                 </p>
               </div>
             ) : (

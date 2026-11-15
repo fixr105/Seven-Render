@@ -43,7 +43,7 @@ const EmiScenarioPreview: React.FC<EmiScenarioPreviewProps> = ({ variant, previe
 
   return (
     <div
-      className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"
+      className="rounded-lg border border-sf-border bg-sf-soft p-4"
       data-testid={`${testIdPrefix}-loan-scenario`}
     >
       <h4 className="text-sm font-semibold text-neutral-900">{heading}</h4>
@@ -80,7 +80,7 @@ const EmiScenarioPreview: React.FC<EmiScenarioPreviewProps> = ({ variant, previe
         </div>
         <div>
           <dt className="text-xs text-neutral-500">EMI Amount</dt>
-          <dd className="text-sm font-medium text-neutral-900" data-testid={`${testIdPrefix}-scenario-emi`}>
+          <dd className="text-[24px] font-semibold leading-8 text-sf-navy" data-testid={`${testIdPrefix}-scenario-emi`}>
             {formatRupee(preview.emiAmount)}
           </dd>
         </div>
@@ -134,12 +134,12 @@ export const EmiRangeCalculator: React.FC = () => {
     <div className="space-y-8" data-testid="emi-range-calculator">
       <div className="space-y-6" data-testid="emi-range-calculator-stage1">
         <div>
-          <h3 className="text-sm font-semibold text-neutral-900">{t('pages.calculator.heading')}</h3>
-          <p className="mt-1 text-sm text-neutral-600">{t('pages.calculator.description')}</p>
+          <h1 className="sf-page-title">Calculator</h1>
+          <p className="mt-1 text-sm leading-5 text-sf-quiet">Estimate EMI, fees and disbursal</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Input
+          <Input tone="dealer"
             label={t('pages.calculator.vehiclePrice')}
             type="text"
             inputMode="decimal"
@@ -147,14 +147,14 @@ export const EmiRangeCalculator: React.FC = () => {
             onChange={(e) => setVehiclePrice(e.target.value)}
             data-testid="emi-range-vehicle-price"
           />
-          <Select
+          <Select tone="dealer"
             label={t('pages.calculator.gstRate')}
             value={String(gstRate)}
             options={GST_RATE_OPTIONS_UI}
             onChange={(e) => setGstRate(parseGstRateInput(e.target.value))}
             data-testid="emi-range-gst-rate"
           />
-          <Input
+          <Input tone="dealer"
             label={t('pages.calculator.insurance')}
             type="text"
             inputMode="decimal"
@@ -162,7 +162,7 @@ export const EmiRangeCalculator: React.FC = () => {
             onChange={(e) => setInsurance(e.target.value)}
             data-testid="emi-range-insurance"
           />
-          <Input
+          <Input tone="dealer"
             label={t('pages.calculator.registration')}
             type="text"
             inputMode="decimal"
@@ -170,7 +170,7 @@ export const EmiRangeCalculator: React.FC = () => {
             onChange={(e) => setRegistration(e.target.value)}
             data-testid="emi-range-registration"
           />
-          <Input
+          <Input tone="dealer"
             label={t('pages.calculator.accessories')}
             type="text"
             inputMode="decimal"
@@ -178,7 +178,7 @@ export const EmiRangeCalculator: React.FC = () => {
             onChange={(e) => setAccessories(e.target.value)}
             data-testid="emi-range-accessories"
           />
-          <Input
+          <Input tone="dealer"
             label={t('pages.calculator.downpayment')}
             type="text"
             inputMode="decimal"
@@ -187,7 +187,7 @@ export const EmiRangeCalculator: React.FC = () => {
             error={showCustomerPaymentWarning ? customerPaymentValidation.message : undefined}
             data-testid="emi-range-customer-payment"
           />
-          <Input
+          <Input tone="dealer"
             label={t('pages.calculator.taxInvoiceValue')}
             type="text"
             value={taxInvoiceDisplay}
@@ -196,7 +196,7 @@ export const EmiRangeCalculator: React.FC = () => {
             data-testid="emi-range-tax-invoice"
             className="bg-neutral-100 text-neutral-700"
           />
-          <Select
+          <Select tone="dealer"
             label={t('pages.calculator.tenure')}
             value={String(tenureMonths)}
             options={TENURE_OPTIONS}

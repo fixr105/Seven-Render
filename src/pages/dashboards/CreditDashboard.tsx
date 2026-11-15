@@ -111,8 +111,8 @@ export const CreditDashboard: React.FC = () => {
               </p>
               <p className="text-xs text-neutral-500 mt-1">{t('pages.dashboards.allTime')}</p>
             </div>
-            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
-              <FileText className="w-6 h-6 text-brand-primary" />
+            <div className="w-12 h-12 bg-sf-navy/20 rounded-full flex items-center justify-center">
+              <FileText className="w-6 h-6 text-sf-navy" />
             </div>
           </CardContent>
         </Card>
@@ -150,7 +150,7 @@ export const CreditDashboard: React.FC = () => {
                 )}
               </p>
             </div>
-            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-sf-navy/20 rounded-full flex items-center justify-center">
               <Send className="w-6 h-6 text-info" />
             </div>
           </CardContent>
@@ -196,7 +196,7 @@ export const CreditDashboard: React.FC = () => {
                       const id = item.applicationId ?? item.fileId;
                       if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
                     }}
-                    className="text-sm font-medium text-brand-primary hover:underline"
+                    className="text-sm font-medium text-sf-navy hover:underline"
                   >
                     {item.fileId}
                   </button>
@@ -232,7 +232,7 @@ export const CreditDashboard: React.FC = () => {
                       const id = q.applicationId ?? q.fileId;
                       if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
                     }}
-                    className="text-sm font-medium text-brand-primary hover:underline"
+                    className="text-sm font-medium text-sf-navy hover:underline"
                   >
                     {q.fileId}
                   </button>
@@ -294,9 +294,9 @@ export const CreditDashboard: React.FC = () => {
       </Card>
 
       {/* AI features hint */}
-      <Card className="mb-6 border-brand-primary/20 bg-brand-primary/5">
+      <Card className="mb-6 border-sf-navy/20 bg-sf-navy/5">
         <CardContent className="py-3 flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-brand-primary flex-shrink-0" />
+          <Sparkles className="w-5 h-5 text-sf-navy flex-shrink-0" />
           <p className="text-sm text-neutral-700">
             {t('pages.dashboards.aiInsightsDescription')}
           </p>

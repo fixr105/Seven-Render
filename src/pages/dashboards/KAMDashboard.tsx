@@ -138,7 +138,7 @@ export const KAMDashboard: React.FC = () => {
                       const id = q.applicationId ?? q.fileId;
                       if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
                     }}
-                    className="text-sm font-medium text-brand-primary hover:underline"
+                    className="text-sm font-medium text-sf-navy hover:underline"
                   >
                     {q.fileId}
                   </button>
@@ -155,10 +155,10 @@ export const KAMDashboard: React.FC = () => {
       )}
 
       {!dashboardLoading && pendingB2cActions.length > 0 && (
-        <Card id="pending-b2c-actions" className="mb-6 border-brand-primary/20 bg-brand-primary/5">
+        <Card id="pending-b2c-actions" className="mb-6 border-sf-navy/20 bg-sf-navy/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-brand-primary" />
+              <Sparkles className="w-5 h-5 text-sf-navy" />
               B2C EV actions needed
             </CardTitle>
           </CardHeader>
@@ -190,7 +190,7 @@ export const KAMDashboard: React.FC = () => {
                       }
                       navigate(`/applications/${encodeURIComponent(targetId)}#b2c-compliance`);
                     }}
-                    className="text-sm font-medium text-brand-primary hover:underline"
+                    className="text-sm font-medium text-sf-navy hover:underline"
                   >
                     {action.fileId || action.applicationId}
                   </button>
@@ -220,7 +220,7 @@ export const KAMDashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate(`/ledger?clientId=${encodeURIComponent(dispute.client)}`)}
-                    className="text-sm font-medium text-brand-primary hover:underline"
+                    className="text-sm font-medium text-sf-navy hover:underline"
                   >
                     Client {dispute.client}
                   </button>
@@ -247,8 +247,8 @@ export const KAMDashboard: React.FC = () => {
                 {dashboardLoading ? '…' : totalFiles} {t('pages.dashboards.totalFiles').toLowerCase()}
               </p>
             </div>
-            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
-              <Users className="w-6 h-6 text-brand-primary" />
+            <div className="w-12 h-12 bg-sf-navy/20 rounded-full flex items-center justify-center">
+              <Users className="w-6 h-6 text-sf-navy" />
             </div>
           </CardContent>
         </Card>
@@ -283,7 +283,7 @@ export const KAMDashboard: React.FC = () => {
                 {t('common.underQuery')}
               </p>
             </div>
-            <div className="w-12 h-12 bg-brand-primary/20 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-sf-navy/20 rounded-full flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-info" />
             </div>
           </CardContent>
@@ -341,9 +341,9 @@ export const KAMDashboard: React.FC = () => {
       </Card>
 
       {/* AI features hint */}
-      <Card className="mb-6 border-brand-primary/20 bg-brand-primary/5">
+      <Card className="mb-6 border-sf-navy/20 bg-sf-navy/5">
         <CardContent className="py-3 flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-brand-primary flex-shrink-0" />
+          <Sparkles className="w-5 h-5 text-sf-navy flex-shrink-0" />
           <p className="text-sm text-neutral-700">
             {t('pages.dashboards.aiInsightsDescription')}
           </p>
@@ -361,7 +361,7 @@ export const KAMDashboard: React.FC = () => {
         <CardContent>
           {dashboardLoading ? (
             <div className="text-center py-8">
-              <div className="animate-spin w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full mx-auto mb-4" />
+              <div className="animate-spin w-8 h-8 border-4 border-sf-navy border-t-transparent rounded-full mx-auto mb-4" />
               <p className="text-neutral-500">{t('common.loading')}</p>
             </div>
           ) : dashboardError ? (
@@ -392,11 +392,11 @@ export const KAMDashboard: React.FC = () => {
                     key={client.id}
                     type="button"
                     onClick={() => navigate(`/applications?clientId=${encodeURIComponent(client.id)}`)}
-                    className="p-4 border border-neutral-200 rounded-lg hover:border-brand-primary transition-colors text-left w-full"
+                    className="p-4 border border-neutral-200 rounded-lg hover:border-sf-navy transition-colors text-left w-full"
                   >
                     <div className="flex items-center gap-3 mb-2">
                       <div
-                        className="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center text-lg font-semibold flex-shrink-0"
+                        className="w-10 h-10 rounded-full bg-sf-navy/10 text-sf-navy flex items-center justify-center text-lg font-semibold flex-shrink-0"
                         aria-hidden
                       >
                         {showInitial}
@@ -429,7 +429,7 @@ export const KAMDashboard: React.FC = () => {
                     ) : (
                       <p className="text-sm text-neutral-500 mb-2">{t('pages.dashboards.noApplicationsYet')}</p>
                     )}
-                    <p className="text-xs text-brand-primary font-medium mt-2 flex items-center gap-1">
+                    <p className="text-xs text-sf-navy font-medium mt-2 flex items-center gap-1">
                       {t('nav.applications')}
                       <ArrowRight className="w-3.5 h-3.5" />
                     </p>

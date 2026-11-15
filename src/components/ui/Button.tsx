@@ -27,16 +27,16 @@ export const Button: React.FC<ButtonProps> = ({
   const baseClasses = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation';
 
   const variantClasses = {
-    primary: 'bg-brand-primary text-white hover:bg-brand-primary/90 active:bg-brand-primary/80 focus:ring-brand-primary focus:ring-offset-2',
-    secondary: 'bg-white text-brand-primary border-2 border-brand-primary hover:bg-brand-primary/10 active:bg-brand-primary/20 focus:ring-brand-primary focus:ring-offset-2',
-    tertiary: 'bg-transparent text-brand-primary hover:bg-brand-primary/10 active:bg-brand-primary/20 focus:ring-brand-primary focus:ring-offset-2',
-    danger: 'bg-error text-white hover:bg-error/90 active:bg-error/80 focus:ring-error focus:ring-offset-2',
+    primary: 'bg-sf-navy text-white hover:bg-sf-navy/90 active:bg-sf-navy/80 focus:ring-sf-navy focus:ring-offset-2',
+    secondary: 'border border-sf-border bg-sf-surface text-sf-text hover:bg-sf-soft focus:ring-sf-navy focus:ring-offset-2',
+    tertiary: 'bg-transparent text-sf-navy hover:bg-sf-soft focus:ring-sf-navy focus:ring-offset-2',
+    danger: 'bg-sf-error text-white hover:bg-sf-error/90 active:bg-sf-error/80 focus:ring-sf-error focus:ring-offset-2',
   };
 
   const sizeClasses = {
-    sm: 'min-h-[44px] h-8 px-3 text-sm rounded',
-    md: 'min-h-[44px] h-10 px-4 text-base rounded',
-    lg: 'min-h-[44px] h-12 px-6 text-base rounded',
+    sm: 'h-8 min-h-[44px] rounded-lg px-3 text-sm',
+    md: 'h-10 min-h-[44px] rounded-lg px-4 text-sm',
+    lg: 'h-12 min-h-[44px] rounded-lg px-6 text-sm',
   };
 
   const iconSizeClasses = {

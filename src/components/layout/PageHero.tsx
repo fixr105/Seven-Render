@@ -22,10 +22,10 @@ export const PageHero: React.FC<PageHeroProps> = ({ title, description, actions 
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
         {title != null && (
-          <h1 className="text-2xl font-bold text-neutral-900">{title}</h1>
+          <h1 className="sf-page-title">{title}</h1>
         )}
         {description != null && (
-          <p className={`text-sm text-neutral-600${title != null ? ' mt-1' : ''}`}>{description}</p>
+          <p className={`text-sm leading-5 text-sf-quiet${title != null ? ' mt-1' : ''}`}>{description}</p>
         )}
       </div>
       {actions != null && <div className="flex shrink-0">{actions}</div>}

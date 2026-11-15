@@ -564,8 +564,9 @@ export const Clients: React.FC = () => {
       userName={getUserDisplayName()}
     >
       <div className="space-y-6">
+      <h1 className="sf-page-title">{t('pages.clients.pageTitle')}</h1>
       {import.meta.env.DEV && debugInfo && (
-        <Card className="mb-4 border-2 border-brand-primary">
+        <Card className="mb-4 border-2 border-sf-navy">
           <CardContent className="p-3">
             <div className="text-sm font-mono bg-neutral-50 p-2 rounded">
               <strong>{t('pages.clients.debugInfo')}</strong> {debugInfo}
@@ -633,7 +634,7 @@ export const Clients: React.FC = () => {
         <Card>
           <CardContent>
             <p className="text-sm text-neutral-500">{t('common.totalApplications')}</p>
-            <p className="text-2xl font-bold text-brand-primary mt-1">
+            <p className="text-2xl font-bold text-sf-navy mt-1">
               {clientsWithCounts.reduce((sum, c) => sum + (c._count?.applications || 0), 0)}
             </p>
           </CardContent>
@@ -786,7 +787,7 @@ export const Clients: React.FC = () => {
                           });
                         }
                       }}
-                      className="w-4 h-4 rounded border-neutral-300 text-brand-primary focus:ring-brand-primary"
+                      className="w-4 h-4 rounded border-neutral-300 text-sf-navy focus:ring-sf-navy"
                     />
                     <span className="text-sm text-neutral-700">{module}</span>
                   </label>

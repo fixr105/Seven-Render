@@ -96,6 +96,7 @@ export const Dashboard: React.FC = () => {
       onMarkAsRead={markAsRead}
       onMarkAllAsRead={markAllAsRead}
     >
+      <h1 className="sf-page-title mb-4">{t('pages.dashboard.pageTitle')}</h1>
       {renderDashboard()}
     </MainLayout>
   );

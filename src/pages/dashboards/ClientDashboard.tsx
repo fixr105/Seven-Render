@@ -72,7 +72,7 @@ function BrandMixDonut({ draft, pipeline, terminal }: { draft: number; pipeline:
   const a = (draft / total) * 360;
   const b = (pipeline / total) * 360;
   const c = (terminal / total) * 360;
-  const background = `conic-gradient(from -90deg, #1A1F5F 0deg ${a}deg, rgba(26,31,95,0.5) ${a}deg ${a + b}deg, rgba(26,31,95,0.2) ${a + b}deg ${a + b + c}deg)`;
+  const background = `conic-gradient(from -90deg, #080B53 0deg ${a}deg, rgba(8,11,83,0.5) ${a}deg ${a + b}deg, rgba(8,11,83,0.2) ${a + b}deg ${a + b + c}deg)`;
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -87,21 +87,21 @@ function BrandMixDonut({ draft, pipeline, terminal }: { draft: number; pipeline:
       <ul className="w-full space-y-2 text-xs text-neutral-600">
         <li className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand-primary" />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-sf-navy" />
             {t('common.draft')}
           </span>
           <span className="font-medium text-neutral-900">{draft}</span>
         </li>
         <li className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand-primary/50" />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-sf-navy/50" />
             {t('common.inProgress')}
           </span>
           <span className="font-medium text-neutral-900">{pipeline}</span>
         </li>
         <li className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand-primary/25" />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-sf-navy/25" />
             {t('common.closedDisbursed')}
           </span>
           <span className="font-medium text-neutral-900">{terminal}</span>
@@ -224,7 +224,7 @@ export const ClientDashboard: React.FC = () => {
 
   const displayProducts = loanProducts.filter((p) => configuredProductIds.has(p.id));
 
-  const statIconWrap = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-primary/10';
+  const statIconWrap = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-sf-navy/10';
 
   return (
     <>
@@ -253,7 +253,7 @@ export const ClientDashboard: React.FC = () => {
               <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.recentActivity')}</p>
             </div>
             <div className={statIconWrap}>
-              <FileText className="h-6 w-6 text-brand-primary" aria-hidden />
+              <FileText className="h-6 w-6 text-sf-navy" aria-hidden />
             </div>
           </CardContent>
         </Card>
@@ -268,7 +268,7 @@ export const ClientDashboard: React.FC = () => {
               <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.readyForReview')}</p>
             </div>
             <div className={statIconWrap}>
-              <Clock className="h-6 w-6 text-brand-primary" aria-hidden />
+              <Clock className="h-6 w-6 text-sf-navy" aria-hidden />
             </div>
           </CardContent>
         </Card>
@@ -294,7 +294,7 @@ export const ClientDashboard: React.FC = () => {
               )}
             </div>
             <div className={statIconWrap}>
-              <IndianRupee className="h-6 w-6 text-brand-primary" aria-hidden />
+              <IndianRupee className="h-6 w-6 text-sf-navy" aria-hidden />
             </div>
           </CardContent>
         </Card>
@@ -304,7 +304,7 @@ export const ClientDashboard: React.FC = () => {
       <Card className="mb-6 rounded-xl shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-brand-primary" aria-hidden />
+            <Package className="h-5 w-5 text-sf-navy" aria-hidden />
             {t('pages.dashboards.availableLoanProducts')}
           </CardTitle>
         </CardHeader>
@@ -323,7 +323,7 @@ export const ClientDashboard: React.FC = () => {
                   {product.id ? (
                     <button
                       type="button"
-                      className="absolute top-2 right-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-brand-primary transition-colors hover:bg-brand-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 touch-manipulation"
+                      className="absolute top-2 right-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-sf-navy transition-colors hover:bg-sf-navy/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy focus-visible:ring-offset-2 touch-manipulation"
                       aria-label={t('pages.dashboards.startNewApplicationForProduct', {
                         product: product.name || product.id,
                         defaultValue: `Start application for ${product.name || product.id}`,
@@ -336,7 +336,7 @@ export const ClientDashboard: React.FC = () => {
                       <Plus className="h-5 w-5" aria-hidden />
                     </button>
                   ) : null}
-                  <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-brand-primary/8 text-brand-primary">
+                  <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-sf-navy/8 text-sf-navy">
                     {product.iconUrl ? (
                       <img
                         src={product.iconUrl}
@@ -360,9 +360,9 @@ export const ClientDashboard: React.FC = () => {
       </Card>
 
       {/* AI features — restrained strip */}
-      <div className="mb-6 overflow-hidden rounded-xl border border-brand-primary/15 bg-brand-primary/[0.06]">
-        <div className="border-b border-brand-primary/10 bg-brand-primary/[0.08] px-4 py-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-brand-primary">
+      <div className="mb-6 overflow-hidden rounded-xl border border-sf-navy/15 bg-sf-navy/[0.06]">
+        <div className="border-b border-sf-navy/10 bg-sf-navy/[0.08] px-4 py-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-sf-navy">
             <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
             {t('pages.dashboards.aiInsights')}
           </div>

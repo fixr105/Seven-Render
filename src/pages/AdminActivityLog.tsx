@@ -160,6 +160,7 @@ export const AdminActivityLog: React.FC = () => {
     >
       <div className="space-y-6">
         <PageHero
+          title={t('pages.adminActivityLog.pageTitle')}
           description={t('pages.adminActivityLog.description')}
           actions={
             <Button variant="secondary" icon={RefreshCw} onClick={fetchLog} disabled={loading}>

@@ -8,14 +8,14 @@ export const NotFoundPage: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-100">
-      <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-level-2 text-center">
-        <h1 className="text-6xl font-bold text-neutral-400 mb-2">{t('pages.notFound.code')}</h1>
-        <h2 className="text-xl font-semibold text-neutral-900 mb-2">{t('pages.notFound.title')}</h2>
-        <p className="text-neutral-600 mb-6">{t('pages.notFound.description')}</p>
+    <div className="flex min-h-screen items-center justify-center bg-sf-soft px-4">
+      <div className="w-full max-w-md rounded-[12px] border border-sf-border bg-sf-surface p-8 text-center shadow-sf-shadow-md">
+        <h1 className="font-michroma text-[22px] font-normal leading-7 text-sf-navy">{t('pages.notFound.title')}</h1>
+        <p className="mt-2 text-sm leading-5 text-sf-quiet">{t('pages.notFound.description')}</p>
+        <p className="mt-4 text-sm text-sf-quiet">{t('pages.notFound.code')}</p>
         <Link
           to={user ? '/dashboard' : '/login'}
-          className="inline-block px-4 py-2 bg-brand-primary text-white rounded hover:opacity-90 transition-opacity"
+          className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-sf-navy px-4 text-sm text-white"
         >
           {user ? t('pages.notFound.goToDashboard') : t('pages.notFound.goToLogin')}
         </Link>

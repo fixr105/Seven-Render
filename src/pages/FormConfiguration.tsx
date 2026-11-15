@@ -479,6 +479,7 @@ export function FormConfiguration() {
     >
       <div className="p-6 max-w-5xl mx-auto">
         <PageHero
+          title={t('pages.formConfiguration.pageTitle')}
           description={t('pages.formConfiguration.description')}
         />
         {error && (
