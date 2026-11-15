@@ -103,8 +103,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
                   flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] leading-5 touch-manipulation
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy lg:min-h-8
                   ${isActive
-                    ? 'border-l-2 border-sf-navy bg-sf-navy-50 font-medium text-sf-navy'
-                    : 'border-l-2 border-transparent font-normal text-sf-quiet hover:bg-black/[0.04]'
+                    ? 'bg-sf-surface font-medium text-sf-navy'
+                    : 'font-normal text-sf-quiet hover:bg-black/[0.04]'
                   }
                 `}
               >
