@@ -1,3 +1,19 @@
+const sf = {
+  navy: '#080B53',
+  surface: '#FFFFFF',
+  soft: '#F4F6FF',
+  border: '#E5E7EB',
+  text: '#111827',
+  quiet: '#6B7280',
+  success: '#16a34a',
+  warning: '#f59e0b',
+  error: '#dc2626',
+  'navy-light': '#E8E9F4',
+  'navy-50': '#F0F0FA',
+  info: '#2563eb',
+  overlay: 'rgba(0,0,0,0.5)',
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -22,21 +38,21 @@ export default {
         'info': '#17A2B8',
         'nbfc-accent': '#332f78',
         'nbfc-dark': '#2a265f',
+        sf,
         dealer: {
-          navy: '#080B53',
-          surface: '#FFFFFF',
-          'surface-soft': '#F4F6FF',
-          border: '#E5E7EB',
-          text: '#111827',
-          'text-quiet': '#6B7280',
-          success: '#16a34a',
-          warning: '#f59e0b',
-          error: '#dc2626',
+          navy: sf.navy,
+          surface: sf.surface,
+          'surface-soft': sf.soft,
+          border: sf.border,
+          text: sf.text,
+          'text-quiet': sf.quiet,
+          success: sf.success,
+          warning: sf.warning,
+          error: sf.error,
         },
       },
       fontFamily: {
         sans: ['Lato', 'sans-serif'],
-        inter: ['Lato', 'sans-serif'],
         michroma: ['Michroma', 'sans-serif'],
       },
       fontSize: {
@@ -69,6 +85,9 @@ export default {
         'level-2': '0 4px 8px rgba(0,0,0,0.15)',
         'level-3': '0 8px 16px rgba(0,0,0,0.15)',
         'focus': '0 0 0 3px rgba(51,47,120,0.4)',
+        'sf-shadow-sm': '0 1px 2px rgba(0,0,0,.04)',
+        'sf-shadow-md': '0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06)',
+        'sf-shadow-lg': '0 4px 12px rgba(0,0,0,.08), 0 16px 32px rgba(0,0,0,.08)',
       },
       screens: {
         'xs': '480px',
