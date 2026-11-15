@@ -22,9 +22,22 @@ export default {
         'info': '#17A2B8',
         'nbfc-accent': '#332f78',
         'nbfc-dark': '#2a265f',
+        dealer: {
+          navy: '#080B53',
+          surface: '#FFFFFF',
+          'surface-soft': '#F4F6FF',
+          border: '#E5E7EB',
+          text: '#111827',
+          'text-quiet': '#6B7280',
+          success: '#16a34a',
+          warning: '#f59e0b',
+          error: '#dc2626',
+        },
       },
       fontFamily: {
         sans: ['Lato', 'sans-serif'],
+        inter: ['Inter', 'sans-serif'],
+        michroma: ['Michroma', 'sans-serif'],
       },
       fontSize: {
         'xs': '0.75rem',
