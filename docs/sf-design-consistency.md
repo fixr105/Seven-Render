@@ -17,7 +17,7 @@ At 1280 the sidebar is a white panel, the active item is the navy text row, and 
 ## Tests
 
 - `JourneyRail.test.tsx`: 8 passed. `dealer-*` class names were not renamed.
-- `LoginPage.test.tsx`: the navy-button assertion passed. `shows the English tagline` fails because the screen renders `t('common.tagline')` and that English string is not in the locale files. Login was not edited.
+- `LoginPage.test.tsx`: the navy-button assertion passed. English `common.tagline` is “Make More, Every Month.” The login test was not edited.
 - `Ledger.test.tsx`: empty, loading, and payout-request tests passed. `M1-FE-001` still fails on `₹12,500`.
 
 ## Leftover colours
@@ -30,21 +30,19 @@ At 1280 the sidebar is a white panel, the active item is the navy text row, and 
 - `src/pages/dashboards/ClientDashboard.tsx:75` chart gradient `#080B53` (on palette, hardcoded)
 - `src/components/ui/DataTable.tsx:52` spinner `border-brand-primary`
 - `src/components/ui/Input.tsx`, `Select.tsx`, `TextArea.tsx` still use `brand-primary` on the default tone
-- `src/pages/NBFCTools.tsx` keeps `#332f78` and `#1a1a2e` on the tools chrome (27 colour hits)
+- `src/pages/NBFCTools.tsx` uses `sf-navy` where the tools chrome was `#332f78`. `#1a1a2e` and the `#2a265f` hover remain.
 - `src/pages/NewApplication.tsx` still uses `brand-primary` on the product picker
 - `src/components/login/CursorWaveCanvas.tsx:130` canvas white `#FFFFFF`
 - `src/auth/login-dealer.css` repeats the dealer hex values for the login field override
 
 ## Fonts
 
-- `src/components/ui/TextArea.tsx:32` still has `font-inter` on the dealer label.
+- Dealer textarea labels no longer use `font-inter`.
 - Michroma is loaded in `src/index.css:2` and applied only by `.sf-page-title` (`src/index.css:91`) and `src/pages/NotFoundPage.tsx:13`.
 
 ## Radii outside `rounded-lg` and `rounded-[12px]`
 
-`rounded-xl` remains on the client dashboard cards:
-
-- `src/pages/dashboards/ClientDashboard.tsx:246`, `:261`, `:276`, `:304`, `:321`, `:383`, `:402`
+Client dashboard cards use `rounded-[12px]`.
 
 Other `rounded-xl` / `rounded-2xl` hits are in the wizard and review components (`NewApplication.tsx`, `B2cEvDocumentsSection.tsx`, `CibilProbabilityBar.tsx`, `B2cEvComplianceReview.tsx`, `AddToHomeScreenModal.tsx`).
 

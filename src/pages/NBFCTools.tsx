@@ -794,7 +794,7 @@ export const NBFCTools: React.FC = () => {
           }}
           onClick={() => document.getElementById(`upload-${label}`)?.click()}
           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-            dragging ? 'border-[#332f78] bg-[#f8f9ff]' : 'border-neutral-300 hover:border-neutral-400'
+            dragging ? 'border-sf-navy bg-[#f8f9ff]' : 'border-neutral-300 hover:border-neutral-400'
           }`}
         >
           <input
@@ -847,7 +847,7 @@ export const NBFCTools: React.FC = () => {
                 title={tool.label}
                 className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-3 sm:px-5 py-3 text-sm font-medium transition-colors border-b-2 touch-manipulation ${
                   selectedTool === tool.id
-                    ? 'border-[#332f78] bg-white/5 text-white'
+                    ? 'border-sf-navy bg-white/5 text-white'
                     : 'border-transparent text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
                 }`}
               >
@@ -968,7 +968,7 @@ export const NBFCTools: React.FC = () => {
                     ? 'Upload all 4 PDFs (GST, Bank, Audited, ITR) and enter Loan Application ID'
                     : undefined
                 }
-                className="px-6 py-3 bg-[#332f78] text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors"
+                className="px-6 py-3 bg-sf-navy text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors"
               >
                 {raadSubmitting ? (
                   <span className="flex items-center gap-2">
@@ -997,7 +997,7 @@ export const NBFCTools: React.FC = () => {
                         <span
                           key={s.key}
                           className={`text-xs px-2 py-1 rounded ${
-                            active ? 'bg-[#332f78]/20 text-[#332f78]' : 'bg-neutral-100 text-neutral-500'
+                            active ? 'bg-sf-navy/20 text-sf-navy' : 'bg-neutral-100 text-neutral-500'
                           }`}
                         >
                           {s.label}
@@ -1049,7 +1049,7 @@ export const NBFCTools: React.FC = () => {
               <button
                 onClick={handlePagerSubmit}
                 disabled={!pagerBorrowerFile || pagerSubmitting}
-                className="px-6 py-3 bg-[#332f78] text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors"
+                className="px-6 py-3 bg-sf-navy text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors"
               >
                 {pagerSubmitting ? (
                   <span className="flex items-center gap-2">
@@ -1069,7 +1069,7 @@ export const NBFCTools: React.FC = () => {
                         <span
                           key={s.key}
                           className={`text-xs px-2 py-1 rounded ${
-                            active ? 'bg-[#332f78]/20 text-[#332f78]' : 'bg-neutral-100 text-neutral-500'
+                            active ? 'bg-sf-navy/20 text-sf-navy' : 'bg-neutral-100 text-neutral-500'
                           }`}
                         >
                           {s.label}
@@ -1122,7 +1122,7 @@ export const NBFCTools: React.FC = () => {
                       onClick={() => setQueryTone(t)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
                         queryTone === t
-                          ? 'bg-[#332f78] text-white'
+                          ? 'bg-sf-navy text-white'
                           : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                       }`}
                     >
@@ -1134,7 +1134,7 @@ export const NBFCTools: React.FC = () => {
               <button
                 onClick={handleQueryDraft}
                 disabled={!queryDescription.trim() || querySubmitting}
-                className="px-6 py-3 bg-[#332f78] text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors mb-6"
+                className="px-6 py-3 bg-sf-navy text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a265f] transition-colors mb-6"
               >
                 {querySubmitting ? (
                   <span className="flex items-center gap-2">
@@ -1165,7 +1165,7 @@ export const NBFCTools: React.FC = () => {
                     {queryLoanId && (
                       <button
                         onClick={handleSendQuery}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
+                        className="flex items-center gap-2 px-4 py-2 bg-sf-navy text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
                       >
                         <Send className="w-4 h-4" /> Send as Query
                       </button>
@@ -1204,7 +1204,7 @@ export const NBFCTools: React.FC = () => {
                         refreshRaadList().finally(() => setRaadIdListLoading(false));
                       }}
                     disabled={raadIdListLoading}
-                    className="p-1.5 rounded text-neutral-500 hover:text-[#332f78] hover:bg-neutral-100 disabled:opacity-50"
+                    className="p-1.5 rounded text-neutral-500 hover:text-sf-navy hover:bg-neutral-100 disabled:opacity-50"
                     title={t('pages.nbfcTools.refreshList')}
                   >
                     <RefreshCw className={`w-4 h-4 ${raadIdListLoading ? 'animate-spin' : ''}`} />
@@ -1237,8 +1237,8 @@ export const NBFCTools: React.FC = () => {
                             isError
                               ? 'border-red-200 bg-red-50 cursor-default text-red-600'
                               : isActive
-                                ? 'border-[#332f78] bg-[#332f78] text-white'
-                                : 'border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff] text-neutral-800'
+                                ? 'border-sf-navy bg-sf-navy text-white'
+                                : 'border-neutral-200 bg-white hover:border-sf-navy hover:bg-[#f8f9ff] text-neutral-800'
                           }`}
                         >
                           {isError ? (
@@ -1270,7 +1270,7 @@ export const NBFCTools: React.FC = () => {
                       refreshPagerList().finally(() => setPagerIdListLoading(false));
                     }}
                     disabled={pagerIdListLoading}
-                    className="p-1.5 rounded text-neutral-500 hover:text-[#332f78] hover:bg-neutral-100 disabled:opacity-50"
+                    className="p-1.5 rounded text-neutral-500 hover:text-sf-navy hover:bg-neutral-100 disabled:opacity-50"
                     title={t('pages.nbfcTools.refreshList')}
                   >
                     <RefreshCw className={`w-4 h-4 ${pagerIdListLoading ? 'animate-spin' : ''}`} />
@@ -1311,8 +1311,8 @@ export const NBFCTools: React.FC = () => {
                             isError
                               ? 'border-red-200 bg-red-50 cursor-default text-red-600'
                               : isActive
-                                ? 'border-[#332f78] bg-[#332f78] text-white'
-                                : 'border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff] text-neutral-800'
+                                ? 'border-sf-navy bg-sf-navy text-white'
+                                : 'border-neutral-200 bg-white hover:border-sf-navy hover:bg-[#f8f9ff] text-neutral-800'
                           }`}
                         >
                           {isError ? (
@@ -1357,7 +1357,7 @@ export const NBFCTools: React.FC = () => {
                         key={j.id}
                         type="button"
                         onClick={() => handleSelectJob(j)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm whitespace-nowrap transition-colors flex-shrink-0 border-neutral-200 bg-white hover:border-[#332f78] hover:bg-[#f8f9ff] text-neutral-800"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm whitespace-nowrap transition-colors flex-shrink-0 border-neutral-200 bg-white hover:border-sf-navy hover:bg-[#f8f9ff] text-neutral-800"
                       >
                         <FileText className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
                         <span className="truncate max-w-[100px]">Query · {j.loanApplicationId || j.id}</span>
@@ -1372,7 +1372,7 @@ export const NBFCTools: React.FC = () => {
             })()}
             {jobStatus === 'processing' && !raadFetchedHtml && (
               <div className="flex flex-col items-center justify-center flex-1 text-center">
-                <Loader2 className="w-12 h-12 text-[#332f78] animate-pulse mb-4" />
+                <Loader2 className="w-12 h-12 text-sf-navy animate-pulse mb-4" />
                 <p className="text-neutral-700 font-medium mb-1">Processing...</p>
                 <p className="text-sm text-neutral-500">
                   This can take 1–3 minutes. You can leave this page and come back — your report will
@@ -1386,7 +1386,7 @@ export const NBFCTools: React.FC = () => {
                       className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
                         raadRequestCountdown > 0 || raadRequestLoading
                           ? 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
-                          : 'bg-[#332f78] text-white hover:bg-[#2a265f]'
+                          : 'bg-sf-navy text-white hover:bg-[#2a265f]'
                       }`}
                     >
                       <RefreshCw className={`w-4 h-4 ${raadRequestLoading ? 'animate-spin' : ''}`} />
@@ -1432,7 +1432,7 @@ export const NBFCTools: React.FC = () => {
                     <a
                       href={getReportSrc(reportUrl)}
                       download
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-sf-navy text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
                     >
                       <Download className="w-4 h-4" /> {t('pages.nbfcTools.downloadPdf')}
                     </a>
@@ -1471,7 +1471,7 @@ export const NBFCTools: React.FC = () => {
                   <a
                     href={getReportSrc(reportUrl)}
                     download
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-sf-navy text-white rounded-lg text-sm font-medium hover:bg-[#2a265f]"
                   >
                     <Download className="w-4 h-4" /> {t('pages.nbfcTools.downloadPdf')}
                   </a>
@@ -1491,7 +1491,7 @@ export const NBFCTools: React.FC = () => {
                     setJobError(null);
                     setCurrentJobId(null);
                   }}
-                  className="px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium"
+                  className="px-4 py-2 bg-sf-navy text-white rounded-lg text-sm font-medium"
                 >
                   Try Again
                 </button>
@@ -1511,7 +1511,7 @@ export const NBFCTools: React.FC = () => {
                   type="button"
                   onClick={handleDownloadRaadAsPdf}
                   disabled={raadPdfDownloading}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-sf-navy text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
                 >
                   {raadPdfDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   {t('pages.nbfcTools.downloadPdf')}
@@ -1521,7 +1521,7 @@ export const NBFCTools: React.FC = () => {
                   type="button"
                   onClick={handleDownloadRaadPdfUrl}
                   disabled={raadPdfUrlDownloading}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-sf-navy text-white rounded-lg text-sm font-medium hover:bg-[#2a265f] disabled:opacity-50"
                 >
                   {raadPdfUrlDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   {t('pages.nbfcTools.downloadPdf')}
@@ -1554,7 +1554,7 @@ export const NBFCTools: React.FC = () => {
               />
             ) : raadRequestLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-4 text-neutral-600">
-                <Loader2 className="w-12 h-12 text-[#332f78] animate-spin" />
+                <Loader2 className="w-12 h-12 text-sf-navy animate-spin" />
                 <p className="font-medium">Loading report...</p>
                 <p className="text-sm text-neutral-500">Fetching from webhook</p>
               </div>
@@ -1566,7 +1566,7 @@ export const NBFCTools: React.FC = () => {
                 <button
                   type="button"
                   onClick={closeRaadFullScreenViewer}
-                  className="px-4 py-2 bg-[#332f78] text-white rounded-lg text-sm font-medium"
+                  className="px-4 py-2 bg-sf-navy text-white rounded-lg text-sm font-medium"
                 >
                   Close
                 </button>

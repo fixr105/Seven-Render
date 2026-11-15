@@ -243,7 +243,7 @@ export const ClientDashboard: React.FC = () => {
 
       {/* Stats Cards — white surfaces, navy accents only */}
       <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="rounded-xl shadow-sm">
+        <Card className="rounded-[12px] shadow-sm">
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
               <p className="text-sm text-neutral-500">{t('pages.dashboards.totalApplications')}</p>
@@ -258,7 +258,7 @@ export const ClientDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="rounded-xl shadow-sm">
+        <Card className="rounded-[12px] shadow-sm">
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
               <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
@@ -273,7 +273,7 @@ export const ClientDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="rounded-xl shadow-sm sm:col-span-2 lg:col-span-1">
+        <Card className="rounded-[12px] shadow-sm sm:col-span-2 lg:col-span-1">
           <CardContent className="flex items-start justify-between p-6">
             <div className="min-w-0 pr-3">
               <p className="text-sm text-neutral-500">{t('pages.dashboards.commissionBalance')}</p>
@@ -301,7 +301,7 @@ export const ClientDashboard: React.FC = () => {
       </div>
 
       {/* Available Loan Products */}
-      <Card className="mb-6 rounded-xl shadow-sm">
+      <Card className="mb-6 rounded-[12px] shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-sf-navy" aria-hidden />
@@ -318,7 +318,7 @@ export const ClientDashboard: React.FC = () => {
               {displayProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="relative rounded-xl border border-neutral-200 bg-white p-4 pt-12 shadow-sm"
+                  className="relative rounded-[12px] border border-neutral-200 bg-white p-4 pt-12 shadow-sm"
                 >
                   {product.id ? (
                     <button
@@ -360,7 +360,7 @@ export const ClientDashboard: React.FC = () => {
       </Card>
 
       {/* AI features — restrained strip */}
-      <div className="mb-6 overflow-hidden rounded-xl border border-sf-navy/15 bg-sf-navy/[0.06]">
+      <div className="mb-6 overflow-hidden rounded-[12px] border border-sf-navy/15 bg-sf-navy/[0.06]">
         <div className="border-b border-sf-navy/10 bg-sf-navy/[0.08] px-4 py-2">
           <div className="flex items-center gap-2 text-sm font-medium text-sf-navy">
             <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
@@ -380,7 +380,7 @@ export const ClientDashboard: React.FC = () => {
       {/* Recent Applications + Analytics */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <RecentApplicationsSection
-          className="lg:col-span-2 rounded-xl shadow-sm"
+          className="lg:col-span-2 rounded-[12px] shadow-sm"
           role="client"
           applications={applications}
           loading={loading}
@@ -399,7 +399,7 @@ export const ClientDashboard: React.FC = () => {
           }}
         />
 
-        <Card className="rounded-xl shadow-sm lg:col-span-1">
+        <Card className="rounded-[12px] shadow-sm lg:col-span-1">
           <CardHeader>
             <CardTitle>{t('pages.dashboards.analyticsSnapshot')}</CardTitle>
           </CardHeader>
