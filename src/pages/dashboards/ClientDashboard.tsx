@@ -1,413 +1,251 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Plus, FileText, Clock, IndianRupee, Package, Sparkles, Wallet } from 'lucide-react';
-import { useAuth } from '../../auth/AuthContext';
-import { useApplications } from '../../hooks/useApplications';
-import { useLedger } from '../../hooks/useLedger';
-import { apiService } from '../../services/api';
-import { RecentApplicationsSection } from '../../components/dashboard/RecentApplicationsSection';
-import { buildWizardResumePath } from '../../lib/b2cEvWizardResume';
-import type { LoanApplication } from '../../hooks/useApplications';
+import { StatusBadge, type DealerStatus } from '../../components/dealer-ui/StatusBadge';
+import { airtableGet } from '../../services/engineClient';
+import {
+  buildDashboard,
+  filterDashboardRows,
+  type DashboardKpis,
+  type DashboardRow,
+} from '../../lib/dealerDashboard';
 
-type LoanProductCard = {
-  id: string;
-  name: string;
-  description?: string;
-  iconUrl?: string;
-};
+const FILTERS: DealerStatus[] = ['pending', 'in_progress', 'needs_action', 'done', 'blocked'];
 
-function extractIconUrl(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const parsed = extractIconUrl(item);
-      if (parsed) return parsed;
-    }
-    return undefined;
-  }
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return (
-      extractIconUrl(record.url) ||
-      extractIconUrl(record.URL) ||
-      extractIconUrl(record.href) ||
-      extractIconUrl(record.src)
-    );
-  }
-  return undefined;
-}
+const COLUMNS: Array<{ key: keyof DashboardRow; label: string }> = [
+  { key: 'fileId', label: 'File ID' },
+  { key: 'applicant', label: 'Applicant' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'product', label: 'Product' },
+  { key: 'status', label: 'Status' },
+  { key: 'modifiedMs', label: 'Last updated' },
+];
 
-function applicationMix(apps: LoanApplication[]) {
-  let draft = 0;
-  let pipeline = 0;
-  let terminal = 0;
-  for (const a of apps) {
-    const s = (a.status || '').toLowerCase();
-    if (s === 'draft') draft += 1;
-    else if (s.includes('disbursed') || s.includes('reject') || s.includes('withdraw') || s.includes('closed')) {
-      terminal += 1;
-    } else {
-      pipeline += 1;
-    }
-  }
-  return { draft, pipeline, terminal };
-}
+type SortKey = (typeof COLUMNS)[number]['key'];
 
-function BrandMixDonut({ draft, pipeline, terminal }: { draft: number; pipeline: number; terminal: number }) {
-  const { t } = useTranslation();
-  const total = draft + pipeline + terminal;
-  if (total === 0) {
-    return (
-      <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-neutral-200 bg-neutral-50 text-sm text-neutral-500">
-        {t('pages.dashboards.noApplicationsYet')}
-      </div>
-    );
-  }
-  const a = (draft / total) * 360;
-  const b = (pipeline / total) * 360;
-  const c = (terminal / total) * 360;
-  const background = `conic-gradient(from -90deg, #080B53 0deg ${a}deg, rgba(8,11,83,0.5) ${a}deg ${a + b}deg, rgba(8,11,83,0.2) ${a + b}deg ${a + b + c}deg)`;
-
+function KpiCard({ label, value, testId }: { label: string; value: string; testId: string }) {
   return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="relative h-[180px] w-[180px]">
-        <div
-          className="h-full w-full rounded-full"
-          style={{ background }}
-          aria-hidden
-        />
-        <div className="absolute inset-[28%] rounded-full bg-white shadow-inner" />
-      </div>
-      <ul className="w-full space-y-2 text-xs text-neutral-600">
-        <li className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-sf-navy" />
-            {t('common.draft')}
-          </span>
-          <span className="font-medium text-neutral-900">{draft}</span>
-        </li>
-        <li className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-sf-navy/50" />
-            {t('common.inProgress')}
-          </span>
-          <span className="font-medium text-neutral-900">{pipeline}</span>
-        </li>
-        <li className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-sf-navy/25" />
-            {t('common.closedDisbursed')}
-          </span>
-          <span className="font-medium text-neutral-900">{terminal}</span>
-        </li>
-      </ul>
+    <div className="rounded-[12px] border border-sf-border bg-sf-surface p-4" data-testid={testId}>
+      <p className="text-xs font-medium uppercase tracking-wide text-sf-quiet">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-sf-text">{value}</p>
     </div>
   );
 }
 
+function SkeletonBlock({ testId }: { testId: string }) {
+  return <div className="h-24 animate-pulse rounded-[12px] bg-sf-border" data-testid={testId} />;
+}
+
 export const ClientDashboard: React.FC = () => {
-  const { t } = useTranslation();
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
-  const { applications, loading } = useApplications();
-  const mix = useMemo(() => applicationMix(applications), [applications]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [kpis, setKpis] = useState<DashboardKpis | null>(null);
+  const [rows, setRows] = useState<DashboardRow[]>([]);
+  const [query, setQuery] = useState('');
+  const [badges, setBadges] = useState<DealerStatus[]>([]);
+  const [sortKey, setSortKey] = useState<SortKey>('modifiedMs');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const { balance, loading: ledgerLoading, entries } = useLedger();
-  const [loanProducts, setLoanProducts] = useState<LoanProductCard[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [configuredProductIds, setConfiguredProductIds] = useState<Set<string>>(new Set());
-  const [configuredProductsError, setConfiguredProductsError] = useState<string | null>(null);
-
-  const lastLedgerHint = useMemo(() => {
-    if (!entries.length) return null;
-    const last = entries[0] as Record<string, unknown>;
-    const amt = Number(last['Payout Amount'] ?? last.payoutAmount ?? 0);
-    const rawDate = String(last.Date ?? last.date ?? '');
-    const formatted = new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Math.abs(amt));
-    const dateLabel =
-      rawDate && !Number.isNaN(Date.parse(rawDate))
-        ? new Date(rawDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-        : '';
-    if (amt < 0) {
-      return `Last transaction: ${formatted} withdrawn${dateLabel ? ` on ${dateLabel}` : ''}`;
-    }
-    if (amt > 0) {
-      return `Last transaction: ${formatted} credited${dateLabel ? ` on ${dateLabel}` : ''}`;
-    }
-    return dateLabel ? `Last update on ${dateLabel}` : null;
-  }, [entries]);
-
-  const fetchLoanProducts = useCallback(async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
     try {
-      setLoadingProducts(true);
-      const response = await apiService.listLoanProducts(true); // activeOnly = true
-
-      if (response.success && response.data) {
-        const products = response.data.map((product: {
-          productId?: string;
-          id?: string;
-          productName?: string;
-          'Product Name'?: string;
-          name?: string;
-          description?: string;
-          Description?: string;
-          ICONS?: unknown;
-          icons?: unknown;
-          icon?: unknown;
-          iconUrl?: string;
-        }) => ({
-          id: product.productId || product.id || '',
-          name: product.productName || product['Product Name'] || product.name || '',
-          description: product.description || product['Description'],
-          iconUrl:
-            product.iconUrl ||
-            extractIconUrl(product.ICONS) ||
-            extractIconUrl(product.icons) ||
-            extractIconUrl(product.icon),
-        }));
-        setLoanProducts(products);
-      } else if (response.error) {
-        if (response.error.includes('401') || response.error.includes('403')) {
-          void refreshUser({ silent: true });
-        }
-      }
-    } catch (_error) {
-      // Fallback: leave products empty
+      const response = await airtableGet({
+        table: 'Loan Applications',
+        filter_formula: 'TRUE()',
+        max: 1000,
+      });
+      const built = buildDashboard((response.records || []) as Array<Record<string, unknown>>);
+      setKpis(built.kpis);
+      setRows(built.rows);
+    } catch {
+      setError(true);
+      setKpis(null);
+      setRows([]);
     } finally {
-      setLoadingProducts(false);
+      setLoading(false);
     }
-  }, [refreshUser]);
+  }, []);
 
-  const fetchConfiguredProducts = useCallback(async () => {
-    try {
-      setConfiguredProductsError(null);
-      const response = await apiService.getConfiguredProducts();
-
-      if (response.success && response.data) {
-        setConfiguredProductIds(new Set(response.data));
-      } else if (response.error) {
-        if (response.error.includes('401') || response.error.includes('403')) {
-          void refreshUser({ silent: true });
-        }
-        setConfiguredProductsError(response.error);
-      }
-    } catch (_error) {
-      setConfiguredProductsError('Could not load your configured products.');
-    }
-  }, [refreshUser]);
-
-  // Fetch on mount (including SPA navigation).
   useEffect(() => {
-    fetchLoanProducts();
-    fetchConfiguredProducts();
-  }, [fetchLoanProducts, fetchConfiguredProducts]);
+    void load();
+  }, [load, reloadKey]);
 
-  const showAccountNotLinkedBanner =
-    !loadingProducts &&
-    (configuredProductsError != null ||
-      (applications.length === 0 && configuredProductIds.size === 0 && loanProducts.length > 0));
+  const visibleRows = useMemo(() => {
+    const filtered = filterDashboardRows(rows, query, badges);
+    const sorted = [...filtered].sort((a, b) => {
+      const left = a[sortKey];
+      const right = b[sortKey];
+      if (typeof left === 'number' && typeof right === 'number') {
+        return sortDir === 'asc' ? left - right : right - left;
+      }
+      const cmp = String(left ?? '').localeCompare(String(right ?? ''), undefined, { numeric: true });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [rows, query, badges, sortKey, sortDir]);
 
-  // Calculate stats
-  const totalApplications = applications.length;
-  const pendingReview = applications.filter((a) => a.status === 'under_kam_review').length;
+  const toggleBadge = (badge: DealerStatus) => {
+    setBadges((current) =>
+      current.includes(badge) ? current.filter((item) => item !== badge) : [...current, badge]
+    );
+  };
 
-  const displayProducts = loanProducts.filter((p) => configuredProductIds.has(p.id));
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === 'modifiedMs' || key === 'amount' ? 'desc' : 'asc');
+  };
 
-  const statIconWrap = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-sf-navy/10';
+  const openApplication = (id: string) => {
+    if (!id) return;
+    navigate(`/applications/${id}`);
+  };
 
   return (
-    <>
-      {showAccountNotLinkedBanner && (
-        <Card className="mb-6 border-neutral-200 bg-neutral-50">
-          <CardContent className="p-4">
-            <p className="text-sm font-medium text-neutral-900">
-              {t('pages.dashboards.accountNotLinked')}
-            </p>
-            <p className="text-sm text-neutral-600 mt-1">
-              {configuredProductsError || t('pages.dashboards.accountNotLinkedHint')}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats Cards — white surfaces, navy accents only */}
-      <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="rounded-[12px] shadow-sm">
-          <CardContent className="flex items-start justify-between p-6">
-            <div className="min-w-0 pr-3">
-              <p className="text-sm text-neutral-500">{t('pages.dashboards.totalApplications')}</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-                {loading ? '…' : totalApplications}
-              </p>
-              <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.recentActivity')}</p>
-            </div>
-            <div className={statIconWrap}>
-              <FileText className="h-6 w-6 text-sf-navy" aria-hidden />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[12px] shadow-sm">
-          <CardContent className="flex items-start justify-between p-6">
-            <div className="min-w-0 pr-3">
-              <p className="text-sm text-neutral-500">{t('pages.dashboards.pendingReview')}</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-                {loading ? '…' : pendingReview}
-              </p>
-              <p className="mt-2 text-xs text-neutral-500">{t('pages.dashboards.readyForReview')}</p>
-            </div>
-            <div className={statIconWrap}>
-              <Clock className="h-6 w-6 text-sf-navy" aria-hidden />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[12px] shadow-sm sm:col-span-2 lg:col-span-1">
-          <CardContent className="flex items-start justify-between p-6">
-            <div className="min-w-0 pr-3">
-              <p className="text-sm text-neutral-500">{t('pages.dashboards.commissionBalance')}</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-                {ledgerLoading ? (
-                  <span className="text-sm font-normal text-neutral-400">{t('common.loading')}</span>
-                ) : (
-                  `₹${(balance / 1000).toFixed(1)}K`
-                )}
-              </p>
-              {lastLedgerHint && (
-                <p className="mt-2 text-xs text-neutral-500 line-clamp-2">{lastLedgerHint}</p>
-              )}
-              {balance > 0 && (
-                <Button variant="secondary" size="sm" className="mt-3" icon={Wallet} onClick={() => navigate('/ledger')}>
-                  {t('pages.dashboards.requestPayout')}
-                </Button>
-              )}
-            </div>
-            <div className={statIconWrap}>
-              <IndianRupee className="h-6 w-6 text-sf-navy" aria-hidden />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Available Loan Products */}
-      <Card className="mb-6 rounded-[12px] shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-sf-navy" aria-hidden />
-            {t('pages.dashboards.availableLoanProducts')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingProducts ? (
-            <div className="py-4 text-center text-neutral-500">{t('pages.dashboards.loadingLoanProducts')}</div>
-          ) : displayProducts.length === 0 ? (
-            <div className="py-4 text-center text-neutral-500">{t('pages.dashboards.noLoanProducts')}</div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {displayProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="relative rounded-[12px] border border-neutral-200 bg-white p-4 pt-12 shadow-sm"
-                >
-                  {product.id ? (
-                    <button
-                      type="button"
-                      className="absolute top-2 right-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-sf-navy transition-colors hover:bg-sf-navy/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy focus-visible:ring-offset-2 touch-manipulation"
-                      aria-label={t('pages.dashboards.startNewApplicationForProduct', {
-                        product: product.name || product.id,
-                        defaultValue: `Start application for ${product.name || product.id}`,
-                      })}
-                      title={t('pages.dashboards.startNewApplication')}
-                      onClick={() =>
-                        navigate(`/applications/new?productId=${encodeURIComponent(product.id)}`)
-                      }
-                    >
-                      <Plus className="h-5 w-5" aria-hidden />
-                    </button>
-                  ) : null}
-                  <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-sf-navy/8 text-sf-navy">
-                    {product.iconUrl ? (
-                      <img
-                        src={product.iconUrl}
-                        alt={`${product.name} icon`}
-                        className="h-10 w-10 object-contain"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <Package className="h-7 w-7" aria-hidden />
-                    )}
-                  </div>
-                  <h4 className="font-semibold text-neutral-900">{product.name}</h4>
-                  {product.description && (
-                    <p className="mt-1 line-clamp-3 text-sm text-neutral-600">{product.description}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* AI features — restrained strip */}
-      <div className="mb-6 overflow-hidden rounded-[12px] border border-sf-navy/15 bg-sf-navy/[0.06]">
-        <div className="border-b border-sf-navy/10 bg-sf-navy/[0.08] px-4 py-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-sf-navy">
-            <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
-            {t('pages.dashboards.aiInsights')}
-          </div>
-        </div>
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-neutral-700">
-            {t('pages.dashboards.aiInsightsDescription')}
-          </p>
-          <Button variant="tertiary" size="sm" className="shrink-0" onClick={() => navigate('/applications')}>
-            {t('nav.applications')}
+    <div data-testid="dealer-dashboard">
+      {error && (
+        <div className="mb-4 rounded-[12px] border border-sf-error/30 bg-sf-surface p-4" role="alert">
+          <p className="text-sm font-medium text-sf-text">Could not load dashboard</p>
+          <p className="mt-1 text-sm text-sf-quiet">Could not load applications. Check your connection.</p>
+          <Button className="mt-3" variant="secondary" onClick={() => setReloadKey((n) => n + 1)}>
+            Try again
           </Button>
         </div>
+      )}
+
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {loading ? (
+          FILTERS.map((badge) => <SkeletonBlock key={badge} testId="dashboard-kpi-skeleton" />)
+        ) : (
+          <>
+            <KpiCard label="Total Applications" value={error ? '—' : String(kpis?.total ?? 0)} testId="kpi-total" />
+            <KpiCard label="Active" value={error ? '—' : String(kpis?.active ?? 0)} testId="kpi-active" />
+            <KpiCard
+              label="Total Sanctioned"
+              value={error ? '—' : kpis?.sanctionedLabel ?? '₹0'}
+              testId="kpi-sanctioned"
+            />
+            <KpiCard
+              label="Pending Action"
+              value={error ? '—' : String(kpis?.pendingAction ?? 0)}
+              testId="kpi-pending"
+            />
+          </>
+        )}
       </div>
 
-      {/* Recent Applications + Analytics */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <RecentApplicationsSection
-          className="lg:col-span-2 rounded-[12px] shadow-sm"
-          role="client"
-          applications={applications}
-          loading={loading}
-          statusPalette="brand"
-          onViewAll={() => navigate('/applications')}
-          onRowClick={(row) => {
-            const id = row.id ?? row.applicationId ?? row.fileId;
-            if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
-          }}
-          onEmptyAction={() => navigate('/applications/new')}
-          onContinueEdit={(row) => {
-            const id = row.id ?? row.applicationId ?? row.fileId;
-            if (id && String(id) !== 'undefined') {
-              navigate(buildWizardResumePath(String(id), row.formData));
-            }
-          }}
-        />
-
-        <Card className="rounded-[12px] shadow-sm lg:col-span-1">
-          <CardHeader>
-            <CardTitle>{t('pages.dashboards.analyticsSnapshot')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BrandMixDonut draft={mix.draft} pipeline={mix.pipeline} terminal={mix.terminal} />
-          </CardContent>
-        </Card>
+      <div className="mb-4 flex flex-wrap gap-3">
+        <Button onClick={() => navigate('/applications/new')}>New Application</Button>
+        <Button variant="secondary" className="border-sf-navy text-sf-navy" onClick={() => navigate('/calculator')}>
+          Calculator
+        </Button>
       </div>
-    </>
+
+      <div className="rounded-[12px] border border-sf-border bg-sf-surface">
+        <div className="flex flex-col gap-3 border-b border-sf-border p-4">
+          <input
+            aria-label="Search applications"
+            className="min-h-11 w-full rounded-lg border border-sf-border px-3 text-sm text-sf-text"
+            placeholder="Search by file ID or applicant"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <div className="flex flex-wrap gap-2">
+            {FILTERS.map((badge) => {
+              const selected = badges.includes(badge);
+              return (
+                <button
+                  key={badge}
+                  type="button"
+                  aria-pressed={selected}
+                  data-testid={`status-filter-${badge}`}
+                  className={`rounded-full border px-3 py-1 ${
+                    selected ? 'border-sf-navy bg-sf-navy-50' : 'border-sf-border bg-sf-surface'
+                  }`}
+                  onClick={() => toggleBadge(badge)}
+                >
+                  <StatusBadge status={badge} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="space-y-2 p-4" data-testid="dashboard-table-skeleton">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} className="h-10 animate-pulse rounded bg-sf-border" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="px-4 py-10 text-center">
+            <p className="text-sm text-sf-text">No applications yet. Start a new application.</p>
+            <Button className="mt-4" onClick={() => navigate('/applications/new')}>
+              New Application
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-sf-border text-xs uppercase tracking-wide text-sf-quiet">
+                  {COLUMNS.map((column) => (
+                    <th key={column.key} className="px-4 py-3 font-medium">
+                      <button type="button" onClick={() => toggleSort(column.key)}>
+                        {column.label}
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-8 text-sm text-sf-quiet" colSpan={6}>
+                      No matching applications.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRows.map((row) => (
+                    <tr
+                      key={row.id || row.fileId}
+                      data-testid={`application-row-${row.id}`}
+                      className="cursor-pointer border-b border-sf-border last:border-0 hover:bg-sf-soft"
+                      onClick={() => openApplication(row.id)}
+                    >
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          className="rounded bg-sf-soft px-2 py-1 font-mono text-xs text-sf-navy"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openApplication(row.id);
+                          }}
+                        >
+                          {row.fileId}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-sf-text">{row.applicant}</td>
+                      <td className="px-4 py-3 text-sf-text">{row.amountLabel}</td>
+                      <td className="px-4 py-3 text-sf-text">{row.product}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={row.badge} />
+                      </td>
+                      <td className="px-4 py-3 text-sf-quiet">{row.updatedLabel}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

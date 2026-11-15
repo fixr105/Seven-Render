@@ -153,22 +153,29 @@ describe('b2cEvPanLookup', () => {
     expect(shouldRefetchPanLookup(formData)).toBe(false);
   });
 
-  it('enters manual borrower profile phase with meta only and no prefill', () => {
+  it('enters manual borrower profile phase and seeds identity from PAN inputs', () => {
     const formData = {
       ...createInitialB2cEvFormData(),
       '_meta.panLookup.mobileNumber': '9687599179',
       '_meta.panLookup.panNumber': 'BAIPG3083L',
       '_meta.panLookup.fullName': 'RAHUL YADAV',
+      '_meta.panLookup.borrowerEmail': 'rahul@example.com',
       'borrower.firstName': 'Old',
       'borrower.pan': 'OLDPAN1234A',
+      'borrower.address.line1': 'stale-address',
     };
 
     const next = applyBorrowerManualProfilePhase(formData, 'hash-1');
 
     expect(next['_meta.panLookup.status']).toBe('manual');
     expect(next['_meta.panLookup.inputHash']).toBe('hash-1');
-    expect(next['borrower.firstName']).toBeUndefined();
-    expect(next['borrower.pan']).toBeUndefined();
+    expect(next['borrower.firstName']).toBe('RAHUL');
+    expect(next['borrower.lastName']).toBe('YADAV');
+    expect(next['borrower.customerName']).toBe('RAHUL YADAV');
+    expect(next['borrower.mobile']).toBe('9687599179');
+    expect(next['borrower.pan']).toBe('BAIPG3083L');
+    expect(next['borrower.email']).toBe('rahul@example.com');
+    expect(next['borrower.address.line1']).toBeUndefined();
     expect(isPanLookupManual(next)).toBe(true);
   });
 });

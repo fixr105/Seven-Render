@@ -42,7 +42,7 @@
     "terms": "Terms"
   },
   "auth": {
-    "login": "Login",
+    "login": "Log in",
     "email": "Email",
     "emailPlaceholder": "Enter your email",
     "password": "Password",
@@ -242,7 +242,7 @@
   "pages": {
     "dashboard": {
       "title": "Dashboard",
-      "pageTitle": "DASHBOARD",
+      "pageTitle": "Dashboard",
       "welcomeBack": "Welcome back, {{name}}!",
       "welcomeFallback": "there",
       "unknownRole": "Unknown user role: {{role}}",
@@ -251,9 +251,17 @@
     },
     "calculator": {
       "title": "Calculator",
-      "pageTitle": "CALCULATOR",
+      "pageTitle": "Calculator",
       "heading": "Loan calculator",
-      "description": "Enter vehicle price, GST rate, add-on costs, and payment from customer. Tax invoice value is computed automatically. Compare lowest and highest EMI scenarios for the selected tenure.",
+      "description": "Enter vehicle price, GST rate, add-on costs, and payment from customer. Tax invoice value is computed automatically. EMI follows the lender rule for the credit score you enter.",
+      "creditScore": "Credit score",
+      "loanProduct": "Loan product",
+      "quoteHeading": "Score quote",
+      "scoreBand": "Score band",
+      "rule": "Rule",
+      "roi": "Interest",
+      "pfPercent": "Processing fee %",
+      "loadingRules": "Loading lender rules",
       "selectedScenario": "Selected",
       "scenarioRates": "Interest {{interestRate}} · PF {{processingFee}}",
       "lowestScenario": "Lowest EMI",
@@ -278,7 +286,7 @@
       "emiAmount": "EMI Amount (₹)",
       "disbursalAmount": "Disbursal Amount (₹)",
       "draftInvoiceHeading": "Value breakup",
-      "draftInvoiceDescription": "Side-by-side value breakups for the lowest and highest financing scenarios at the selected tenure.",
+      "draftInvoiceDescription": "Value breakup for this score at the selected tenure.",
       "draftInvoiceSubtitle": "Sample for EMI comparison",
       "disclaimer": "Insurance and vehicle registration costs are extra and are not included in the loan amount shown in this calculator.",
       "stage2Heading": "Insurance and registration",

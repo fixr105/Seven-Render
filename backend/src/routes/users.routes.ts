@@ -5,7 +5,8 @@
 
 import { Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
-import { requireCreditOrAdmin } from '../middleware/rbac.middleware.js';
+import { UserRole } from '../config/constants.js';
+import { requireCreditOrAdmin, requireRole } from '../middleware/rbac.middleware.js';
 import { usersController } from '../controllers/users.controller.js';
 
 const router = Router();
@@ -15,6 +16,12 @@ router.use(authenticate);
 // KAM Users
 router.get('/kam-users', usersController.listKAMUsers.bind(usersController));
 router.get('/kam-users/:id', usersController.getKAMUser.bind(usersController));
+
+router.post(
+  '/users/create-dealer',
+  requireRole(UserRole.KAM, UserRole.ADMIN),
+  usersController.createDealer.bind(usersController)
+);
 
 // User Accounts - Credit and Admin only
 router.post('/user-accounts', requireCreditOrAdmin, usersController.createUserAccount.bind(usersController));

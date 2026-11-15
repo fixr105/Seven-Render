@@ -1,5 +1,6 @@
 import { defaultLogger } from '../../utils/logger.js';
 import {
+  describeBureauOnlyAirtableResponse,
   describeWebhookResponseShape,
   hasBorrowerPatchData,
   hasSupportPersonPatchData,
@@ -163,7 +164,9 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   }
 
   if (!responseText.trim()) {
-    defaultLogger.warn('PAN lookup EMPTY_RESPONSE', { reason: 'empty_body' });
+    defaultLogger.warn(
+      `PAN lookup EMPTY_RESPONSE reason=empty_body status=${response.status}`
+    );
     return {
       success: false,
       error: 'PAN lookup returned no borrower details (response shape: empty)',
@@ -175,9 +178,10 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   try {
     parsed = JSON.parse(responseText);
   } catch {
-    defaultLogger.warn('PAN lookup PARSE_ERROR', {
-      preview: sanitizeWebhookBodyPreview(responseText),
-    });
+    const preview = sanitizeWebhookBodyPreview(responseText);
+    defaultLogger.warn(
+      `PAN lookup PARSE_ERROR status=${response.status} preview=${preview}`
+    );
     return {
       success: false,
       error: 'PAN lookup returned an invalid response',
@@ -188,14 +192,16 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   const output = parseWebhookOutput(parsed);
   if (!output) {
     const shape = describeWebhookResponseShape(parsed);
-    defaultLogger.warn('PAN lookup EMPTY_RESPONSE', {
-      reason: 'unrecognized_shape',
-      shape,
-      preview: sanitizeWebhookBodyPreview(responseText),
-    });
+    const preview = sanitizeWebhookBodyPreview(responseText);
+    const bureauOnly = describeBureauOnlyAirtableResponse(parsed);
+    defaultLogger.warn(
+      `PAN lookup EMPTY_RESPONSE reason=unrecognized_shape shape=${shape} preview=${preview}`
+    );
     return {
       success: false,
-      error: `PAN lookup returned no borrower details (response shape: ${shape})`,
+      error: bureauOnly
+        ? 'Credit bureau responded, but borrower name/address fields were missing from the PAN workflow (Airtable dump only). Enter details manually.'
+        : `PAN lookup returned no borrower details (response shape: ${shape})`,
       code: 'EMPTY_RESPONSE',
     };
   }
@@ -210,12 +216,11 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
     const emptyLabel =
       target === 'borrower' ? 'borrower' : target === 'coApplicant' ? 'co-applicant' : 'guarantor';
     const shape = describeWebhookResponseShape(parsed);
-    defaultLogger.warn('PAN lookup EMPTY_RESPONSE', {
-      reason: 'no_meaningful_fields',
-      target,
-      shape,
-      preview: sanitizeWebhookBodyPreview(responseText),
-    });
+    const preview = sanitizeWebhookBodyPreview(responseText);
+    const patchKeys = Object.keys(formDataPatch).join(',') || 'none';
+    defaultLogger.warn(
+      `PAN lookup EMPTY_RESPONSE reason=no_meaningful_fields target=${target} shape=${shape} patchKeys=${patchKeys} preview=${preview}`
+    );
     return {
       success: false,
       error: `PAN lookup returned no ${emptyLabel} details (response shape: ${shape})`,

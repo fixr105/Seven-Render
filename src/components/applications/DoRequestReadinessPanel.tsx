@@ -24,12 +24,12 @@ function StatusRow({
   return (
     <div className="flex items-start gap-2 text-sm" data-testid={testId}>
       <Icon
-        className={`mt-0.5 h-4 w-4 shrink-0 ${done ? 'text-success' : 'text-neutral-400'}`}
+        className={`mt-0.5 h-4 w-4 shrink-0 ${done ? 'text-dealer-success' : 'text-dealer-text-quiet'}`}
         aria-hidden
       />
       <div>
-        <p className="font-medium text-neutral-900">{label}</p>
-        {detail ? <p className="text-xs text-neutral-600">{detail}</p> : null}
+        <p className="font-medium text-dealer-text">{label}</p>
+        {detail ? <p className="text-xs text-dealer-text-quiet">{detail}</p> : null}
       </div>
     </div>
   );
@@ -51,12 +51,12 @@ export const DoRequestReadinessPanel: React.FC<DoRequestReadinessPanelProps> = (
 
   return (
     <div
-      className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4"
+      className="space-y-3 rounded-xl border border-dealer-border bg-dealer-surface-soft p-4"
       data-testid="do-request-readiness-panel"
     >
       <div>
-        <h3 className="text-sm font-semibold text-neutral-900">DO request readiness</h3>
-        <p className="mt-1 text-sm text-neutral-600">
+        <h3 className="text-sm font-semibold text-dealer-text">DO request readiness</h3>
+        <p className="mt-1 text-sm text-dealer-text-quiet">
           Request DO only after KAM approves compliance and all required uploads are marked as
           added to the folder. Insurance and Vehicle unlock after your KAM processes the DO
           request.
@@ -96,11 +96,11 @@ export const DoRequestReadinessPanel: React.FC<DoRequestReadinessPanelProps> = (
 
       {readiness.doFulfilled ? (
         <div
-          className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-neutral-800"
+          className="rounded-lg border border-dealer-success/30 bg-dealer-success/5 px-3 py-2 text-sm text-dealer-text"
           data-testid="do-approval-success"
         >
-          <p className="font-medium text-neutral-900">DO approved by your KAM</p>
-          <p className="mt-1 text-neutral-700">
+          <p className="font-medium text-dealer-text">DO approved by your KAM</p>
+          <p className="mt-1 text-dealer-text">
             Insurance and Vehicle are unlocked. Use Continue to Insurance below to proceed.
           </p>
         </div>
@@ -108,10 +108,10 @@ export const DoRequestReadinessPanel: React.FC<DoRequestReadinessPanelProps> = (
 
       {!readiness.canRequestDo && readiness.blockers.length > 0 && !readiness.doRequested ? (
         <div
-          className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-neutral-800"
+          className="rounded-lg border border-dealer-warning/30 bg-dealer-warning/5 px-3 py-2 text-sm text-dealer-text"
           data-testid="do-readiness-blockers"
         >
-          <p className="font-medium text-neutral-900">Before you can request DO</p>
+          <p className="font-medium text-dealer-text">Before you can request DO</p>
           <ul className="mt-1 list-disc space-y-1 pl-5">
             {readiness.blockers.map((blocker) => (
               <li key={blocker}>{blocker}</li>
@@ -122,12 +122,12 @@ export const DoRequestReadinessPanel: React.FC<DoRequestReadinessPanelProps> = (
 
       {rejectedPreviously && rejectionReason ? (
         <div
-          className="rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-neutral-800"
+          className="rounded-lg border border-dealer-error/30 bg-dealer-error/5 px-3 py-2 text-sm text-dealer-text"
           data-testid="do-rejection-notice"
         >
-          <p className="font-medium text-neutral-900">Previous DO request rejected</p>
-          <p className="mt-1 text-neutral-700">{rejectionReason}</p>
-          <p className="mt-1 text-xs text-neutral-600">You can submit a new DO request when ready.</p>
+          <p className="font-medium text-dealer-text">Previous DO request rejected</p>
+          <p className="mt-1 text-dealer-text">{rejectionReason}</p>
+          <p className="mt-1 text-xs text-dealer-text-quiet">You can submit a new DO request when ready.</p>
         </div>
       ) : null}
     </div>

@@ -1,0 +1,22 @@
+/* Shared auth card. Icon and language colours stay on these screens only. */
+
+.dealer-login-field svg {
+  color: #6b7280;
+}
+
+.dealer-login-language {
+  width: 100%;
+}
+
+.dealer-login-language select {
+  width: 100% !important;
+  max-width: none !important;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  color: #111827 !important;
+  border-radius: 8px !important;
+}
+
+.dealer-login-language svg {
+  color: #6b7280 !important;
+}

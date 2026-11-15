@@ -68,6 +68,7 @@ const supportPersonFields = (prefix: 'coApplicant' | 'guarantor', relationOption
   { key: `${prefix}.dob`, label: 'Date of Birth', type: 'date', required: true },
   { key: `${prefix}.email`, label: 'Email', type: 'email', required: true },
   { key: `${prefix}.pan`, label: 'PAN', type: 'text', required: true },
+  { key: `${prefix}.aadhaar`, label: 'Aadhaar Number', type: 'text', required: true },
   { key: `${prefix}.address.line1`, label: 'Address Line 1', type: 'text', required: true, colSpan: 2 },
   { key: `${prefix}.address.line2`, label: 'Address Line 2', type: 'text' },
   { key: `${prefix}.address.village`, label: 'Village', type: 'text', required: true },
@@ -130,6 +131,7 @@ export const B2C_EV_STAGES: B2cEvStage[] = [
       { key: 'borrower.mobile', label: 'Mobile Number', type: 'tel', required: true },
       { key: 'borrower.email', label: 'Email', type: 'email', required: true },
       { key: 'borrower.pan', label: 'PAN Card', type: 'text', required: true, readOnly: true },
+      { key: 'borrower.aadhaar', label: 'Aadhaar Number', type: 'text', required: true },
       { key: 'borrower.drivingLicense', label: 'Driving License', type: 'text' },
       { key: 'borrower.address.line1', label: 'Address Line 1', type: 'text', required: true, colSpan: 2 },
       { key: 'borrower.address.line2', label: 'Address Line 2', type: 'text' },
@@ -188,42 +190,58 @@ export const B2C_EV_STAGES: B2cEvStage[] = [
     fields: SUPPORT_PAN_LOOKUP_INPUT_FIELDS,
   },
   {
-    id: 'geo-photos',
-    title: 'Geo-tagged Photos',
-    description: 'Upload photos with verified location at time of capture',
-    fields: B2C_EV_GEO_PHOTO_SLOTS.map((slot) => ({
-      key: slot.urlKey,
-      label: slot.label,
-      type: 'geoPhoto' as const,
-      required: true,
-      colSpan: 2 as const,
-    })),
+    id: 'kyc-documents',
+    title: 'KYC & Documents',
+    description: 'Upload required documents and request video KYC',
+    fields: [],
   },
-  {
-    id: 'insurance',
-    title: 'Insurance',
-    description: 'Policy information',
-    fields: [
-      { key: 'insurance.cost', label: 'Insurance Cost (₹)', type: 'currency', required: true },
-      { key: 'insurance.provider', label: 'Insurance Provider', type: 'text', required: true },
-      { key: 'insurance.policyNumber', label: 'Policy Number', type: 'text', required: true },
-      { key: 'insurance.issuedDate', label: 'Policy Issued Date', type: 'date', required: true },
-      { key: 'insurance.periodMonths', label: 'Period of Insurance (months)', type: 'number', required: true },
-    ],
-  },
-  {
-    id: 'vehicle',
-    title: 'Vehicle Details',
-    description: 'Cost and invoice information',
-    fields: [
-      { key: 'vehicle.cost', label: 'Cost of Vehicle (₹)', type: 'currency', required: true },
-      { key: 'vehicle.manufacturingYear', label: 'Manufacturing Year', type: 'number', required: true },
-      { key: 'vehicle.invoiceNumber', label: 'Sales Invoice Number', type: 'text' },
-      { key: 'vehicle.invoiceDate', label: 'Sales Invoice Date', type: 'date', required: true },
-      { key: 'vehicle.downpayment', label: 'Downpayment Paid by Borrower (₹)', type: 'currency', required: true },
-      { key: 'vehicle.registrationCost', label: 'Vehicle Registration Cost (₹)', type: 'currency', required: true },
-    ],
-  },
+];
+
+/** Kept for Delivery stage reuse — not shown in the dealer wizard. */
+export const B2C_EV_GEO_PHOTOS_STAGE: B2cEvStage = {
+  id: 'geo-photos',
+  title: 'Geo-tagged Photos',
+  description: 'Upload photos with verified location at time of capture',
+  fields: B2C_EV_GEO_PHOTO_SLOTS.map((slot) => ({
+    key: slot.urlKey,
+    label: slot.label,
+    type: 'geoPhoto' as const,
+    required: true,
+    colSpan: 2 as const,
+  })),
+};
+
+export const B2C_EV_INSURANCE_STAGE: B2cEvStage = {
+  id: 'insurance',
+  title: 'Insurance',
+  description: 'Policy information',
+  fields: [
+    { key: 'insurance.cost', label: 'Insurance Cost (₹)', type: 'currency', required: true },
+    { key: 'insurance.provider', label: 'Insurance Provider', type: 'text', required: true },
+    { key: 'insurance.policyNumber', label: 'Policy Number', type: 'text', required: true },
+    { key: 'insurance.issuedDate', label: 'Policy Issued Date', type: 'date', required: true },
+    { key: 'insurance.periodMonths', label: 'Period of Insurance (months)', type: 'number', required: true },
+  ],
+};
+
+export const B2C_EV_VEHICLE_STAGE: B2cEvStage = {
+  id: 'vehicle',
+  title: 'Vehicle Details',
+  description: 'Cost and invoice information',
+  fields: [
+    { key: 'vehicle.cost', label: 'Cost of Vehicle (₹)', type: 'currency', required: true },
+    { key: 'vehicle.manufacturingYear', label: 'Manufacturing Year', type: 'number', required: true },
+    { key: 'vehicle.invoiceNumber', label: 'Sales Invoice Number', type: 'text' },
+    { key: 'vehicle.invoiceDate', label: 'Sales Invoice Date', type: 'date', required: true },
+    { key: 'vehicle.downpayment', label: 'Downpayment Paid by Borrower (₹)', type: 'currency', required: true },
+    { key: 'vehicle.registrationCost', label: 'Vehicle Registration Cost (₹)', type: 'currency', required: true },
+  ],
+};
+
+export const B2C_EV_DELIVERY_FIELD_STAGES: B2cEvStage[] = [
+  B2C_EV_GEO_PHOTOS_STAGE,
+  B2C_EV_INSURANCE_STAGE,
+  B2C_EV_VEHICLE_STAGE,
 ];
 
 export function getVisibleB2cEvStages(formData: Record<string, unknown>): B2cEvStage[] {

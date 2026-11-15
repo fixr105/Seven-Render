@@ -267,17 +267,41 @@ export function hasMeaningfulSupportPersonAutofill(
   );
 }
 
+/** Split a full name into first / last for manual borrower prefill. */
+export function splitFullNameForManualPrefill(fullName: string): {
+  firstName: string;
+  lastName: string;
+} {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+/**
+ * After PAN lookup fails/empty: clear stale autofill, keep status=manual, and
+ * seed borrower identity from the values the user already typed on step 1.
+ */
 export function applyBorrowerManualProfilePhase(
   formData: Record<string, unknown>,
   inputHash: string
 ): Record<string, unknown> {
   const cleared = clearBorrowerFields(formData);
-  return {
+  const payload = getPanLookupPayload(formData);
+  const { firstName, lastName } = splitFullNameForManualPrefill(payload.fullName);
+  const seeded: Record<string, unknown> = {
     ...cleared,
     '_meta.panLookup.status': 'manual',
     '_meta.panLookup.inputHash': inputHash,
     '_meta.panLookup.completedAt': new Date().toISOString(),
   };
+  if (firstName) seeded['borrower.firstName'] = firstName;
+  if (lastName) seeded['borrower.lastName'] = lastName;
+  if (payload.fullName) seeded['borrower.customerName'] = payload.fullName.trim();
+  if (payload.mobileNumber) seeded['borrower.mobile'] = payload.mobileNumber;
+  if (payload.panNumber) seeded['borrower.pan'] = payload.panNumber;
+  if (payload.borrowerEmail) seeded['borrower.email'] = payload.borrowerEmail;
+  return seeded;
 }
 
 /** Migrate legacy draft key recipientEmail → borrowerEmail. */

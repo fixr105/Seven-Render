@@ -174,9 +174,10 @@ describe('Applications Listing Page - P0 Tests', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Submitted/i).length).toBeGreaterThanOrEqual(1);
-        expect(screen.getAllByText(/Under Finance Review/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText('In progress').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByRole('button', { name: /Filter by Done/i })).toBeInTheDocument();
       });
+      expect(screen.queryByText(/Under Finance Review/i)).not.toBeInTheDocument();
     });
 
     it('should format loan amounts correctly', async () => {

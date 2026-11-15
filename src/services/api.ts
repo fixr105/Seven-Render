@@ -721,6 +721,22 @@ class ApiService {
   }
 
   /**
+   * Create a dealer login. The server sets the default password.
+   */
+  async createDealer(payload: {
+    email: string;
+    name: string;
+  }): Promise<ApiResponse<{ email: string; name: string; role: string }>> {
+    return this.request('/users/create-dealer', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: payload.email,
+        name: payload.name,
+      }),
+    });
+  }
+
+  /**
    * Get single user account
    */
   async getUserAccount(id: string): Promise<

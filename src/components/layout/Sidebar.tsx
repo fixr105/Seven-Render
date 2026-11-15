@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LucideIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../auth/AuthContext';
+import { useRoleAccess } from '../../hooks/useRoleAccess';
+import { AddDealerModal } from '../kam/AddDealerModal';
+import { Button } from '../ui/Button';
 import logo from '../ui/logo.png';
 
 interface NavItem {
@@ -26,7 +29,10 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick, isOpen, onToggle, userRole, userName }) => {
   const { t } = useTranslation();
   const { logout } = useAuth();
+  const { canAccess } = useRoleAccess();
   const navigate = useNavigate();
+  const [addDealerOpen, setAddDealerOpen] = useState(false);
+  const canAddDealer = canAccess(['kam', 'admin']);
 
   const handleLogout = () => {
     logout();
@@ -44,34 +50,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
 
       <aside
         className={`
-          fixed top-0 left-0 z-50 flex h-full w-64 flex-col border-r border-sf-border bg-sf-surface text-sf-text
+          fixed top-0 left-0 z-50 flex h-full w-64 flex-col border-r border-black/10 bg-sf-soft text-sf-text
           transition-transform duration-300 ease-in-out motion-reduce:transition-none
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:static lg:z-auto lg:translate-x-0
         `}
       >
-        <div className="border-b border-sf-border px-4 py-4">
-          <div className="flex items-start justify-between gap-2">
-            <Link
-              to="/dashboard"
-              className="flex min-h-11 items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy"
-            >
-              <img src={logo} alt="SEVEN FINCORP Logo" className="h-10 w-auto max-w-full object-contain" />
-            </Link>
-            <button
-              onClick={onToggle}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-sf-text hover:bg-sf-soft lg:hidden"
-              aria-label={t('nav.closeMenu')}
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+        <div
+          data-testid="sidebar-logo-bar"
+          className="flex h-14 shrink-0 items-center justify-between border-b border-sf-border bg-sf-surface px-4"
+        >
+          <Link
+            to="/dashboard"
+            className="flex h-full min-w-0 items-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy"
+          >
+            <img src={logo} alt="SEVEN FINCORP Logo" className="h-10 w-auto max-w-full object-contain" />
+          </Link>
+          <button
+            onClick={onToggle}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-sf-quiet hover:bg-black/[0.04] lg:hidden"
+            aria-label={t('nav.closeMenu')}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-4 pb-2 pt-3">
           {userRole ? (
-            <p className="mt-2 text-[11px] uppercase tracking-[0.1em] text-sf-quiet">{userRole}</p>
+            <p className="text-[11px] uppercase tracking-[0.14em] text-sf-quiet">{userRole}</p>
+          ) : null}
+          {canAddDealer ? (
+            <Button className="mt-3 w-full" onClick={() => setAddDealerOpen(true)}>
+              Add Dealer
+            </Button>
           ) : null}
         </div>
 
-        <nav data-testid="sidebar-nav" className="flex-1 overflow-y-auto px-2 py-3">
+        <nav data-testid="sidebar-nav" className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
           {(items || []).map((item) => {
             const Icon = item.icon;
             const isActive = activeItem === item.id;
@@ -79,23 +93,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
             return (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => {
                   onItemClick(item.id);
                   if (window.innerWidth < 1024) onToggle();
                 }}
+                aria-current={isActive ? 'page' : undefined}
                 className={`
-                  flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 px-3 text-left text-sm leading-5 touch-manipulation
-                  focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy
+                  flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] leading-5 touch-manipulation
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-sf-navy lg:min-h-8
                   ${isActive
-                    ? 'border-sf-navy bg-sf-navy-50 font-semibold text-sf-navy'
-                    : 'border-transparent font-normal text-sf-text hover:bg-sf-soft'
+                    ? 'border-l-2 border-sf-navy bg-sf-navy-50 font-medium text-sf-navy'
+                    : 'border-l-2 border-transparent font-normal text-sf-quiet hover:bg-black/[0.04]'
                   }
                 `}
               >
-                <Icon className="h-5 w-5 flex-shrink-0" />
+                <Icon className="h-4 w-4 flex-shrink-0" />
                 <span className="flex-1">{item.label}</span>
                 {item.badge && item.badge > 0 && (
-                  <span className="bg-error text-white text-xs font-medium px-2 py-0.5 rounded-full">
+                  <span className="rounded-full bg-error px-2 py-0.5 text-xs font-medium text-white">
                     {item.badge}
                   </span>
                 )}
@@ -104,25 +120,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, activeItem, onItemClick
           })}
         </nav>
 
-        <div className="border-t border-sf-border p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sf-navy-light">
-              <span className="text-sm font-medium text-sf-navy">
-                {(userName || 'U').charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-sf-text">{userName || ''}</p>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex min-h-11 items-center text-sm text-sf-quiet"
-              >
-                {t('topbar.logout')}
-              </button>
-            </div>
-          </div>
+        <div className="border-t border-black/10 px-4 py-4">
+          {userName ? (
+            <p className="truncate text-sm font-medium text-sf-text">{userName}</p>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex min-h-11 items-center text-[13px] text-sf-quiet lg:min-h-8"
+          >
+            {t('topbar.logout')}
+          </button>
         </div>
+        {canAddDealer ? (
+          <AddDealerModal isOpen={addDealerOpen} onClose={() => setAddDealerOpen(false)} />
+        ) : null}
       </aside>
     </>
   );

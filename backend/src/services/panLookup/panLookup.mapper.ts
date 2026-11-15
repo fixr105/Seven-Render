@@ -99,6 +99,45 @@ function tryParseJsonString(value: string): unknown | undefined {
   }
 }
 
+/** Unwrap Airtable formula dump cells: `{ state, value }` / `{ state:'error', errorType }`. */
+function unwrapDumpCell(value: unknown): unknown {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value;
+  const cell = value as Record<string, unknown>;
+  if (!('state' in cell) && !('value' in cell) && !('errorType' in cell)) return value;
+  if (cell.state === 'error' || cell.errorType) return null;
+  if ('value' in cell) return cell.value;
+  return value;
+}
+
+function visitAirtableFields(fields: Record<string, unknown>, visit: (v: unknown) => PanLookupWebhookOutput | null): PanLookupWebhookOutput | null {
+  // Prefer explicit dump / summary fields that historically carry the mapped profile.
+  const preferredKeys = [
+    'Summary (Dump)',
+    'Headline (Dump)',
+    'Summary',
+    'Headline',
+    'output',
+    'Output',
+    'Borrower',
+    'Profile',
+  ];
+  for (const key of preferredKeys) {
+    if (!(key in fields)) continue;
+    const found = visit(unwrapDumpCell(fields[key]));
+    if (found) return found;
+  }
+
+  if (objectHasProfileKeys(fields)) {
+    return fields as PanLookupWebhookOutput;
+  }
+
+  for (const value of Object.values(fields)) {
+    const found = visit(unwrapDumpCell(value));
+    if (found) return found;
+  }
+  return null;
+}
+
 export function parseWebhookOutput(payload: unknown): PanLookupWebhookOutput | null {
   if (payload == null) return null;
 
@@ -135,6 +174,12 @@ export function parseWebhookOutput(payload: unknown): PanLookupWebhookOutput | n
         }
       }
 
+      // Live n8n sometimes returns a raw Airtable record: [{ id, createdTime, fields }]
+      if (obj.fields != null && typeof obj.fields === 'object' && !Array.isArray(obj.fields)) {
+        const fromFields = visitAirtableFields(obj.fields as Record<string, unknown>, visit);
+        if (fromFields) return fromFields;
+      }
+
       if (objectHasProfileKeys(obj)) {
         return obj as PanLookupWebhookOutput;
       }
@@ -151,13 +196,55 @@ export function parseWebhookOutput(payload: unknown): PanLookupWebhookOutput | n
   return visit(payload);
 }
 
+/** True when webhook body looks like an Airtable row with a bureau PDF but no profile. */
+export function describeBureauOnlyAirtableResponse(parsed: unknown): string | null {
+  const records = Array.isArray(parsed) ? parsed : [parsed];
+  for (const record of records) {
+    if (record == null || typeof record !== 'object' || Array.isArray(record)) continue;
+    const fields = (record as Record<string, unknown>).fields;
+    if (fields == null || typeof fields !== 'object' || Array.isArray(fields)) continue;
+    const fieldMap = fields as Record<string, unknown>;
+    const fieldKeys = Object.keys(fieldMap);
+    const hasCibilDump = fieldKeys.some((key) => {
+      const n = normalizeFieldKey(key);
+      return n.includes('cibildump') || n.includes('experian') || n === 'cibil';
+    });
+    const dumpErrors = fieldKeys
+      .filter((key) => /dump|summary|headline/i.test(key))
+      .map((key) => {
+        const cell = fieldMap[key];
+        if (cell == null || typeof cell !== 'object' || Array.isArray(cell)) return null;
+        const state = String((cell as Record<string, unknown>).state ?? '');
+        const errorType = String((cell as Record<string, unknown>).errorType ?? '');
+        if (state === 'error' || errorType) return `${key}:${errorType || state}`;
+        return null;
+      })
+      .filter(Boolean);
+    if (hasCibilDump || dumpErrors.length > 0) {
+      const parts = [
+        'airtable_fields',
+        hasCibilDump ? 'cibil_dump_present' : null,
+        dumpErrors.length ? `dump_errors=${dumpErrors.join('|')}` : null,
+      ].filter(Boolean);
+      return parts.join(',');
+    }
+  }
+  return null;
+}
+
 /** Non-PII summary of webhook JSON shape for EMPTY_RESPONSE diagnostics. */
 export function describeWebhookResponseShape(parsed: unknown): string {
   if (parsed === null) return 'null';
-  if (Array.isArray(parsed)) return `array(len=${parsed.length})`;
+  if (Array.isArray(parsed)) {
+    const bureau = describeBureauOnlyAirtableResponse(parsed);
+    if (bureau) return `array(len=${parsed.length},${bureau})`;
+    return `array(len=${parsed.length})`;
+  }
   const t = typeof parsed;
   if (t === 'string') return `string(len=${String(parsed).length})`;
   if (t === 'object') {
+    const bureau = describeBureauOnlyAirtableResponse(parsed);
+    if (bureau) return `object(${bureau})`;
     const keys = Object.keys(parsed as Record<string, unknown>).slice(0, 8).join(',');
     return `object(keys=${keys || 'none'})`;
   }

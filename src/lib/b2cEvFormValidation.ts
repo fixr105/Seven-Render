@@ -9,6 +9,7 @@ import {
 } from './b2cEvSupportPanLookup';
 import { validateGeoPhotosStage } from './b2cEvGeoPhotos';
 import { validateB2cEvDocumentsStage, type FormConfigCategory } from './b2cEvDocuments';
+import { areRequiredKycDocsUploaded } from './kycRequiredDocs';
 
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
@@ -165,6 +166,17 @@ export function validateB2cEvStage(
     return errors;
   }
 
+  if (stage.id === 'kyc-documents') {
+    if (!areRequiredKycDocsUploaded(formData, options.formConfig || [])) {
+      errors['_meta.kycDocuments'] = 'Upload all required documents';
+    }
+    const vkycStatus = readValue(formData, '_meta.vkyc.status');
+    if (!vkycStatus || vkycStatus === 'Failed') {
+      errors['_meta.vkyc.status'] = 'Request video KYC before continuing';
+    }
+    return errors;
+  }
+
   if (stage.id === 'geo-photos') {
     const errors = validateGeoPhotosStage(formData);
     if (options.formConfig && options.formConfig.length > 0) {
@@ -248,6 +260,8 @@ export function validateB2cEvForm(
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const stage of stages) {
+    // Steps 1–5 completion is judged on its own; KYC is gated separately on step 6.
+    if (stage.id === 'review' || stage.id === 'kyc-documents') continue;
     Object.assign(errors, validateB2cEvStage(stage, formData, { loanProductId, ...options }));
     if (stage.id === 'dealer') {
       Object.assign(errors, validateDealerPopulated(formData));
@@ -269,7 +283,7 @@ export function getB2cEvFormCompletion(
   const missingByStage: B2cEvFormCompletion['missingByStage'] = [];
 
   for (const stage of stages) {
-    if (stage.id === 'review') continue;
+    if (stage.id === 'review' || stage.id === 'kyc-documents') continue;
     const stageErrors = validateB2cEvStage(stage, formData, { loanProductId, ...options });
     if (stage.id === 'dealer') {
       Object.assign(stageErrors, validateDealerPopulated(formData));

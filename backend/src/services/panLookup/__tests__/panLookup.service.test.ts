@@ -124,6 +124,53 @@ describe('panLookup.mapper', () => {
     expect(parseWebhookOutput([{ output: { error: 'no hit' } }])).toBeNull();
   });
 
+  it('parses Airtable record fields when Summary Dump carries the profile', () => {
+    const output = parseWebhookOutput([
+      {
+        id: 'rec123',
+        createdTime: '2026-11-14T11:20:49.000Z',
+        fields: {
+          Number: 8217432973,
+          'Summary (Dump)': {
+            state: 'ok',
+            value: {
+              first_name: 'SHARAN',
+              last_name: 'KRISHNAN',
+              'address Line 1': '12 Main St',
+            },
+          },
+          'Cibil dump': 'https://example.com/report.pdf',
+        },
+      },
+    ]);
+    expect(output?.first_name).toBe('SHARAN');
+    expect(output?.['address Line 1']).toBe('12 Main St');
+  });
+
+  it('rejects Airtable bureau-only dump with emptyDependency formula errors', () => {
+    expect(
+      parseWebhookOutput([
+        {
+          id: 'recHiUQVeVZOH5GjP',
+          fields: {
+            Number: 8217432973,
+            'Summary (Dump)': {
+              state: 'error',
+              errorType: 'emptyDependency',
+              value: null,
+            },
+            'Cibil dump': 'https://example.com/experian_report.pdf',
+            'Headline (Dump)': {
+              state: 'error',
+              errorType: 'emptyDependency',
+              value: null,
+            },
+          },
+        },
+      ])
+    ).toBeNull();
+  });
+
   it('rejects masked mobile numbers', () => {
     expect(normalizeWebhookMobile('91XXXXXXXX77')).toBe('');
     expect(normalizeWebhookMobile('919876543377')).toBe('9876543377');

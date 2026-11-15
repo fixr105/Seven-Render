@@ -23,6 +23,8 @@ import { AdminUserAccounts } from './pages/AdminUserAccounts';
 import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
 import { NBFCTools } from './pages/NBFCTools';
 import { Calculator } from './pages/Calculator';
+import DealerDeliveryPage from './pages/DealerDeliveryPage';
+import VkycDeskPage from './pages/VkycDeskPage';
 import { LoanCalculatorDevPage } from './pages/dev/LoanCalculatorDevPage';
 import { useAuth } from './auth/AuthContext';
 import { getProfileCompletion } from './auth/profileCompletion';
@@ -129,6 +131,28 @@ function AppRoutes() {
           <ErrorBoundary>
             <ProtectedRoute allowedRoles={['client']}>
               <NewApplication />
+            </ProtectedRoute>
+          </ErrorBoundary>
+        }
+      />
+
+        <Route
+        path="/dealer/delivery/:fileId"
+        element={
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['client', 'kam', 'credit_team', 'admin']}>
+              <DealerDeliveryPage />
+            </ProtectedRoute>
+          </ErrorBoundary>
+        }
+      />
+
+        <Route
+        path="/vkyc-desk"
+        element={
+          <ErrorBoundary>
+            <ProtectedRoute allowedRoles={['kam', 'credit_team', 'admin']}>
+              <VkycDeskPage />
             </ProtectedRoute>
           </ErrorBoundary>
         }

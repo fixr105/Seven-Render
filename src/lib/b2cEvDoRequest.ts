@@ -33,4 +33,5 @@ export function buildDoRequestMessage(context: {
   return `Please process Disbursement Order (DO) for ${applicant}${applicationRef}.`;
 }
 
-export const POST_DO_LOCKED_STAGE_IDS = ['insurance', 'vehicle'] as const;
+/** Dealer flow no longer waits on KAM/DO — Delivery is post-signing. */
+export const POST_DO_LOCKED_STAGE_IDS = [] as const;

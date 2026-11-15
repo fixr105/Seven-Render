@@ -9,7 +9,7 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ children, className = '', id, hoverable = false, onClick }) => {
-  const baseClasses = 'overflow-hidden rounded-lg border border-sf-border bg-sf-surface shadow-sf-shadow-sm';
+  const baseClasses = 'overflow-hidden rounded-xl border border-sf-border bg-sf-surface shadow-sf-shadow-sm';
   const hoverClasses = hoverable ? 'cursor-pointer transition-shadow duration-200 hover:shadow-sf-shadow-md' : '';
 
   return (

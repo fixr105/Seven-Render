@@ -17,10 +17,20 @@ import { Plus, Eye, MessageSquare, RefreshCw, FileText, X, Edit } from 'lucide-r
 import { useApplications } from '../hooks/useApplications';
 import { useSidebarItems } from '../hooks/useSidebarItems';
 import { apiService } from '../services/api';
-import { getStatusDisplayNameForViewer, getStatusColor, isClientEditableApplication, normalizeStatus, resolveApplicationStatus } from '../lib/statusUtils';
+import { getStatusDisplayNameForViewer, isClientEditableApplication, normalizeStatus, resolveApplicationStatus } from '../lib/statusUtils';
+import { StatusBadge, type DealerStatus } from '../components/dealer-ui/StatusBadge';
 import { buildWizardResumePath } from '../lib/b2cEvWizardResume';
 import { matchIds } from '../utils/idMatcher';
 import { sortApplicationsByUnresolvedQueries } from '../utils/applicationQuerySort';
+
+function dealerStatusWord(label: string): DealerStatus {
+  const value = label.toLowerCase();
+  if (/reject|block|fail|cancel|declin/.test(value)) return 'blocked';
+  if (/done|complete|approv|disburs|closed/.test(value)) return 'done';
+  if (/query|action|upload|document/.test(value)) return 'needs_action';
+  if (/progress|review|process|submit|pending kyc/.test(value)) return 'in_progress';
+  return 'pending';
+}
 
 const FILTER_TAG_STYLES: Record<string, { base: string; active: string }> = {
   neutral: { base: 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-neutral-200', active: 'bg-neutral-200 text-neutral-900 border-neutral-300 ring-1 ring-neutral-300' },
@@ -29,6 +39,14 @@ const FILTER_TAG_STYLES: Record<string, { base: string; active: string }> = {
   error: { base: 'bg-error/10 text-error border-error/30 hover:bg-error/20', active: 'bg-error/20 text-error border-error/50 ring-1 ring-error/40' },
   info: { base: 'bg-info/10 text-info border-info/30 hover:bg-info/20', active: 'bg-info/20 text-info border-info/50 ring-1 ring-info/40' },
 };
+
+const DEALER_STATUS_FILTERS: Array<{ key: DealerStatus; label: string }> = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'in_progress', label: 'In progress' },
+  { key: 'needs_action', label: 'Needs action' },
+  { key: 'done', label: 'Done' },
+  { key: 'blocked', label: 'Blocked' },
+];
 
 function getStatusChipVariant(_key: string, index: number): keyof typeof FILTER_TAG_STYLES {
   const cycle: (keyof typeof FILTER_TAG_STYLES)[] = ['neutral', 'info', 'warning'];
@@ -71,6 +89,7 @@ export const Applications: React.FC = () => {
   const [loadingLoanProducts, setLoadingLoanProducts] = useState(true);
   const [productFilterId, setProductFilterId] = useState('');
   const [selectedStatusKeys, setSelectedStatusKeys] = useState<string[]>([]);
+  const [dealerStatusFilter, setDealerStatusFilter] = useState<DealerStatus | null>(null);
 
   const statusInQuery = useMemo(
     () => (selectedStatusKeys.length > 0 ? [...selectedStatusKeys].sort().join(',') : undefined),
@@ -297,9 +316,13 @@ export const Applications: React.FC = () => {
         app.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         app.loanType.toLowerCase().includes(searchQuery.toLowerCase());
 
-      return matchesSearch;
+      const matchesDealerStatus =
+        dealerStatusFilter == null ||
+        dealerStatusWord(String(app.rawStatus || app.status)) === dealerStatusFilter;
+
+      return matchesSearch && matchesDealerStatus;
     });
-  }, [displayApplications, clientIdFromUrl, searchQuery]);
+  }, [displayApplications, clientIdFromUrl, searchQuery, dealerStatusFilter]);
 
   const sortedData = useMemo(() => {
     if (!sortColumn) {
@@ -419,7 +442,7 @@ export const Applications: React.FC = () => {
       label: t('common.status'),
       render: (value, row) => (
         <div className="flex items-center gap-2">
-          <Badge variant={getStatusColor(row.rawStatus ?? '')}>{String(value)}</Badge>
+          <StatusBadge status={dealerStatusWord(String(value))} />
           {(userRole === 'credit_team' || userRole === 'kam') && row.unresolvedQueryCount > 0 && (
             <Badge variant="warning" className="text-xs">
               {t('pages.applications.queryCount', { count: row.unresolvedQueryCount })}
@@ -628,52 +651,41 @@ export const Applications: React.FC = () => {
                 <span className="text-xs text-neutral-500">{t('common.loading')}</span>
               )}
             </div>
-            {statusCatalog.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-neutral-600 mr-1">{t('common.status')}:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedStatusKeys([]);
-                    updateFilterUrl(productFilterId, []);
-                  }}
-                  aria-pressed={selectedStatusKeys.length === 0}
-                  aria-label={t('pages.applications.allStatuses')}
-                  className={`inline-flex items-center rounded-full border px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${
-                    selectedStatusKeys.length === 0
-                      ? FILTER_TAG_STYLES.neutral.active
-                      : FILTER_TAG_STYLES.neutral.base
-                  }`}
-                >
-                  {t('pages.applications.allStatuses')}
-                </button>
-                {statusCatalog.map((opt, idx) => {
-                  const variant = getStatusChipVariant(opt.key, idx);
-                  const styles = FILTER_TAG_STYLES[variant];
-                  const isActive = selectedStatusKeys.includes(opt.key);
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => {
-                        setSelectedStatusKeys((prev) => {
-                          const next = prev.includes(opt.key)
-                            ? prev.filter((k) => k !== opt.key)
-                            : [...prev, opt.key];
-                          updateFilterUrl(productFilterId, next);
-                          return next;
-                        });
-                      }}
-                      aria-pressed={isActive}
-                      aria-label={t('pages.applications.filterByStatus', { label: opt.label })}
-                      className={`inline-flex items-center rounded-full border px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${isActive ? styles.active : styles.base}`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-neutral-600 mr-1">{t('common.status')}:</span>
+              <button
+                type="button"
+                onClick={() => setDealerStatusFilter(null)}
+                aria-pressed={dealerStatusFilter == null}
+                aria-label={t('pages.applications.allStatuses')}
+                className={`inline-flex items-center rounded-full border px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${
+                  dealerStatusFilter == null
+                    ? FILTER_TAG_STYLES.neutral.active
+                    : FILTER_TAG_STYLES.neutral.base
+                }`}
+              >
+                {t('pages.applications.allStatuses')}
+              </button>
+              {DEALER_STATUS_FILTERS.map((opt, idx) => {
+                const variant = getStatusChipVariant(opt.key, idx);
+                const styles = FILTER_TAG_STYLES[variant];
+                const isActive = dealerStatusFilter === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() =>
+                      setDealerStatusFilter((prev) => (prev === opt.key ? null : opt.key))
+                    }
+                    aria-pressed={isActive}
+                    aria-label={t('pages.applications.filterByStatus', { label: opt.label })}
+                    className={`inline-flex items-center rounded-full border px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors touch-manipulation ${isActive ? styles.active : styles.base}`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -735,7 +747,7 @@ export const Applications: React.FC = () => {
                 <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                 {clientIdFromUrl && !hasSecondaryFilters ? (
                   <>
-                    <p className="text-neutral-600 font-medium mb-1">{t('pages.applications.noApplicationsForClient')}</p>
+                    <p className="mb-1 text-[14px] font-medium leading-5 text-dealer-text-quiet">{t('pages.applications.noApplicationsForClient')}</p>
                     <Button
                       variant="tertiary"
                       size="sm"
@@ -771,8 +783,8 @@ export const Applications: React.FC = () => {
                   </>
                 ) : unmappedView ? (
                   <>
-                    <p className="text-neutral-600 font-medium mb-1">{t('pages.applications.noUnmapped')}</p>
-                    <p className="text-neutral-500 text-sm mb-4">
+                    <p className="mb-1 text-[14px] font-medium leading-5 text-dealer-text-quiet">{t('pages.applications.noUnmapped')}</p>
+                    <p className="mb-4 text-sm text-dealer-text-quiet">
                       {t('pages.applications.noUnmappedHint')}
                     </p>
                     <Button variant="tertiary" size="sm" onClick={() => { void refetch(true); }} className="mt-4">
@@ -781,7 +793,7 @@ export const Applications: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <p className="text-neutral-500">{t('pages.applications.noApplications')}</p>
+                    <p className="text-[14px] leading-5 text-dealer-text-quiet">{t('pages.applications.noApplications')}</p>
                     <Button variant="tertiary" size="sm" onClick={() => { void refetch(true); }} className="mt-4">
                       {t('common.refresh')}
                     </Button>
@@ -801,6 +813,7 @@ export const Applications: React.FC = () => {
               if (id && String(id) !== 'undefined') navigate(`/applications/${id}`);
             }}
             rowTestId="application-row"
+            density="compact"
             getRowClassName={(row) => {
               if ((userRole === 'credit_team' || userRole === 'kam') && row.hasUnresolvedQueries) {
                 return 'bg-warning/5 border-l-4 border-warning';

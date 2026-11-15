@@ -16,7 +16,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       transition-colors duration-200
       focus:outline-none focus:ring-2
       disabled:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-500
-      ${dealer ? 'font-inter text-dealer-text' : ''}
+      ${dealer ? 'text-dealer-text' : ''}
       ${error
         ? dealer
           ? 'border-dealer-error focus:ring-dealer-error focus:border-dealer-error'
@@ -30,7 +30,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className={`block mb-1 text-sm font-medium ${dealer ? 'font-inter text-dealer-text' : 'text-neutral-700'}`}>
+          <label className={`block mb-1 text-sm font-medium ${dealer ? 'text-dealer-text' : 'text-neutral-700'}`}>
             {label}
             {required && <span className={`${dealer ? 'text-dealer-error' : 'text-error'} ml-1`}>*</span>}
           </label>

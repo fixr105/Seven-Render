@@ -3,23 +3,25 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import {
-  INTEREST_RATE,
-  PF_PCT,
   calculateB2cLoanScenarioPreview,
   computeGstComponent,
   freezeB2cLoanPreview,
-  matchCibilBand,
   parseGstRateInput,
   parseMoneyInput,
   validateCustomerPaymentForFreeze,
-  type CibilRateBand,
   type LoanCalculatorSnapshot,
   type LoanFrozenValues,
   type LoanTenureMonths,
   type VehicleGstRate,
 } from '../../lib/loanCalculator';
-import { apiService } from '../../services/api';
+import { PRICING_UNAVAILABLE_MESSAGE } from '../../lib/lenderBrePricing';
 import { LoanDraftInvoiceBreakdown } from './LoanDraftInvoiceBreakdown';
+
+export type LoanCalculatorPricing = {
+  roi_pct: number;
+  pf_pct: number;
+  rule_id: number;
+};
 
 const TENURE_OPTIONS = [
   { value: '12', label: '12 months' },
@@ -43,19 +45,22 @@ function displayMoney(value: number): string {
 
 interface LoanCalculatorStage1Props {
   frozenValues: LoanFrozenValues | null;
-  cibilScore: number | null;
+  pricing: LoanCalculatorPricing | null;
+  pricingError: string | null;
+  onRetryPricing?: () => void;
   onFreeze: (values: LoanFrozenValues, snapshot: LoanCalculatorSnapshot) => void;
   onUnfreeze: () => void;
 }
 
 const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   frozenValues,
-  cibilScore,
+  pricing,
+  pricingError,
+  onRetryPricing,
   onFreeze,
   onUnfreeze,
 }) => {
   const isFrozen = frozenValues != null;
-  const [matrix, setMatrix] = useState<CibilRateBand[]>([]);
   const [vehiclePrice, setVehiclePrice] = useState('');
   const [gstRate, setGstRate] = useState<VehicleGstRate>(0.05);
   const [insurance, setInsurance] = useState('');
@@ -65,23 +70,6 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(
     frozenValues?.tenureMonths ?? 12
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    apiService
-      .getCibilRateMatrix()
-      .then((res) => {
-        if (!cancelled && res.success && Array.isArray(res.data)) {
-          setMatrix(res.data);
-        }
-      })
-      .catch(() => {
-        // Fetch failure falls back to default constants below; nothing to surface here.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!frozenValues) return;
@@ -107,17 +95,17 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
     [vehiclePrice, gstRate, insurance, registration, accessories, customerPayment, tenureMonths]
   );
 
-  const matchedBand = useMemo(
-    () => matchCibilBand(cibilScore, matrix),
-    [cibilScore, matrix]
-  );
-  const roiPct = matchedBand ? matchedBand.roi_pct : INTEREST_RATE;
-  const pfPct = matchedBand ? matchedBand.pf_pct : PF_PCT * 100;
-  const bandLabel = matchedBand ? matchedBand.band_label : 'Default';
+  const roiPct = pricing?.roi_pct ?? 0;
+  const pfPct = pricing?.pf_pct ?? 0;
+  const bandLabel = pricing ? `BRE-${pricing.rule_id}` : 'Unavailable';
+  const pricingReady = Boolean(pricing) && !pricingError;
 
   const preview = useMemo(
-    () => calculateB2cLoanScenarioPreview(inputs, roiPct, pfPct / 100, 'wizardGrossUp'),
-    [inputs, roiPct, pfPct]
+    () =>
+      pricingReady
+        ? calculateB2cLoanScenarioPreview(inputs, roiPct, pfPct / 100, 'wizardGrossUp')
+        : calculateB2cLoanScenarioPreview(inputs, 0, 0, 'wizardGrossUp'),
+    [inputs, roiPct, pfPct, pricingReady]
   );
   const iotWithGst = useMemo(() => computeGstComponent(preview.gpsCharges), [preview.gpsCharges]);
   const customerPaymentValidation = useMemo(
@@ -130,10 +118,10 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
     inputs.customerPayment > 0 &&
     !customerPaymentValidation.valid;
   const canFreeze =
-    preview.loanAmount > 0 && customerPaymentValidation.valid;
+    pricingReady && preview.loanAmount > 0 && customerPaymentValidation.valid;
 
   const handleFreeze = () => {
-    if (!canFreeze) return;
+    if (!canFreeze || !pricing) return;
     onFreeze(freezeB2cLoanPreview(preview, pfPct, bandLabel), {
       vehiclePrice: inputs.vehiclePrice,
       gstRate: inputs.gstRate,
@@ -234,13 +222,52 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
         />
       </div>
 
+      {pricingError ? (
+        <div
+          className="rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error"
+          data-testid="loan-calc-pricing-error"
+          role="alert"
+        >
+          <p>{pricingError || PRICING_UNAVAILABLE_MESSAGE}</p>
+          {onRetryPricing ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-3"
+              onClick={onRetryPricing}
+              data-testid="loan-calc-pricing-retry"
+            >
+              Try again
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
         <h4 className="mb-3 text-sm font-semibold text-neutral-900">Live preview</h4>
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
+            <dt className="text-xs text-neutral-500">Interest Rate (from lender band)</dt>
+            <dd
+              className="text-sm font-medium text-neutral-900"
+              data-testid="loan-calc-preview-rate"
+            >
+              {pricingReady ? `${roiPct}% p.a.` : '—'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-neutral-500">Processing Fee %</dt>
+            <dd
+              className="text-sm font-medium text-neutral-900"
+              data-testid="loan-calc-preview-pf-pct"
+            >
+              {pricingReady ? `${pfPct}%` : '—'}
+            </dd>
+          </div>
+          <div>
             <dt className="text-xs text-neutral-500">Loan Amount</dt>
             <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-amount">
-              {formatRupee(preview.loanAmount)}
+              {pricingReady ? formatRupee(preview.loanAmount) : '—'}
             </dd>
           </div>
           <div>
@@ -258,7 +285,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           <div>
             <dt className="text-xs text-neutral-500">EMI Amount</dt>
             <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-emi">
-              {formatRupee(preview.emiAmount)}
+              {pricingReady ? formatRupee(preview.emiAmount) : '—'}
             </dd>
           </div>
         </dl>
@@ -373,7 +400,9 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
 
 export interface LoanCalculatorProps {
   frozenValues: LoanFrozenValues | null;
-  cibilScore?: number | null;
+  pricing: LoanCalculatorPricing | null;
+  pricingError?: string | null;
+  onRetryPricing?: () => void;
   onFrozenValuesChange: (
     values: LoanFrozenValues | null,
     snapshot?: LoanCalculatorSnapshot
@@ -383,17 +412,22 @@ export interface LoanCalculatorProps {
 /**
  * Parent holding frozen loan values. Stage 1 (calculator) freezes a snapshot;
  * Stage 2 (application form) is read-only and only shows that snapshot.
+ * Rate / PF % come from Lender BRE via getPricing (read-only — no flat fallback).
  */
 export const LoanCalculator: React.FC<LoanCalculatorProps> = ({
   frozenValues,
-  cibilScore = null,
+  pricing,
+  pricingError = null,
+  onRetryPricing,
   onFrozenValuesChange,
 }) => {
   return (
     <div className="space-y-8" data-testid="loan-calculator">
       <LoanCalculatorStage1
         frozenValues={frozenValues}
-        cibilScore={cibilScore}
+        pricing={pricing}
+        pricingError={pricingError}
+        onRetryPricing={onRetryPricing}
         onFreeze={(values, snapshot) => onFrozenValuesChange(values, snapshot)}
         onUnfreeze={() => onFrozenValuesChange(null)}
       />

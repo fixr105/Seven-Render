@@ -459,6 +459,95 @@ export class UsersController {
       });
     }
   }
+
+  /**
+   * POST /users/create-dealer
+   * KAM or admin creates a client login. The default password stays on the server.
+   */
+  async createDealer(req: Request, res: Response): Promise<void> {
+    try {
+      if (req.user?.role !== 'kam' && req.user?.role !== 'admin') {
+        res.status(403).json({ success: false, error: 'Insufficient permissions' });
+        return;
+      }
+
+      const rawEmail = typeof req.body?.email === 'string' ? req.body.email : '';
+      const rawName = typeof req.body?.name === 'string' ? req.body.name : '';
+      const email = rawEmail.trim().toLowerCase();
+      const name = rawName.trim().toUpperCase();
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+      if (!emailOk) {
+        res.status(400).json({ success: false, error: 'A valid email is required' });
+        return;
+      }
+      if (name.length < 2) {
+        res.status(400).json({ success: false, error: 'Dealer name must be at least 2 characters' });
+        return;
+      }
+
+      const existingUsers = await n8nClient.fetchTable('User Accounts');
+      const existingUser = existingUsers.find((user) => {
+        const record = user as { Username?: string; Email?: string };
+        const username = (record.Username || record.Email || '').toString().trim().toLowerCase();
+        return username === email;
+      });
+      if (existingUser) {
+        res.status(409).json({
+          success: false,
+          error: 'A user with this email already exists',
+        });
+        return;
+      }
+
+      const defaultDealerPassword = 'pass@123';
+      const hashedPassword = await authService.hashPassword(defaultDealerPassword);
+      const newId = `USER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const createdAt = new Date().toISOString();
+
+      await n8nClient.postUserAccount({
+        id: newId,
+        Username: email,
+        Password: hashedPassword,
+        Role: 'client',
+        'Associated Profile': name,
+        'Last Login': '',
+        'Account Status': 'Active',
+      });
+
+      console.log('[createDealer] Created dealer account', { id: newId, email });
+
+      n8nClient
+        .postAdminActivityLog({
+          id: `ACT-${Date.now()}`,
+          'Activity ID': `ACT-${Date.now()}`,
+          Timestamp: createdAt,
+          'Performed By': req.user.email || req.user.id,
+          'Action Type': 'create_dealer',
+          'Description/Details': `Created dealer account: ${name} (${email})`,
+          'Target Entity': 'user_account',
+        })
+        .catch((logError: unknown) => {
+          console.warn('[createDealer] Failed to log admin activity (non-critical):', logError);
+        });
+
+      res.status(200).json({
+        success: true,
+        email,
+        name,
+        role: 'client',
+      });
+    } catch (error: any) {
+      console.error('[createDealer] Failed to create dealer account', {
+        email: typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : undefined,
+        message: error?.message,
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to create dealer account',
+      });
+    }
+  }
 }
 
 export const usersController = new UsersController();

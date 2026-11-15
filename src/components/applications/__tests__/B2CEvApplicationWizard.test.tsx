@@ -3,6 +3,11 @@ import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { B2CEvApplicationWizard } from '../B2CEvApplicationWizard';
 import { apiService } from '../../../services/api';
+import {
+  airtableGet,
+  lookupBureauCacheByPan,
+  qualifyApplicant,
+} from '../../../services/engineClient';
 import { renderWithProviders, mockClientUser } from '../../../test/helpers';
 import { createInitialB2cEvFormData } from '../../../config/forms/b2cEvFormSchema';
 
@@ -11,7 +16,6 @@ vi.mock('../../../services/api', () => ({
     listLoanProducts: vi.fn(),
     getClientKyc: vi.fn(),
     getFormConfig: vi.fn(),
-    lookupBorrowerPan: vi.fn(),
     getApplication: vi.fn(),
     createApplication: vi.fn(),
     updateApplicationForm: vi.fn(),
@@ -23,6 +27,69 @@ vi.mock('../../../services/api', () => ({
     proceedSevenOne: vi.fn(),
   },
 }));
+
+vi.mock('../PostSubmitEngineFlow', () => ({
+  PostSubmitEngineFlow: () => <div data-testid="post-submit-engine-flow" />,
+}));
+
+vi.mock('../../../lib/postSubmitEngine/rejectOnCreditFail', () => ({
+  writeApplicationRejectedOnCreditFail: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../../services/engineClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/engineClient')>();
+  return {
+    ...actual,
+    qualifyApplicant: vi.fn(),
+    lookupBureauCacheByPan: vi.fn(),
+    airtableWrite: vi.fn().mockResolvedValue({}),
+    airtableGet: vi.fn(),
+    ENGINE_BASE_ID: 'appzbyi8q7pJRl1cd',
+  };
+});
+
+vi.mock('../../../lib/lenderBrePricing', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/lenderBrePricing')>();
+  return {
+    ...actual,
+    getPricing: vi.fn().mockResolvedValue({
+      rule_id: 7,
+      nbfc_partner: 'Fintree',
+      roi_pct: 28,
+      pf_pct: 6.75,
+      eligible: true,
+    }),
+  };
+});
+
+const defaultQualifyPass = {
+  ok: true,
+  pass: true,
+  is_ntc: false,
+  kill_code: null,
+  failed: [],
+  missing: [],
+  bureau_ref: 'AL-TEST',
+  cached: false,
+  applicant: {
+    name: 'RAHUL GONSALVES',
+    dob: '1993-04-07',
+    pan: 'BAIPG3083L',
+    mobile: '9687599179',
+    email: 'rahul@example.com',
+    gender: 'Male',
+    addresses: [
+      {
+        line1: '107, Villa De Flores, Catholic Society, Vidhyanagar, Bhavnagar',
+        line2: null,
+        line3: null,
+        city: 'Bhavnagar',
+        state_code: '24',
+        pin: '364002',
+      },
+    ],
+  },
+};
 
 vi.mock('../../../hooks/useNotifications', () => ({
   useNotifications: () => ({
@@ -77,7 +144,34 @@ const fillStageOne = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(screen.getByTestId('b2c-field-_meta-panLookup-fullName'), 'RAHUL YADAV');
 };
 
+/** Product Next runs bureau + lender-find and stays; second Next advances. */
+const advancePastSection1 = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByTestId('b2c-wizard-next'));
+  await waitFor(() => {
+    expect(screen.getByTestId('finding-lender-panel')).toHaveTextContent(/Lender found/i);
+  });
+  await user.click(screen.getByTestId('b2c-wizard-next'));
+};
+
+/** Qualify applicant does not include fatherName/district — fill required leftovers. */
+const completeBorrowerMissingRequired = async (
+  user: ReturnType<typeof userEvent.setup>
+) => {
+  await waitFor(() => {
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+  });
+  const father = screen.getByTestId('b2c-field-borrower-fatherName') as HTMLInputElement;
+  if (!father.value) await user.type(father, 'JOSEPH GONSALVES');
+  const district = screen.getByTestId(
+    'b2c-field-borrower-address-district'
+  ) as HTMLInputElement;
+  if (!district.value) await user.type(district, 'Bhavnagar');
+};
+
 const fillAndFreezeLoanStage = async (user: ReturnType<typeof userEvent.setup>) => {
+  await waitFor(() => {
+    expect(screen.getByTestId('loan-calc-preview-rate')).toHaveTextContent(/% p\.a\./);
+  });
   await user.type(screen.getByTestId('loan-calc-vehicle-price'), '100000');
   await user.selectOptions(screen.getByTestId('loan-calc-gst-rate'), '0.05');
   await user.type(screen.getByTestId('loan-calc-insurance'), '2000');
@@ -104,30 +198,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
       success: true,
       data: [],
     });
-    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValue({
-      success: true,
-      data: {
-        formDataPatch: {
-          'borrower.firstName': 'RAHUL',
-          'borrower.lastName': 'GONSALVES',
-          'borrower.customerName': 'RAHUL GONSALVES',
-          'borrower.gender': 'Male',
-          'borrower.dob': '1993-04-07',
-          'borrower.fatherName': 'JOSEPH GONSALVES',
-          'borrower.mobile': '9687599179',
-          'borrower.email': 'rahul@example.com',
-          'borrower.pan': 'BAIPG3083L',
-          'borrower.address.line1':
-            '107, Villa De Flores, Catholic Society, Vidhyanagar, Bhavnagar',
-          'borrower.address.village': 'Bhavnagar',
-          'borrower.address.pincode': '364002',
-          'borrower.address.district': 'Bhavnagar',
-          'borrower.address.state': 'Gujarat',
-          '_meta.panLookup.cibilScore': '620',
-        },
-        lookupAt: '2026-04-07T12:00:00.000Z',
-      },
-    });
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValue(defaultQualifyPass);
+    (lookupBureauCacheByPan as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     (apiService.createApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       data: { loanApplicationId: 'draft-1', fileId: 'draft-1' },
@@ -152,6 +224,24 @@ describe('B2CEvApplicationWizard submit gating', () => {
       success: true,
       data: { newStatus: 'seven_one' },
     });
+    (airtableGet as ReturnType<typeof vi.fn>).mockImplementation(async (input: { table?: string }) => {
+      if (input.table === 'Lenders') {
+        return {
+          ok: true,
+          count: 1,
+          records: [
+            {
+              name: 'Fintree',
+              status: 'active',
+              min_ticket: 50000,
+              max_ticket: 150000,
+              tenure_months: '12,18,24',
+            },
+          ],
+        };
+      }
+      return { ok: true, count: 0, records: [] };
+    });
     window.alert = vi.fn();
   });
 
@@ -165,6 +255,40 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.queryByTestId('b2c-submit-application')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save draft/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
+  });
+
+  it('uppercases step-1 Full Name and PAN as typed and sends them to qualify', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByTestId('b2c-loan-product-select'), 'LP001');
+    await user.type(screen.getByTestId('b2c-field-_meta-panLookup-mobileNumber'), '7355621712');
+    await user.type(screen.getByTestId('b2c-field-_meta-panLookup-panNumber'), 'hsjpp5704a');
+    await user.type(screen.getByTestId('b2c-field-_meta-panLookup-fullName'), 'govind pandey');
+
+    expect(screen.getByTestId('b2c-field-_meta-panLookup-panNumber')).toHaveValue('HSJPP5704A');
+    expect(screen.getByTestId('b2c-field-_meta-panLookup-fullName')).toHaveValue('GOVIND PANDEY');
+    expect(screen.getByTestId('b2c-field-_meta-panLookup-panNumber')).toHaveAttribute(
+      'autocapitalize',
+      'characters'
+    );
+    expect(screen.getByTestId('b2c-field-_meta-panLookup-fullName')).toHaveAttribute(
+      'autocapitalize',
+      'characters'
+    );
+
+    await advancePastSection1(user);
+
+    await waitFor(() => {
+      expect(qualifyApplicant).toHaveBeenCalled();
+    });
+    const payload = (qualifyApplicant as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(payload.PAN_Number || payload.pan).toBe('HSJPP5704A');
+    expect(payload.Full_Name || payload.name).toBe('GOVIND PANDEY');
   });
 
   it('Save draft calls createApplication with saveAsDraft true', async () => {
@@ -186,10 +310,12 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(apiService.submitApplication).not.toHaveBeenCalled();
   });
 
-  it('advances to manual borrower profile when PAN lookup returns no results', async () => {
-    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValue({
-      success: false,
-      error: 'PAN lookup returned no borrower details',
+  it('advances to manual borrower profile when qualify has no applicant details', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      pass: true,
+      bureau_ref: 'AL-EMPTY',
+      applicant: null,
     });
 
     const user = userEvent.setup();
@@ -200,28 +326,24 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await advancePastSection1(user);
 
     await waitFor(() => {
       expect(screen.getByTestId('borrower-pan-manual-message')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('');
-    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('');
-    expect(screen.getByTestId('b2c-field-borrower-pan')).toHaveValue('');
-    expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
-    expect(apiService.lookupBorrowerPan).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('borrower-pan-manual-message')).toBeInTheDocument();
-    });
-    expect(apiService.lookupBorrowerPan).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('borrower-pan-manual-message')).toHaveTextContent(
+      /No details found, please enter manually/i
+    );
+    expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
+    expect(screen.getByTestId('b2c-field-borrower-lastName')).toHaveValue('YADAV');
+    expect(screen.getByTestId('b2c-field-borrower-pan')).toHaveValue('BAIPG3083L');
+    expect(screen.getByTestId('b2c-field-borrower-mobile')).toHaveValue('9687599179');
+    expect(qualifyApplicant).toHaveBeenCalled();
+    expect(lookupBureauCacheByPan).not.toHaveBeenCalled();
   });
 
-  it('autofills borrower profile and address on a single stage after successful PAN lookup', async () => {
+  it('autofills borrower profile and address from qualify applicant', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
 
@@ -230,15 +352,10 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await advancePastSection1(user);
 
     await waitFor(() => {
-      expect(apiService.lookupBorrowerPan).toHaveBeenCalledWith({
-        mobileNumber: '9687599179',
-        panNumber: 'BAIPG3083L',
-        fullName: 'RAHUL YADAV',
-        borrowerEmail: null,
-      });
+      expect(qualifyApplicant).toHaveBeenCalled();
     });
 
     await waitFor(() => {
@@ -256,9 +373,10 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('b2c-field-borrower-address-village')).toHaveValue('Bhavnagar');
     expect(screen.getByTestId('b2c-field-borrower-address-pincode')).toHaveValue('364002');
     expect(screen.getByText('Address')).toBeInTheDocument();
+    expect(lookupBureauCacheByPan).not.toHaveBeenCalled();
   });
 
-  it('shows CIBIL probability bar on borrower step without displaying the numeric score', async () => {
+  it('shows Finding a lender panel then advances; never shows chances bar', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
 
@@ -270,24 +388,54 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('cibil-probability-bar')).toBeInTheDocument();
+      expect(screen.getByTestId('finding-lender-panel')).toHaveTextContent(/Lender found/i);
     });
-
-    expect(screen.getByText('High Chance')).toBeInTheDocument();
-    expect(screen.queryByText('620')).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/\b620\b/);
+    expect(qualifyApplicant).toHaveBeenCalled();
+    expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
-      expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
     });
+    expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
   });
 
-  it('gates Next when chances score is below 50 and shows Proceed with Seven One', async () => {
-    (apiService.getCibilChances as ReturnType<typeof vi.fn>).mockResolvedValue({
-      success: true,
-      data: { score: 33, label: 'Chances with Co-applicant' },
+  it('advances past score-only null kill (Engine score gap) when applicant present', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultQualifyPass,
+      pass: false,
+      kill_code: 'KILLED',
+      failed: [{ parameter: 'score' }],
+      bureau_ref: 'AL-govind',
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await advancePastSection1(user);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
+    });
+    expect(screen.queryByText(/Cannot proceed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/below minimum/i)).not.toBeInTheDocument();
+  });
+
+  it('hard-rejects with expandable +N reasons and greys remaining steps', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      pass: false,
+      failed: [
+        { rejection_code: 'CC_OVERDUE_GT_5000' },
+        { rejection_code: 'DPD_FOUND_IN_LAST_3M' },
+        { rejection_code: 'DPD_FOUND_IN_LAST_6M' },
+        { rejection_code: 'OVERDUE_FOUND_IN_LAST_12M' },
+      ],
     });
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
@@ -300,11 +448,17 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
-      expect(screen.getByText('Chances with Co-applicant')).toBeInTheDocument();
+      expect(screen.getByTestId('finding-lender-panel')).toHaveTextContent(/Rejected/i);
     });
+    expect(screen.getByTestId('qualify-overflow-chip')).toHaveTextContent('+2');
+    expect(screen.queryByTestId('qualify-overflow-list')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('qualify-overflow-chip'));
+    expect(screen.getByTestId('qualify-overflow-list')).toBeInTheDocument();
 
     expect(screen.getByTestId('b2c-wizard-next')).toBeDisabled();
-    expect(screen.getByTestId('b2c-proceed-seven-one')).toBeInTheDocument();
+    expect(screen.getByTestId('b2c-stepper-step-borrower')).toBeDisabled();
+    expect(screen.getByTestId('b2c-stepper-step-borrower').className).toMatch(/opacity-45/);
   });
 
   it('allows editing autofilled borrower fields and recomputes customer name', async () => {
@@ -316,7 +470,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await advancePastSection1(user);
 
     await waitFor(() => {
       expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
@@ -331,16 +485,17 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('b2c-field-borrower-pan')).toBeDisabled();
   });
 
-  it('shows gender select placeholder when PAN JSON omits gender', async () => {
-    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      success: true,
-      data: {
-        formDataPatch: {
-          'borrower.firstName': 'RAHUL',
-          'borrower.lastName': 'GONSALVES',
-          'borrower.customerName': 'RAHUL GONSALVES',
-        },
-        lookupAt: '2026-04-07T12:00:00.000Z',
+  it('shows gender select placeholder when qualify applicant omits gender', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      pass: true,
+      bureau_ref: 'AL-TEST',
+      applicant: {
+        name: 'RAHUL GONSALVES',
+        dob: null,
+        email: null,
+        gender: null,
+        addresses: [],
       },
     });
 
@@ -352,7 +507,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await advancePastSection1(user);
 
     await waitFor(() => {
       expect(screen.getByTestId('b2c-field-borrower-firstName')).toHaveValue('RAHUL');
@@ -393,11 +548,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
-    });
+    await advancePastSection1(user);
+    await completeBorrowerMissingRequired(user);
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -421,11 +573,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
-    });
+    await advancePastSection1(user);
+    await completeBorrowerMissingRequired(user);
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -442,39 +591,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
   });
 
   it(
-    'shows manual co-applicant profile when PAN lookup returns no results and advances to geo photos',
+    'verifies co-applicant via qualify (not Bureau Cache) and advances to geo photos',
     async () => {
-    (apiService.lookupBorrowerPan as ReturnType<typeof vi.fn>).mockImplementation(async (args) => {
-      if (args.target === 'coApplicant' || args.target === 'guarantor') {
-        return {
-          success: false,
-          error: 'PAN lookup returned no co-applicant details',
-        };
-      }
-      return {
-        success: true,
-        data: {
-          formDataPatch: {
-            'borrower.firstName': 'RAHUL',
-            'borrower.lastName': 'GONSALVES',
-            'borrower.customerName': 'RAHUL GONSALVES',
-            'borrower.gender': 'Male',
-            'borrower.dob': '1993-04-07',
-            'borrower.fatherName': 'JOSEPH GONSALVES',
-            'borrower.mobile': '9687599179',
-            'borrower.email': 'rahul@example.com',
-            'borrower.pan': 'BAIPG3083L',
-            'borrower.address.line1': '107, Villa De Flores',
-            'borrower.address.village': 'Bhavnagar',
-            'borrower.address.pincode': '364002',
-            'borrower.address.district': 'Bhavnagar',
-            'borrower.address.state': 'Gujarat',
-          },
-          lookupAt: '2026-04-07T12:00:00.000Z',
-        },
-      };
-    });
-
     (apiService.getClientKyc as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       data: {
@@ -502,11 +620,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
-    });
+    await advancePastSection1(user);
+    await completeBorrowerMissingRequired(user);
 
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -523,32 +638,58 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('support-person-co_applicant')).toBeInTheDocument();
     });
 
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      pass: true,
+      bureau_ref: 'AL-CO',
+      cached: true,
+      failed: [],
+      applicant: {
+        name: 'PRIYA SHARMA',
+        dob: '1992-02-02',
+        pan: 'FGHIJ5678K',
+        mobile: '9876543211',
+        email: 'priya@example.com',
+        gender: 'Female',
+        addresses: [
+          {
+            line1: '12 Main Street',
+            line2: null,
+            line3: null,
+            city: 'Delhi',
+            state_code: '07',
+            pin: '110001',
+          },
+        ],
+      },
+    });
+
     await user.click(screen.getByTestId('support-person-co_applicant'));
     await user.type(screen.getByTestId('b2c-field-_meta-supportPanLookup-mobileNumber'), '9876543211');
     await user.type(screen.getByTestId('b2c-field-_meta-supportPanLookup-panNumber'), 'FGHIJ5678K');
     await user.type(screen.getByTestId('b2c-field-_meta-supportPanLookup-fullName'), 'PRIYA SHARMA');
+    await user.click(screen.getByTestId('b2c-support-bureau-consent'));
     await user.click(screen.getByTestId('b2c-support-pan-verify'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('support-pan-phase-profile')).toBeInTheDocument();
+      expect(screen.getByTestId('support-bureau-pass')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('support-pan-profile-message')).toHaveTextContent(
-      /PAN verification returned no results/i
-    );
-    expect(screen.getByTestId('b2c-field-coApplicant-name')).toHaveValue('');
-    expect(screen.getByTestId('b2c-field-coApplicant-pan')).toHaveValue('');
+    expect(qualifyApplicant).toHaveBeenCalled();
+    const lastCall = (qualifyApplicant as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(lastCall).toMatchObject({
+      Full_Name: 'Priya Sharma',
+      Mobile_Number: '9876543211',
+      PAN_Number: 'FGHIJ5678K',
+    });
+    expect(lastCall).toHaveProperty('consent_bureau_at');
+    expect(lookupBureauCacheByPan).not.toHaveBeenCalled();
 
-    await user.type(screen.getByTestId('b2c-field-coApplicant-name'), 'PRIYA SHARMA');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-pan'), 'FGHIJ5678K');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-mobile'), '9876543211');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-dob'), '1992-02-02');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-email'), 'priya@example.com');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-address-line1'), '12 Main Street');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-address-village'), 'Delhi');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-address-pincode'), '110001');
+    expect(screen.getByTestId('b2c-field-coApplicant-name')).toHaveValue('PRIYA SHARMA');
+    expect(screen.getByTestId('b2c-field-coApplicant-dob')).toHaveValue('1992-02-02');
+    expect(screen.getByTestId('b2c-field-coApplicant-address-state')).toHaveValue('Delhi');
+
     await user.type(screen.getByTestId('b2c-field-coApplicant-address-district'), 'Delhi');
-    await user.type(screen.getByTestId('b2c-field-coApplicant-address-state'), 'Delhi');
     await user.type(screen.getByTestId('b2c-field-coApplicant-drivingLicense'), 'DL654321');
     await user.selectOptions(screen.getByTestId('b2c-field-coApplicant-relationship'), 'Spouse');
 
@@ -556,7 +697,6 @@ describe('B2CEvApplicationWizard submit gating', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('b2c-stepper-step-geo-photos')).toBeInTheDocument();
-      expect(screen.queryByTestId('support-pan-phase-profile')).not.toBeInTheDocument();
     });
   },
     30000
@@ -571,7 +711,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     });
 
     await fillStageOne(user);
-    await user.click(screen.getByTestId('b2c-wizard-next'));
+    await advancePastSection1(user);
     await user.click(screen.getByTestId('b2c-wizard-next'));
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
@@ -612,7 +752,7 @@ describe('B2CEvApplicationWizard submit gating', () => {
     }
   });
 
-  it('does not persist draft on Next after product PAN lookup', async () => {
+  it('does not persist Express draft on Next after product qualify (non-rec id)', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
 
@@ -624,7 +764,8 @@ describe('B2CEvApplicationWizard submit gating', () => {
     await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
-      expect(apiService.lookupBorrowerPan).toHaveBeenCalled();
+      expect(qualifyApplicant).toHaveBeenCalled();
+      expect(screen.getByTestId('finding-lender-panel')).toHaveTextContent(/Lender found/i);
     });
 
     expect(apiService.createApplication).not.toHaveBeenCalled();
@@ -1139,6 +1280,273 @@ describe('B2CEvApplicationWizard productId query param', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('b2c-loan-product-select')).toHaveValue('LP001');
+    });
+  });
+
+  it('hydrates loan_product_id from Loan Product + formData.productId and lets Request DO proceed', async () => {
+    (apiService.listLoanProducts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: [
+        { productId: 'LP001', productName: 'EV Loan' },
+        { productId: 'LP012', productName: 'B2C EV' },
+      ],
+    });
+
+    const uploads = {
+      pan_card: { url: 'https://cdn.example.com/pan.jpg', filename: 'pan.jpg' },
+      aadhaar_front: { url: 'https://cdn.example.com/af.jpg', filename: 'af.jpg' },
+      aadhaar_back: { url: 'https://cdn.example.com/ab.jpg', filename: 'ab.jpg' },
+      passport_photo: { url: 'https://cdn.example.com/photo.jpg', filename: 'photo.jpg' },
+      co_applicant_pan: { url: 'https://cdn.example.com/co_pan.jpg', filename: 'co_pan.jpg' },
+      co_applicant_aadhaar: {
+        url: 'https://cdn.example.com/co_aadhaar.jpg',
+        filename: 'co_aadhaar.jpg',
+      },
+    };
+
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-lp012-hydrate&stage=kyc-documents'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-lp012-hydrate',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        // Express shape — no camelCase loanProduct
+        'Loan Product': 'LP012',
+        'File ID': 'SFMWHK65WO',
+        requestedLoanAmount: '111725',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          '_meta.fileId': 'SFMWHK65WO',
+          '_meta.supportPersonType': 'co_applicant',
+          '_meta.vkyc.status': 'Done',
+          '_meta.kycDocuments.uploads': uploads,
+          'coApplicant.pan': 'KMPPS3552C',
+          'borrower.customerName': 'GOVIND PANDEY',
+          'borrower.mobile': '7355621712',
+        },
+      },
+    });
+
+    (airtableGet as ReturnType<typeof vi.fn>).mockImplementation(async (input: { table?: string }) => {
+      if (input.table === 'VKYC Links') {
+        return {
+          ok: true,
+          count: 1,
+          records: [
+            {
+              id: 'recVkyc1',
+              file_id: 'SFMWHK65WO',
+              status: 'Done',
+              link: 'https://meet.google.com/test-link',
+            },
+          ],
+        };
+      }
+      return { ok: true, count: 0, records: [] };
+    });
+
+    (apiService.createClientQuery as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { queryId: 'QUERY-DO-HYDRATE' },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(apiService.getApplication).toHaveBeenCalledWith('draft-lp012-hydrate');
+    });
+
+    // Save draft stays disabled until loan_product_id is hydrated (= LP012).
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('kyc-documents-step')).toBeInTheDocument();
+      expect(screen.getByTestId('kyc-doc-pan_card')).toHaveTextContent(/pan\.jpg/i);
+      expect(screen.getByText(/Video KYC complete/i)).toBeInTheDocument();
+      expect(screen.getByTestId('b2c-wizard-request-do')).toBeEnabled();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-request-do'));
+
+    await waitFor(() => {
+      expect(apiService.createClientQuery).toHaveBeenCalledWith(
+        'draft-lp012-hydrate',
+        expect.objectContaining({ requestKind: 'b2c_do' })
+      );
+      expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
+        'draft-lp012-hydrate',
+        expect.objectContaining({ loan_product_id: 'LP012' })
+      );
+    });
+
+    expect(screen.queryByText(/Please select a loan product before saving/i)).not.toBeInTheDocument();
+  });
+
+  it('Express-miss path hydrates loan_product_id from Loan Product and productId', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=recExpressMissProduct'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      error: 'Draft not found',
+    });
+
+    (airtableGet as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      count: 1,
+      records: [
+        {
+          id: 'recExpressMissProduct',
+          'Loan Product': 'LP012',
+          'File ID': 'SFMISS01',
+          'Form Data': JSON.stringify({
+            ...createInitialB2cEvFormData(),
+            productId: 'LP012',
+          }),
+        },
+      ],
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(airtableGet).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toHaveValue('LP012');
+    });
+  });
+
+  it('hydrates applicant_name from Applicant Name and borrower.customerName', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-name-hydrate'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-name-hydrate',
+        status: 'draft',
+        // Airtable-shaped — no applicant_name / applicantName
+        'Applicant Name': 'GOVIND PANDEY',
+        'Loan Product': 'LP012',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          // no borrower.customerName — must resolve via Applicant Name
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
+    });
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
+        'draft-name-hydrate',
+        expect.objectContaining({ applicant_name: 'GOVIND PANDEY' })
+      );
+    });
+  });
+
+  it('hydrates requested_loan_amount from Requested Loan Amount and loan.amount', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-amount-hydrate'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-amount-hydrate',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        'Loan Product': 'LP012',
+        // Airtable-shaped — no requested_loan_amount / requestedLoanAmount
+        'Requested Loan Amount': 111725,
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          'borrower.customerName': 'GOVIND PANDEY',
+          // no loan.amount — must resolve via Requested Loan Amount
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
+    });
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
+        'draft-amount-hydrate',
+        expect.objectContaining({ requested_loan_amount: '111725' })
+      );
+    });
+  });
+
+  it('hydrates _meta.fileId from File ID / fileId when form_data omits it', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-fileid-hydrate'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-fileid-hydrate',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        'Loan Product': 'LP012',
+        'File ID': 'SFMWHK65WO',
+        fileId: 'SFMWHK65WO',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          'borrower.customerName': 'GOVIND PANDEY',
+          // intentionally no _meta.fileId
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
+    });
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(apiService.updateApplicationForm).toHaveBeenCalledWith(
+        'draft-fileid-hydrate',
+        expect.objectContaining({ '_meta.fileId': 'SFMWHK65WO' })
+      );
     });
   });
 });

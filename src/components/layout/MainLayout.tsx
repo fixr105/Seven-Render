@@ -55,7 +55,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         />
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* TopBar extends from left edge to right edge */}
         <div className="w-full relative">
           <TopBar

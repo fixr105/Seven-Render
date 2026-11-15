@@ -25,6 +25,7 @@ export function LoanCalculatorDevPage() {
           <CardContent>
             <LoanCalculator
               frozenValues={frozenValues}
+              pricing={{ roi_pct: 28, pf_pct: 6.75, rule_id: 7 }}
               onFrozenValuesChange={(
                 values: LoanFrozenValues | null,
                 snapshot?: LoanCalculatorSnapshot

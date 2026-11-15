@@ -7,8 +7,10 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/engine/:path*", "destination": "https://fixrrahul.app.n8n.cloud/webhook/:path*" },
+    { "source": "/tools/:path*", "destination": "https://n8n-fvmj.srv1499064.hstgr.cloud/webhook/:path*" },
     {
-      "source": "/((?!api/|assets/|icons/|videos/|sw.js|manifest.webmanifest).*)",
+      "source": "/((?!api/|engine/|tools/|assets/|icons/|videos/|sw.js|manifest.webmanifest).*)",
       "destination": "/index.html"
     }
   ],

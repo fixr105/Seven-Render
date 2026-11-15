@@ -26,6 +26,8 @@ export const FRONTEND_PATHS: FrontendPathEntry[] = [
   { path: '/applications', type: 'action', description: 'Applications list' },
   { path: '/applications/new', type: 'action', description: 'New application (client only)' },
   { path: '/applications/:id', type: 'action', description: 'Application detail (invalid id handled in-page)' },
+  { path: '/dealer/delivery/:fileId', type: 'action', description: 'Dealer delivery: geo photos, insurance, vehicle, IoT tagging' },
+  { path: '/vkyc-desk', type: 'action', description: 'VKYC desk (kam, credit_team, admin)' },
   { path: '/ledger', type: 'action', description: 'Ledger' },
   { path: '/clients', type: 'action', description: 'Clients' },
   { path: '/profile', type: 'action', description: 'Profile' },

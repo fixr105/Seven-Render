@@ -11,9 +11,8 @@ import { useAuth } from './AuthContext';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { LanguageSwitcher } from '../components/layout/LanguageSwitcher';
-import loginBg from '../components/ui/login-bg.png';
 import logo from '../components/ui/logo.png';
-import './LoginPage.css';
+import { AuthScreen, authSubmitClassName } from './AuthScreen';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -29,7 +28,6 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const resetSuccess = searchParams.get('reset') === 'success';
 
-  // Redirect if already logged in
   React.useEffect(() => {
     if (user) navigate('/dashboard', { replace: true });
   }, [user, navigate]);
@@ -76,82 +74,84 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div
-      className="login-page"
-      style={{ ['--login-bg' as string]: `url(${loginBg})` }}
-    >
-      <div className="login-card">
-        <img src={logo} alt={t('common.logoAlt')} className="login-logo" />
-        <p className="login-tagline">{t('common.tagline')}</p>
-
-        <div className="login-language-row">
-          <label htmlFor="login-language-select" className="login-language-label">
-            {t('topbar.language')}
-          </label>
-          <LanguageSwitcher
-            id="login-language-select"
-            variant="onDark"
-            className="login-language-select"
-          />
-        </div>
-
-        <form className="login-form" onSubmit={handleSubmit} noValidate>
-          {resetSuccess && (
-            <div className="login-success mb-3 p-2 rounded bg-green-50 text-green-800 text-sm">
-              {t('auth.resetSuccess')}
-            </div>
-          )}
-          {error && <div className="login-error">{error}</div>}
-
-          <div className="form-group">
-            <Input
-              ref={emailRef}
-              type="email"
-              label={t('auth.email')}
-              placeholder={t('auth.emailPlaceholder')}
-              autoComplete="email"
-              icon={Mail}
-              iconPosition="left"
-              required
-              disabled={loading}
-              data-testid="login-username"
-            />
-          </div>
-
-          <div className="form-group">
-            <Input
-              ref={passwordRef}
-              type="password"
-              label={t('auth.password')}
-              placeholder={t('auth.passwordPlaceholder')}
-              autoComplete="current-password"
-              icon={Lock}
-              iconPosition="left"
-              required
-              disabled={loading}
-              data-testid="login-password"
-            />
-          </div>
-
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            loading={loading}
-            disabled={loading}
-            className="login-btn"
-          >
-            {t('auth.login')}
-          </Button>
-
-          <p className="login-forgot-hint text-sm text-neutral-500 mt-4">
-            <Link to="/forgot-password" className="text-brand-primary hover:underline">
-              {t('auth.forgotPassword')}
-            </Link>{' '}
-            {t('auth.contactAdminReset')}
+    <AuthScreen testId="login-page">
+          <img src={logo} alt={t('common.logoAlt')} className="mx-auto mb-2 block h-auto max-h-14 w-auto max-w-[180px] object-contain" />
+          <p className="mb-5 text-center text-sm font-normal leading-5 text-dealer-text-quiet">
+            {t('common.tagline')}
           </p>
-        </form>
-      </div>
-    </div>
+
+          <div className="dealer-login-language mb-6">
+            <label htmlFor="login-language-select" className="mb-2 block text-[13px] font-medium leading-[18px] text-dealer-text">
+              {t('topbar.language')}
+            </label>
+            <LanguageSwitcher
+              id="login-language-select"
+              className="dealer-login-language"
+            />
+          </div>
+
+          <form className="dealer-login-form" onSubmit={handleSubmit} noValidate>
+            {resetSuccess && (
+              <div className="mb-3 rounded-[8px] bg-dealer-success/10 p-2 text-sm text-dealer-success">
+                {t('auth.resetSuccess')}
+              </div>
+            )}
+            {error && (
+              <div className="mb-4 rounded-lg bg-dealer-error/10 px-4 py-3 text-sm font-medium text-dealer-error">
+                {error}
+              </div>
+            )}
+
+            <div className="dealer-login-field mb-5">
+              <Input
+                ref={emailRef}
+                type="email"
+                label={t('auth.email')}
+                placeholder={t('auth.emailPlaceholder')}
+                autoComplete="email"
+                icon={Mail}
+                iconPosition="left"
+                required
+                disabled={loading}
+                tone="dealer"
+                data-testid="login-username"
+              />
+            </div>
+
+            <div className="dealer-login-field mb-6">
+              <Input
+                ref={passwordRef}
+                type="password"
+                label={t('auth.password')}
+                placeholder={t('auth.passwordPlaceholder')}
+                autoComplete="current-password"
+                icon={Lock}
+                iconPosition="left"
+                required
+                disabled={loading}
+                tone="dealer"
+                data-testid="login-password"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              disabled={loading}
+              className={authSubmitClassName}
+            >
+              {t('auth.login')}
+            </Button>
+
+            <p className="mt-4 text-left text-[13px] leading-[18px] text-dealer-text-quiet">
+              <Link to="/forgot-password" className="text-dealer-navy hover:underline">
+                {t('auth.forgotPassword')}
+              </Link>{' '}
+              {t('auth.contactAdminReset')}
+            </p>
+          </form>
+    </AuthScreen>
   );
 };

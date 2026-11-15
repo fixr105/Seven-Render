@@ -134,7 +134,7 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
 
   return (
     <div className="space-y-6" data-testid="geo-tagged-photo-uploads">
-      <p className="text-sm text-neutral-600">
+      <p className="text-sm text-dealer-text-quiet">
         Each photo must be captured with location services enabled. Your device location is recorded
         at the time of upload.
       </p>
@@ -150,7 +150,7 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
       />
 
       {slotError && (
-        <p className="text-sm text-error" data-testid="geo-photo-slot-error">
+        <p className="text-sm text-dealer-error" data-testid="geo-photo-slot-error">
           {slotError}
         </p>
       )}
@@ -168,14 +168,14 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
           return (
             <div
               key={slot.id}
-              className="rounded-xl border border-neutral-200 p-4"
+              className="rounded-xl border border-dealer-border p-4"
               data-testid={`geo-photo-slot-${slot.id}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium text-neutral-900">{slot.label}</p>
+                  <p className="font-medium text-dealer-text">{slot.label}</p>
                   {url && (
-                    <p className="mt-1 text-xs text-neutral-500">
+                    <p className="mt-1 text-xs text-dealer-text-quiet">
                       {fileName || 'Photo uploaded'}
                       {latitude && longitude
                         ? ` · ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`
@@ -183,7 +183,7 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
                       {capturedAt ? ` · ${new Date(capturedAt).toLocaleString()}` : ''}
                     </p>
                   )}
-                  {error && <p className="mt-1 text-sm text-error">{error}</p>}
+                  {error && <p className="mt-1 text-sm text-dealer-error">{error}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -213,7 +213,7 @@ export const GeoTaggedPhotoUploads: React.FC<GeoTaggedPhotoUploadsProps> = ({
                 <img
                   src={url}
                   alt={slot.label}
-                  className="mt-4 max-h-48 rounded-lg border border-neutral-200 object-contain"
+                  className="mt-4 max-h-48 rounded-lg border border-dealer-border object-contain"
                   data-testid={`geo-photo-preview-${slot.id}`}
                 />
               )}
