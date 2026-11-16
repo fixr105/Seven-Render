@@ -157,6 +157,21 @@ describe('resolveResumePhase', () => {
     expect(buildResumeSession(form, 'rec1')?.resumePhase).toBe('offer');
   });
 
+  it('returns to documents when qualify passed but a required upload is still missing', () => {
+    const form = {
+      '_meta.postSubmitFlags': { qualifyFired: true },
+      '_meta.qualifyResult': { pass: true },
+      '_meta.supportPersonType': 'co_applicant',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.mobile': '9876543210',
+      '_meta.postSubmit.uploads': {
+        pan_card: { url: 'https://files.example/pan.jpg', filename: 'pan.jpg' },
+      },
+    };
+    expect(enginePhaseForResume(form)).toBe('documents');
+    expect(buildResumeSession(form, 'rec1')?.resumePhase).toBe('documents');
+  });
+
   it('ignores a wizard stage query once all three documents exist', () => {
     const form = {
       '_meta.docs.sanctionLetter': 'https://cdn.example/sanction.pdf',

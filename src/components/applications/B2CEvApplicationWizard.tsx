@@ -2586,6 +2586,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
           fileId={fileId}
           saveStatus={draftSaveStatus}
           onFormDataChange={(patch) => updateFields(patch)}
+          onDocumentsPersist={() => persistDraft(undefined, { silent: true }).then(() => undefined)}
           onReadyChange={setKycStepReady}
         />
       );

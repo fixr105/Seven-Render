@@ -1,4 +1,5 @@
 import { hasValue, readFormPath } from '../formPath';
+import { hasPartialRequiredDocuments } from './requiredDocs';
 import type { PostSubmitPhase, PostSubmitSession } from './types';
 
 export type ResumePhase =
@@ -205,6 +206,9 @@ export function flaggedResumePhase(formData: Record<string, unknown>): PostSubmi
   }
   if (flags.rankStarted && roiGreaterThanZero(formData)) return 'offer';
   if (flags.qualifyFired && qualifyResultObject(formData)) {
+    if (hasPersistedQualifyPass(formData) && hasPartialRequiredDocuments(formData)) {
+      return 'documents';
+    }
     return hasPersistedQualifyPass(formData) ? 'offer' : 'rejected';
   }
   return null;

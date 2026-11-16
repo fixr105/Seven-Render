@@ -1,3 +1,4 @@
+import { hasCoApplicant } from './canonical';
 import type { RequiredDocSlot } from './types';
 
 const FALLBACK_REQUIRED: RequiredDocSlot[] = [
@@ -40,17 +41,16 @@ export function buildRequiredDocsFromAirtable(
       nested && typeof nested === 'object' && !Array.isArray(nested)
         ? (nested as Record<string, unknown>)
         : rec;
-    const label =
-      readField(fields, ['Document Name', 'Name', 'document_name', 'Label', 'label']) ||
-      'Document';
-    const fieldId =
-      readField(fields, ['Field ID', 'fieldId', 'Document ID', 'document_id']) || slugify(label);
+    const label = readField(fields, ['Document Name', 'Name', 'document_name', 'Label', 'label']);
+    const explicitFieldId = readField(fields, ['Field ID', 'fieldId', 'Document ID', 'document_id']);
+    if (!label && !explicitFieldId) continue;
+    const fieldId = explicitFieldId || slugify(label);
     const reqRaw = readField(fields, ['Required', 'Is Required', 'isRequired', 'Mandatory']);
     const required =
       reqRaw === '' ||
       /^(true|yes|1|mandatory|required)$/i.test(reqRaw) ||
       reqRaw.toLowerCase() === 'y';
-    fromTable.push({ fieldId, label, required });
+    fromTable.push({ fieldId, label: label || fieldId, required });
   }
 
   if (fromTable.length === 0) {
@@ -67,6 +67,34 @@ export function buildRequiredDocsFromAirtable(
     }
   }
   return fromTable;
+}
+
+export function readStoredDocumentUploads(
+  formData: Record<string, unknown>
+): Record<string, { url: string; filename: string }> {
+  const out: Record<string, { url: string; filename: string }> = {};
+  const sources = [formData['_meta.kycDocuments.uploads'], formData['_meta.postSubmit.uploads']];
+  for (const raw of sources) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    for (const [fieldId, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') continue;
+      const url = String((value as { url?: unknown }).url || '').trim();
+      const filename = String((value as { filename?: unknown }).filename || '').trim();
+      if (!url) continue;
+      out[fieldId] = { url, filename: filename || 'file' };
+    }
+  }
+  return out;
+}
+
+/** True when at least one file is stored and a required slot is still empty. */
+export function hasPartialRequiredDocuments(formData: Record<string, unknown>): boolean {
+  const uploads = readStoredDocumentUploads(formData);
+  if (Object.keys(uploads).length === 0) return false;
+  const required = buildRequiredDocsFromAirtable(undefined, hasCoApplicant(formData)).filter(
+    (doc) => doc.required
+  );
+  return required.some((doc) => !uploads[doc.fieldId]?.url);
 }
 
 export function formatDocumentsField(

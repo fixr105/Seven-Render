@@ -110,7 +110,7 @@ export const UploadRow: React.FC<UploadRowProps> = ({
         setOver(false);
         take(event.dataTransfer.files);
       }}
-      className={`relative flex min-h-11 items-center gap-2 rounded-[12px] px-3 py-1 ${
+      className={`relative flex min-h-32 items-center gap-3 rounded-[12px] px-4 py-4 ${
         filled ? 'border border-solid border-dealer-border bg-dealer-surface' : 'border border-dashed border-dealer-border bg-dealer-surface'
       } ${over ? 'border-dashed border-dealer-navy bg-dealer-surface-soft' : ''} ${focus}`}
     >

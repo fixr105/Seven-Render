@@ -14,6 +14,34 @@ describe('buildKycRequiredDocSlots', () => {
     });
     expect(slots.map((slot) => slot.fieldId)).not.toContain('co_applicant_pan');
   });
+
+  it('adds co-applicant slots even when the product form already has applicant file fields', () => {
+    const slots = buildKycRequiredDocSlots(
+      {
+        '_meta.supportPersonType': 'co_applicant',
+        'coApplicant.pan': 'ABCDE1234F',
+        'coApplicant.mobile': '9876543210',
+      },
+      [
+        {
+          categoryName: 'Documents',
+          fields: [
+            {
+              fieldId: 'field-1a.1',
+              label: 'PAN Card',
+              type: 'file',
+              isRequired: true,
+            },
+          ],
+        },
+      ]
+    );
+    expect(slots.map((slot) => slot.fieldId)).toEqual([
+      'field-1a.1',
+      'co_applicant_pan',
+      'co_applicant_aadhaar',
+    ]);
+  });
 });
 
 describe('hasCompletedWizardKycDocuments', () => {

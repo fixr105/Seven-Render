@@ -77,10 +77,13 @@ describe('upload row', () => {
       'borrower.customerName': 'Govind Pandey',
       'borrower.mobile': '9687599179',
       'coApplicant.name': 'Rita Sharma',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.mobile': '9876543210',
       '_meta.supportPersonType': 'co_applicant',
     };
     render(<Harness initial={base} />);
     expect(screen.getByTestId('kyc-doc-pan_card')).toHaveTextContent('GOVIND PANDEY · Applicant');
+    expect(screen.getByTestId('kyc-doc-pan_card').className).toContain('min-h-32');
     expect(screen.getByTestId('kyc-doc-co_applicant_pan')).toHaveTextContent('RITA SHARMA · Co-applicant');
     expect(screen.getByLabelText('PAN Card for GOVIND PANDEY, applicant')).toBeInTheDocument();
 

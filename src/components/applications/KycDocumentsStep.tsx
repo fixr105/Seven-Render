@@ -46,6 +46,7 @@ export type KycDocumentsStepProps = {
   fileId: string;
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   onFormDataChange: (patch: Record<string, unknown>) => void;
+  onDocumentsPersist?: () => Promise<void>;
   onReadyChange?: (ready: boolean) => void;
 };
 
@@ -56,6 +57,7 @@ export const KycDocumentsStep: React.FC<KycDocumentsStepProps> = ({
   fileId,
   saveStatus = 'idle',
   onFormDataChange,
+  onDocumentsPersist,
   onReadyChange,
 }) => {
   const slots = useMemo(
@@ -166,25 +168,28 @@ export const KycDocumentsStep: React.FC<KycDocumentsStepProps> = ({
         '_meta.kycDocuments.uploads': nextUploads,
         '_meta.kycDocuments.documentsString': documentsString,
       };
-      if (!recordId.startsWith('rec')) {
-        // No Airtable row yet — keep uploads in wizard state only.
-        onFormDataChange(patch);
-        return;
+      if (recordId.startsWith('rec')) {
+        const merged = { ...formDataRef.current, ...patch };
+        await airtableWrite({
+          table: 'Loan Applications',
+          record_id: recordId,
+          fields: {
+            Documents: documentsString,
+            'Form Data': JSON.stringify(merged),
+            'Last Updated': new Date().toISOString(),
+          },
+        });
       }
-      const merged = { ...formData, ...patch };
-      await airtableWrite({
-        table: 'Loan Applications',
-        record_id: recordId,
-        fields: {
-          Documents: documentsString,
-          'Form Data': JSON.stringify(merged),
-          'Last Updated': new Date().toISOString(),
-        },
-      });
-      // Mark saved only after write succeeds (airtableWrite throws if ok !== true).
+      formDataRef.current = { ...formDataRef.current, ...patch };
       onFormDataChange(patch);
+      if (!onDocumentsPersist) return;
+      try {
+        await onDocumentsPersist();
+      } catch (err) {
+        if (!recordId.startsWith('rec')) throw err;
+      }
     },
-    [formData, onFormDataChange, recordId]
+    [onDocumentsPersist, onFormDataChange, recordId]
   );
 
   const handleUpload = async (slot: KycDocSlot, file: File | null) => {

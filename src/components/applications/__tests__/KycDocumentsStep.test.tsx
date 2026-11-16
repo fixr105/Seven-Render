@@ -428,6 +428,7 @@ describe('Part A — KYC & Documents (step 6)', () => {
         initialFormData={baseFormData({
           '_meta.supportPersonType': 'co_applicant',
           'coApplicant.pan': 'ABCDE1234F',
+          'coApplicant.mobile': '9876543210',
         })}
       />
     );

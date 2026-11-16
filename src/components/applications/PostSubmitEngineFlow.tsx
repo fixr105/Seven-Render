@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 import { JourneyRail, railStepIdForPostSubmit } from '../dealer-ui/JourneyRail';
 import { PageHeader } from '../dealer-ui/PageHeader';
 import { ActionBar } from '../dealer-ui/ActionBar';
+import { documentOwner, orderDocumentSlots } from '../dealer-ui/documentOwner';
 import { UploadRow } from '../dealer-ui/UploadRow';
 import { DealerWaiting } from '../dealer-ui/DealerWaiting';
 import {
@@ -51,6 +52,7 @@ import { fireEvent, flushCrm } from '../../lib/crmEvents';
 import {
   buildRequiredDocsFromAirtable,
   formatDocumentsField,
+  readStoredDocumentUploads,
 } from '../../lib/postSubmitEngine/requiredDocs';
 import { safeDevLog } from '../../lib/postSubmitEngine/masking';
 import {
@@ -73,10 +75,7 @@ import {
   type PostSubmitFlagKey,
 } from '../../lib/postSubmitEngine/resolveResumePhase';
 import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
-import {
-  areRequiredKycDocsUploaded,
-  hasCompletedWizardKycDocuments,
-} from '../../lib/kycRequiredDocs';
+import { areRequiredKycDocsUploaded } from '../../lib/kycRequiredDocs';
 import { formatEngineSetupError } from '../../lib/engineSetupError';
 import {
   fetchVkycByFileId,
@@ -102,6 +101,16 @@ import type {
 } from '../../lib/postSubmitEngine/types';
 
 const PRODUCT_DOC_ID = 'LP012';
+
+function uploadsFromForm(formData: Record<string, unknown>): Record<string, UploadedDocEntry> {
+  const stored = readStoredDocumentUploads(formData);
+  return Object.fromEntries(
+    Object.entries(stored).map(([fieldId, value]) => [
+      fieldId,
+      { fieldId, url: value.url, filename: value.filename },
+    ])
+  );
+}
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const VKYC_POLL_MS = 10_000;
 const SIGNING_SENT_KEY = '_meta.signing.sentAt';
@@ -207,7 +216,9 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     resumePhase && isPostQualifyLockedPhase(resumePhase) ? { ok: true, pass: true } : null
   );
   const [requiredDocs, setRequiredDocs] = useState<RequiredDocSlot[]>([]);
-  const [uploads, setUploads] = useState<Record<string, UploadedDocEntry>>({});
+  const [uploads, setUploads] = useState<Record<string, UploadedDocEntry>>(() =>
+    uploadsFromForm(session.formData)
+  );
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [offers, setOffers] = useState<DisplayOffer[]>([]);
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
@@ -244,6 +255,8 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   const vkycFailedFiredRef = useRef(false);
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
+  const uploadsRef = useRef(uploads);
+  uploadsRef.current = uploads;
 
   const canonical = useMemo(() => buildCanonical(formData), [formData]);
   const selectedOffer = offers.find((o) => o.id === selectedOfferId) || null;
@@ -556,8 +569,8 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
         return;
       }
 
-      // KYC documents were already uploaded in the wizard — jump past the documents phase.
-      if (areRequiredKycDocsUploaded(formData) || hasCompletedWizardKycDocuments(formData)) {
+      // Jump past documents only when every required slot already has a stored link.
+      if (areRequiredKycDocsUploaded(formData)) {
         const documentsString = String(
           formData['_meta.kycDocuments.documentsString'] || ''
         ).trim();
@@ -619,10 +632,27 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     setErrorMessage(null);
     try {
       const url = await uploadToUrl(file, file.name);
-      setUploads((prev) => ({
-        ...prev,
-        [doc.fieldId]: { fieldId: doc.fieldId, url, filename: file.name },
-      }));
+      const entry = { fieldId: doc.fieldId, url, filename: file.name };
+      const nextUploads = { ...uploadsRef.current, [doc.fieldId]: entry };
+      uploadsRef.current = nextUploads;
+      setUploads(nextUploads);
+      const stored = readStoredDocumentUploads(formDataRef.current);
+      const documents = formatDocumentsField(nextUploads);
+      const nextForm = {
+        ...formDataRef.current,
+        '_meta.kycDocuments.uploads': {
+          ...stored,
+          [doc.fieldId]: { url, filename: file.name },
+        },
+        '_meta.kycDocuments.documentsString': documents,
+        '_meta.postSubmit.uploads': nextUploads,
+      };
+      formDataRef.current = nextForm;
+      try {
+        await writeFormData({ Documents: documents }, nextForm);
+      } catch {
+        setErrorMessage(`${doc.label} uploaded, but it could not be saved. Please try again.`);
+      }
     } catch {
       setErrorMessage(`Could not upload ${doc.label}. Please try again.`);
     } finally {
@@ -887,7 +917,12 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
 
   const proceedFromEnach = async () => {
     setEnachTouched(true);
-    if (!enachValid || !selectedOffer) return;
+    if (!enachValid) return;
+    const offer = selectedOffer ?? offerFromPersistedLoan(formDataRef.current);
+    if (!offer) {
+      setErrorMessage('The accepted offer is missing. Go back and select an offer, then try again.');
+      return;
+    }
     setBusy(true);
     setErrorMessage(null);
     try {
@@ -910,6 +945,45 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (phase !== 'documents' || requiredDocs.length > 0) return;
+    let cancelled = false;
+    void (async () => {
+      const filter = `{Product ID} = '${PRODUCT_DOC_ID}'`;
+      let docs: RequiredDocSlot[] = [];
+      try {
+        const docRes = await airtableGet({
+          table: 'Product Document',
+          filter,
+          filter_formula: filter,
+        });
+        docs = buildRequiredDocsFromAirtable(
+          docRes.records,
+          hasCoApplicantForQualify(formDataRef.current)
+        );
+      } catch {
+        docs = buildRequiredDocsFromAirtable(
+          undefined,
+          hasCoApplicantForQualify(formDataRef.current)
+        );
+      }
+      if (cancelled) return;
+      const stored = uploadsFromForm(formDataRef.current);
+      const known = new Set(docs.map((doc) => doc.fieldId));
+      const extras: RequiredDocSlot[] = [];
+      for (const [fieldId, entry] of Object.entries(stored)) {
+        if (!known.has(fieldId)) {
+          extras.push({ fieldId, label: entry.filename || fieldId, required: false });
+        }
+      }
+      setRequiredDocs([...extras, ...docs]);
+      setUploads((prev) => (Object.keys(prev).length > 0 ? prev : stored));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, requiredDocs.length]);
 
   // Boot: resolve + qualify once. A resumed file starts at resumePhase and does not re-qualify.
   useEffect(() => {
@@ -1135,19 +1209,20 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
           Step 5 of 12 — upload required files (JPG, PNG, or PDF · max 10MB).
         </p>
         <ul className="space-y-4">
-          {requiredDocs.map((doc) => {
+          {orderDocumentSlots(requiredDocs).map((doc) => {
             const uploaded = uploads[doc.fieldId];
             const isUploading = uploadingField === doc.fieldId;
+            const owner = documentOwner(formData, doc);
             return (
               <li key={doc.fieldId}>
                 <UploadRow
                   fieldId={doc.fieldId}
                   label={doc.required ? doc.label : `${doc.label} (optional)`}
                   required={doc.required}
-                  ownerLine="Applicant"
-                  ownerName="Applicant"
-                  ownerRole="Applicant"
-                  initials="AP"
+                  ownerLine={owner.line}
+                  ownerName={owner.name || owner.role}
+                  ownerRole={owner.role}
+                  initials={owner.initials}
                   filename={uploaded?.filename}
                   fileUrl={uploaded?.url}
                   uploading={isUploading}
@@ -1167,7 +1242,7 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
           onSave={() => undefined}
           onPrimary={() => void continueFromDocuments()}
           primaryLabel={busy ? 'Continuing…' : 'Continue'}
-          primaryDisabled={busy || !requiredUploadsComplete}
+          primaryDisabled={busy || requiredDocs.length === 0 || !requiredUploadsComplete}
           primaryBusy={busy}
         />
       </Shell>
@@ -1295,10 +1370,11 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
         <StatusCard>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-dealer-text">
+              <label htmlFor="enach-holder" className="mb-1 block text-sm font-medium text-dealer-text">
                 Account Holder Name
               </label>
               <input
+                id="enach-holder"
                 type="text"
                 value={enachHolderName}
                 onChange={(e) => setEnachHolderName(e.target.value)}
@@ -1308,10 +1384,11 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
               {show('accountHolderName')}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-dealer-text">
+              <label htmlFor="enach-bank" className="mb-1 block text-sm font-medium text-dealer-text">
                 Bank Name
               </label>
               <input
+                id="enach-bank"
                 type="text"
                 value={enachBankName}
                 onChange={(e) => setEnachBankName(e.target.value)}
@@ -1321,10 +1398,11 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
               {show('bankName')}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-dealer-text">
+              <label htmlFor="enach-account" className="mb-1 block text-sm font-medium text-dealer-text">
                 Account Number
               </label>
               <input
+                id="enach-account"
                 type="password"
                 inputMode="numeric"
                 value={enachAccountNumber}
@@ -1337,10 +1415,11 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
               {show('accountNumber')}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-dealer-text">
+              <label htmlFor="enach-confirm" className="mb-1 block text-sm font-medium text-dealer-text">
                 Confirm Account Number
               </label>
               <input
+                id="enach-confirm"
                 type="password"
                 inputMode="numeric"
                 value={enachConfirmAccount}
@@ -1353,10 +1432,11 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
               {show('confirmAccountNumber')}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-dealer-text">
+              <label htmlFor="enach-ifsc" className="mb-1 block text-sm font-medium text-dealer-text">
                 IFSC Code
               </label>
               <input
+                id="enach-ifsc"
                 type="text"
                 value={enachIfsc}
                 onChange={(e) => setEnachIfsc(e.target.value.toUpperCase().slice(0, 11))}

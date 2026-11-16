@@ -41,11 +41,12 @@ export function buildKycRequiredDocSlots(
     }
   }
 
-  if (fromConfig.length > 0) return fromConfig;
-
-  const slots = [...FALLBACK_DOCS];
+  const slots = fromConfig.length > 0 ? [...fromConfig] : [...FALLBACK_DOCS];
   if (hasCoApplicant(formData)) {
-    slots.push(...CO_APP_DOCS);
+    const existing = new Set(slots.map((slot) => slot.fieldId));
+    for (const doc of CO_APP_DOCS) {
+      if (!existing.has(doc.fieldId)) slots.push(doc);
+    }
   }
   return slots;
 }
