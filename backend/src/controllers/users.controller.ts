@@ -517,6 +517,36 @@ export class UsersController {
 
       console.log('[createDealer] Created dealer account', { id: newId, email });
 
+      let clientId: string | null = null;
+      try {
+        const clientResult = await n8nClient.postClient({
+          id: newId,
+          'Client ID': newId,
+          'Client Name': name,
+          'Primary Contact Name': name,
+          'Contact Email / Phone': email,
+          Status: 'Active',
+        });
+        const clientError =
+          clientResult && typeof clientResult === 'object' && 'error' in clientResult
+            ? clientResult.error
+            : undefined;
+        if (clientError) {
+          console.error('[createDealer] Failed to create Clients row; User Accounts row was kept', {
+            email,
+            message: String(clientError),
+          });
+        } else {
+          clientId = newId;
+        }
+      } catch (clientError: unknown) {
+        const message = clientError instanceof Error ? clientError.message : String(clientError);
+        console.error('[createDealer] Failed to create Clients row; User Accounts row was kept', {
+          email,
+          message,
+        });
+      }
+
       n8nClient
         .postAdminActivityLog({
           id: `ACT-${Date.now()}`,
@@ -536,6 +566,7 @@ export class UsersController {
         email,
         name,
         role: 'client',
+        clientId,
       });
     } catch (error: any) {
       console.error('[createDealer] Failed to create dealer account', {

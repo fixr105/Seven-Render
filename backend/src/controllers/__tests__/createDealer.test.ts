@@ -18,15 +18,23 @@ jest.mock('node-fetch', () => ({
 type StoreRecord = Record<string, unknown> & { id?: string };
 
 let userAccountsStore: StoreRecord[] = [];
+let clientsStore: StoreRecord[] = [];
 
 const mockFetchTable = jest.fn(async (tableName: string) => {
   if (tableName === 'User Accounts') return [...userAccountsStore];
+  if (tableName === 'Clients') return [...clientsStore];
   return [];
 });
 
 const mockPostUserAccount = jest.fn(async (data: Record<string, unknown>) => {
   const id = String(data.id || '');
   userAccountsStore.push({ ...data, id });
+  return { success: true, id };
+});
+
+const mockPostClient = jest.fn(async (data: Record<string, unknown>) => {
+  const id = String(data.id || data['Client ID'] || '');
+  clientsStore.push({ ...data, id });
   return { success: true, id };
 });
 
@@ -38,6 +46,7 @@ jest.mock('../../services/airtable/n8nClient.js', () => ({
   n8nClient: {
     fetchTable: (tableName: string) => mockFetchTable(tableName),
     postUserAccount: (data: Record<string, unknown>) => mockPostUserAccount(data),
+    postClient: (data: Record<string, unknown>) => mockPostClient(data),
     postAdminActivityLog: () => mockPostAdminActivityLog(),
     getUserAccounts: () => mockGetUserAccounts(),
   },
@@ -93,6 +102,7 @@ describe('POST /users/create-dealer', () => {
   beforeEach(() => {
     usersController = new UsersController();
     userAccountsStore = [];
+    clientsStore = [];
     AuthService.clearUserAccountsCache();
     jest.clearAllMocks();
   });
@@ -112,6 +122,7 @@ describe('POST /users/create-dealer', () => {
       email: 'newdealer@example.com',
       name: 'DEALER NAME',
       role: 'client',
+      clientId: expect.any(String),
     });
 
     const keys = collectKeys(res.body);
@@ -132,6 +143,34 @@ describe('POST /users/create-dealer', () => {
     expect(loggedIn).not.toBeNull();
     expect(loggedIn?.role).toBe(UserRole.CLIENT);
     expect(loggedIn?.email).toBe('newdealer@example.com');
+  });
+
+  it('creates a Clients row that a GET by email returns with the dealer name and Active status', async () => {
+    const req = requestAs(UserRole.KAM, {
+      email: 'dealer@example.com',
+      name: 'New Dealer',
+    });
+    const res = createMockResponse();
+
+    await usersController.createDealer(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const body = res.body as { success: boolean; email: string; name: string; clientId: string };
+    expect(body.success).toBe(true);
+    expect(body.clientId).toEqual(expect.any(String));
+    expect(body.clientId.length).toBeGreaterThan(0);
+
+    const clients = await mockFetchTable('Clients');
+    const row = clients.find((client) =>
+      String(client['Contact Email / Phone'] ?? '')
+        .toLowerCase()
+        .includes('dealer@example.com')
+    );
+
+    expect(row).toBeDefined();
+    expect(row?.['Client Name']).toBe('NEW DEALER');
+    expect(row?.Status).toBe('Active');
+    expect(row?.['Client ID'] ?? row?.id).toBe(body.clientId);
   });
 
   it('rejects an existing email without creating a duplicate row', async () => {

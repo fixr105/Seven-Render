@@ -726,7 +726,7 @@ class ApiService {
   async createDealer(payload: {
     email: string;
     name: string;
-  }): Promise<ApiResponse<{ email: string; name: string; role: string }>> {
+  }): Promise<ApiResponse<{ email: string; name: string; role: string; clientId: string | null }>> {
     return this.request('/users/create-dealer', {
       method: 'POST',
       body: JSON.stringify({
