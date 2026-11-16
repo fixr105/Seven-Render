@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 import { DealerWaiting } from '../dealer-ui/DealerWaiting';
 import { maskEmailForDisplay, isValidEmail } from '../../lib/esignConfig';
 import { isEsignEnabled } from '../../lib/featureFlags';
+import { openKamComplianceRequest } from '../../lib/b2cEvKamRequest';
 import {
   buildEsignPayload,
   buildEsignRefId,
@@ -344,6 +345,15 @@ export const EsignStep: React.FC<Props> = ({
           },
         };
         await persist(next);
+        const kamPatch = await openKamComplianceRequest({
+          applicationId: fileId,
+          itemId: 'loanAgreement',
+          applicantName: cfg.applicant.name,
+          formData: next,
+        });
+        if (Object.keys(kamPatch).length > 0) {
+          await persist({ ...next, ...kamPatch });
+        }
         setPolling(true);
         setSending(false);
         return;

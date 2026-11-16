@@ -16,6 +16,7 @@ describe('kamB2cFulfillment.service', () => {
     const merged = buildCompliancePatch(existing, 'vkyc', 'fulfill');
     expect(merged['compliance.vkycDone']).toBe('true');
     expect(merged['_meta.kamRequests.vkyc.requestedAt']).toBe('');
+    expect(merged['_meta.vkyc.status']).toBe('Done');
   });
 
   it('buildDoFulfillPatch sets fulfilledAt and approver metadata', () => {

@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   COMPLIANCE_ITEMS,
-  isComplianceChecked,
-  isComplianceItemRequested,
   type ComplianceItemId,
 } from '../../../lib/b2cEvCompliance';
 import {
@@ -17,6 +15,12 @@ import {
   isDoRequested,
 } from '../../../lib/b2cEvDoRequest';
 import { apiService } from '../../../services/api';
+import { completeVkycLink } from '../../../lib/vkycLinks';
+import {
+  doStatusLabel,
+  isKamComplianceOpen,
+  kamComplianceStatusLabel,
+} from '../../../lib/b2cEvStepStatus';
 import { Button } from '../../ui/Button';
 
 function readString(value: unknown): string {
@@ -28,6 +32,7 @@ export interface B2cEvComplianceReviewProps {
   formData: Record<string, unknown>;
   formConfig?: FormConfigCategory[];
   applicationId?: string;
+  fileId?: string;
   userRole?: string | null;
   highlightComplianceItem?: ComplianceItemId;
   highlightDoRequest?: boolean;
@@ -38,6 +43,7 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   formData,
   formConfig = [],
   applicationId,
+  fileId,
   userRole,
   highlightComplianceItem,
   highlightDoRequest = false,
@@ -78,9 +84,7 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
 
   const highlightedItemId = useMemo(() => {
     if (highlightComplianceItem) return highlightComplianceItem;
-    const pending = COMPLIANCE_ITEMS.find(
-      (item) => isComplianceItemRequested(formData, item.id) && !isComplianceChecked(formData, item.checkboxKey)
-    );
+    const pending = COMPLIANCE_ITEMS.find((item) => isKamComplianceOpen(formData, item.id));
     return pending?.id;
   }, [formData, highlightComplianceItem]);
 
@@ -95,6 +99,13 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
       const response = await apiService.kamB2cComplianceAction(applicationId, { itemId, action });
       if (!response.success) {
         throw new Error(response.error || 'Failed to update compliance');
+      }
+      if (itemId === 'vkyc' && action === 'fulfill' && fileId) {
+        try {
+          await completeVkycLink(fileId);
+        } catch {
+          // The file is already marked Done. The links row can still be closed from the desk.
+        }
       }
       onUpdated?.();
       window.dispatchEvent(new Event('dashboard:refresh'));
@@ -125,9 +136,9 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
 
       <div className="space-y-3">
         {COMPLIANCE_ITEMS.map((item) => {
-          const checked = isComplianceChecked(formData, item.checkboxKey);
+          const open = isKamComplianceOpen(formData, item.id);
+          const statusLabel = kamComplianceStatusLabel(formData, item.id);
           const requestedAt = readString(formData[item.requestedAtKey]);
-          const isRequested = isComplianceItemRequested(formData, item.id);
           const isHighlighted = highlightedItemId === item.id;
 
           return (
@@ -140,14 +151,12 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
             >
               <div>
                 <p className="text-sm font-medium text-neutral-900">{item.label}</p>
-                <p className="text-xs text-neutral-500">
-                  {checked ? 'Approved by KAM' : 'Pending KAM approval'}
-                  {isRequested && requestedAt
-                    ? ` · Requested ${new Date(requestedAt).toLocaleString()}`
-                    : ''}
+                <p className="text-xs text-neutral-500" data-testid={`compliance-status-${item.id}`}>
+                  {statusLabel}
+                  {requestedAt ? ` · Requested ${new Date(requestedAt).toLocaleString()}` : ''}
                 </p>
               </div>
-              {canManageCompliance && isRequested && !checked && (
+              {canManageCompliance && open && (
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -204,10 +213,8 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
           data-testid="b2c-do-request-review"
         >
           <p className="text-sm font-semibold text-neutral-900">Disbursement Order (DO) request</p>
-          <p className="mt-1 text-sm text-neutral-600">
-            {doRequest?.requestedAt || readString(formData['_meta.doRequest.requestedAt'])
-              ? `Requested ${new Date(doRequest?.requestedAt || readString(formData['_meta.doRequest.requestedAt'])).toLocaleString()}`
-              : 'Not requested'}
+          <p className="mt-1 text-sm text-neutral-600" data-testid="do-request-status">
+            {doStatusLabel(formData)}
             {doFulfilled && fulfilledAt
               ? ` · Approved ${new Date(fulfilledAt).toLocaleString()}${fulfilledBy ? ` by ${fulfilledBy}` : ''} — Insurance and Vehicle unlocked for client`
               : doRequested

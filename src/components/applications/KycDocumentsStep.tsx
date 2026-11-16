@@ -16,6 +16,7 @@ import {
   requestVkyc,
   type VkycRow,
 } from '../../lib/vkycLinks';
+import { openKamComplianceRequest } from '../../lib/b2cEvKamRequest';
 import {
   nextVkycPollFailureCount,
   shouldShowVkycStatusCheckError,
@@ -261,10 +262,17 @@ export const KycDocumentsStep: React.FC<KycDocumentsStepProps> = ({
         existingRecordId: again ? vkycRow?.id : undefined,
       });
       setVkycRow(row);
+      const kamPatch = await openKamComplianceRequest({
+        applicationId: recordId || fileId,
+        itemId: 'vkyc',
+        applicantName: name,
+        formData: formDataRef.current,
+      });
       onFormDataChange({
         '_meta.vkyc.recordId': row.id,
         '_meta.vkyc.status': row.status,
         '_meta.vkyc.requestedAt': row.requested_at,
+        ...kamPatch,
       });
     } catch (err) {
       setVkycError(formatEngineSetupError(err, 'VKYC Links'));

@@ -39,10 +39,14 @@ export function buildCompliancePatch(
   if (action === 'fulfill') {
     patch[item.checkboxKey] = 'true';
     patch[item.requestedAtKey] = '';
+    patch[`_meta.kamRequests.${itemId}.dismissedAt`] = '';
+    if (itemId === 'vkyc') patch['_meta.vkyc.status'] = 'Done';
   } else if (action === 'unmark') {
     patch[item.checkboxKey] = 'false';
   } else if (action === 'clear_request') {
     patch[item.requestedAtKey] = '';
+    patch[`_meta.kamRequests.${itemId}.dismissedAt`] = new Date().toISOString();
+    if (itemId === 'vkyc') patch['_meta.vkyc.status'] = '';
   }
 
   return mergeFormDataPatch(formData, patch);

@@ -11,6 +11,8 @@ import {
   readAuditLogIdentifier,
 } from '../../utils/auditLogLookup.js';
 import { parseQueryContent } from '../../utils/queryParser.js';
+import { matchIds } from '../../utils/idMatcher.js';
+import { resolveKamNotificationEmail } from '../../utils/kamNotificationEmail.js';
 
 export interface QueryThread {
   rootQuery: {
@@ -71,17 +73,22 @@ export class QueryService {
 
     if (targetUserRole === 'client') {
       const clients = await n8nClient.fetchTable('Clients');
-      const client = clients.find((c: any) => c.id === clientId || c['Client ID'] === clientId);
-      recipientEmail = client?.['Contact Email / Phone']?.split(' / ')[0] || '';
+      const client = clients.find(
+        (c: Record<string, unknown>) => matchIds(c.id, clientId) || matchIds(c['Client ID'], clientId)
+      );
+      recipientEmail = String(client?.['Contact Email / Phone'] ?? '').split(' / ')[0] || '';
     } else if (targetUserRole === 'kam') {
       const clients = await n8nClient.fetchTable('Clients');
-      const client = clients.find((c: any) => c.id === clientId || c['Client ID'] === clientId);
-      const kamId = client?.['Assigned KAM'] || '';
-      
+      const client = clients.find(
+        (c: Record<string, unknown>) => matchIds(c.id, clientId) || matchIds(c['Client ID'], clientId)
+      );
+      const kamId = String(client?.['Assigned KAM'] ?? '');
       if (kamId) {
         const kamUsers = await n8nClient.fetchTable('KAM Users');
-        const kamUser = kamUsers.find((k: any) => k.id === kamId || k['KAM ID'] === kamId);
-        recipientEmail = kamUser?.Email || '';
+        recipientEmail = resolveKamNotificationEmail(
+          kamUsers as Array<Record<string, unknown>>,
+          kamId
+        );
       }
     } else if (targetUserRole === 'credit_team') {
       const creditUsers = await n8nClient.fetchTable('Credit Team Users');
@@ -90,6 +97,10 @@ export class QueryService {
       );
       recipientEmail = activeCredit?.Email || activeCredit?.email || '';
       recipientRole = 'credit_team';
+    }
+
+    if (targetUserRole === 'kam' && !recipientEmail) {
+      return queryId;
     }
 
     // Create notification if we have a recipient

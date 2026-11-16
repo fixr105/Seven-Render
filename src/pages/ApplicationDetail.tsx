@@ -1225,7 +1225,9 @@ export const ApplicationDetail: React.FC = () => {
                 Edit Application
               </Button>
             )}
-            {(userRole === 'kam' || userRole === 'credit_team' || userRole === 'admin') && (
+            {(userRole === 'credit_team' ||
+              userRole === 'admin' ||
+              (userRole === 'kam' && !isB2cEvFormTemplate(parseApplicationFormData()))) && (
               <Button
                 variant="primary"
                 icon={Edit}
@@ -1626,6 +1628,7 @@ export const ApplicationDetail: React.FC = () => {
                     <B2cEvApplicationReview
                       formData={formDataToShow}
                       applicationId={id}
+                      fileId={fileNumber}
                       clientId={clientId}
                       userRole={userRole}
                       highlightComplianceItem={complianceItemParam ?? undefined}
@@ -1902,6 +1905,7 @@ export const ApplicationDetail: React.FC = () => {
                         rootQuery={rootQuery}
                         formData={parseApplicationFormData()}
                         userRole={userRole}
+                        fileId={fileNumber}
                         isResolved={thread.isResolved}
                         onUpdated={() => {
                           void fetchQueries();

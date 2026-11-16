@@ -1,4 +1,5 @@
-import { COMPLIANCE_ITEMS, isComplianceChecked, isComplianceItemRequested } from './b2cEvCompliance';
+import { COMPLIANCE_ITEMS, isComplianceChecked } from './b2cEvCompliance';
+import { isKamComplianceOpen, kamComplianceRequestedAt } from './b2cEvStepStatus';
 import { isDoFulfilled } from './b2cEvDoRequest';
 import type { ComplianceItemId } from './b2cEvCompliance';
 
@@ -42,11 +43,12 @@ export function extractPendingB2cActions(
     if (!isComplianceChecked(formData, item.checkboxKey)) {
       incompleteCompliance.push({ itemId: item.id, label: item.label });
     }
-    if (isComplianceItemRequested(formData, item.id)) {
+    if (isKamComplianceOpen(formData, item.id)) {
       complianceRequests.push({
         itemId: item.id,
         label: item.requestLabel,
-        requestedAt: readString(formData[item.requestedAtKey]),
+        requestedAt:
+          kamComplianceRequestedAt(formData, item.id) || readString(formData[item.requestedAtKey]),
       });
     }
   }

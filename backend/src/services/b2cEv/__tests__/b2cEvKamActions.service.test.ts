@@ -1,4 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
+
+jest.mock('../../airtable/n8nClient.js', () => ({
+  n8nClient: { fetchTable: jest.fn() },
+}));
+
 import {
   extractPendingB2cActionsFromFormData,
   scanApplicationsForPendingB2cActions,
@@ -17,6 +22,14 @@ describe('b2cEvKamActions.service', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].type).toBe('compliance');
     expect(rows[0].itemId).toBe('vkyc');
+  });
+
+  it('includes an older file that only stored VKYC as Requested', () => {
+    const rows = extractPendingB2cActionsFromFormData(
+      { '_meta.vkyc.status': 'Requested' },
+      { applicationId: 'app-2', fileId: 'FILE-2', applicantName: 'Jishali' }
+    );
+    expect(rows.map((row) => row.itemId)).toEqual(['vkyc']);
   });
 
   it('scans applications and limits to B2C template', () => {

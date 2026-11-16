@@ -8,7 +8,7 @@ import { useSidebarItems } from '../hooks/useSidebarItems';
 import type { UserRole } from '../auth/types';
 import { formatEngineSetupError } from '../lib/engineSetupError';
 import { airtableGet, airtableWrite } from '../services/engineClient';
-import { VKYC_LINKS_TABLE, mapVkycRecord, maskMobile, type VkycRow } from '../lib/vkycLinks';
+import { VKYC_LINKS_TABLE, mapVkycRecord, maskMobile, markLoanFileVkycDone, type VkycRow } from '../lib/vkycLinks';
 import { StatusBadge, type DealerStatus } from '../components/dealer-ui/StatusBadge';
 
 function vkycStatusWord(status: string): DealerStatus {
@@ -125,11 +125,21 @@ export const VkycDeskPage: React.FC = () => {
   };
 
   const markDone = (row: VkycRow) => {
-    void runUpdate(row, {
-      status: 'Done',
-      done_at: new Date().toISOString(),
-      done_by: operatorName,
-    });
+    void (async () => {
+      await runUpdate(row, {
+        status: 'Done',
+        done_at: new Date().toISOString(),
+        done_by: operatorName,
+      });
+      try {
+        await markLoanFileVkycDone(row.file_id);
+      } catch (err) {
+        setRowErrors((prev) => ({
+          ...prev,
+          [row.id]: errorText(err, 'Video KYC was marked done, but the file status did not update.'),
+        }));
+      }
+    })();
   };
 
   const markFailed = (row: VkycRow) => {

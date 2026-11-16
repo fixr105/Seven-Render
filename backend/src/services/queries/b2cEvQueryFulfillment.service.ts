@@ -247,7 +247,13 @@ export function buildB2cFulfillmentPatch(
   const config = COMPLIANCE_CONFIG[itemId];
 
   if (action === 'compliance_fulfill') {
-    return { [config.checkboxKey]: 'true', [config.requestedAtKey]: '' };
+    const patch: Record<string, unknown> = {
+      [config.checkboxKey]: 'true',
+      [config.requestedAtKey]: '',
+      [`_meta.kamRequests.${itemId}.dismissedAt`]: '',
+    };
+    if (itemId === 'vkyc') patch['_meta.vkyc.status'] = 'Done';
+    return patch;
   }
 
   if (action === 'compliance_unmark') {

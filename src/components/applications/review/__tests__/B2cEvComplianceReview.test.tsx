@@ -36,6 +36,8 @@ describe('B2cEvComplianceReview', () => {
     );
 
     expect(screen.getByTestId('compliance-approve-vkyc')).toBeInTheDocument();
+    expect(screen.getByTestId('compliance-status-vkyc')).toHaveTextContent('Requested');
+    expect(screen.getByTestId('compliance-approve-vkyc')).toBeEnabled();
     expect(screen.getByTestId('compliance-reject-vkyc')).toBeInTheDocument();
   });
 
@@ -53,5 +55,19 @@ describe('B2cEvComplianceReview', () => {
 
     expect(screen.getByTestId('do-request-approve')).toHaveTextContent('Approve DO');
     expect(screen.getByTestId('do-request-reject')).toHaveTextContent('Reject DO');
+  });
+
+  it('enables Mark complete for an older file that only stored VKYC Requested', () => {
+    render(
+      <B2cEvComplianceReview
+        formData={{ '_meta.vkyc.status': 'Requested' }}
+        userRole="kam"
+        applicationId="rec-app-1"
+        fileId="SFMWHK65WO"
+      />
+    );
+
+    expect(screen.getByTestId('compliance-approve-vkyc')).toBeEnabled();
+    expect(screen.getByTestId('compliance-status-vkyc')).toHaveTextContent('Requested');
   });
 });

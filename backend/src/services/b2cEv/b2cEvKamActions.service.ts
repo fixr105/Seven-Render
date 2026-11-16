@@ -3,6 +3,7 @@
  */
 
 import { resolveApplicationRecordStatus } from '../../utils/loanApplicationAirtableStatus.js';
+import { isKamComplianceOpen, kamComplianceRequestedAt } from './b2cEvStepStatus.js';
 
 type ComplianceItemId = 'vkyc' | 'loanAgreement' | 'enach';
 
@@ -37,11 +38,6 @@ function readString(value: unknown): string {
   return String(value).trim();
 }
 
-function isComplianceChecked(formData: Record<string, unknown>, checkboxKey: string): boolean {
-  const value = formData[checkboxKey];
-  return value === true || value === 'true';
-}
-
 function hasOpenDoRequest(formData: Record<string, unknown>): boolean {
   const requestedAt = readString(formData['_meta.doRequest.requestedAt']);
   const fulfilledAt = readString(formData['_meta.doRequest.fulfilledAt']);
@@ -66,9 +62,7 @@ export function extractPendingB2cActionsFromFormData(
   const rows: PendingB2cActionRow[] = [];
 
   for (const item of COMPLIANCE_ITEMS) {
-    const requestedAt = readString(formData[item.requestedAtKey]);
-    if (!requestedAt) continue;
-    if (isComplianceChecked(formData, item.checkboxKey)) continue;
+    if (!isKamComplianceOpen(formData, item.id)) continue;
     rows.push({
       applicationId: context.applicationId,
       fileId: context.fileId,
@@ -76,7 +70,7 @@ export function extractPendingB2cActionsFromFormData(
       type: 'compliance',
       itemId: item.id,
       label: item.requestLabel,
-      requestedAt,
+      requestedAt: kamComplianceRequestedAt(formData, item.id) || 'pending',
     });
   }
 

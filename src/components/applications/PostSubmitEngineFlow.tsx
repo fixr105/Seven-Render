@@ -78,6 +78,7 @@ import {
 import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
 import { areRequiredKycDocsUploaded } from '../../lib/kycRequiredDocs';
 import { formatEngineSetupError } from '../../lib/engineSetupError';
+import { openKamComplianceRequest } from '../../lib/b2cEvKamRequest';
 import {
   fetchVkycByFileId,
   isVkycDone,
@@ -911,6 +912,26 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
         existingRecordId: again ? vkycRow?.id : undefined,
       });
       setVkycRow(row);
+      const kamPatch = await openKamComplianceRequest({
+        applicationId: recordId || fileId,
+        itemId: 'vkyc',
+        applicantName: canonical.fullName,
+        formData: {
+          ...formDataRef.current,
+          '_meta.vkyc.status': row.status,
+          '_meta.vkyc.requestedAt': row.requested_at,
+        },
+      });
+      const nextFormData = {
+        ...formDataRef.current,
+        '_meta.vkyc.recordId': row.id,
+        '_meta.vkyc.status': row.status,
+        '_meta.vkyc.requestedAt': row.requested_at,
+        ...kamPatch,
+      };
+      formDataRef.current = nextFormData;
+      setFormData(nextFormData);
+      await writeFormData({}, nextFormData);
     } catch (err) {
       setVkycError(formatEngineSetupError(err, 'VKYC Links'));
     } finally {
@@ -984,7 +1005,14 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
         ifscCode: enachIfsc,
         accountType: enachAccountType,
       });
-      const nextFormData = applyEnachToFormData(formDataRef.current, details);
+      let nextFormData = applyEnachToFormData(formDataRef.current, details);
+      const kamPatch = await openKamComplianceRequest({
+        applicationId: recordId || fileId,
+        itemId: 'enach',
+        applicantName: canonical.fullName,
+        formData: nextFormData,
+      });
+      nextFormData = { ...nextFormData, ...kamPatch };
       formDataRef.current = nextFormData;
       setEnachDetails(details);
       setFormData(nextFormData);

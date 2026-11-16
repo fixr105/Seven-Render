@@ -125,6 +125,59 @@ export function isVkycDone(row: VkycRow | null): boolean {
   return row?.status === 'Done';
 }
 
+export async function completeVkycLink(fileId: string, doneBy = 'KAM'): Promise<void> {
+  if (!fileId) return;
+  const row = await fetchVkycByFileId(fileId);
+  if (!row?.id || row.status === 'Done') return;
+  await airtableWrite({
+    table: VKYC_LINKS_TABLE,
+    record_id: row.id,
+    fields: {
+      status: 'Done',
+      done_at: new Date().toISOString(),
+      done_by: doneBy,
+    },
+  });
+}
+
+export async function markLoanFileVkycDone(fileId: string): Promise<void> {
+  if (!fileId) return;
+  const safe = fileId.replace(/'/g, "\\'");
+  const res = await airtableGet({
+    table: 'Loan Applications',
+    filter_formula: `{File ID} = '${safe}'`,
+  });
+  const record = res.records?.[0];
+  const recordId = String(record?.id || '');
+  if (!recordId) return;
+  const raw = readAirtableField(record, 'Form Data');
+  let formData: Record<string, unknown> = {};
+  if (typeof raw === 'string') {
+    try {
+      formData = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      formData = {};
+    }
+  } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    formData = raw as Record<string, unknown>;
+  }
+  const next = {
+    ...formData,
+    'compliance.vkycDone': 'true',
+    '_meta.vkyc.status': 'Done',
+    '_meta.kamRequests.vkyc.requestedAt': '',
+    '_meta.kamRequests.vkyc.dismissedAt': '',
+  };
+  await airtableWrite({
+    table: 'Loan Applications',
+    record_id: recordId,
+    fields: {
+      'Form Data': JSON.stringify(next),
+      'Last Updated': new Date().toISOString(),
+    },
+  });
+}
+
 export function maskMobile(mobile: string): string {
   const digits = String(mobile || '').replace(/\D/g, '');
   if (digits.length < 4) return 'XXXXXX';

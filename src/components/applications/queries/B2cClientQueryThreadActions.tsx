@@ -7,6 +7,7 @@ import {
   type ParsedB2cQuery,
 } from '../../../lib/b2cEvQueryActions';
 import { apiService } from '../../../services/api';
+import { completeVkycLink } from '../../../lib/vkycLinks';
 import type { ComplianceItemId } from '../../../lib/b2cEvCompliance';
 
 export interface B2cClientQueryThreadActionsProps {
@@ -18,6 +19,7 @@ export interface B2cClientQueryThreadActionsProps {
   };
   formData: Record<string, unknown>;
   userRole?: string | null;
+  fileId?: string;
   isResolved: boolean;
   onUpdated: () => void;
 }
@@ -36,6 +38,7 @@ export const B2cClientQueryThreadActions: React.FC<B2cClientQueryThreadActionsPr
   rootQuery,
   formData,
   userRole,
+  fileId,
   isResolved,
   onUpdated,
 }) => {
@@ -62,6 +65,13 @@ export const B2cClientQueryThreadActions: React.FC<B2cClientQueryThreadActionsPr
       });
       if (!response.success) {
         throw new Error(response.error || 'Failed to update request');
+      }
+      if (action === 'compliance_fulfill' && itemId === 'vkyc' && fileId) {
+        try {
+          await completeVkycLink(fileId);
+        } catch {
+          // The file is already marked Done. The links row can still be closed from the desk.
+        }
       }
       onUpdated();
     } catch (error: unknown) {
