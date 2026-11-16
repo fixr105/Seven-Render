@@ -30,12 +30,16 @@ function readField(record: Record<string, unknown>, keys: string[]): string {
 }
 
 export function buildRequiredDocsFromAirtable(
-  records: Array<{ fields?: Record<string, unknown> }> | undefined,
+  records: Array<Record<string, unknown>> | undefined,
   hasCoApplicant: boolean
 ): RequiredDocSlot[] {
   const fromTable: RequiredDocSlot[] = [];
   for (const rec of records || []) {
-    const fields = rec.fields || {};
+    const nested = rec.fields;
+    const fields =
+      nested && typeof nested === 'object' && !Array.isArray(nested)
+        ? (nested as Record<string, unknown>)
+        : rec;
     const label =
       readField(fields, ['Document Name', 'Name', 'document_name', 'Label', 'label']) ||
       'Document';

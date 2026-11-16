@@ -202,7 +202,6 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   const [qualifyResult, setQualifyResult] = useState<QualifyResponse | null>(
     resumePhase && isPostQualifyLockedPhase(resumePhase) ? { ok: true, pass: true } : null
   );
-  const [coApplicantResult, setCoApplicantResult] = useState<QualifyResponse | null>(null);
   const [requiredDocs, setRequiredDocs] = useState<RequiredDocSlot[]>([]);
   const [uploads, setUploads] = useState<Record<string, UploadedDocEntry>>({});
   const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -479,7 +478,6 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     advanceLock.current = true;
     setBusy(true);
     try {
-      let coResult: QualifyResponse | null = null;
       if (hasCoApplicantForQualify(formData)) {
         try {
           const coName = String(formData['coApplicant.name'] || '');
@@ -489,7 +487,7 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
             String(formData['_meta.coApplicantBureau.checked_at'] || '') ||
             new Date().toISOString();
           // Same request shape as wizard co-applicant Verify (section-3). Fail/error must not block.
-          const response = await qualifyApplicant({
+          await qualifyApplicant({
             Full_Name: coName,
             Mobile_Number: coMobile,
             PAN_Number: coPan,
@@ -497,12 +495,10 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
             application_id: `${fileId}-CO`,
             requested_amount: Number(canonical.requestedLoanAmount) || 0,
           });
-          coResult = response;
         } catch {
-          coResult = null;
+          // A co-applicant bureau error must not block the borrower who already passed.
         }
       }
-      setCoApplicantResult(coResult);
 
       // Re-check before any Status write / documents advance (pass can never be assumed).
       if (!hasStrictQualifyPass(qualifyResult)) {

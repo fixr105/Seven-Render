@@ -78,19 +78,6 @@ async function postJson<T = unknown>(
   }
 }
 
-async function getJson<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(path, { method: 'GET' });
-  const data = await parseJsonSafe(res);
-  if (!res.ok) {
-    const msg =
-      data && typeof data === 'object' && 'error' in data
-        ? String((data as { error: unknown }).error)
-        : `Request failed (${res.status})`;
-    throw new EngineRequestError(msg, res.status, data);
-  }
-  return data as T;
-}
-
 /** Flat Airtable row: `id` plus column names at top level (no `fields` wrapper). */
 export type AirtableFlatRecord = {
   id?: string;

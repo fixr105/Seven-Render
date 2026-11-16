@@ -826,7 +826,10 @@ export const DealerDeliveryPage: React.FC = () => {
           formData: next,
           applicantName: String(next['borrower.customerName'] || '').trim() || undefined,
           productId: String(next.loan_product_id || next.loanProductId || '').trim() || undefined,
-          requestedLoanAmount: next['loan.amount'],
+          requestedLoanAmount:
+            typeof next['loan.amount'] === 'number' || typeof next['loan.amount'] === 'string'
+              ? next['loan.amount']
+              : undefined,
         });
         if (!submitRes.success) {
           const missing = Array.isArray(submitRes.data?.missingFields)

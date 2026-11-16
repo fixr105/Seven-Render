@@ -80,7 +80,6 @@ import { fireEvent, flushCrm } from '../../lib/crmEvents';
 import {
   buildComplianceKamRequestMessage,
   COMPLIANCE_ITEMS,
-  validateComplianceForSubmit,
   type ComplianceItemId,
 } from '../../lib/b2cEvCompliance';
 import {
@@ -89,8 +88,7 @@ import {
   isDoRequested,
   POST_DO_LOCKED_STAGE_IDS,
 } from '../../lib/b2cEvDoRequest';
-import { getDoRequestBlockers, getDoRequestReadiness } from '../../lib/b2cEvDoRequestGate';
-import { SubmitReadinessPanel } from './SubmitReadinessPanel';
+import { getDoRequestBlockers } from '../../lib/b2cEvDoRequestGate';
 import { PostSubmitEngineFlow } from './PostSubmitEngineFlow';
 import type { PostSubmitSession } from '../../lib/postSubmitEngine/types';
 import { buildCanonical } from '../../lib/postSubmitEngine/canonical';
@@ -424,14 +422,6 @@ export const B2CEvApplicationWizard: React.FC = () => {
     [visibleStages, formState.form_data, formState.loan_product_id, productFormConfig]
   );
 
-  const complianceErrors = useMemo(
-    () => validateComplianceForSubmit(formState.form_data),
-    [formState.form_data]
-  );
-
-  const canSubmitApplication =
-    completion.isComplete && Object.keys(complianceErrors).length === 0;
-
   const isLastStep = currentStep === visibleStages.length - 1;
 
   useEffect(() => {
@@ -608,12 +598,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const supportNextDisabled =
     currentStage?.id === 'support-person' && !supportBureauGateReady;
 
-  const doRequested = isDoRequested(formState.form_data);
   const doFulfilled = isDoFulfilled(formState.form_data);
-  const doRequestReadiness = useMemo(
-    () => getDoRequestReadiness(formState.form_data, productFormConfig),
-    [formState.form_data, productFormConfig]
-  );
 
   const section1QualifyBlocked =
     section1Lender.status === 'soft_block' || section1Lender.status === 'hard_reject';
@@ -1302,7 +1287,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   };
 
   const updateFields = (
-    patch: Record<string, string>,
+    patch: Record<string, unknown>,
     options?: { debounceMs?: number }
   ) => {
     if (Object.keys(patch).length === 0) return;
