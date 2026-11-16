@@ -9,6 +9,26 @@ describe('buildRequiredDocsFromAirtable', () => {
     expect(docs.some((d) => d.fieldId === 'co_applicant_pan')).toBe(false);
   });
 
+  it('keeps takeover, balance-transfer, insurance, and permit uploads optional', () => {
+    const docs = buildRequiredDocsFromAirtable(
+      [
+        { 'Document Name': 'Vehicle Proforma Invoice', 'Field ID': 'field-3b.1', Required: 'True' },
+        { 'Document Name': 'RC Copy (if takeover)', 'Field ID': 'field-3b.3', Required: 'True' },
+        { 'Document Name': 'Existing Loan Statement (BT cases)', 'Field ID': 'field-3b.4', Required: 'True' },
+        { 'Document Name': 'Insurance Copy', 'Field ID': 'field-3b.5', Required: 'True' },
+        { 'Document Name': 'Permit Copy (if commercial vehicle)', 'Field ID': 'field-3b.6', Required: 'True' },
+      ],
+      false
+    );
+    expect(docs.find((doc) => doc.fieldId === 'field-3b.1')?.required).toBe(true);
+    expect(docs.filter((doc) => !doc.required).map((doc) => doc.fieldId)).toEqual([
+      'field-3b.3',
+      'field-3b.4',
+      'field-3b.5',
+      'field-3b.6',
+    ]);
+  });
+
   it('appends co-applicant docs when needed', () => {
     const docs = buildRequiredDocsFromAirtable(undefined, true);
     expect(docs.some((d) => d.fieldId === 'co_applicant_pan')).toBe(true);

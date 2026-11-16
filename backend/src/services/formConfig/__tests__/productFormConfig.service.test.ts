@@ -7,10 +7,27 @@ import { describe, it, expect } from '@jest/globals';
 import {
   extractProductFormConfigForEditWithMaster,
   buildProductFormConfigPayloadForRecord,
+  parseProductFormConfig,
   type EditorSection,
 } from '../productFormConfig.service.js';
 
 describe('productFormConfig.service', () => {
+  it('does not require RC, existing loan statement, insurance, or permit', () => {
+    const sections = parseProductFormConfig({
+      'SECTION 3B – ASSET WISE – FLEET / EV FINANCING': 'Y',
+      'Field 3B.1': 'Vehicle Proforma Invoice',
+      'Field 3B.3': 'RC Copy (if takeover)',
+      'Field 3B.4': 'Existing Loan Statement (BT cases)',
+      'Field 3B.5': 'Insurance Copy',
+      'Field 3B.6': 'Permit Copy (if commercial vehicle)',
+    });
+    const fields = sections.flatMap((section) => section.fields);
+    expect(fields.find((field) => field.fieldId === 'field-3b.1')?.isRequired).toBe(true);
+    for (const fieldId of ['field-3b.3', 'field-3b.4', 'field-3b.5', 'field-3b.6']) {
+      expect(fields.find((field) => field.fieldId === fieldId)?.isRequired).toBe(false);
+    }
+  });
+
   describe('extractProductFormConfigForEditWithMaster (canonical master list)', () => {
     it('includes Field 1A.5 in master list when Product A has it Empty/missing and Product B has a label', () => {
       // Product A: Field 1A.5 set to Empty (or missing, as Airtable omits empty fields)

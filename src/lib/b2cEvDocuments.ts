@@ -52,7 +52,42 @@ export function getDocumentCategories(formConfig: FormConfigCategory[]): FormCon
   );
 }
 
+const OPTIONAL_DOCUMENT_FIELD_IDS = new Set([
+  'field-3b.3',
+  'field-3b.4',
+  'field-3b.5',
+  'field-3b.6',
+]);
+
+const OPTIONAL_DOCUMENT_LABELS = new Set([
+  'rc copy (if takeover)',
+  'existing loan statement (bt cases)',
+  'insurance copy',
+  'permit copy (if commercial vehicle)',
+]);
+
+function documentFieldId(field: FormConfigField): string {
+  return String(field.fieldId || field.id || field['Field ID'] || '')
+    .trim()
+    .toLowerCase();
+}
+
+function documentFieldLabel(field: FormConfigField): string {
+  return String(field.label || field.fieldLabel || field['Field Label'] || '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Takeover RC, balance-transfer statement, insurance, and commercial permit are optional. */
+export function isOptionalDocumentField(field: FormConfigField): boolean {
+  return (
+    OPTIONAL_DOCUMENT_FIELD_IDS.has(documentFieldId(field)) ||
+    OPTIONAL_DOCUMENT_LABELS.has(documentFieldLabel(field))
+  );
+}
+
 export function isFileFieldRequired(field: FormConfigField): boolean {
+  if (isOptionalDocumentField(field)) return false;
   return (
     field.isRequired === true ||
     field.isMandatory === true ||

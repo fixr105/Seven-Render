@@ -14,6 +14,22 @@ const CO_APPLICANT_DOCS: RequiredDocSlot[] = [
   { fieldId: 'co_applicant_aadhaar', label: 'Co-applicant Aadhaar', required: true },
 ];
 
+const OPTIONAL_UPLOAD_FIELD_IDS = new Set(['field-3b.3', 'field-3b.4', 'field-3b.5', 'field-3b.6']);
+
+const OPTIONAL_UPLOAD_LABELS = new Set([
+  'rc copy (if takeover)',
+  'existing loan statement (bt cases)',
+  'insurance copy',
+  'permit copy (if commercial vehicle)',
+]);
+
+function isOptionalUploadDocument(fieldId: string, label: string): boolean {
+  return (
+    OPTIONAL_UPLOAD_FIELD_IDS.has(fieldId.trim().toLowerCase()) ||
+    OPTIONAL_UPLOAD_LABELS.has(label.trim().toLowerCase())
+  );
+}
+
 function slugify(label: string): string {
   return label
     .toLowerCase()
@@ -46,10 +62,11 @@ export function buildRequiredDocsFromAirtable(
     if (!label && !explicitFieldId) continue;
     const fieldId = explicitFieldId || slugify(label);
     const reqRaw = readField(fields, ['Required', 'Is Required', 'isRequired', 'Mandatory']);
-    const required =
+    const markedRequired =
       reqRaw === '' ||
       /^(true|yes|1|mandatory|required)$/i.test(reqRaw) ||
       reqRaw.toLowerCase() === 'y';
+    const required = isOptionalUploadDocument(fieldId, label) ? false : markedRequired;
     fromTable.push({ fieldId, label: label || fieldId, required });
   }
 

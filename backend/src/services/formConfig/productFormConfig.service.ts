@@ -32,6 +32,22 @@ const FIELD_KEY_REGEX = /^Field\s+(\d+)([A-Za-z])?(?:\.(\d+))?$/i;
 
 const EMPTY_VALUES = ['empty', ''];
 
+const OPTIONAL_FLEET_FIELD_KEYS = new Set(['field 3b.3', 'field 3b.4', 'field 3b.5', 'field 3b.6']);
+
+const OPTIONAL_FLEET_LABELS = new Set([
+  'rc copy (if takeover)',
+  'existing loan statement (bt cases)',
+  'insurance copy',
+  'permit copy (if commercial vehicle)',
+]);
+
+function isOptionalFleetDocument(fieldKey: string, label: string): boolean {
+  return (
+    OPTIONAL_FLEET_FIELD_KEYS.has(fieldKey.trim().toLowerCase()) ||
+    OPTIONAL_FLEET_LABELS.has(label.trim().toLowerCase())
+  );
+}
+
 function isEmpty(value: unknown): boolean {
   if (value == null) return true;
   const s = String(value).trim().toLowerCase();
@@ -180,12 +196,11 @@ export function parseProductFormConfig(product: Record<string, unknown>): Parsed
     }
     if (!categoryName) categoryName = `Section ${sec.sectionId}`;
 
-    // Document checklist: require a status for each document (block submit until all are set)
     const fields: ParsedFormField[] = fieldsForSection.map((e) => ({
       fieldId: e.key.replace(/\s+/g, '-').toLowerCase(),
       label: e.value,
       type: 'file',
-      isRequired: true,
+      isRequired: !isOptionalFleetDocument(e.key, e.value),
     }));
 
     sections.push({
