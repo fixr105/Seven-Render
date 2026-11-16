@@ -1,12 +1,82 @@
-import { hasIncompleteDocumentUploads } from './postSubmitEngine/requiredDocs';
+import { readStoredDocumentUploads } from './postSubmitEngine/requiredDocs';
 
 export const WIZARD_LAST_STAGE_ID_KEY = '_meta.wizard.lastStageId';
 export const WIZARD_LAST_STEP_KEY = '_meta.wizard.lastStep';
 const KYC_DOCUMENTS_STAGE_ID = 'kyc-documents';
 
+const STAGE_FILL_ORDER = [
+  KYC_DOCUMENTS_STAGE_ID,
+  'support-person',
+  'dealer',
+  'loan',
+  'borrower',
+  'product',
+] as const;
+
+const STAGE_FILL_KEYS: Record<(typeof STAGE_FILL_ORDER)[number], string[]> = {
+  'kyc-documents': [],
+  'support-person': [
+    '_meta.supportPanLookup.panNumber',
+    '_meta.supportPanLookup.fullName',
+    'coApplicant.pan',
+    'coApplicant.name',
+    'guarantor.pan',
+    'guarantor.name',
+  ],
+  dealer: ['dealer.id', 'dealer.name', 'dealer.tradeName'],
+  loan: ['loan.vehiclePrice', 'loan.amount', 'loan.tenureMonths', 'loan.insurance'],
+  borrower: [
+    'borrower.firstName',
+    'borrower.lastName',
+    'borrower.customerName',
+    'borrower.aadhaar',
+    'borrower.fatherName',
+    'borrower.address.line1',
+    'borrower.pan',
+  ],
+  product: [
+    '_meta.panLookup.panNumber',
+    '_meta.panLookup.mobileNumber',
+    '_meta.panLookup.fullName',
+  ],
+};
+
 function readString(value: unknown): string {
   if (value == null) return '';
   return String(value).trim();
+}
+
+function isFilledValue(value: unknown): boolean {
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed !== '' && trimmed !== '0' && trimmed !== 'none' && trimmed !== 'pending';
+  }
+  return false;
+}
+
+function stageIsFilled(formData: Record<string, unknown>, stageId: (typeof STAGE_FILL_ORDER)[number]): boolean {
+  if (stageId === KYC_DOCUMENTS_STAGE_ID) {
+    if (Object.keys(readStoredDocumentUploads(formData)).length > 0) return true;
+    return readString(formData['_meta.kycDocuments.documentsString']) !== '';
+  }
+  if (stageId === 'support-person') {
+    const supportType = readString(formData['_meta.supportPersonType']);
+    if (supportType === 'co_applicant' || supportType === 'guarantor') return true;
+  }
+  return STAGE_FILL_KEYS[stageId].some((key) => isFilledValue(formData[key]));
+}
+
+/** Furthest wizard step that already has data. Used when an older file never stored a stage. */
+export function inferLastFilledWizardStageId(formData: Record<string, unknown>): string | null {
+  for (const stageId of STAGE_FILL_ORDER) {
+    if (stageIsFilled(formData, stageId)) return stageId;
+  }
+  return null;
+}
+
+function resumeStageId(formData: Record<string, unknown>): string {
+  return readString(formData[WIZARD_LAST_STAGE_ID_KEY]) || inferLastFilledWizardStageId(formData) || '';
 }
 
 export function patchWizardStepMeta(
@@ -30,12 +100,7 @@ export function buildWizardResumeSearchParams(
 
   if (!formData) return params;
 
-  if (hasIncompleteDocumentUploads(formData)) {
-    params.set('stage', KYC_DOCUMENTS_STAGE_ID);
-    return params;
-  }
-
-  const stageId = readString(formData[WIZARD_LAST_STAGE_ID_KEY]);
+  const stageId = resumeStageId(formData);
   if (stageId) {
     params.set('stage', stageId);
     return params;
@@ -61,12 +126,7 @@ export function resolveWizardResumeStepIndex(
   formData: Record<string, unknown>,
   visibleStages: Array<{ id: string }>
 ): number | null {
-  if (hasIncompleteDocumentUploads(formData)) {
-    const uploadStep = visibleStages.findIndex((stage) => stage.id === KYC_DOCUMENTS_STAGE_ID);
-    if (uploadStep >= 0) return uploadStep;
-  }
-
-  const stageId = readString(formData[WIZARD_LAST_STAGE_ID_KEY]);
+  const stageId = resumeStageId(formData);
   if (stageId) {
     const byStage = visibleStages.findIndex((stage) => stage.id === stageId);
     if (byStage >= 0) return byStage;

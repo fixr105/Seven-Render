@@ -990,7 +990,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
         formStateRef.current = nextFormState;
         setFormState(nextFormState);
         const resumed = buildResumeSession(nextFormState.form_data, canonicalDraftId);
-        if (resumed && (!wizardStageQueryPinned || !wizardUrlMayApply(nextFormState.form_data))) {
+        if (resumed && !wizardUrlMayApply(nextFormState.form_data)) {
           setPostSubmitSession(resumed);
         }
         if (!wizardUrlMayApply(nextFormState.form_data)) clearStaleWizardJump();
@@ -1059,7 +1059,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
               formStateRef.current = nextFormState;
               setFormState(nextFormState);
               const resumed = buildResumeSession(nextFormState.form_data, draftIdParam);
-              if (resumed && (!wizardStageQueryPinned || !wizardUrlMayApply(nextFormState.form_data))) {
+              if (resumed && !wizardUrlMayApply(nextFormState.form_data)) {
                 setPostSubmitSession(resumed);
               }
               if (!wizardUrlMayApply(nextFormState.form_data)) clearStaleWizardJump();

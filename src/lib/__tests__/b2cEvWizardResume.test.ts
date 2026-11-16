@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildWizardResumePath,
   buildWizardResumeSearchParams,
+  inferLastFilledWizardStageId,
   patchWizardStepMeta,
   resolveWizardResumeStepIndex,
   WIZARD_LAST_STAGE_ID_KEY,
@@ -38,6 +39,31 @@ describe('b2cEvWizardResume', () => {
     const stages = [{ id: 'product' }, { id: 'borrower' }, { id: 'kyc-documents' }];
     expect(buildWizardResumeSearchParams('draft-old', form).get('stage')).toBe('kyc-documents');
     expect(resolveWizardResumeStepIndex(form, stages)).toBe(2);
+  });
+
+  it('infers the last filled stage when an older application never stored one', () => {
+    const stages = [
+      { id: 'product' },
+      { id: 'borrower' },
+      { id: 'loan' },
+      { id: 'kyc-documents' },
+    ];
+    const loanOnly = {
+      'borrower.customerName': 'GOVIND PANDEY',
+      'loan.amount': '111725',
+      '_meta.postSubmitPhase': 'post_offer',
+    };
+    expect(inferLastFilledWizardStageId(loanOnly)).toBe('loan');
+    expect(resolveWizardResumeStepIndex(loanOnly, stages)).toBe(2);
+    expect(buildWizardResumeSearchParams('draft-old', loanOnly).get('stage')).toBe('loan');
+
+    const withUploads = {
+      ...loanOnly,
+      '_meta.kycDocuments.uploads': {
+        pan_card: { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+      },
+    };
+    expect(inferLastFilledWizardStageId(withUploads)).toBe('kyc-documents');
   });
 
   it('persists wizard step metadata as 1-indexed step', () => {

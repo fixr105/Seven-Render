@@ -190,6 +190,19 @@ describe('resolveResumePhase', () => {
     expect(enginePhaseForResume(form)).toBe('documents');
   });
 
+  it('keeps continue editing on the wizard when an older file would otherwise open eNACH', () => {
+    const form = {
+      '_meta.postSubmitFlags': { rankStarted: true },
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.postSubmitPhase': 'post_offer',
+      '_meta.wizard.lastStageId': 'borrower',
+      'borrower.customerName': 'GOVIND PANDEY',
+      'loan.amount': '111725',
+    };
+    expect(enginePhaseForResume(form)).toBe('enach');
+    expect(wizardUrlMayApply(form)).toBe(true);
+  });
+
   it('stays on eNACH after the offer is accepted until the bank account is saved', () => {
     const form = {
       '_meta.postSubmitFlags': { rankStarted: true },

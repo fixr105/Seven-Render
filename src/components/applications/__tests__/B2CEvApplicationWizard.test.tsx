@@ -1668,6 +1668,72 @@ describe('B2CEvApplicationWizard productId query param', () => {
     });
   });
 
+  it('opens the saved borrower stage instead of eNACH when continue editing a ranked file', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-enach-jump'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-enach-jump',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        loanProduct: 'LP012',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          '_meta.fileId': 'SFMWHK65WO',
+          '_meta.wizard.lastStageId': 'borrower',
+          '_meta.postSubmitFlags': { rankStarted: true },
+          '_meta.postSubmitPhase': 'post_offer',
+          '_meta.pricing': { roi_pct: 28 },
+          'borrower.customerName': 'GOVIND PANDEY',
+          'borrower.firstName': 'GOVIND',
+          'loan.amount': '111725',
+        },
+      },
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    expect(await screen.findByRole('button', { name: /go back to loan product/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('post-submit-engine-flow')).not.toBeInTheDocument();
+  });
+
+  it('opens the last filled loan stage for an older file with no saved stage', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-old-loan'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-old-loan',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        loanProduct: 'LP012',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          '_meta.fileId': 'SFMWHK65WO',
+          '_meta.postSubmitFlags': { rankStarted: true },
+          '_meta.postSubmitPhase': 'post_offer',
+          '_meta.pricing': { roi_pct: 28 },
+          'borrower.customerName': 'GOVIND PANDEY',
+          'loan.amount': '111725',
+        },
+      },
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    expect(await screen.findByTestId('loan-calculator-stage1')).toBeInTheDocument();
+    expect(screen.queryByTestId('post-submit-engine-flow')).not.toBeInTheDocument();
+  });
+
   it('opens KYC for an older priced draft that has two uploads and no saved stage', async () => {
     mockUseSearchParams.mockReturnValue([
       new URLSearchParams('b2cEv=1&draftId=draft-old-partial'),

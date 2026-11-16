@@ -295,7 +295,8 @@ export function postSubmitPhaseHint(phase: PostSubmitPhase): ResumePhase | null 
 
 /** URL stage/step may move the wizard only while the file is still in the wizard. */
 export function wizardUrlMayApply(formData: Record<string, unknown>): boolean {
-  return resolveResumePhase(formData) === 'wizard';
+  const resume = resolveResumePhase(formData);
+  return resume !== 'delivery' && resume !== 'signing' && resume !== 'stamps';
 }
 
 export function buildResumeSession(
