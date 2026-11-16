@@ -10,6 +10,7 @@ import {
 import { validateGeoPhotosStage } from './b2cEvGeoPhotos';
 import { validateB2cEvDocumentsStage, type FormConfigCategory } from './b2cEvDocuments';
 import { areRequiredKycDocsUploaded } from './kycRequiredDocs';
+import { hasCoApplicant } from './postSubmitEngine/canonical';
 
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
@@ -130,6 +131,17 @@ export function validateB2cEvStage(
     const supportType = readValue(formData, '_meta.supportPersonType');
     if (!supportType || supportType === 'none') {
       errors['_meta.supportPersonType'] = 'Select co-applicant or guarantor';
+      return errors;
+    }
+
+    if (
+      (supportType === 'co_applicant' || supportType === 'guarantor') &&
+      !hasCoApplicant(formData)
+    ) {
+      errors['_meta.supportPersonType'] =
+        supportType === 'guarantor'
+          ? 'Guarantor PAN and mobile are required.'
+          : 'Co-applicant PAN and mobile are required.';
       return errors;
     }
 

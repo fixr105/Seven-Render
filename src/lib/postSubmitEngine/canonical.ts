@@ -44,12 +44,21 @@ export function buildCanonical(formData: Record<string, unknown>): CanonicalBorr
   };
 }
 
-export function hasCoApplicantForQualify(formData: Record<string, unknown>): boolean {
+/**
+ * One test for co-applicant and guarantor: type plus a non-empty PAN and mobile.
+ * KYC slots, qualify, stamp parties, and signing all use this.
+ */
+export function hasCoApplicant(formData: Record<string, unknown>): boolean {
   const supportType = str(formData, '_meta.supportPersonType');
-  if (supportType !== 'co_applicant') return false;
-  const pan = str(formData, 'coApplicant.pan');
-  const mobile = str(formData, 'coApplicant.mobile');
+  if (supportType !== 'co_applicant' && supportType !== 'guarantor') return false;
+  const prefix = supportType === 'guarantor' ? 'guarantor' : 'coApplicant';
+  const pan = str(formData, `${prefix}.pan`);
+  const mobile = str(formData, `${prefix}.mobile`);
   return Boolean(pan && mobile);
+}
+
+export function hasCoApplicantForQualify(formData: Record<string, unknown>): boolean {
+  return hasCoApplicant(formData);
 }
 
 export function calculateAge(dob: string): number | null {

@@ -27,6 +27,7 @@ const BASE_FORM = {
   'borrower.email': 'govind@example.com',
   '_meta.supportPersonType': 'co_applicant',
   'coApplicant.name': 'RITA',
+  'coApplicant.pan': 'ABCDE1234F',
   'coApplicant.mobile': '9876543210',
   'coApplicant.email': 'rita@example.com',
   '_meta.signing': {

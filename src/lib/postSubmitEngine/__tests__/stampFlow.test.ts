@@ -22,6 +22,7 @@ const FORM = {
   'borrower.mobile': '7355621712',
   '_meta.supportPersonType': 'co_applicant',
   'coApplicant.name': 'RITA SHARMA',
+  'coApplicant.pan': 'ABCDE1234F',
   'coApplicant.mobile': '9876543210',
 };
 

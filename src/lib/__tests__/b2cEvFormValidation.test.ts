@@ -4,7 +4,7 @@ import {
   createInitialB2cEvFormData,
   getVisibleB2cEvStages,
 } from '../../config/forms/b2cEvFormSchema';
-import { getB2cEvFormCompletion, syncB2cEvComputedFields } from '../b2cEvFormValidation';
+import { getB2cEvFormCompletion, syncB2cEvComputedFields, validateB2cEvStage } from '../b2cEvFormValidation';
 
 const DEALER_PATCH: Record<string, unknown> = {
   'dealer.id': 'SFDLR11030',
@@ -101,6 +101,19 @@ function buildCompleteCoApplicantForm(): Record<string, unknown> {
     'compliance.enachDone': true,
   };
 }
+
+describe('support person PAN and mobile', () => {
+  it('requires both when the type is co-applicant', () => {
+    const stage = B2C_EV_STAGES.find((entry) => entry.id === 'support-person');
+    expect(stage).toBeTruthy();
+    const errors = validateB2cEvStage(stage!, {
+      '_meta.supportPersonType': 'co_applicant',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.mobile': '',
+    });
+    expect(errors['_meta.supportPersonType']).toBe('Co-applicant PAN and mobile are required.');
+  });
+});
 
 describe('getB2cEvFormCompletion', () => {
   it('returns incomplete when borrower fields are missing', () => {

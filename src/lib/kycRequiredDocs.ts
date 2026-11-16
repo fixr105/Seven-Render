@@ -1,5 +1,6 @@
 import type { FormConfigCategory } from './b2cEvDocuments';
 import { getDocumentCategories, isFileFieldRequired } from './b2cEvDocuments';
+import { hasCoApplicant } from './postSubmitEngine/canonical';
 
 export type KycDocSlot = {
   fieldId: string;
@@ -19,12 +20,6 @@ const CO_APP_DOCS: KycDocSlot[] = [
   { fieldId: 'co_applicant_pan', label: 'Co-applicant PAN', required: true },
   { fieldId: 'co_applicant_aadhaar', label: 'Co-applicant Aadhaar', required: true },
 ];
-
-function hasCoApplicant(formData: Record<string, unknown>): boolean {
-  const type = String(formData['_meta.supportPersonType'] || '').trim();
-  if (type === 'co_applicant') return true;
-  return Boolean(String(formData['coApplicant.pan'] || '').trim());
-}
 
 export function buildKycRequiredDocSlots(
   formData: Record<string, unknown>,

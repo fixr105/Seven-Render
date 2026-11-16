@@ -6,6 +6,7 @@ describe('supportPersonParty', () => {
     const result = getSupportPersonParty({
       '_meta.supportPersonType': 'co_applicant',
       'coApplicant.name': 'Rita',
+      'coApplicant.pan': 'ABCDE1234F',
       'coApplicant.mobile': '9876543210',
       'coApplicant.email': 'rita@example.com',
     });
@@ -21,6 +22,7 @@ describe('supportPersonParty', () => {
     const result = getSupportPersonParty({
       '_meta.supportPersonType': 'guarantor',
       'guarantor.name': 'Suresh',
+      'guarantor.pan': 'ABCDE1234F',
       'guarantor.mobile': '9123456789',
     });
     expect(result.ok).toBe(true);
@@ -28,6 +30,16 @@ describe('supportPersonParty', () => {
       expect(result.party.label).toBe('Guarantor');
       expect(result.party.prefix).toBe('guarantor');
     }
+  });
+
+  it('refuses a co-applicant when PAN is set and mobile is empty', () => {
+    const result = getSupportPersonParty({
+      '_meta.supportPersonType': 'co_applicant',
+      'coApplicant.name': 'Rita',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.mobile': '',
+    });
+    expect(result.ok).toBe(false);
   });
 
   it('STOPs when name or mobile missing', () => {

@@ -1,3 +1,5 @@
+import { hasCoApplicant } from './canonical';
+
 export type SupportPersonParty = {
   type: 'co_applicant' | 'guarantor';
   label: string;
@@ -24,6 +26,12 @@ function digits10(mobile: string): string {
 export function getSupportPersonParty(
   formData: Record<string, unknown>
 ): { ok: true; party: SupportPersonParty } | { ok: false; reason: string } {
+  if (!hasCoApplicant(formData)) {
+    return {
+      ok: false,
+      reason: 'Co-applicant PAN and mobile are required.',
+    };
+  }
   const typeRaw = str(formData, '_meta.supportPersonType');
   const type: 'co_applicant' | 'guarantor' =
     typeRaw === 'guarantor' ? 'guarantor' : 'co_applicant';

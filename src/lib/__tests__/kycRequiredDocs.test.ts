@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
   areRequiredKycDocsUploaded,
+  buildKycRequiredDocSlots,
   hasCompletedWizardKycDocuments,
 } from '../kycRequiredDocs';
+
+describe('buildKycRequiredDocSlots', () => {
+  it('does not add co-applicant slots when mobile is empty', () => {
+    const slots = buildKycRequiredDocSlots({
+      '_meta.supportPersonType': 'co_applicant',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.mobile': '',
+    });
+    expect(slots.map((slot) => slot.fieldId)).not.toContain('co_applicant_pan');
+  });
+});
 
 describe('hasCompletedWizardKycDocuments', () => {
   it('is true when wizard documentsString + field-* uploads exist (fallback ids would fail)', () => {

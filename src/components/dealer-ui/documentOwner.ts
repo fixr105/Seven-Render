@@ -1,3 +1,5 @@
+import { hasCoApplicant } from '../../lib/postSubmitEngine/canonical';
+
 export type OwnerRole = 'Applicant' | 'Co-applicant' | 'Guarantor';
 
 export type DocumentOwner = {
@@ -48,7 +50,7 @@ export function documentOwner(
   formData: Record<string, unknown>,
   slot: { fieldId: string; label: string }
 ): DocumentOwner {
-  const support = isSupportDocument(slot);
+  const support = isSupportDocument(slot) && hasCoApplicant(formData);
   const supportType = readString(formData, '_meta.supportPersonType');
   const role: OwnerRole = !support
     ? 'Applicant'
