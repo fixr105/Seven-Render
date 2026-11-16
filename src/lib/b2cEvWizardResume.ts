@@ -1,5 +1,8 @@
+import { hasIncompleteDocumentUploads } from './postSubmitEngine/requiredDocs';
+
 export const WIZARD_LAST_STAGE_ID_KEY = '_meta.wizard.lastStageId';
 export const WIZARD_LAST_STEP_KEY = '_meta.wizard.lastStep';
+const KYC_DOCUMENTS_STAGE_ID = 'kyc-documents';
 
 function readString(value: unknown): string {
   if (value == null) return '';
@@ -27,6 +30,11 @@ export function buildWizardResumeSearchParams(
 
   if (!formData) return params;
 
+  if (hasIncompleteDocumentUploads(formData)) {
+    params.set('stage', KYC_DOCUMENTS_STAGE_ID);
+    return params;
+  }
+
   const stageId = readString(formData[WIZARD_LAST_STAGE_ID_KEY]);
   if (stageId) {
     params.set('stage', stageId);
@@ -53,6 +61,11 @@ export function resolveWizardResumeStepIndex(
   formData: Record<string, unknown>,
   visibleStages: Array<{ id: string }>
 ): number | null {
+  if (hasIncompleteDocumentUploads(formData)) {
+    const uploadStep = visibleStages.findIndex((stage) => stage.id === KYC_DOCUMENTS_STAGE_ID);
+    if (uploadStep >= 0) return uploadStep;
+  }
+
   const stageId = readString(formData[WIZARD_LAST_STAGE_ID_KEY]);
   if (stageId) {
     const byStage = visibleStages.findIndex((stage) => stage.id === stageId);

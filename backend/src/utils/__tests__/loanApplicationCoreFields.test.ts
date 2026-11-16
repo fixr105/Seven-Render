@@ -320,6 +320,54 @@ describe('resolveLoanApplicationDocuments', () => {
     );
   });
 
+  it('includes saved KYC uploads when the Documents column is empty', async () => {
+    const { resolveLoanApplicationDocuments } = await import('../loanApplicationCoreFields.js');
+    const docs = resolveLoanApplicationDocuments(
+      {},
+      {
+        '_meta.kycDocuments.uploads': {
+          pan_card: { url: 'https://cdn.example.com/pan.jpg', filename: 'pan.jpg' },
+          co_applicant_pan: { url: 'https://cdn.example.com/co.jpg', filename: 'co.jpg' },
+        },
+      }
+    );
+
+    expect(docs).toEqual(
+      expect.arrayContaining([
+        {
+          fieldId: 'pan_card',
+          url: 'https://cdn.example.com/pan.jpg',
+          fileName: 'pan.jpg',
+        },
+        {
+          fieldId: 'co_applicant_pan',
+          url: 'https://cdn.example.com/co.jpg',
+          fileName: 'co.jpg',
+        },
+      ])
+    );
+  });
+
+  it('uses the KYC documents string when the upload map is empty', async () => {
+    const { resolveLoanApplicationDocuments } = await import('../loanApplicationCoreFields.js');
+    const docs = resolveLoanApplicationDocuments(
+      {},
+      {
+        '_meta.kycDocuments.uploads': {},
+        '_meta.kycDocuments.documentsString':
+          'aadhaar_front:https://cdn.example.com/a.jpg|a.jpg',
+      }
+    );
+
+    expect(docs).toEqual([
+      {
+        fieldId: 'aadhaar_front',
+        url: 'https://cdn.example.com/a.jpg',
+        fileName: 'a.jpg',
+      },
+    ]);
+  });
+
   it('parses folder links with https scheme without splitting on the scheme colon', async () => {
     const { resolveLoanApplicationDocuments } = await import('../loanApplicationCoreFields.js');
     const docs = resolveLoanApplicationDocuments(

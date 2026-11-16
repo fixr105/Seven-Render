@@ -1,5 +1,5 @@
 import { hasValue, readFormPath } from '../formPath';
-import { hasPartialRequiredDocuments } from './requiredDocs';
+import { hasIncompleteDocumentUploads, hasPartialRequiredDocuments } from './requiredDocs';
 import type { PostSubmitPhase, PostSubmitSession } from './types';
 
 export type ResumePhase =
@@ -32,11 +32,6 @@ function nonEmptyString(value: unknown): boolean {
 
 function httpsUrl(value: unknown): boolean {
   return typeof value === 'string' && value.startsWith('https://');
-}
-
-function positiveNumber(value: unknown): boolean {
-  const amount = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(amount) && amount > 0;
 }
 
 function stampsHaveContent(formData: Record<string, unknown>): boolean {
@@ -101,14 +96,14 @@ export function resolveResumePhase(formData: Record<string, unknown>): ResumePha
   if (docs.all) return 'stamps';
   if (docs.any) return 'post_offer';
 
-  if (hasValue(formData, '_meta.pricing.roi_pct', positiveNumber)) return 'post_offer';
   if (hasPersistedQualifyPass(formData)) return 'post_qualify';
   if (deadlineIsComplete(formData)) return 'request_do';
 
   const hint = readFormPath(formData, '_meta.postSubmitPhase');
   if (hint.present) {
     const value = String(hint.value ?? '') as ResumePhase;
-    if (HINTS.includes(value)) return value;
+    const staleOfferHint = value === 'post_offer' && !readPostSubmitFlags(formData).rankStarted;
+    if (!staleOfferHint && HINTS.includes(value)) return value;
   }
   return 'wizard';
 }
@@ -208,7 +203,15 @@ export function flaggedResumePhase(formData: Record<string, unknown>): PostSubmi
   // A saved bank account belongs on document preparation. An accepted offer
   // with no account stays on eNACH instead of bouncing back to the offer.
   if (hasValue(formData, 'enach.accountNumber', nonEmptyString)) return 'doc_fill';
-  if (String(formData['_meta.postSubmitPhase'] || '') === 'post_offer') return 'enach';
+  // Older files can already have ranking flags. Missing uploads still belong on the upload step.
+  if (flags.rankStarted && hasIncompleteDocumentUploads(formData)) return 'documents';
+  // A post_offer hint saved before ranking is the loan calculator, not an accepted offer.
+  if (
+    flags.rankStarted &&
+    String(formData['_meta.postSubmitPhase'] || '') === 'post_offer'
+  ) {
+    return 'enach';
+  }
   if (flags.rankStarted && roiGreaterThanZero(formData)) return 'offer';
   if (flags.qualifyFired && qualifyResultObject(formData)) {
     if (hasPersistedQualifyPass(formData) && hasPartialRequiredDocuments(formData)) {
@@ -241,6 +244,7 @@ export function enginePhaseForResume(formData: Record<string, unknown>): PostSub
     case 'stamps':
       return 'stamp_step';
     case 'post_offer':
+      if (hasIncompleteDocumentUploads(formData)) return 'documents';
       return postOfferStartsAtEnach(formData) ? 'enach' : 'doc_fill';
     case 'post_qualify':
       return 'offer';

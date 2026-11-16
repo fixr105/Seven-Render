@@ -87,14 +87,31 @@ export function readStoredDocumentUploads(
   return out;
 }
 
+function requiredUploadSlots(formData: Record<string, unknown>) {
+  return buildRequiredDocsFromAirtable(undefined, hasCoApplicant(formData)).filter(
+    (doc) => doc.required
+  );
+}
+
 /** True when at least one file is stored and a required slot is still empty. */
 export function hasPartialRequiredDocuments(formData: Record<string, unknown>): boolean {
   const uploads = readStoredDocumentUploads(formData);
   if (Object.keys(uploads).length === 0) return false;
-  const required = buildRequiredDocsFromAirtable(undefined, hasCoApplicant(formData)).filter(
-    (doc) => doc.required
-  );
-  return required.some((doc) => !uploads[doc.fieldId]?.url);
+  return requiredUploadSlots(formData).some((doc) => !uploads[doc.fieldId]?.url);
+}
+
+/**
+ * Incomplete for both new field ids and older wizard ids.
+ * A full set of unrecognized ids counts as finished so a completed file can leave this step.
+ */
+export function hasIncompleteDocumentUploads(formData: Record<string, unknown>): boolean {
+  const uploads = readStoredDocumentUploads(formData);
+  const count = Object.keys(uploads).length;
+  if (count === 0) return false;
+  const required = requiredUploadSlots(formData);
+  const knownPresent = required.some((doc) => Boolean(uploads[doc.fieldId]?.url));
+  if (knownPresent) return required.some((doc) => !uploads[doc.fieldId]?.url);
+  return count < required.length;
 }
 
 export function formatDocumentsField(

@@ -3,6 +3,7 @@ import {
   areRequiredKycDocsUploaded,
   buildKycRequiredDocSlots,
   hasCompletedWizardKycDocuments,
+  listSavedKycDocuments,
 } from '../kycRequiredDocs';
 
 describe('buildKycRequiredDocSlots', () => {
@@ -40,6 +41,24 @@ describe('buildKycRequiredDocSlots', () => {
       'field-1a.1',
       'co_applicant_pan',
       'co_applicant_aadhaar',
+    ]);
+  });
+});
+
+describe('listSavedKycDocuments', () => {
+  it('reads the documents string when the upload map is empty', () => {
+    expect(
+      listSavedKycDocuments({
+        '_meta.kycDocuments.uploads': {},
+        '_meta.kycDocuments.documentsString':
+          'aadhaar_front:https://cdn.example.com/a.jpg|a.jpg',
+      })
+    ).toEqual([
+      {
+        fieldId: 'aadhaar_front',
+        url: 'https://cdn.example.com/a.jpg',
+        filename: 'a.jpg',
+      },
     ]);
   });
 });

@@ -5,6 +5,8 @@ import { getBorrowerCibilScoreFromFormData } from '../../../lib/b2cEvCibilProbab
 import { isPanLookupSuccessful } from '../../../lib/b2cEvPanLookup';
 import { formatB2cEvFieldValue } from '../../../lib/b2cEvFieldFormat';
 import type { FormConfigCategory } from '../../../lib/b2cEvDocuments';
+import { buildKycRequiredDocSlots, listSavedKycDocuments } from '../../../lib/kycRequiredDocs';
+import { documentOwner } from '../../dealer-ui/documentOwner';
 import { CibilProbabilityBar } from '../CibilProbabilityBar';
 import { B2cEvGeoPhotoReview } from './B2cEvGeoPhotoReview';
 import { B2cEvSupportPersonReview } from './B2cEvSupportPersonReview';
@@ -13,6 +15,18 @@ import { B2cEvDocumentsReview } from './B2cEvDocumentsReview';
 import { KamClientKycPanel } from './KamClientKycPanel';
 import { apiService, type ApiResponse } from '../../../services/api';
 import type { ComplianceItemId } from '../../../lib/b2cEvCompliance';
+
+function kycFieldLabel(
+  formData: Record<string, unknown>,
+  formConfig: FormConfigCategory[],
+  fieldId: string
+): string {
+  const slot = buildKycRequiredDocSlots(formData, formConfig).find((item) => item.fieldId === fieldId);
+  if (slot) return slot.label;
+  return fieldId
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 function readString(value: unknown): string {
   if (value == null) return '';
@@ -107,6 +121,7 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
   onUpdated,
 }) => {
   const stages = useMemo(() => getVisibleB2cEvStages(formData), [formData]);
+  const savedKycDocuments = useMemo(() => listSavedKycDocuments(formData), [formData]);
   const [openStageId, setOpenStageId] = useState<string | null>(() =>
     resolveInitialOpenStageId(getVisibleB2cEvStages(formData), formData, userRole)
   );
@@ -216,11 +231,45 @@ export const B2cEvApplicationReview: React.FC<B2cEvApplicationReviewProps> = ({
               <span className="text-sm font-semibold text-neutral-900">
                 {REVIEW_STAGE_TITLES[stage.id] ?? stage.title}
               </span>
-              <span className="text-xs text-neutral-500">{isOpen ? 'Hide' : 'Show'}</span>
+              <span className="text-xs text-neutral-500">
+                {isOpen
+                  ? 'Hide'
+                  : stage.id === 'kyc-documents'
+                    ? `${savedKycDocuments.length} ${savedKycDocuments.length === 1 ? 'file' : 'files'}`
+                    : 'Show'}
+              </span>
             </button>
             {isOpen && (
               <div className="space-y-4 border-t border-neutral-200 p-4">
-                {stage.id === 'geo-photos' ? (
+                {stage.id === 'kyc-documents' ? (
+                  savedKycDocuments.length === 0 ? (
+                    <p className="text-sm text-neutral-500">No documents uploaded yet.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {savedKycDocuments.map((doc) => {
+                        const label = kycFieldLabel(formData, formConfig, doc.fieldId);
+                        const owner = documentOwner(formData, { fieldId: doc.fieldId, label });
+                        return (
+                          <li
+                            key={doc.fieldId}
+                            className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:items-center sm:gap-2"
+                          >
+                            <p className="text-sm text-neutral-500">{label}</p>
+                            <p className="text-sm text-neutral-700">{owner.role}</p>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-neutral-900 underline"
+                            >
+                              {doc.filename}
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )
+                ) : stage.id === 'geo-photos' ? (
                   <B2cEvGeoPhotoReview formData={formData} />
                 ) : stage.id === 'support-person' ? (
                   <B2cEvSupportPersonReview formData={formData} />

@@ -106,6 +106,31 @@ function slotIdFromGeoPhotoUrlKey(urlKey: string): string {
   return match?.[1] ?? urlKey;
 }
 
+function kycUploadsFromMap(
+  raw: unknown
+): Array<{ fieldId: string; url: string; fileName: string }> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  const out: Array<{ fieldId: string; url: string; fileName: string }> = [];
+  for (const [fieldId, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const record = value as { url?: unknown; filename?: unknown; fileName?: unknown };
+    const url = firstNonEmpty(record.url);
+    const fileName = firstNonEmpty(record.filename, record.fileName) || 'file';
+    if (!fieldId.trim() || !isHttpDocumentUrl(url)) continue;
+    out.push({ fieldId: fieldId.trim(), url, fileName });
+  }
+  return out;
+}
+
+/** Saved KYC files. The upload map wins; the documents string is only a fallback. */
+function kycDocumentsFromFormData(
+  formData: Record<string, unknown>
+): Array<{ fieldId: string; url: string; fileName: string }> {
+  const fromMap = kycUploadsFromMap(formData['_meta.kycDocuments.uploads']);
+  if (fromMap.length > 0) return fromMap;
+  return parseLoanApplicationDocumentsList(formData['_meta.kycDocuments.documentsString']);
+}
+
 export function resolveDocumentsFromFormData(
   mergedFormData: Record<string, unknown>,
   existingRecord?: Record<string, unknown>
@@ -131,6 +156,11 @@ export function resolveDocumentsFromFormData(
     const fileName = firstNonEmpty(mergedFormData[fileNameKey]) || slotIdFromGeoPhotoUrlKey(urlKey);
     const slotId = slotIdFromGeoPhotoUrlKey(urlKey);
     const entry = formatDocumentEntry(slotId, url, fileName);
+    entries.set(entry, entry);
+  }
+
+  for (const doc of kycDocumentsFromFormData(mergedFormData)) {
+    const entry = formatDocumentEntry(doc.fieldId, doc.url, doc.fileName);
     entries.set(entry, entry);
   }
 

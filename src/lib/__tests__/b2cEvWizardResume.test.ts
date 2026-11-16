@@ -26,6 +26,20 @@ describe('b2cEvWizardResume', () => {
     ).toBe(1);
   });
 
+  it('opens the upload step for an older draft that never stored a stage', () => {
+    const form = {
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.postSubmitPhase': 'post_offer',
+      '_meta.kycDocuments.uploads': {
+        pan_card: { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+        aadhaar_front: { url: 'https://cdn.example/aadhaar.jpg', filename: 'aadhaar.jpg' },
+      },
+    };
+    const stages = [{ id: 'product' }, { id: 'borrower' }, { id: 'kyc-documents' }];
+    expect(buildWizardResumeSearchParams('draft-old', form).get('stage')).toBe('kyc-documents');
+    expect(resolveWizardResumeStepIndex(form, stages)).toBe(2);
+  });
+
   it('persists wizard step metadata as 1-indexed step', () => {
     const patched = patchWizardStepMeta({}, 'geo-photos', 5);
     expect(patched['_meta.wizard.lastStageId']).toBe('geo-photos');

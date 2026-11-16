@@ -1,5 +1,6 @@
 import type { FormConfigCategory } from './b2cEvDocuments';
 import { getDocumentCategories, isFileFieldRequired } from './b2cEvDocuments';
+import { parseDocumentsField } from './kycDocumentsString';
 import { hasCoApplicant } from './postSubmitEngine/canonical';
 
 export type KycDocSlot = {
@@ -66,6 +67,19 @@ export function getUploadedDocMap(
     return out;
   }
   return {};
+}
+
+/** Uploads on the draft win. The documents string is used only when that map is empty. */
+export function listSavedKycDocuments(
+  formData: Record<string, unknown>
+): Array<{ fieldId: string; url: string; filename: string }> {
+  const fromMap = Object.entries(getUploadedDocMap(formData)).map(([fieldId, value]) => ({
+    fieldId,
+    url: value.url,
+    filename: value.filename,
+  }));
+  if (fromMap.length > 0) return fromMap;
+  return parseDocumentsField(formData['_meta.kycDocuments.documentsString']);
 }
 
 export function areRequiredKycDocsUploaded(

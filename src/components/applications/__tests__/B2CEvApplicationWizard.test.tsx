@@ -1668,6 +1668,73 @@ describe('B2CEvApplicationWizard productId query param', () => {
     });
   });
 
+  it('opens KYC for an older priced draft that has two uploads and no saved stage', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-old-partial'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-old-partial',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        loanProduct: 'LP012',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          '_meta.fileId': 'SFMWHK65WO',
+          '_meta.pricing': { roi_pct: 28, pf_pct: 6.75, rule_id: 7 },
+          '_meta.postSubmitPhase': 'post_offer',
+          '_meta.kycDocuments.uploads': {
+            pan_card: { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+            aadhaar_front: { url: 'https://cdn.example/aadhaar.jpg', filename: 'aadhaar.jpg' },
+          },
+        },
+      },
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    expect(await screen.findByTestId('kyc-documents-step')).toBeInTheDocument();
+    expect(screen.queryByTestId('post-submit-engine-flow')).not.toBeInTheDocument();
+  });
+
+  it('stays on KYC when a priced draft has only two uploads', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-partial-kyc&stage=kyc-documents'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-partial-kyc',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        loanProduct: 'LP012',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          productId: 'LP012',
+          '_meta.fileId': 'SFMWHK65WO',
+          '_meta.wizard.lastStageId': 'kyc-documents',
+          '_meta.pricing': { roi_pct: 28, pf_pct: 6.75, rule_id: 7 },
+          '_meta.postSubmitPhase': 'post_offer',
+          '_meta.kycDocuments.uploads': {
+            pan_card: { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+            aadhaar_front: { url: 'https://cdn.example/aadhaar.jpg', filename: 'aadhaar.jpg' },
+          },
+        },
+      },
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    expect(await screen.findByTestId('kyc-documents-step')).toBeInTheDocument();
+    expect(screen.queryByTestId('post-submit-engine-flow')).not.toBeInTheDocument();
+  });
+
   it('opens stamps and clears a stale wizard stage when all three documents exist', async () => {
     const urlParams = new URLSearchParams('b2cEv=1&draftId=draft-stamps&stage=support-person');
     const setSearchParams = vi.fn(

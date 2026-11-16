@@ -68,10 +68,25 @@ describe('resolveResumePhase', () => {
     ).toBe('post_offer');
   });
 
-  it('opens eNACH when pricing exists and the account number is empty', () => {
+  it('stays on the wizard when only calculator pricing exists', () => {
     const form = { '_meta.pricing': { roi_pct: 28 }, 'enach.accountNumber': '' };
-    expect(resolveResumePhase(form)).toBe('post_offer');
-    expect(enginePhaseForResume(form)).toBe('enach');
+    expect(resolveResumePhase(form)).toBe('wizard');
+    expect(enginePhaseForResume(form)).toBeNull();
+  });
+
+  it('stays on the wizard when two KYC uploads and a stale post-offer hint are saved with pricing', () => {
+    const form = {
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.postSubmitPhase': 'post_offer',
+      '_meta.wizard.lastStageId': 'kyc-documents',
+      '_meta.kycDocuments.uploads': {
+        pan_card: { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+        aadhaar_front: { url: 'https://cdn.example/aadhaar.jpg', filename: 'aadhaar.jpg' },
+      },
+    };
+    expect(resolveResumePhase(form)).toBe('wizard');
+    expect(enginePhaseForResume(form)).toBeNull();
+    expect(buildResumeSession(form, 'rec1')).toBeNull();
   });
 
   it('opens the bank statement step when a statement is still required, even if pricing exists', () => {
@@ -82,13 +97,13 @@ describe('resolveResumePhase', () => {
       'coApplicant.pan': 'ABCDE1234F',
       'coApplicant.mobile': '9876543210',
     };
-    expect(resolveResumePhase(form)).toBe('post_offer');
+    expect(resolveResumePhase(form)).toBe('wizard');
     expect(enginePhaseForResume(form)).toBe('ntc_upload');
   });
 
-  it('opens document prep when pricing exists and the account number is filled', () => {
+  it('opens document prep when the account number is saved', () => {
     const form = { '_meta.pricing': { roi_pct: 28 }, 'enach.accountNumber': '1234567890' };
-    expect(resolveResumePhase(form)).toBe('post_offer');
+    expect(resolveResumePhase(form)).toBe('wizard');
     expect(enginePhaseForResume(form)).toBe('doc_fill');
   });
 
@@ -145,6 +160,34 @@ describe('resolveResumePhase', () => {
       '_meta.pricing': { roi_pct: 28 },
     };
     expect(enginePhaseForResume(form)).toBe('offer');
+  });
+
+  it('returns an older ranked file to the upload step when required documents are still missing', () => {
+    const form = {
+      '_meta.postSubmitFlags': { rankStarted: true, qualifyFired: true },
+      '_meta.qualifyResult': { pass: true },
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.postSubmitPhase': 'post_offer',
+      'loan.amount': '111725',
+      '_meta.kycDocuments.uploads': {
+        pan_card: { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+        aadhaar_front: { url: 'https://cdn.example/aadhaar.jpg', filename: 'aadhaar.jpg' },
+      },
+    };
+    expect(enginePhaseForResume(form)).toBe('documents');
+    expect(buildResumeSession(form, 'rec-old')?.resumePhase).toBe('documents');
+  });
+
+  it('returns to the upload step when a generated document exists but KYC uploads are incomplete', () => {
+    const form = {
+      '_meta.docs.sanctionLetter': 'https://files.example/sanction.pdf',
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.kycDocuments.uploads': {
+        field_pan: { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+        field_aadhaar: { url: 'https://cdn.example/aadhaar.jpg', filename: 'aadhaar.jpg' },
+      },
+    };
+    expect(enginePhaseForResume(form)).toBe('documents');
   });
 
   it('stays on eNACH after the offer is accepted until the bank account is saved', () => {
