@@ -1785,6 +1785,18 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }
   };
 
+  const borrowerAutoVerifyKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (currentStage?.id !== 'borrower') return;
+    if (isPanLookupProfileReady(formStateRef.current.form_data)) return;
+    const payload = getPanLookupPayload(formStateRef.current.form_data);
+    if (!payload.panNumber || !payload.mobileNumber || !payload.fullName) return;
+    const key = `${payload.panNumber}|${payload.mobileNumber}|${payload.fullName}`;
+    if (borrowerAutoVerifyKeyRef.current === key) return;
+    borrowerAutoVerifyKeyRef.current = key;
+    void runBorrowerBureauAndLenderFind();
+  }, [currentStage?.id, formState.form_data]);
+
   const resetSupportBureauUi = () => {
     setSupportBureauOutcome(null);
     supportBureauOutcomeRef.current = null;
@@ -2372,14 +2384,22 @@ export const B2CEvApplicationWizard: React.FC = () => {
     }
 
     if (stage.id === 'borrower' && !isPanLookupProfileReady(formState.form_data)) {
+      const payload = getPanLookupPayload(formState.form_data);
+      const canVerify = Boolean(payload.panNumber && payload.mobileNumber && payload.fullName);
+      if (canVerify) {
+        return (
+          <p className="text-sm text-dealer-text-quiet" data-testid="b2c-borrower-loading">
+            Checking PAN and loading borrower details…
+          </p>
+        );
+      }
       return (
         <div className="space-y-4">
           <p className="text-sm text-dealer-text-quiet">
-            Borrower details must be verified on the Loan Product step before this section can be
-            loaded.
+            Enter the borrower name, PAN, and mobile on Loan product, then come back.
           </p>
           <Button type="button" variant="secondary" onClick={() => setWizardStep(0)}>
-            Go back to verify PAN
+            Go back to Loan product
           </Button>
         </div>
       );

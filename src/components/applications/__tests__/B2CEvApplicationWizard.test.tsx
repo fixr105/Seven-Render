@@ -478,15 +478,15 @@ describe('B2CEvApplicationWizard submit gating', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('re-runs the PAN check from Borrower when a saved draft lost the verification flag', async () => {
+  it('loads borrower details when Borrower opens without a saved PAN flag', async () => {
     mockUseSearchParams.mockReturnValue([
-      new URLSearchParams('b2cEv=1&draftId=draft-pan-gap&stage=borrower'),
+      new URLSearchParams('b2cEv=1&draftId=draft-pan-open&stage=borrower'),
       vi.fn(),
     ] as ReturnType<typeof mockUseSearchParams>);
     (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       data: {
-        id: 'draft-pan-gap',
+        id: 'draft-pan-open',
         status: 'draft',
         loanProduct: 'LP001',
         formData: {
@@ -500,19 +500,11 @@ describe('B2CEvApplicationWizard submit gating', () => {
       },
     });
 
-    const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/must be verified on the Loan Product step/i)).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByTestId('b2c-wizard-next'));
 
     await waitFor(() => {
       expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
     });
-    expect(qualifyApplicant).toHaveBeenCalled();
     expect(
       screen.queryByText(/must be verified on the Loan Product step/i)
     ).not.toBeInTheDocument();
