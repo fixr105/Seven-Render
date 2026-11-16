@@ -115,6 +115,28 @@ describe('PostSubmitEngineFlow resume', () => {
     expect(engineClient.fillSanctionLetter).not.toHaveBeenCalled();
   });
 
+  it('continues to video KYC when the bank account is saved and video KYC is not done', async () => {
+    renderResumed(
+      {
+        '_meta.pricing': { roi_pct: 28 },
+        'loan.amount': 111725,
+        'loan.interestRate': 28,
+        'loan.emiAmount': 8000,
+        'loan.tenureMonths': 18,
+        'enach.accountHolderName': 'Govind Pandey',
+        'enach.bankName': 'HDFC Bank',
+        'enach.accountNumber': '123456789012',
+        'enach.ifscCode': 'HDFC0001234',
+        'enach.accountType': 'Savings',
+      },
+      'doc_fill'
+    );
+    expect(
+      await screen.findByText(/must be completed before your loan documents are prepared/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Preparing your loan documents/i)).not.toBeInTheDocument();
+  });
+
   it('opens document prep when eNACH is already stored', async () => {
     renderResumed(
       { '_meta.pricing': { roi_pct: 28 }, 'enach.accountNumber': '12345678901234' },
@@ -194,6 +216,10 @@ describe('PostSubmitEngineFlow resume', () => {
       expect(engineClient.airtableWrite).toHaveBeenCalled();
     });
     expect(screen.queryByText(/accepted offer is missing/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Account Holder Name')).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(/must be completed before your loan documents are prepared/i)
+    ).toBeInTheDocument();
   });
 
   it('opens offers without ranking again', async () => {

@@ -147,6 +147,27 @@ describe('resolveResumePhase', () => {
     expect(enginePhaseForResume(form)).toBe('offer');
   });
 
+  it('stays on eNACH after the offer is accepted until the bank account is saved', () => {
+    const form = {
+      '_meta.postSubmitFlags': { rankStarted: true },
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.postSubmitPhase': 'post_offer',
+      'loan.amount': '111725',
+    };
+    expect(enginePhaseForResume(form)).toBe('enach');
+  });
+
+  it('opens document preparation after eNACH is saved, even though ranking already ran', () => {
+    const form = {
+      '_meta.postSubmitFlags': { rankStarted: true },
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.postSubmitPhase': 'post_offer',
+      'loan.amount': '111725',
+      'enach.accountNumber': '123456789012',
+    };
+    expect(enginePhaseForResume(form)).toBe('doc_fill');
+  });
+
   it('opens offers without calling qualify when qualify already fired and passed', () => {
     const form = {
       '_meta.postSubmitFlags': { qualifyFired: true },

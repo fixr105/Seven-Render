@@ -27,6 +27,7 @@ import { fillLoanDocuments, offerFromPersistedLoan } from '../../lib/postSubmitE
 import {
   applyEnachToFormData,
   buildEnachDetails,
+  readEnachFromFormData,
   maskBankAccountNumber,
   validateEnachForm,
   type EnachAccountType,
@@ -248,7 +249,10 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   const pendingDocFillRef = useRef<{
     formData: Record<string, unknown>;
     enach: EnachDetails;
+    offer: DisplayOffer;
   } | null>(null);
+  const docFillBootRef = useRef(false);
+  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
   const docsSkippedRef = useRef(false);
   const rankAutoStartedRef = useRef(false);
   const signingSentWrittenRef = useRef(false);
@@ -286,19 +290,31 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
 
   const writeFormData = useCallback(
     async (fields: Record<string, unknown>, nextFormData?: Record<string, unknown>) => {
-      const payloadForm = nextFormData || formData;
-      await airtableWrite({
-        table: 'Loan Applications',
-        record_id: recordId,
-        fields: {
-          ...fields,
-          'Last Updated': new Date().toISOString(),
-          'Form Data': JSON.stringify(payloadForm),
-        },
-      });
-      if (nextFormData) setFormData(nextFormData);
+      const run = async () => {
+        const payloadForm = nextFormData || formDataRef.current;
+        await airtableWrite({
+          table: 'Loan Applications',
+          record_id: recordId,
+          fields: {
+            ...fields,
+            'Last Updated': new Date().toISOString(),
+            'Form Data': JSON.stringify(payloadForm),
+          },
+        });
+        if (nextFormData) {
+          formDataRef.current = nextFormData;
+          setFormData(nextFormData);
+        }
+      };
+      // One save at a time, so an older screen cannot overwrite a newer one.
+      const queued = writeChainRef.current.then(run, run);
+      writeChainRef.current = queued.then(
+        () => undefined,
+        () => undefined
+      );
+      return queued;
     },
-    [formData, recordId]
+    [recordId]
   );
 
   const markPostSubmitFlag = useCallback(
@@ -800,12 +816,16 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
 
   const runDocFillAndStamps = async (
     nextFormData: Record<string, unknown>,
-    enach: EnachDetails
+    enach: EnachDetails,
+    offerArg?: DisplayOffer
   ) => {
-    const offer = selectedOffer ?? offerFromPersistedLoan(nextFormData);
-    if (!offer) return;
-    await markPostSubmitFlag('docFillStarted');
+    const offer = offerArg ?? selectedOffer ?? offerFromPersistedLoan(nextFormData);
     setPhase('doc_fill');
+    if (!offer) {
+      setErrorMessage('The accepted offer is missing. Go back and select an offer, then try again.');
+      return;
+    }
+    await markPostSubmitFlag('docFillStarted');
     const saved = await fillLoanDocuments({
       formData: nextFormData,
       offer,
@@ -827,12 +847,43 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
 
   const runDocFillRef = useRef(runDocFillAndStamps);
   runDocFillRef.current = runDocFillAndStamps;
+
+  // A reopened file that already saved eNACH should not sit on the spinner.
+  // Video KYC still has to finish before the loan documents are prepared.
+  useEffect(() => {
+    if (phase !== 'doc_fill' || resumePhase !== 'doc_fill') return;
+    if (docFillBootRef.current) return;
+    docFillBootRef.current = true;
+    const saved = readEnachFromFormData(formDataRef.current);
+    const offer = offerFromPersistedLoan(formDataRef.current);
+    if (!saved || !offer) return;
+    void (async () => {
+      let row: VkycRow | null = null;
+      try {
+        row = await fetchVkycByFileId(fileId);
+      } catch {
+        row = null;
+      }
+      if (isVkycDone(row)) {
+        await runDocFillRef.current(formDataRef.current, saved, offer);
+        return;
+      }
+      pendingDocFillRef.current = {
+        formData: formDataRef.current,
+        enach: saved,
+        offer,
+      };
+      setVkycRow(row);
+      setPhase('vkyc_gate');
+    })();
+  }, [phase, resumePhase, fileId]);
   const runRankSafeRef = useRef(runLenderRankSafe);
   runRankSafeRef.current = runLenderRankSafe;
 
   const beginDocFillWithVkycGate = async (
     nextFormData: Record<string, unknown>,
-    enach: EnachDetails
+    enach: EnachDetails,
+    offer: DisplayOffer
   ) => {
     let row: VkycRow | null = null;
     try {
@@ -842,10 +893,10 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     }
     setVkycRow(row);
     if (isVkycDone(row)) {
-      await runDocFillAndStamps(nextFormData, enach);
+      await runDocFillAndStamps(nextFormData, enach, offer);
       return;
     }
-    pendingDocFillRef.current = { formData: nextFormData, enach };
+    pendingDocFillRef.current = { formData: nextFormData, enach, offer };
     setPhase('vkyc_gate');
   };
 
@@ -933,11 +984,12 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
         ifscCode: enachIfsc,
         accountType: enachAccountType,
       });
-      const nextFormData = applyEnachToFormData(formData, details);
+      const nextFormData = applyEnachToFormData(formDataRef.current, details);
+      formDataRef.current = nextFormData;
       setEnachDetails(details);
       setFormData(nextFormData);
       await writeFormData({}, nextFormData);
-      await beginDocFillWithVkycGate(nextFormData, details);
+      await beginDocFillWithVkycGate(nextFormData, details, offer);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Document preparation failed');
       setPhase('error');
@@ -1067,7 +1119,7 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
         pendingDocFillRef.current = null;
         setBusy(true);
         try {
-          await runDocFillRef.current(pending.formData, pending.enach);
+          await runDocFillRef.current(pending.formData, pending.enach, pending.offer);
         } catch (err) {
           setErrorMessage(err instanceof Error ? err.message : 'Document preparation failed');
           setPhase('error');
@@ -1521,6 +1573,11 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     return (
       <Shell phase={phase} formData={formData} title="Preparing documents">
         <BusyRow label={label} />
+        {errorMessage ? (
+          <p className="mt-4 text-center text-sm text-dealer-error" role="alert">
+            {errorMessage}
+          </p>
+        ) : null}
         {enachDetails && phase === 'doc_fill' && (
           <p className="post-submit-body mt-3 text-center text-xs text-dealer-text-quiet">
             eNACH {maskBankAccountNumber(enachDetails.accountNumber)} · {enachDetails.ifscCode}

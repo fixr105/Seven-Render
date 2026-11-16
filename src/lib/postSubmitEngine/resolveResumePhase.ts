@@ -204,6 +204,11 @@ export function flaggedResumePhase(formData: Record<string, unknown>): PostSubmi
   ) {
     return 'stamp_step';
   }
+  // Ranking already happened, but the dealer has moved past the offer.
+  // A saved bank account belongs on document preparation. An accepted offer
+  // with no account stays on eNACH instead of bouncing back to the offer.
+  if (hasValue(formData, 'enach.accountNumber', nonEmptyString)) return 'doc_fill';
+  if (String(formData['_meta.postSubmitPhase'] || '') === 'post_offer') return 'enach';
   if (flags.rankStarted && roiGreaterThanZero(formData)) return 'offer';
   if (flags.qualifyFired && qualifyResultObject(formData)) {
     if (hasPersistedQualifyPass(formData) && hasPartialRequiredDocuments(formData)) {
