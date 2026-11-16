@@ -42,6 +42,9 @@ function readString(value: unknown): string {
 }
 
 export function isComplianceChecked(formData: Record<string, unknown>, checkboxKey: string): boolean {
+  // Airtable checkbox: ticked = true (boolean), unticked = field absent (not false).
+  // "true" (string) accepted for Form Data values written by the frontend.
+  // Any other truthy value (1, "yes", "checked") does NOT count.
   const value = formData[checkboxKey];
   return value === true || value === 'true';
 }
