@@ -319,6 +319,24 @@ describe('pickBureauCacheRecord', () => {
     expect(record?.id).toBe('recFlat');
   });
 
+  it('reads the applicant stored on result_json', () => {
+    const profile = mapBureauCacheFieldsToProfile({
+      pan: 'HSJPP5704A',
+      mobile: '7355621712',
+      result_json: JSON.stringify({
+        applicant: {
+          name: 'GOVIND PANDEY',
+          dob: '1990-01-01',
+          pan: 'HSJPP5704A',
+          mobile: '7355621712',
+        },
+        score: 807,
+      }),
+    });
+    expect(profile?.customer_name).toBe('GOVIND PANDEY');
+    expect(profile?.cibil_score).toBe('807');
+  });
+
   it('returns null on miss', () => {
     expect(pickBureauCacheRecord({ records: [] })).toBeNull();
     expect(pickBureauCacheRecord({})).toBeNull();

@@ -247,6 +247,17 @@ export function mapBureauCacheFieldsToProfile(
     );
   }
   if (!applicant) {
+    const wrapped = parseApplicant(
+      fields.result_json ?? fields.resultJson ?? fields['Result JSON']
+    );
+    const inner = wrapped ? parseApplicant(wrapped.applicant) : null;
+    if (inner) {
+      applicant = inner.score == null && wrapped?.score != null ? { ...inner, score: wrapped.score } : inner;
+    } else if (wrapped && readApplicantString(wrapped, ['name', 'full_name', 'customer_name'])) {
+      applicant = wrapped;
+    }
+  }
+  if (!applicant) {
     // Last resort: top-level name/pan/mobile only (still better than a hard miss).
     const topName = readString(fields.name ?? fields.Name);
     if (!topName) return null;
