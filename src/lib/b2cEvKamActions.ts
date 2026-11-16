@@ -1,5 +1,5 @@
 import { COMPLIANCE_ITEMS, isComplianceChecked, isComplianceItemRequested } from './b2cEvCompliance';
-import { isDoRequested } from './b2cEvDoRequest';
+import { isDoFulfilled, isDoRequested } from './b2cEvDoRequest';
 import type { ComplianceItemId } from './b2cEvCompliance';
 
 export interface PendingComplianceRequest {
@@ -75,7 +75,7 @@ export function extractPendingB2cActions(
     });
   }
 
-  if (doRequest && !doRequest.fulfilledAt && isDoRequested(formData)) {
+  if (isDoRequested(formData) && !isDoFulfilled(formData)) {
     pendingActions.push({
       ...base,
       type: 'do',

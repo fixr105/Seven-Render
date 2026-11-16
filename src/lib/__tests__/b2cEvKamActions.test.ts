@@ -15,4 +15,20 @@ describe('b2cEvKamActions', () => {
     expect(result.doRequest?.requestedAt).toBeTruthy();
     expect(result.pendingActions.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('drops a pending DO when status is approved even without fulfilledAt', () => {
+    const result = extractPendingB2cActions({
+      '_meta.doRequest.requestedAt': '2026-01-02T00:00:00.000Z',
+      '_meta.doRequest.status': 'approved',
+    });
+    expect(result.pendingActions.some((action) => action.type === 'do')).toBe(false);
+  });
+
+  it('drops a pending DO when fulfilledAt is set without approved', () => {
+    const result = extractPendingB2cActions({
+      '_meta.doRequest.requestedAt': '2026-01-02T00:00:00.000Z',
+      '_meta.doRequest.fulfilledAt': '2026-01-03T00:00:00.000Z',
+    });
+    expect(result.pendingActions.some((action) => action.type === 'do')).toBe(false);
+  });
 });
