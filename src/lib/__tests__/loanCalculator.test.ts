@@ -12,6 +12,7 @@ import {
   computeGstComponent,
   computeInvoiceValue,
   freezeB2cLoanPreview,
+  formDataToFrozenValues,
   frozenValuesToFormDataPatch,
   INTEREST_RATE,
   INTEREST_RATE_MAX,
@@ -83,6 +84,31 @@ describe('calculateB2cLoanPreview', () => {
     expect(preview.vehiclePriceWithGST).toBe(118000);
     expect(preview.taxInvoiceValue).toBe(120000);
     expect(preview.loanAmount).toBe(Math.round(120000 * LOAN_GROSSUP_FACTOR));
+  });
+
+  it('keeps a tenure other than 12 or 18 for the EMI term', () => {
+    const preview = calculateB2cLoanPreview({
+      vehiclePrice: 100000,
+      gstRate: 0.05,
+      insurance: 0,
+      registration: 0,
+      accessories: 0,
+      customerPayment: 0,
+      tenureMonths: 24,
+    });
+
+    expect(preview.tenureMonths).toBe(24);
+    expect(preview.gpsCharges).toBe(2500);
+    expect(preview.emiAmount).toBe(calculateEmi(preview.loanAmount, 24));
+  });
+
+  it('reads a stored tenure that is not 12 or 18', () => {
+    const frozen = formDataToFrozenValues({
+      'loan.amount': '100000',
+      'loan.tenureMonths': '24',
+    });
+
+    expect(frozen?.tenureMonths).toBe(24);
   });
 
   it('freezes B2C preview into form data patch keys', () => {

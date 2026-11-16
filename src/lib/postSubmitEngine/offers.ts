@@ -39,7 +39,7 @@ function readNum(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function parseTenureList(raw: string): number[] {
+export function parseTenureList(raw: string): number[] {
   return String(raw || '')
     .split(',')
     .map((part) => Number(String(part).trim()))

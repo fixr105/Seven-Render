@@ -155,6 +155,7 @@ export function pickLenderBreBand(
     const aSpecific = a.loanProduct.trim() ? 0 : 1;
     const bSpecific = b.loanProduct.trim() ? 0 : 1;
     if (aSpecific !== bSpecific) return aSpecific - bSpecific;
+    if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
     return a.ruleId - b.ruleId;
   });
   return candidates[0];

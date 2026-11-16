@@ -16,7 +16,17 @@ export const GPS_CHARGES: Record<12 | 18, number> = {
   18: 2500,
 };
 
-export type LoanTenureMonths = 12 | 18;
+/** Month count from the active lender's Airtable `tenure_months` list. */
+export type LoanTenureMonths = number;
+
+export function resolveTenureMonths(value: number): LoanTenureMonths {
+  if (!Number.isFinite(value) || value <= 0) return 12;
+  return value;
+}
+
+export function tenureSelectOptions(months: readonly number[]): { value: string; label: string }[] {
+  return months.map((month) => ({ value: String(month), label: `${month} months` }));
+}
 
 export interface CibilRateBand {
   start_cibil: number;
@@ -143,8 +153,8 @@ export function parseGstRateInput(value: string): VehicleGstRate {
   return 0.05;
 }
 
-export function getIotChargeForTenure(tenureMonths: LoanTenureMonths): number {
-  return GPS_CHARGES[tenureMonths === 18 ? 18 : 12];
+export function getIotChargeForTenure(tenureMonths: number): number {
+  return tenureMonths === 18 || tenureMonths === 24 ? GPS_CHARGES[18] : GPS_CHARGES[12];
 }
 
 export function computeInvoiceValue(downpayment: number, disbursement: number): number {
@@ -284,7 +294,7 @@ export function calculateB2cLoanScenarioPreview(
   processingFeePct: number = PF_PCT,
   loanAmountMode: B2cLoanAmountMode = 'wizardGrossUp'
 ): B2cLoanLivePreview {
-  const tenureMonths: LoanTenureMonths = inputs.tenureMonths === 18 ? 18 : 12;
+  const tenureMonths = resolveTenureMonths(inputs.tenureMonths);
   const vehiclePrice = Math.max(0, inputs.vehiclePrice);
   const gstRate: VehicleGstRate = inputs.gstRate === 0.18 ? 0.18 : 0.05;
   const insurance = Math.max(0, inputs.insurance);
@@ -371,8 +381,8 @@ export function calculateLoanScenarioPreview(
   interestRate: number,
   feePct: number
 ): LoanLivePreview {
-  const tenureMonths = inputs.tenureMonths === 18 ? 18 : 12;
-  const gps = GPS_CHARGES[tenureMonths];
+  const tenureMonths = resolveTenureMonths(inputs.tenureMonths);
+  const gps = getIotChargeForTenure(tenureMonths);
   const disbursementToDealer = Math.max(0, inputs.disbursementToDealer);
   const upfrontPayment = Math.max(0, inputs.upfrontPayment);
   const invoiceValue = computeInvoiceValue(upfrontPayment, disbursementToDealer);
@@ -399,7 +409,7 @@ export function calculateLoanScenarioPreview(
 export function calculateTenureEmiRangePreviews(
   inputs: TenureEmiRangeInputs
 ): { lowPreview: LoanLivePreview; highPreview: LoanLivePreview } {
-  const tenureMonths = inputs.tenureMonths === 18 ? 18 : 12;
+  const tenureMonths = resolveTenureMonths(inputs.tenureMonths);
   const baseInputs: LoanCalculatorInputs = {
     upfrontPayment: inputs.upfrontPayment,
     disbursementToDealer: inputs.disbursementToDealer,
@@ -526,7 +536,7 @@ export function formDataToFrozenValues(
   if (loanAmount <= 0) return null;
 
   const tenureRaw = Number(String(formData['loan.tenureMonths'] ?? ''));
-  const tenureMonths: LoanTenureMonths = tenureRaw === 18 ? 18 : 12;
+  const tenureMonths = resolveTenureMonths(tenureRaw);
   const gstRate = parseGstRateInput(String(formData['loan.gstRate'] ?? '0.05'));
 
   return {

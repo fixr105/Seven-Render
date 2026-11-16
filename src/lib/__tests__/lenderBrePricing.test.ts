@@ -109,6 +109,33 @@ describe('pickLenderBreBand', () => {
     expect(picked?.ruleId).toBe(11);
     expect(picked?.roi).toBe(28);
   });
+
+  it('uses the eligible 650 band when an ineligible rule also covers that score', () => {
+    const rows: LenderBreRow[] = [
+      {
+        ...FINTREE_BANDS[0],
+        ruleId: 1,
+        minCibil: 300,
+        maxCibil: 679,
+        eligible: false,
+        loanProduct: 'LP012',
+      },
+      {
+        ...FINTREE_BANDS[0],
+        ruleId: 2,
+        minCibil: 650,
+        maxCibil: 700,
+        eligible: true,
+        loanProduct: 'LP012',
+        roi: 32,
+        pf: 10,
+      },
+    ];
+
+    expect(pickLenderBreBand(rows, 650, 'Fintree', 'LP012')?.ruleId).toBe(2);
+    expect(pickLenderBreBand(rows, 679, 'Fintree', 'LP012')?.ruleId).toBe(2);
+    expect(pickLenderBreBand(rows, 649, 'Fintree', 'LP012')?.ruleId).toBe(1);
+  });
 });
 
 describe('loanProductApplies', () => {

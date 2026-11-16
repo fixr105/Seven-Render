@@ -1,5 +1,10 @@
 import { parseLenderBreRecord, PRICING_UNAVAILABLE_MESSAGE, type LenderBreRow } from './lenderBrePricing';
-import { parseLenderRecord, pickActiveLender } from './postSubmitEngine/offers';
+import {
+  parseLenderRecord,
+  parseTenureList,
+  pickActiveLender,
+  type LenderRow,
+} from './postSubmitEngine/offers';
 import { apiService } from '../services/api';
 import { airtableGet } from '../services/engineClient';
 
@@ -12,6 +17,8 @@ export type CalculatorQuoteContext = {
   lenderName: string | null;
   rows: LenderBreRow[];
   products: CalculatorProduct[];
+  /** Active lender `Lenders.tenure_months`, in listed order. */
+  tenureMonths: number[];
   error: string | null;
 };
 
@@ -26,7 +33,9 @@ function mapProducts(
     .filter((product) => product.id.length > 0);
 }
 
-export async function loadCalculatorQuoteContext(): Promise<CalculatorQuoteContext> {
+export async function loadActiveLender(): Promise<
+  { ok: true; lender: LenderRow } | { ok: false; reason: string }
+> {
   try {
     const lendersRes = await airtableGet({
       table: 'Lenders',
@@ -51,11 +60,26 @@ export async function loadCalculatorQuoteContext(): Promise<CalculatorQuoteConte
       }
     }
 
-    const picked = pickActiveLender(lenders, defaultLenderName);
-    if (!picked.ok) {
-      return { lenderName: null, rows: [], products: [], error: picked.reason };
-    }
+    return pickActiveLender(lenders, defaultLenderName);
+  } catch {
+    return { ok: false, reason: PRICING_UNAVAILABLE_MESSAGE };
+  }
+}
 
+export async function loadActiveLenderTenureMonths(): Promise<number[]> {
+  const picked = await loadActiveLender();
+  if (!picked.ok) return [];
+  return parseTenureList(picked.lender.tenure_months);
+}
+
+export async function loadCalculatorQuoteContext(): Promise<CalculatorQuoteContext> {
+  const picked = await loadActiveLender();
+  if (!picked.ok) {
+    return { lenderName: null, rows: [], products: [], tenureMonths: [], error: picked.reason };
+  }
+  const tenureMonths = parseTenureList(picked.lender.tenure_months);
+
+  try {
     const breRes = await airtableGet({
       table: 'Lender BRE',
       filter_formula: '',
@@ -75,8 +99,14 @@ export async function loadCalculatorQuoteContext(): Promise<CalculatorQuoteConte
       products = [];
     }
 
-    return { lenderName: picked.lender.name, rows, products, error: null };
+    return { lenderName: picked.lender.name, rows, products, tenureMonths, error: null };
   } catch {
-    return { lenderName: null, rows: [], products: [], error: PRICING_UNAVAILABLE_MESSAGE };
+    return {
+      lenderName: picked.lender.name,
+      rows: [],
+      products: [],
+      tenureMonths,
+      error: PRICING_UNAVAILABLE_MESSAGE,
+    };
   }
 }

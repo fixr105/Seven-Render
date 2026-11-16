@@ -74,6 +74,7 @@ function context(overrides: Partial<CalculatorQuoteContext> = {}): CalculatorQuo
     lenderName: 'Fintree',
     rows: FINTREE_BANDS,
     products: [{ id: 'LP012', name: 'Two wheeler' }],
+    tenureMonths: [12, 18],
     error: null,
     ...overrides,
   };
@@ -271,11 +272,11 @@ describe('EmiRangeCalculator', () => {
     expect(screen.queryByTestId('emi-range-calculator-stage2')).not.toBeInTheDocument();
   });
 
-  it('offers 12 and 18 month tenure options only', async () => {
-    await renderCalculator();
+  it('lists tenure options from the lender tenure_months field', async () => {
+    await renderCalculator(context({ tenureMonths: [12, 18, 24] }));
     const tenureSelect = (await screen.findByTestId('emi-range-tenure')) as HTMLSelectElement;
     const optionValues = Array.from(tenureSelect.options).map((option) => option.value);
-    expect(optionValues).toEqual(['12', '18']);
+    expect(optionValues).toEqual(['12', '18', '24']);
   });
 
   it('shows the lender error and no EMI when rules cannot be loaded', async () => {
@@ -284,6 +285,7 @@ describe('EmiRangeCalculator', () => {
         lenderName: null,
         rows: [],
         products: [],
+        tenureMonths: [],
         error: PRICING_UNAVAILABLE_MESSAGE,
       })
     );

@@ -75,7 +75,7 @@ import {
   PRICING_NOT_ELIGIBLE_MESSAGE,
   PRICING_UNAVAILABLE_MESSAGE,
 } from '../../lib/lenderBrePricing';
-import { parseLenderRecord, pickActiveLender } from '../../lib/postSubmitEngine/offers';
+import { parseLenderRecord, parseTenureList, pickActiveLender } from '../../lib/postSubmitEngine/offers';
 import { fireEvent, flushCrm } from '../../lib/crmEvents';
 import {
   buildComplianceKamRequestMessage,
@@ -382,6 +382,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [creditGateError, setCreditGateError] = useState<string | null>(null);
   const [section1Lender, setSection1Lender] = useState<Section1LenderPhase>({ status: 'idle' });
   const [loanPricing, setLoanPricing] = useState<LoanCalculatorPricing | null>(null);
+  const [loanTenureOptions, setLoanTenureOptions] = useState<number[]>([]);
   const [loanPricingError, setLoanPricingError] = useState<string | null>(null);
   const [loanPricingLoading, setLoanPricingLoading] = useState(false);
   const submitInFlightRef = useRef(false);
@@ -680,6 +681,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
     const productId = formStateRef.current.loan_product_id.trim();
     if (!pan || !productId) {
       setLoanPricing(null);
+      setLoanTenureOptions([]);
       setLoanPricingError(PRICING_UNAVAILABLE_MESSAGE);
       return;
     }
@@ -710,9 +712,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
       const picked = pickActiveLender(lenders, defaultLenderName);
       if (!picked.ok) {
         setLoanPricing(null);
+        setLoanTenureOptions([]);
         setLoanPricingError(picked.reason);
         return;
       }
+      setLoanTenureOptions(parseTenureList(picked.lender.tenure_months));
       const pricing = await getPricing(pan, picked.lender.name, productId);
       if (isPricingUnavailable(pricing)) {
         setLoanPricing(null);
@@ -2359,6 +2363,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
       return (
         <LoanCalculator
           frozenValues={frozenValues}
+          tenureOptions={loanTenureOptions}
           pricing={loanPricing}
           pricingError={loanPricingError || (loanPricingLoading ? 'Loading pricing…' : null)}
           onRetryPricing={() => void loadLoanPricing()}

@@ -161,6 +161,14 @@ function httpsDoc(formData: Record<string, unknown>, path: string): boolean {
   return typeof hit.value === 'string' && hit.value.startsWith('https://');
 }
 
+export const NTC_BANK_STATEMENT_PENDING_KEY = '_meta.ntcBankStatement.pending';
+
+/** True while the NTC applicant still owes a bank statement. */
+export function isNtcBankStatementPending(formData: Record<string, unknown>): boolean {
+  const hit = readFormPath(formData, NTC_BANK_STATEMENT_PENDING_KEY);
+  return hit.present && (hit.value === true || hit.value === 'true');
+}
+
 function roiGreaterThanZero(formData: Record<string, unknown>): boolean {
   const hit = readFormPath(formData, '_meta.pricing.roi_pct');
   if (!hit.present || hit.value == null || hit.value === '') return false;
@@ -203,9 +211,17 @@ export function flaggedResumePhase(formData: Record<string, unknown>): PostSubmi
 }
 
 export function enginePhaseForResume(formData: Record<string, unknown>): PostSubmitPhase | null {
+  const resume = resolveResumePhase(formData);
+  if (
+    isNtcBankStatementPending(formData) &&
+    resume !== 'delivery' &&
+    resume !== 'signing' &&
+    resume !== 'stamps'
+  ) {
+    return 'ntc_upload';
+  }
   const flagged = flaggedResumePhase(formData);
   if (flagged) return flagged;
-  const resume = resolveResumePhase(formData);
   switch (resume) {
     case 'wizard':
       return null;

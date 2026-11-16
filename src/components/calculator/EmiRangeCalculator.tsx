@@ -15,6 +15,7 @@ import {
   computeGstComponent,
   parseGstRateInput,
   parseMoneyInput,
+  tenureSelectOptions,
   validateCustomerPaymentForFreeze,
   type LoanTenureMonths,
   type VehicleGstRate,
@@ -23,11 +24,6 @@ import {
 const SCORE_MIN = 300;
 const SCORE_MAX = 900;
 const SCORE_DEFAULT = 750;
-
-const TENURE_OPTIONS = [
-  { value: '12', label: '12 months' },
-  { value: '18', label: '18 months' },
-];
 
 const GST_RATE_OPTIONS_UI = [
   { value: '0.05', label: '5%' },
@@ -61,7 +57,7 @@ export const EmiRangeCalculator: React.FC<EmiRangeCalculatorProps> = ({
   const [registration, setRegistration] = useState('');
   const [accessories, setAccessories] = useState('');
   const [customerPayment, setCustomerPayment] = useState('');
-  const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(12);
+  const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(0);
   const [score, setScore] = useState(SCORE_DEFAULT);
   const [scoreText, setScoreText] = useState(String(SCORE_DEFAULT));
   const [productId, setProductId] = useState('');
@@ -88,6 +84,7 @@ export const EmiRangeCalculator: React.FC<EmiRangeCalculatorProps> = ({
           lenderName: null,
           rows: [],
           products: [],
+          tenureMonths: [],
           error: PRICING_UNAVAILABLE_MESSAGE,
         });
       })
@@ -98,6 +95,13 @@ export const EmiRangeCalculator: React.FC<EmiRangeCalculatorProps> = ({
       cancelled = true;
     };
   }, []);
+
+  const tenureOptions = context?.tenureMonths ?? [];
+
+  useEffect(() => {
+    if (tenureOptions.length === 0) return;
+    setTenureMonths((current) => (tenureOptions.includes(current) ? current : tenureOptions[0]));
+  }, [tenureOptions]);
 
   const inputs = useMemo(
     () => ({
@@ -217,9 +221,13 @@ export const EmiRangeCalculator: React.FC<EmiRangeCalculatorProps> = ({
           <Select
             tone="dealer"
             label={t('pages.calculator.tenure')}
-            value={String(tenureMonths)}
-            options={TENURE_OPTIONS}
-            onChange={(e) => setTenureMonths(e.target.value === '18' ? 18 : 12)}
+            value={tenureMonths > 0 ? String(tenureMonths) : ''}
+            disabled={tenureOptions.length === 0}
+            options={tenureSelectOptions(tenureOptions)}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              if (tenureOptions.includes(next)) setTenureMonths(next);
+            }}
             data-testid="emi-range-tenure"
           />
           {products.length > 1 ? (

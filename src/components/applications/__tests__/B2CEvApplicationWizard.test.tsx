@@ -178,6 +178,14 @@ const fillAndFreezeLoanStage = async (user: ReturnType<typeof userEvent.setup>) 
   await user.type(screen.getByTestId('loan-calc-registration'), '1000');
   await user.type(screen.getByTestId('loan-calc-accessories'), '1000');
   await user.type(screen.getByTestId('loan-calc-customer-payment'), '20000');
+  await waitFor(() => {
+    const tenureSelect = screen.getByTestId('loan-calc-tenure') as HTMLSelectElement;
+    expect(Array.from(tenureSelect.options).map((option) => option.value)).toEqual([
+      '12',
+      '18',
+      '24',
+    ]);
+  });
   await user.selectOptions(screen.getByTestId('loan-calc-tenure'), '18');
   await user.click(screen.getByTestId('loan-calc-freeze'));
 };
@@ -580,6 +588,15 @@ describe('B2CEvApplicationWizard submit gating', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('loan-calculator')).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const tenureSelect = screen.getByTestId('loan-calc-tenure') as HTMLSelectElement;
+      expect(Array.from(tenureSelect.options).map((option) => option.value)).toEqual([
+        '12',
+        '18',
+        '24',
+      ]);
     });
 
     await user.click(screen.getByTestId('b2c-wizard-next'));

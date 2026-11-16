@@ -9,7 +9,7 @@ import {
 
 describe('LoanCalculator', () => {
   it('shows empty stage 2 placeholders until values are frozen', () => {
-    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+    render(<LoanCalculator tenureOptions={[12, 18]} frozenValues={null} onFrozenValuesChange={vi.fn()} />);
 
     expect(screen.getByTestId('loan-form-amount')).toHaveAttribute(
       'placeholder',
@@ -27,7 +27,7 @@ describe('LoanCalculator', () => {
     });
 
     const { rerender } = render(
-      <LoanCalculator frozenValues={frozen} onFrozenValuesChange={onChange} />
+      <LoanCalculator tenureOptions={[12, 18]} frozenValues={frozen} onFrozenValuesChange={onChange} />
     );
 
     await user.type(screen.getByTestId('loan-calc-vehicle-price'), '100000');
@@ -45,7 +45,7 @@ describe('LoanCalculator', () => {
     expect(snapshot.loanAmount).toBe(99735);
     expect(snapshot.taxInvoiceValue).toBe(111500);
 
-    rerender(<LoanCalculator frozenValues={snapshot} onFrozenValuesChange={onChange} />);
+    rerender(<LoanCalculator tenureOptions={[12, 18]} frozenValues={snapshot} onFrozenValuesChange={onChange} />);
 
     expect(screen.getByTestId('loan-form-amount')).toHaveValue(String(snapshot.loanAmount));
     expect(screen.getByTestId('loan-form-tenure')).toHaveValue(String(snapshot.tenureMonths));
@@ -61,7 +61,7 @@ describe('LoanCalculator', () => {
 
   it('computes tax invoice value from vehicle price, GST, and add-ons', async () => {
     const user = userEvent.setup();
-    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+    render(<LoanCalculator tenureOptions={[12, 18]} frozenValues={null} onFrozenValuesChange={vi.fn()} />);
 
     await user.type(screen.getByTestId('loan-calc-vehicle-price'), '100000');
     await user.selectOptions(screen.getByTestId('loan-calc-gst-rate'), '0.05');
@@ -74,7 +74,7 @@ describe('LoanCalculator', () => {
   });
 
   it('shows simplified live preview with EMI and without ROI or PF%', () => {
-    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+    render(<LoanCalculator tenureOptions={[12, 18]} frozenValues={null} onFrozenValuesChange={vi.fn()} />);
 
     const stage1 = within(screen.getByTestId('loan-calculator-stage1'));
 
@@ -90,7 +90,7 @@ describe('LoanCalculator', () => {
 
   it('updates live preview when tenure changes to 18 months', async () => {
     const user = userEvent.setup();
-    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+    render(<LoanCalculator tenureOptions={[12, 18]} frozenValues={null} onFrozenValuesChange={vi.fn()} />);
 
     await user.type(screen.getByTestId('loan-calc-vehicle-price'), '100000');
     await user.selectOptions(screen.getByTestId('loan-calc-tenure'), '18');
@@ -99,10 +99,32 @@ describe('LoanCalculator', () => {
     expect(screen.getByTestId('loan-calc-preview-tenure')).toHaveTextContent('18 months');
   });
 
+  it('lists tenure options from the lender tenure_months list', async () => {
+    const user = userEvent.setup();
+    render(
+      <LoanCalculator
+        tenureOptions={[12, 18, 24]}
+        frozenValues={null}
+        pricing={null}
+        onFrozenValuesChange={vi.fn()}
+      />
+    );
+
+    const tenureSelect = screen.getByTestId('loan-calc-tenure') as HTMLSelectElement;
+    expect(Array.from(tenureSelect.options).map((option) => option.value)).toEqual([
+      '12',
+      '18',
+      '24',
+    ]);
+
+    await user.selectOptions(tenureSelect, '24');
+    expect(screen.getByTestId('loan-calc-preview-tenure')).toHaveTextContent('24 months');
+  });
+
   it('does not show customer payment warning before user enters a payment amount', async () => {
     const user = userEvent.setup();
 
-    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={vi.fn()} />);
+    render(<LoanCalculator tenureOptions={[12, 18]} frozenValues={null} onFrozenValuesChange={vi.fn()} />);
 
     await user.type(screen.getByTestId('loan-calc-vehicle-price'), '60000');
 
@@ -114,7 +136,7 @@ describe('LoanCalculator', () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
-    render(<LoanCalculator frozenValues={null} onFrozenValuesChange={onChange} />);
+    render(<LoanCalculator tenureOptions={[12, 18]} frozenValues={null} onFrozenValuesChange={onChange} />);
 
     await user.type(screen.getByTestId('loan-calc-vehicle-price'), '60000');
     await user.selectOptions(screen.getByTestId('loan-calc-gst-rate'), '0.05');
@@ -159,7 +181,7 @@ describe('LoanCalculator', () => {
     };
     const onChange = vi.fn();
 
-    render(<LoanCalculator frozenValues={frozen} onFrozenValuesChange={onChange} />);
+    render(<LoanCalculator tenureOptions={[12, 18]} frozenValues={frozen} onFrozenValuesChange={onChange} />);
 
     await user.click(screen.getByTestId('loan-calc-edit'));
     expect(onChange).toHaveBeenCalledWith(null);

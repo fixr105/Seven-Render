@@ -6,7 +6,7 @@ test.describe('Smoke - Auth + KAM Clients', () => {
     await loginAs(page, 'kam');
 
     await page.goto('/clients');
-    await expect(page.getByText('Client Management')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Client Management' })).toBeVisible();
     await expect(page.getByText(/All Clients/i)).toBeVisible();
   });
 });

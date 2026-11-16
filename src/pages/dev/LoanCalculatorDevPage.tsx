@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { LoanCalculator } from '../../components/applications/LoanCalculator';
+import { loadActiveLenderTenureMonths } from '../../lib/loadCalculatorQuoteContext';
 import type { LoanCalculatorSnapshot, LoanFrozenValues } from '../../lib/loanCalculator';
 
 /**
@@ -8,6 +9,17 @@ import type { LoanCalculatorSnapshot, LoanFrozenValues } from '../../lib/loanCal
  */
 export function LoanCalculatorDevPage() {
   const [frozenValues, setFrozenValues] = useState<LoanFrozenValues | null>(null);
+  const [tenureOptions, setTenureOptions] = useState<number[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadActiveLenderTenureMonths().then((months) => {
+      if (!cancelled) setTenureOptions(months);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-neutral-50 px-4 py-8">
@@ -25,6 +37,7 @@ export function LoanCalculatorDevPage() {
           <CardContent>
             <LoanCalculator
               frozenValues={frozenValues}
+              tenureOptions={tenureOptions}
               pricing={{ roi_pct: 28, pf_pct: 6.75, rule_id: 7 }}
               onFrozenValuesChange={(
                 values: LoanFrozenValues | null,

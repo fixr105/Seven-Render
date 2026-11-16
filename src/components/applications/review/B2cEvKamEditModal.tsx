@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../ui/Modal';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
+import { Select } from '../../ui/Select';
 import { TextArea } from '../../ui/TextArea';
 import { mergeFormDataPatch } from '../../../lib/mergeFormDataPatch';
+import { tenureSelectOptions } from '../../../lib/loanCalculator';
+import { loadActiveLenderTenureMonths } from '../../../lib/loadCalculatorQuoteContext';
 import { apiService } from '../../../services/api';
 
 const EDITABLE_KEYS: Array<{ key: string; label: string }> = [
@@ -46,6 +49,18 @@ export const B2cEvKamEditModal: React.FC<B2cEvKamEditModalProps> = ({
   const [remarks, setRemarks] = useState(initialRemarks);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [tenureOptions, setTenureOptions] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void loadActiveLenderTenureMonths().then((months) => {
+      if (!cancelled) setTenureOptions(months);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   const handleSave = async () => {
     setSubmitting(true);
@@ -76,16 +91,38 @@ export const B2cEvKamEditModal: React.FC<B2cEvKamEditModalProps> = ({
       <ModalHeader onClose={onClose}>Edit B2C EV Application</ModalHeader>
       <ModalBody>
         <div className="max-h-[60vh] space-y-4 overflow-y-auto">
-          {EDITABLE_KEYS.map((field) => (
-            <Input
-              key={field.key}
-              label={field.label}
-              value={values[field.key] ?? ''}
-              onChange={(e) =>
-                setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-              }
-            />
-          ))}
+          {EDITABLE_KEYS.map((field) => {
+            if (field.key === 'loan.tenureMonths') {
+              const current = Number(values[field.key]);
+              const months =
+                Number.isFinite(current) && current > 0 && !tenureOptions.includes(current)
+                  ? [current, ...tenureOptions]
+                  : tenureOptions;
+              return (
+                <Select
+                  key={field.key}
+                  label={field.label}
+                  value={values[field.key] ?? ''}
+                  options={tenureSelectOptions(months)}
+                  disabled={months.length === 0}
+                  onChange={(e) =>
+                    setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                  }
+                  data-testid="kam-edit-tenure"
+                />
+              );
+            }
+            return (
+              <Input
+                key={field.key}
+                label={field.label}
+                value={values[field.key] ?? ''}
+                onChange={(e) =>
+                  setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                }
+              />
+            );
+          })}
           <TextArea
             label="Remarks"
             value={remarks}

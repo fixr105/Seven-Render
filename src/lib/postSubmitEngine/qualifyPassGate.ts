@@ -39,6 +39,18 @@ export function stampReconciledQualifyPass(raw: QualifyResponse): QualifyRespons
 }
 
 /**
+ * Local stamp after the dealer uploaded the NTC bank statement.
+ * The engine may still return NTC_BANK_STATEMENT_REQUIRED. Other failed rules stay failed.
+ */
+export function stampNtcStatementUploaded(raw: QualifyResponse): QualifyResponse {
+  return {
+    ...raw,
+    pass: true,
+    ntc_statement_uploaded: true,
+  };
+}
+
+/**
  * Decide whether the state machine may leave the qualify step.
  * Always reads normalized payload; never hardcodes PAN outcomes.
  */

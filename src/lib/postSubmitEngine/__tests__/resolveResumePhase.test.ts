@@ -74,6 +74,18 @@ describe('resolveResumePhase', () => {
     expect(enginePhaseForResume(form)).toBe('enach');
   });
 
+  it('opens the bank statement step when a statement is still required, even if pricing exists', () => {
+    const form = {
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.ntcBankStatement.pending': true,
+      '_meta.supportPersonType': 'co_applicant',
+      'coApplicant.pan': 'ABCDE1234F',
+      'coApplicant.mobile': '9876543210',
+    };
+    expect(resolveResumePhase(form)).toBe('post_offer');
+    expect(enginePhaseForResume(form)).toBe('ntc_upload');
+  });
+
   it('opens document prep when pricing exists and the account number is filled', () => {
     const form = { '_meta.pricing': { roi_pct: 28 }, 'enach.accountNumber': '1234567890' };
     expect(resolveResumePhase(form)).toBe('post_offer');

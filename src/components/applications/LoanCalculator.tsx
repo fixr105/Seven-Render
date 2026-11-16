@@ -8,6 +8,7 @@ import {
   freezeB2cLoanPreview,
   parseGstRateInput,
   parseMoneyInput,
+  tenureSelectOptions,
   validateCustomerPaymentForFreeze,
   type LoanCalculatorSnapshot,
   type LoanFrozenValues,
@@ -22,11 +23,6 @@ export type LoanCalculatorPricing = {
   pf_pct: number;
   rule_id: number;
 };
-
-const TENURE_OPTIONS = [
-  { value: '12', label: '12 months' },
-  { value: '18', label: '18 months' },
-];
 
 const GST_RATE_OPTIONS_UI = [
   { value: '0.05', label: '5%' },
@@ -45,6 +41,7 @@ function displayMoney(value: number): string {
 
 interface LoanCalculatorStage1Props {
   frozenValues: LoanFrozenValues | null;
+  tenureOptions: number[];
   pricing: LoanCalculatorPricing | null;
   pricingError: string | null;
   onRetryPricing?: () => void;
@@ -54,6 +51,7 @@ interface LoanCalculatorStage1Props {
 
 const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   frozenValues,
+  tenureOptions,
   pricing,
   pricingError,
   onRetryPricing,
@@ -68,19 +66,23 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
   const [accessories, setAccessories] = useState('');
   const [customerPayment, setCustomerPayment] = useState('');
   const [tenureMonths, setTenureMonths] = useState<LoanTenureMonths>(
-    frozenValues?.tenureMonths ?? 12
+    frozenValues?.tenureMonths ?? tenureOptions[0] ?? 0
   );
 
   useEffect(() => {
-    if (!frozenValues) return;
-    setVehiclePrice(displayMoney(frozenValues.vehiclePrice));
-    setGstRate(frozenValues.gstRate);
-    setInsurance(displayMoney(frozenValues.insurance));
-    setRegistration(displayMoney(frozenValues.registration));
-    setAccessories(displayMoney(frozenValues.accessories));
-    setCustomerPayment(displayMoney(frozenValues.customerPayment));
-    setTenureMonths(frozenValues.tenureMonths);
-  }, [frozenValues]);
+    if (frozenValues) {
+      setVehiclePrice(displayMoney(frozenValues.vehiclePrice));
+      setGstRate(frozenValues.gstRate);
+      setInsurance(displayMoney(frozenValues.insurance));
+      setRegistration(displayMoney(frozenValues.registration));
+      setAccessories(displayMoney(frozenValues.accessories));
+      setCustomerPayment(displayMoney(frozenValues.customerPayment));
+      setTenureMonths(frozenValues.tenureMonths);
+      return;
+    }
+    if (tenureOptions.length === 0) return;
+    setTenureMonths((current) => (tenureOptions.includes(current) ? current : tenureOptions[0]));
+  }, [frozenValues, tenureOptions]);
 
   const inputs = useMemo(
     () => ({
@@ -214,10 +216,17 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
         />
         <Select
           label="Tenure"
-          value={String(tenureMonths)}
-          disabled={isFrozen}
-          options={TENURE_OPTIONS}
-          onChange={(e) => setTenureMonths(e.target.value === '18' ? 18 : 12)}
+          value={tenureMonths > 0 ? String(tenureMonths) : ''}
+          disabled={isFrozen || tenureOptions.length === 0}
+          options={tenureSelectOptions(
+            isFrozen && tenureMonths > 0 && !tenureOptions.includes(tenureMonths)
+              ? [tenureMonths, ...tenureOptions]
+              : tenureOptions
+          )}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            if (tenureOptions.includes(next)) setTenureMonths(next);
+          }}
           data-testid="loan-calc-tenure"
         />
       </div>
@@ -273,7 +282,7 @@ const LoanCalculatorStage1: React.FC<LoanCalculatorStage1Props> = ({
           <div>
             <dt className="text-xs text-neutral-500">Tenure</dt>
             <dd className="text-sm font-medium text-neutral-900" data-testid="loan-calc-preview-tenure">
-              {preview.tenureMonths} months
+              {preview.tenureMonths > 0 ? `${preview.tenureMonths} months` : '—'}
             </dd>
           </div>
           <div>
@@ -400,6 +409,8 @@ const LoanCalculatorStage2: React.FC<LoanCalculatorStage2Props> = ({ frozenValue
 
 export interface LoanCalculatorProps {
   frozenValues: LoanFrozenValues | null;
+  /** Allowed terms from the active lender's Airtable `tenure_months`. */
+  tenureOptions: number[];
   pricing: LoanCalculatorPricing | null;
   pricingError?: string | null;
   onRetryPricing?: () => void;
@@ -416,6 +427,7 @@ export interface LoanCalculatorProps {
  */
 export const LoanCalculator: React.FC<LoanCalculatorProps> = ({
   frozenValues,
+  tenureOptions,
   pricing,
   pricingError = null,
   onRetryPricing,
@@ -425,6 +437,7 @@ export const LoanCalculator: React.FC<LoanCalculatorProps> = ({
     <div className="space-y-8" data-testid="loan-calculator">
       <LoanCalculatorStage1
         frozenValues={frozenValues}
+        tenureOptions={tenureOptions}
         pricing={pricing}
         pricingError={pricingError}
         onRetryPricing={onRetryPricing}

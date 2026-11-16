@@ -55,13 +55,17 @@ import {
 import { safeDevLog } from '../../lib/postSubmitEngine/masking';
 import {
   formatAllFailedReasons,
+  isOnlyNtcBankStatementRequired,
   routeAfterQualifyFail,
 } from '../../lib/postSubmitEngine/ntcBankStatementGate';
 import {
   decideQualifyAdvance,
   hasStrictQualifyPass,
   isPostQualifyLockedPhase,
+  stampNtcStatementUploaded,
 } from '../../lib/postSubmitEngine/qualifyPassGate';
+import { NTC_BANK_STATEMENT_PENDING_KEY } from '../../lib/postSubmitEngine/resolveResumePhase';
+import { getSupportPersonParty } from '../../lib/postSubmitEngine/supportPersonParty';
 import {
   flaggedResumePhase,
   postSubmitPhaseHint,
@@ -345,7 +349,25 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
       const route = routeAfterQualifyFail(raw);
       if (route === 'ntc_upload') {
         // NTC-only — bank statement may clear the gate; do not reject yet.
+        const next = {
+          ...formDataRef.current,
+          [NTC_BANK_STATEMENT_PENDING_KEY]: true,
+        };
+        formDataRef.current = next;
+        setFormData(next);
         setPhase('ntc_upload');
+        try {
+          await airtableWrite({
+            table: 'Loan Applications',
+            record_id: resolvedId,
+            fields: {
+              'Last Updated': new Date().toISOString(),
+              'Form Data': JSON.stringify(next),
+            },
+          });
+        } catch {
+          // The in-memory flag still keeps this visit on the upload screen.
+        }
         return;
       }
       await rejectAsNotEligible(resolvedId, formatAllFailedReasons(raw));
@@ -442,13 +464,32 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
       });
       const knownBureauScore = getBorrowerCibilScoreFromFormData(formData);
       const decision = decideQualifyAdvance(requalify, { knownBureauScore });
-      setQualifyResult(decision.raw);
-
-      if (decision.advance) {
+      const statementClearsNtc =
+        !decision.advance && isOnlyNtcBankStatementRequired(decision.raw);
+      if (decision.advance || statementClearsNtc) {
+        const accepted = statementClearsNtc
+          ? stampNtcStatementUploaded(decision.raw)
+          : decision.raw;
+        const next = {
+          ...formDataRef.current,
+          [NTC_BANK_STATEMENT_PENDING_KEY]: false,
+        };
+        formDataRef.current = next;
+        setFormData(next);
+        await airtableWrite({
+          table: 'Loan Applications',
+          record_id: resolvedId,
+          fields: {
+            'Last Updated': new Date().toISOString(),
+            'Form Data': JSON.stringify(next),
+          },
+        });
+        setQualifyResult(accepted);
         setPhase('co_qualify');
         return;
       }
 
+      setQualifyResult(decision.raw);
       await rejectAsNotEligible(resolvedId, formatAllFailedReasons(decision.raw));
       return;
     } catch (err) {
@@ -478,19 +519,20 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     advanceLock.current = true;
     setBusy(true);
     try {
-      if (hasCoApplicantForQualify(formData)) {
+      const support = getSupportPersonParty(formData);
+      if (support.ok) {
         try {
-          const coName = String(formData['coApplicant.name'] || '');
-          const coMobile = String(formData['coApplicant.mobile'] || '');
-          const coPan = String(formData['coApplicant.pan'] || '');
-          const consentAt =
-            String(formData['_meta.coApplicantBureau.checked_at'] || '') ||
-            new Date().toISOString();
-          // Same request shape as wizard co-applicant Verify (section-3). Fail/error must not block.
+          const pan = String(formData[`${support.party.prefix}.pan`] || '');
+          const consentKey =
+            support.party.prefix === 'guarantor'
+              ? '_meta.guarantorBureau.checked_at'
+              : '_meta.coApplicantBureau.checked_at';
+          const consentAt = String(formData[consentKey] || '') || new Date().toISOString();
+          // Same request shape as wizard support-person Verify. Fail/error must not block.
           await qualifyApplicant({
-            Full_Name: coName,
-            Mobile_Number: coMobile,
-            PAN_Number: coPan,
+            Full_Name: support.party.name,
+            Mobile_Number: support.party.mobile,
+            PAN_Number: pan,
             consent_bureau_at: consentAt,
             application_id: `${fileId}-CO`,
             requested_amount: Number(canonical.requestedLoanAmount) || 0,
