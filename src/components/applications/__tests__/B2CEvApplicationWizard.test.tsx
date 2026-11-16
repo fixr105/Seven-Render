@@ -1549,4 +1549,44 @@ describe('B2CEvApplicationWizard productId query param', () => {
       );
     });
   });
+
+  it('opens stamps and clears a stale wizard stage when all three documents exist', async () => {
+    const urlParams = new URLSearchParams('b2cEv=1&draftId=draft-stamps&stage=support-person');
+    const setSearchParams = vi.fn(
+      (updater: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams)) => {
+        const next = typeof updater === 'function' ? updater(urlParams) : updater;
+        for (const key of [...urlParams.keys()]) urlParams.delete(key);
+        next.forEach((value, key) => urlParams.set(key, value));
+      }
+    );
+    mockUseSearchParams.mockReturnValue([urlParams, setSearchParams] as ReturnType<
+      typeof mockUseSearchParams
+    >);
+
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-stamps',
+        status: 'draft',
+        applicantName: 'GOVIND PANDEY',
+        loanProduct: 'LP012',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          '_meta.fileId': 'SFMWHK65WO',
+          '_meta.docs.sanctionLetter': 'https://cdn.example/sanction.pdf',
+          '_meta.docs.loanAgreement': 'https://cdn.example/agreement.pdf',
+          '_meta.docs.ckyc': 'https://cdn.example/ckyc.pdf',
+        },
+      },
+    });
+
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('post-submit-engine-flow')).toBeInTheDocument();
+    });
+    expect(urlParams.get('stage')).toBeNull();
+    expect(urlParams.get('step')).toBeNull();
+    expect(screen.queryByTestId('support-person-co_applicant')).not.toBeInTheDocument();
+  });
 });

@@ -99,7 +99,7 @@ import {
 } from '../../lib/postSubmitEngine/ntcBankStatementGate';
 import { writeApplicationRejectedOnCreditFail } from '../../lib/postSubmitEngine/rejectOnCreditFail';
 import { decideQualifyAdvance } from '../../lib/postSubmitEngine/qualifyPassGate';
-import { buildResumeSession } from '../../lib/postSubmitEngine/resolveResumePhase';
+import { buildResumeSession, wizardUrlMayApply } from '../../lib/postSubmitEngine/resolveResumePhase';
 import { interpretQualifyResult } from '../../lib/postSubmitEngine/qualifyResult';
 import {
   decideSection1LenderOutcome,
@@ -467,12 +467,30 @@ export const B2CEvApplicationWizard: React.FC = () => {
 
   useEffect(() => {
     if (!wizardStageQueryPinned) return;
+    if (!wizardUrlMayApply(formState.form_data)) return;
     setPostSubmitSession(null);
-  }, [wizardStageQueryPinned]);
+  }, [wizardStageQueryPinned, formState.form_data]);
+
+  const clearStaleWizardJump = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        if (!prev.get('stage') && !prev.get('step')) return prev;
+        const next = new URLSearchParams(prev);
+        next.delete('stage');
+        next.delete('step');
+        return next;
+      },
+      { replace: true }
+    );
+  }, [setSearchParams]);
 
   useEffect(() => {
     if (!wizardStepParam && !wizardStageParam) return;
     if (draftLoading) return;
+    if (!wizardUrlMayApply(formState.form_data)) {
+      clearStaleWizardJump();
+      return;
+    }
     if (wizardJumpAppliedRef.current) return;
 
     const targetIndex = parseWizardStepJumpParam(searchParams, visibleStages);
@@ -480,7 +498,15 @@ export const B2CEvApplicationWizard: React.FC = () => {
       setCurrentStep(targetIndex);
     }
     wizardJumpAppliedRef.current = true;
-  }, [wizardStepParam, wizardStageParam, visibleStages, searchParams, draftLoading]);
+  }, [
+    wizardStepParam,
+    wizardStageParam,
+    visibleStages,
+    searchParams,
+    draftLoading,
+    formState.form_data,
+    clearStaleWizardJump,
+  ]);
 
   const syncWizardStageInUrl = useCallback(
     (stepIndex: number) => {
@@ -975,7 +1001,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
         formStateRef.current = nextFormState;
         setFormState(nextFormState);
         const resumed = buildResumeSession(nextFormState.form_data, canonicalDraftId);
-        if (resumed && !wizardStageQueryPinned) setPostSubmitSession(resumed);
+        if (resumed && (!wizardStageQueryPinned || !wizardUrlMayApply(nextFormState.form_data))) {
+          setPostSubmitSession(resumed);
+        }
+        if (!wizardUrlMayApply(nextFormState.form_data)) clearStaleWizardJump();
         const flushKey = String(
           nextFormState.form_data['_meta.fileId'] || canonicalDraftId || draftIdParam
         );
@@ -1041,7 +1070,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
               formStateRef.current = nextFormState;
               setFormState(nextFormState);
               const resumed = buildResumeSession(nextFormState.form_data, draftIdParam);
-              if (resumed && !wizardStageQueryPinned) setPostSubmitSession(resumed);
+              if (resumed && (!wizardStageQueryPinned || !wizardUrlMayApply(nextFormState.form_data))) {
+                setPostSubmitSession(resumed);
+              }
+              if (!wizardUrlMayApply(nextFormState.form_data)) clearStaleWizardJump();
               void flushCrm(nextFormState.form_data, {
                 fileKey: String(
                   nextFormState.form_data['_meta.fileId'] || draftIdParam
