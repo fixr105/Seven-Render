@@ -2,8 +2,16 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ClientDashboard } from '../ClientDashboard';
-import { renderWithProviders } from '../../../test/helpers';
-import * as engineClient from '../../../services/engineClient';
+import { mockClientUser, renderWithProviders } from '../../../test/helpers';
+import { apiService } from '../../../services/api';
+import { airtableGet } from '../../../services/engineClient';
+
+vi.mock('../../../services/api', () => ({
+  apiService: {
+    getMe: vi.fn(),
+    listApplications: vi.fn(),
+  },
+}));
 
 vi.mock('../../../services/engineClient', () => ({
   airtableGet: vi.fn(),
@@ -12,8 +20,24 @@ vi.mock('../../../services/engineClient', () => ({
 const NOW = new Date();
 const recent = new Date(NOW.getTime() - 2 * 60 * 1000).toISOString();
 
-function form(body: Record<string, unknown>): string {
-  return JSON.stringify(body);
+function form(body: Record<string, unknown>): Record<string, unknown> {
+  return body;
+}
+
+function asListed(record: {
+  id: string;
+  'File ID': string;
+  Status: string;
+  Modified: string;
+  'Form Data': unknown;
+}) {
+  return {
+    id: record.id,
+    fileId: record['File ID'],
+    status: record.Status,
+    lastUpdated: record.Modified,
+    formData: record['Form Data'],
+  };
 }
 
 const FIVE = [
@@ -70,14 +94,14 @@ describe('ClientDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.history.pushState({}, '', '/dashboard');
+    vi.mocked(apiService.getMe).mockResolvedValue({ success: true, data: mockClientUser });
   });
 
   it('shows KPI counts and the sanctioned sum for five records', async () => {
-    vi.mocked(engineClient.airtableGet).mockResolvedValue({
-      ok: true,
-      count: 5,
-      records: FIVE,
-    } as never);
+    vi.mocked(apiService.listApplications).mockResolvedValue({
+      success: true,
+      data: FIVE.map(asListed) as never,
+    });
 
     renderWithProviders(<ClientDashboard />);
 
@@ -87,7 +111,9 @@ describe('ClientDashboard', () => {
       expect(screen.getByTestId('kpi-total')).toHaveTextContent('5');
     });
     expect(screen.getByTestId('kpi-active')).toHaveTextContent('3');
-    expect(screen.getByTestId('kpi-sanctioned')).toHaveTextContent('₹1,50,000');
+    expect(screen.getByTestId('kpi-sanctioned')).toHaveTextContent('₹50,000');
+    expect(apiService.listApplications).toHaveBeenCalled();
+    expect(airtableGet).not.toHaveBeenCalled();
     expect(screen.getByTestId('kpi-pending')).toHaveTextContent('2');
     expect(screen.getByText('GOVIND PANDEY')).toBeInTheDocument();
     expect(screen.getAllByText('Pending').length).toBeGreaterThan(0);
@@ -97,12 +123,24 @@ describe('ClientDashboard', () => {
     expect(screen.getAllByText('Blocked').length).toBeGreaterThan(0);
   });
 
+  it('shows an empty dashboard and does not fetch when the dealer has no client id', async () => {
+    vi.mocked(apiService.getMe).mockResolvedValue({
+      success: true,
+      data: { ...mockClientUser, clientId: null },
+    });
+
+    renderWithProviders(<ClientDashboard />);
+
+    expect(await screen.findByText('No applications yet. Start a new application.')).toBeInTheDocument();
+    expect(apiService.listApplications).not.toHaveBeenCalled();
+    expect(airtableGet).not.toHaveBeenCalled();
+  });
+
   it('shows zero cards and the empty state when there are no records', async () => {
-    vi.mocked(engineClient.airtableGet).mockResolvedValue({
-      ok: true,
-      count: 0,
-      records: [],
-    } as never);
+    vi.mocked(apiService.listApplications).mockResolvedValue({
+      success: true,
+      data: [],
+    });
 
     renderWithProviders(<ClientDashboard />);
 
@@ -116,9 +154,9 @@ describe('ClientDashboard', () => {
   });
 
   it('shows an inline alert and retries the fetch', async () => {
-    vi.mocked(engineClient.airtableGet)
+    vi.mocked(apiService.listApplications)
       .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce({ ok: true, count: 0, records: [] } as never);
+      .mockResolvedValueOnce({ success: true, data: [] });
 
     renderWithProviders(<ClientDashboard />);
 
@@ -130,26 +168,25 @@ describe('ClientDashboard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
     await waitFor(() => {
-      expect(engineClient.airtableGet).toHaveBeenCalledTimes(2);
+      expect(apiService.listApplications).toHaveBeenCalledTimes(2);
     });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('shows dashes for a malformed form and keeps the other row', async () => {
-    vi.mocked(engineClient.airtableGet).mockResolvedValue({
-      ok: true,
-      count: 2,
-      records: [
-        { id: 'rec-bad', 'File ID': 'BAD1', Status: 'Draft', Modified: recent, 'Form Data': '{not-json' },
-        {
+    vi.mocked(apiService.listApplications).mockResolvedValue({
+      success: true,
+      data: [
+        asListed({ id: 'rec-bad', 'File ID': 'BAD1', Status: 'Draft', Modified: recent, 'Form Data': '{not-json' }),
+        asListed({
           id: 'rec-good',
           'File ID': 'GOOD1',
           Status: 'New',
           Modified: '2026-01-01T00:00:00.000Z',
           'Form Data': form({ borrower: { customerName: 'Sharan' }, loan: { requestedAmount: 2000 } }),
-        },
-      ],
-    } as never);
+        }),
+      ] as never,
+    });
 
     renderWithProviders(<ClientDashboard />);
     expect(await screen.findByText('SHARAN')).toBeInTheDocument();
@@ -158,11 +195,10 @@ describe('ClientDashboard', () => {
   });
 
   it('filters by file id and applicant name', async () => {
-    vi.mocked(engineClient.airtableGet).mockResolvedValue({
-      ok: true,
-      count: 2,
-      records: FIVE.slice(0, 2),
-    } as never);
+    vi.mocked(apiService.listApplications).mockResolvedValue({
+      success: true,
+      data: FIVE.slice(0, 2).map(asListed) as never,
+    });
 
     renderWithProviders(<ClientDashboard />);
     await screen.findByText('GOVIND PANDEY');
@@ -172,11 +208,10 @@ describe('ClientDashboard', () => {
   });
 
   it('opens the application when a row is clicked', async () => {
-    vi.mocked(engineClient.airtableGet).mockResolvedValue({
-      ok: true,
-      count: 1,
-      records: [FIVE[0]],
-    } as never);
+    vi.mocked(apiService.listApplications).mockResolvedValue({
+      success: true,
+      data: [asListed(FIVE[0])] as never,
+    });
 
     renderWithProviders(<ClientDashboard />);
     await userEvent.click(await screen.findByTestId('application-row-rec1'));

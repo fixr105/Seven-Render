@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { StatusBadge, type DealerStatus } from '../../components/dealer-ui/StatusBadge';
-import { airtableGet } from '../../services/engineClient';
+import { useAuth } from '../../auth/AuthContext';
+import { apiService, type LoanApplication } from '../../services/api';
 import {
   buildDashboard,
   filterDashboardRows,
@@ -36,8 +37,24 @@ function SkeletonBlock({ testId }: { testId: string }) {
   return <div className="h-24 animate-pulse rounded-[12px] bg-sf-border" data-testid={testId} />;
 }
 
+function toDashboardRecord(application: LoanApplication): Record<string, unknown> {
+  const raw = application as LoanApplication & {
+    formData?: unknown;
+    lastUpdated?: string;
+    Status?: string;
+  };
+  return {
+    id: application.id,
+    'File ID': application.fileId,
+    Status: raw.Status || application.status,
+    Modified: raw.lastUpdated || application.lastUpdated,
+    'Form Data': raw.formData ?? {},
+  };
+}
+
 export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
@@ -49,15 +66,24 @@ export const ClientDashboard: React.FC = () => {
   const [reloadKey, setReloadKey] = useState(0);
 
   const load = useCallback(async () => {
+    if (authLoading) return;
+    if (!user?.clientId) {
+      const empty = buildDashboard([]);
+      setError(false);
+      setKpis(empty.kpis);
+      setRows(empty.rows);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(false);
     try {
-      const response = await airtableGet({
-        table: 'Loan Applications',
-        filter_formula: 'TRUE()',
-        max: 1000,
-      });
-      const built = buildDashboard((response.records || []) as Array<Record<string, unknown>>);
+      const response = await apiService.listApplications();
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Could not load applications');
+      }
+      const built = buildDashboard(response.data.map(toDashboardRecord));
       setKpis(built.kpis);
       setRows(built.rows);
     } catch {
@@ -67,7 +93,7 @@ export const ClientDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authLoading, user?.clientId]);
 
   useEffect(() => {
     void load();
