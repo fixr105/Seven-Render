@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildResumeSession, enginePhaseForResume, resolveResumePhase } from '../resolveResumePhase';
+import {
+  buildResumeSession,
+  enginePhaseForResume,
+  resolveResumePhase,
+  wizardUrlMayApply,
+} from '../resolveResumePhase';
 
 describe('resolveResumePhase', () => {
   it('opens delivery when esign stage is signed', () => {
@@ -14,9 +19,9 @@ describe('resolveResumePhase', () => {
     expect(enginePhaseForResume(form)).toBe('esign_step');
   });
 
-  it('treats an empty documentId as signing already sent', () => {
+  it('does not treat an empty documentId as signing', () => {
     const form = { '_meta.esign': { documentId: '' } };
-    expect(resolveResumePhase(form)).toBe('signing');
+    expect(resolveResumePhase(form)).toBe('wizard');
   });
 
   it('opens signing when the pack url exists and signing was not sent', () => {
@@ -31,8 +36,17 @@ describe('resolveResumePhase', () => {
     expect(enginePhaseForResume(form)).toBe('stamp_step');
   });
 
-  it('opens stamps when stamp meta exists without an access key', () => {
-    expect(resolveResumePhase({ '_meta.stamps': {} })).toBe('stamps');
+  it('does not open stamps for an empty stamp object or blank document urls', () => {
+    expect(resolveResumePhase({ '_meta.stamps': {} })).toBe('wizard');
+    expect(resolveResumePhase({ '_meta.stamps': { accessKey: '' } })).toBe('wizard');
+    expect(
+      resolveResumePhase({
+        '_meta.docs.sanctionLetter': '',
+        '_meta.docs.loanAgreement': '',
+        '_meta.docs.ckyc': '',
+      })
+    ).toBe('wizard');
+    expect(resolveResumePhase({ '_meta.docs.sanctionLetter': '' })).toBe('wizard');
   });
 
   it('opens stamps when all three loan documents exist', () => {
@@ -72,10 +86,24 @@ describe('resolveResumePhase', () => {
     expect(enginePhaseForResume(form)).toBe('offer');
   });
 
-  it('opens eligibility when only a deadline exists', () => {
-    const form = { '_meta.deadline': { deadline_at: '2026-11-16T09:48:28.850Z' } };
+  it('opens eligibility only when the deadline has both timestamps', () => {
+    expect(
+      resolveResumePhase({ '_meta.deadline': { deadline_at: '2026-11-16T09:48:28.850Z' } })
+    ).toBe('wizard');
+    const form = {
+      '_meta.deadline': {
+        started_at: '2026-11-15T09:48:28.850Z',
+        deadline_at: '2026-11-16T09:48:28.850Z',
+      },
+    };
     expect(resolveResumePhase(form)).toBe('request_do');
     expect(enginePhaseForResume(form)).toBe('qualify');
+  });
+
+  it('ignores a blank rate and a non-https pack url', () => {
+    expect(resolveResumePhase({ '_meta.pricing': { roi_pct: '' } })).toBe('wizard');
+    expect(resolveResumePhase({ '_meta.pricing': { roi_pct: 0 } })).toBe('wizard');
+    expect(resolveResumePhase({ '_meta.signing': { pack_url: 'not-a-url' } })).toBe('wizard');
   });
 
   it('stays on the wizard when there is no meta', () => {
@@ -115,6 +143,16 @@ describe('resolveResumePhase', () => {
     expect(resolveResumePhase(form)).toBe('post_qualify');
     expect(enginePhaseForResume(form)).toBe('offer');
     expect(buildResumeSession(form, 'rec1')?.resumePhase).toBe('offer');
+  });
+
+  it('ignores a wizard stage query once all three documents exist', () => {
+    const form = {
+      '_meta.docs.sanctionLetter': 'https://cdn.example/sanction.pdf',
+      '_meta.docs.loanAgreement': 'https://cdn.example/agreement.pdf',
+      '_meta.docs.ckyc': 'https://cdn.example/ckyc.pdf',
+    };
+    expect(resolveResumePhase(form)).toBe('stamps');
+    expect(wizardUrlMayApply(form)).toBe(false);
   });
 
   it('does not let a stale phase hint override a signed file', () => {

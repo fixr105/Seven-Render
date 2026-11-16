@@ -1,4 +1,4 @@
-import { readFormPath } from '../formPath';
+import { hasValue, readFormPath } from '../formPath';
 import type { PostSubmitPhase, PostSubmitSession } from './types';
 
 export type ResumePhase =
@@ -25,8 +25,43 @@ const HINTS: readonly ResumePhase[] = [
   'request_do',
 ];
 
-function hasKey(formData: Record<string, unknown>, path: string): boolean {
-  return readFormPath(formData, path).present;
+function nonEmptyString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function httpsUrl(value: unknown): boolean {
+  return typeof value === 'string' && value.startsWith('https://');
+}
+
+function positiveNumber(value: unknown): boolean {
+  const amount = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(amount) && amount > 0;
+}
+
+function stampsHaveContent(formData: Record<string, unknown>): boolean {
+  const hit = readFormPath(formData, '_meta.stamps');
+  if (!hit.present || hit.value == null || hit.value === '') return false;
+  if (typeof hit.value !== 'object' || Array.isArray(hit.value)) {
+    return nonEmptyString(hit.value);
+  }
+  return Object.values(hit.value as Record<string, unknown>).some((value) => {
+    if (value == null || value === '') return false;
+    if (typeof value === 'string') return value.trim() !== '';
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value === 'boolean') return value;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'object') return Object.keys(value as object).length > 0;
+    return false;
+  });
+}
+
+function deadlineIsComplete(formData: Record<string, unknown>): boolean {
+  const hit = readFormPath(formData, '_meta.deadline');
+  if (!hit.present || !hit.value || typeof hit.value !== 'object' || Array.isArray(hit.value)) {
+    return false;
+  }
+  const deadline = hit.value as { started_at?: unknown; deadline_at?: unknown };
+  return nonEmptyString(deadline.started_at) && nonEmptyString(deadline.deadline_at);
 }
 
 function hasPersistedQualifyPass(formData: Record<string, unknown>): boolean {
@@ -45,29 +80,29 @@ function hasPersistedQualifyPass(formData: Record<string, unknown>): boolean {
 }
 
 function docPresence(formData: Record<string, unknown>): { all: boolean; any: boolean } {
-  const hits = DOC_KEYS.map((key) => hasKey(formData, key));
+  const hits = DOC_KEYS.map((key) => hasValue(formData, key, httpsUrl));
   return { all: hits.every(Boolean), any: hits.some(Boolean) };
 }
 
 /**
- * Most advanced persisted step wins. A present key counts even when the value is "".
- * `_meta.postSubmitPhase` is only used when no step key has been written.
+ * Most advanced persisted step wins. Blank strings, nulls, and empty objects do not count.
+ * `_meta.postSubmitPhase` is only used when no real step value has been written.
  */
 export function resolveResumePhase(formData: Record<string, unknown>): ResumePhase {
   const stage = readFormPath(formData, '_meta.esign.stage');
   if (stage.present && stage.value === 'signed') return 'delivery';
-  if (hasKey(formData, '_meta.esign.documentId')) return 'signing';
-  if (hasKey(formData, '_meta.signing.pack_url')) return 'signing';
-  if (hasKey(formData, '_meta.stamps.accessKey')) return 'stamps';
-  if (hasKey(formData, '_meta.stamps')) return 'stamps';
+  if (hasValue(formData, '_meta.esign.documentId', nonEmptyString)) return 'signing';
+  if (hasValue(formData, '_meta.signing.pack_url', httpsUrl)) return 'signing';
+  if (hasValue(formData, '_meta.stamps.accessKey', nonEmptyString)) return 'stamps';
+  if (stampsHaveContent(formData)) return 'stamps';
 
   const docs = docPresence(formData);
   if (docs.all) return 'stamps';
   if (docs.any) return 'post_offer';
 
-  if (hasKey(formData, '_meta.pricing.roi_pct')) return 'post_offer';
+  if (hasValue(formData, '_meta.pricing.roi_pct', positiveNumber)) return 'post_offer';
   if (hasPersistedQualifyPass(formData)) return 'post_qualify';
-  if (hasKey(formData, '_meta.deadline')) return 'request_do';
+  if (deadlineIsComplete(formData)) return 'request_do';
 
   const hint = readFormPath(formData, '_meta.postSubmitPhase');
   if (hint.present) {
@@ -78,9 +113,7 @@ export function resolveResumePhase(formData: Record<string, unknown>): ResumePha
 }
 
 export function postOfferStartsAtEnach(formData: Record<string, unknown>): boolean {
-  const account = readFormPath(formData, 'enach.accountNumber');
-  if (!account.present) return true;
-  return String(account.value ?? '').trim() === '';
+  return !hasValue(formData, 'enach.accountNumber', nonEmptyString);
 }
 
 export type PostSubmitFlagKey =
@@ -229,6 +262,11 @@ export function postSubmitPhaseHint(phase: PostSubmitPhase): ResumePhase | null 
       return _exhaustive;
     }
   }
+}
+
+/** URL stage/step may move the wizard only while the file is still in the wizard. */
+export function wizardUrlMayApply(formData: Record<string, unknown>): boolean {
+  return resolveResumePhase(formData) === 'wizard';
 }
 
 export function buildResumeSession(

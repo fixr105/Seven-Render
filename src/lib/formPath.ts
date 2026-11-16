@@ -18,7 +18,10 @@ function walk(cursor: unknown, parts: string[]): FormPathHit {
   return { present: true, value: current };
 }
 
-/** Key existence, including an empty string. Flat dotted keys and nested objects both count. */
+/**
+ * Key existence, including an empty string. Flat dotted keys and nested objects both count.
+ * Resume and other mode checks should use `hasValue`, which rejects blank values.
+ */
 export function readFormPath(formData: Record<string, unknown>, path: string): FormPathHit {
   if (Object.prototype.hasOwnProperty.call(formData, path)) {
     return { present: true, value: formData[path] };
@@ -33,4 +36,18 @@ export function readFormPath(formData: Record<string, unknown>, path: string): F
   }
 
   return walk(formData, parts);
+}
+
+/** False for a missing key, null, or "". Optional validator rejects other non-values. */
+export function hasValue(
+  formData: Record<string, unknown>,
+  path: string,
+  validator?: (value: unknown) => boolean
+): boolean {
+  const hit = readFormPath(formData, path);
+  if (!hit.present || hit.value === undefined || hit.value === null || hit.value === '') {
+    return false;
+  }
+  if (validator && !validator(hit.value)) return false;
+  return true;
 }
