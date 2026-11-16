@@ -48,6 +48,29 @@ vi.mock('../../../services/engineClient', async (importOriginal) => {
   };
 });
 
+const fireEventOverride = vi.hoisted(() => ({
+  current: null as
+    | null
+    | ((
+        event: string,
+        input: { formData: Record<string, unknown> }
+      ) => Promise<Record<string, unknown>>),
+}));
+
+vi.mock('../../../lib/crmEvents', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/crmEvents')>();
+  return {
+    ...actual,
+    fireEvent: (
+      event: string,
+      input: { formData: Record<string, unknown> }
+    ) => {
+      if (fireEventOverride.current) return fireEventOverride.current(event, input);
+      return actual.fireEvent(event as never, input as never);
+    },
+  };
+});
+
 vi.mock('../../../lib/lenderBrePricing', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../lib/lenderBrePricing')>();
   return {
@@ -192,6 +215,7 @@ const fillAndFreezeLoanStage = async (user: ReturnType<typeof userEvent.setup>) 
 
 describe('B2CEvApplicationWizard submit gating', () => {
   beforeEach(() => {
+    fireEventOverride.current = null;
     vi.clearAllMocks();
     mockUseSearchParams.mockReturnValue([new URLSearchParams('b2cEv=1'), vi.fn()] as const);
     (apiService.listLoanProducts as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -407,6 +431,91 @@ describe('B2CEvApplicationWizard submit gating', () => {
       expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('cibil-probability-bar')).not.toBeInTheDocument();
+  });
+
+  it('still opens borrower details after a lender is found and the CRM write returns', async () => {
+    let releaseCrm: (() => void) | undefined;
+    const crmGate = new Promise<void>((resolve) => {
+      releaseCrm = resolve;
+    });
+    fireEventOverride.current = async (_event, input) => {
+      const snapshot = { ...input.formData };
+      await crmGate;
+      return {
+        ...snapshot,
+        '_meta.crm': { sent: [{ id: 'evt-1' }], pending: [] },
+      };
+    };
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('finding-lender-panel')).toHaveTextContent(/Lender found/i);
+    });
+
+    await act(async () => {
+      releaseCrm?.();
+      await crmGate;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText(/must be verified on the Loan Product step/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it('re-runs the PAN check from Borrower when a saved draft lost the verification flag', async () => {
+    mockUseSearchParams.mockReturnValue([
+      new URLSearchParams('b2cEv=1&draftId=draft-pan-gap&stage=borrower'),
+      vi.fn(),
+    ] as ReturnType<typeof mockUseSearchParams>);
+    (apiService.getApplication as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'draft-pan-gap',
+        status: 'draft',
+        loanProduct: 'LP001',
+        formData: {
+          ...createInitialB2cEvFormData(),
+          '_meta.panLookup.mobileNumber': '9687599179',
+          '_meta.panLookup.panNumber': 'BAIPG3083L',
+          '_meta.panLookup.fullName': 'RAHUL GONSALVES',
+          '_meta.panLookup.status': 'pending',
+          '_meta.wizard.lastStageId': 'borrower',
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/must be verified on the Loan Product step/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+    });
+    expect(qualifyApplicant).toHaveBeenCalled();
+    expect(
+      screen.queryByText(/must be verified on the Loan Product step/i)
+    ).not.toBeInTheDocument();
   });
 
   it('advances past score-only null kill (Engine score gap) when applicant present', async () => {

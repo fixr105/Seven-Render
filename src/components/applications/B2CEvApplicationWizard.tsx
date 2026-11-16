@@ -1652,42 +1652,55 @@ export const B2CEvApplicationWizard: React.FC = () => {
         return false;
       }
 
-      commitFormState((prev) => {
-        const cleared = clearBorrowerFields(prev.form_data);
-        let patched = syncB2cEvComputedFields({
-          ...cleared,
-          ...bureau.formDataPatch,
-          '_meta.panLookup.status':
-            bureau.emptyApplicant || bureau.status === 'error' ? 'manual' : 'success',
-          '_meta.panLookup.inputHash': inputHash,
-          '_meta.panLookup.completedAt': bureau.meta.checked_at,
-        });
-        // Seed typed identity when applicant was empty.
-        if (!readFieldValue(patched, 'borrower.firstName')) {
-          const parts = panPayload.fullName.trim().split(/\s+/).filter(Boolean);
-          if (parts[0]) patched['borrower.firstName'] = parts[0];
-          if (parts.length > 1) patched['borrower.lastName'] = parts.slice(1).join(' ');
-          patched['borrower.customerName'] = panPayload.fullName;
-          patched['borrower.pan'] = normalizePan(panPayload.panNumber);
-          patched['borrower.mobile'] = panPayload.mobileNumber;
-        }
-        patched = mergeBureauMetaIntoFormData(patched, bureau.metaKey, bureau.meta);
-        if (bureau.guardWrite) patched = applyBureauGuard(patched, bureau.guardWrite);
-        void persistFormDataIfRecordExists(patched);
-        return {
-          ...prev,
-          applicant_name: readFieldValue(patched, 'borrower.customerName'),
-          form_data: patched,
-        };
+      const previous = formStateRef.current;
+      const cleared = clearBorrowerFields(previous.form_data);
+      let patched = syncB2cEvComputedFields({
+        ...cleared,
+        ...bureau.formDataPatch,
+        '_meta.panLookup.status':
+          bureau.emptyApplicant || bureau.status === 'error' ? 'manual' : 'success',
+        '_meta.panLookup.inputHash': inputHash,
+        '_meta.panLookup.completedAt': bureau.meta.checked_at,
       });
+      // Seed typed identity when applicant was empty.
+      if (!readFieldValue(patched, 'borrower.firstName')) {
+        const parts = panPayload.fullName.trim().split(/\s+/).filter(Boolean);
+        if (parts[0]) patched['borrower.firstName'] = parts[0];
+        if (parts.length > 1) patched['borrower.lastName'] = parts.slice(1).join(' ');
+        patched['borrower.customerName'] = panPayload.fullName;
+        patched['borrower.pan'] = normalizePan(panPayload.panNumber);
+        patched['borrower.mobile'] = panPayload.mobileNumber;
+      }
+      patched = mergeBureauMetaIntoFormData(patched, bureau.metaKey, bureau.meta);
+      if (bureau.guardWrite) patched = applyBureauGuard(patched, bureau.guardWrite);
+      void persistFormDataIfRecordExists(patched);
+
+      const verifiedState = {
+        ...previous,
+        applicant_name: readFieldValue(patched, 'borrower.customerName'),
+        form_data: patched,
+      };
+      formStateRef.current = verifiedState;
+      commitFormState(() => verifiedState);
+
+      const mergeCrmMeta = (next: Record<string, unknown>) => {
+        const crm = next['_meta.crm'];
+        if (crm == null) return;
+        commitFormState((prev) => {
+          const nextState = {
+            ...prev,
+            form_data: { ...prev.form_data, '_meta.crm': crm },
+          };
+          formStateRef.current = nextState;
+          return nextState;
+        });
+      };
 
       if (bureau.emptyApplicant) {
         setPanLookupError(PAN_MANUAL_FAILURE_MESSAGE);
       }
 
-      const knownBureauScore = getBorrowerCibilScoreFromFormData(
-        formStateRef.current.form_data
-      );
+      const knownBureauScore = getBorrowerCibilScoreFromFormData(patched);
       const lenderOutcome = decideSection1LenderOutcome(bureau.raw, { knownBureauScore });
       const crmFileKey = String(
         formStateRef.current.form_data['_meta.fileId'] ||
@@ -1706,13 +1719,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
           void fireEvent('ELIGIBILITY_PASS', {
             summary: `Lender found for ${crmName}`,
             fileKey: crmFileKey,
-            formData: formStateRef.current.form_data,
+            formData: patched,
             applicantName: crmName,
             applicantMobile: crmMobile,
             withJson: true,
-          }).then((next) => {
-            commitFormState((prev) => ({ ...prev, form_data: next }));
-          });
+          }).then(mergeCrmMeta);
           return true;
         case 'ntc':
           setSection1Lender({ status: 'ntc', reasons: lenderOutcome.reasons });
@@ -1723,12 +1734,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
           void fireEvent('ELIGIBILITY_FAIL', {
             summary: `Not eligible: ${lenderOutcome.reasons.join(', ')}`,
             fileKey: crmFileKey,
-            formData: formStateRef.current.form_data,
+            formData: patched,
             applicantName: crmName,
             applicantMobile: crmMobile,
-          }).then((next) => {
-            commitFormState((prev) => ({ ...prev, form_data: next }));
-          });
+          }).then(mergeCrmMeta);
           return false;
         case 'hard_reject': {
           setSection1Lender({
@@ -1741,12 +1750,10 @@ export const B2CEvApplicationWizard: React.FC = () => {
           void fireEvent('ELIGIBILITY_FAIL', {
             summary: `Not eligible: ${lenderOutcome.reasons.join(', ')}`,
             fileKey: crmFileKey,
-            formData: formStateRef.current.form_data,
+            formData: patched,
             applicantName: crmName,
             applicantMobile: crmMobile,
-          }).then((next) => {
-            commitFormState((prev) => ({ ...prev, form_data: next }));
-          });
+          }).then(mergeCrmMeta);
           try {
             const { draftId } = await persistDraftRef.current(undefined, { silent: true });
             await writeApplicationRejectedOnCreditFail({
@@ -1963,6 +1970,17 @@ export const B2CEvApplicationWizard: React.FC = () => {
       setStepAdvanceMessage('Cannot continue — eligibility criteria not met.');
       return;
     }
+    if (currentStage?.id === 'borrower' && !isPanLookupProfileReady(formStateRef.current.form_data)) {
+      const verified = await runBorrowerBureauAndLenderFind();
+      if (!verified || !isPanLookupProfileReady(formStateRef.current.form_data)) {
+        setStepAdvanceMessage(
+          'PAN check did not finish. Go back to Loan product, confirm the name, PAN, and mobile, then press Next again.'
+        );
+        return;
+      }
+      setFieldErrors({});
+      return;
+    }
     const stepErrors = validateB2cEvStage(currentStage, formStateRef.current.form_data, {
       loanProductId: formStateRef.current.loan_product_id,
       saveAsDraft: false,
@@ -1983,6 +2001,15 @@ export const B2CEvApplicationWizard: React.FC = () => {
         return;
       }
       if (section1Lender.status === 'found' || section1Lender.status === 'ntc') {
+        if (!isPanLookupProfileReady(formStateRef.current.form_data)) {
+          const verified = await runBorrowerBureauAndLenderFind();
+          if (!verified || !isPanLookupProfileReady(formStateRef.current.form_data)) {
+            setStepAdvanceMessage(
+              'PAN check did not finish. Confirm the name, PAN, and mobile, then press Next again.'
+            );
+            return;
+          }
+        }
         advanceStep();
         return;
       }
