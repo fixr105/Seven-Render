@@ -2,13 +2,13 @@ import { formatInr } from './postSubmitEngine/canonical';
 import type { DealerStatus } from '../components/dealer-ui/StatusBadge';
 import { readFormPath } from './formPath';
 
-const TERMINAL_STATUSES = new Set(['completed', 'rejected', 'cancelled']);
+const ACTIVE_BADGES = new Set<DealerStatus>(['pending', 'in_progress', 'needs_action']);
 
 const STATUS_RULES: Array<{ needles: string[]; badge: DealerStatus }> = [
   { needles: ['draft', 'new'], badge: 'pending' },
   { needles: ['processing', 'qualifying', 'filling'], badge: 'in_progress' },
   { needles: ['pending', 'review', 'waiting'], badge: 'needs_action' },
-  { needles: ['completed', 'disbursed', 'signed'], badge: 'done' },
+  { needles: ['completed', 'disbursed', 'signed', 'approved'], badge: 'done' },
   { needles: ['rejected', 'failed', 'cancelled', 'blocked'], badge: 'blocked' },
 ];
 
@@ -89,11 +89,6 @@ function readAmount(form: Record<string, unknown> | null): number | null {
   return Number.isFinite(amount) ? amount : null;
 }
 
-function hasPricing(form: Record<string, unknown> | null): boolean {
-  if (!form) return false;
-  return readFormPath(form, '_meta.pricing.roi_pct').present;
-}
-
 function isPendingAction(status: string, form: Record<string, unknown> | null, now: Date): boolean {
   if (status.toLowerCase().includes('pending')) return true;
   if (!form || !readFormPath(form, '_meta.deadline').present) return false;
@@ -120,8 +115,9 @@ export function buildDashboard(
     const status = String(record.Status ?? record.status ?? '');
     const form = parseFormData(record['Form Data'] ?? record.formData);
     const amount = readAmount(form);
-    if (!TERMINAL_STATUSES.has(status.trim().toLowerCase())) active += 1;
-    if (hasPricing(form) && amount != null) sanctioned += amount;
+    const badge = mapAirtableStatus(status);
+    if (ACTIVE_BADGES.has(badge)) active += 1;
+    if (badge === 'done' && amount != null) sanctioned += amount;
     if (isPendingAction(status, form, now)) pendingAction += 1;
 
     const applicantRaw = form ? readFormPath(form, 'borrower.customerName').value : undefined;
@@ -145,7 +141,7 @@ export function buildDashboard(
       amountLabel: amount == null ? '—' : formatInr(amount),
       product,
       status,
-      badge: mapAirtableStatus(status),
+      badge,
       modifiedMs: Number.isFinite(modifiedMs) ? modifiedMs : 0,
       updatedLabel: formatUpdatedLabel(iso, now),
     };

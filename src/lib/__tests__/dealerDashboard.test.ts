@@ -20,11 +20,12 @@ describe('dealer dashboard data', () => {
     expect(mapAirtableStatus('Processing')).toBe('in_progress');
     expect(mapAirtableStatus('Pending KAM Review')).toBe('needs_action');
     expect(mapAirtableStatus('Disbursed')).toBe('done');
+    expect(mapAirtableStatus('Approved')).toBe('done');
     expect(mapAirtableStatus('Rejected')).toBe('blocked');
     expect(mapAirtableStatus('Qualified')).toBe('pending');
   });
 
-  it('counts five records and sums only priced requested amounts', () => {
+  it('counts active work and sums only done amounts', () => {
     const { kpis, rows } = buildDashboard(
       [
         record({
@@ -77,10 +78,29 @@ describe('dealer dashboard data', () => {
 
     expect(kpis.total).toBe(5);
     expect(kpis.active).toBe(3);
-    expect(kpis.sanctionedLabel).toBe('₹1,50,000');
+    expect(kpis.sanctionedLabel).toBe('₹50,000');
     expect(kpis.pendingAction).toBe(2);
     expect(rows[0]?.fileId).toBe('AAA');
     expect(rows[0]?.applicant).toBe('GOVIND PANDEY');
+  });
+
+  it('treats disbursed as done and leaves it out of active', () => {
+    const { kpis, rows } = buildDashboard(
+      [
+        record({
+          id: 'rec-disbursed',
+          Status: 'Disbursed',
+          'Form Data': JSON.stringify({
+            borrower: { customerName: 'Sharan' },
+            loan: { requestedAmount: 80000 },
+          }),
+        }),
+      ],
+      NOW
+    );
+    expect(rows[0]?.badge).toBe('done');
+    expect(kpis.active).toBe(0);
+    expect(kpis.sanctionedLabel).toBe('₹80,000');
   });
 
   it('returns zeros and no rows when the table is empty', () => {
