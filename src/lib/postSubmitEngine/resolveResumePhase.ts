@@ -83,7 +83,95 @@ export function postOfferStartsAtEnach(formData: Record<string, unknown>): boole
   return String(account.value ?? '').trim() === '';
 }
 
+export type PostSubmitFlagKey =
+  | 'flowStarted'
+  | 'qualifyFired'
+  | 'rankStarted'
+  | 'docFillStarted'
+  | 'signingsentWritten';
+
+const FLAG_KEYS: readonly PostSubmitFlagKey[] = [
+  'flowStarted',
+  'qualifyFired',
+  'rankStarted',
+  'docFillStarted',
+  'signingsentWritten',
+];
+
+export function readPostSubmitFlags(
+  formData: Record<string, unknown>
+): Partial<Record<PostSubmitFlagKey, boolean>> {
+  const raw = formData['_meta.postSubmitFlags'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const flags: Partial<Record<PostSubmitFlagKey, boolean>> = {};
+  for (const key of FLAG_KEYS) {
+    if ((raw as Record<string, unknown>)[key] === true) flags[key] = true;
+  }
+  return flags;
+}
+
+/** Append-only. Never clears a flag that is already true. */
+export function withPostSubmitFlag(
+  formData: Record<string, unknown>,
+  key: PostSubmitFlagKey
+): Record<string, unknown> {
+  const flags = readPostSubmitFlags(formData);
+  if (flags[key] === true) return formData;
+  return {
+    ...formData,
+    '_meta.postSubmitFlags': { ...flags, [key]: true },
+  };
+}
+
+function httpsDoc(formData: Record<string, unknown>, path: string): boolean {
+  const hit = readFormPath(formData, path);
+  return typeof hit.value === 'string' && hit.value.startsWith('https://');
+}
+
+function roiGreaterThanZero(formData: Record<string, unknown>): boolean {
+  const hit = readFormPath(formData, '_meta.pricing.roi_pct');
+  if (!hit.present || hit.value == null || hit.value === '') return false;
+  const roi = typeof hit.value === 'number' ? hit.value : Number(hit.value);
+  return Number.isFinite(roi) && roi > 0;
+}
+
+function qualifyResultObject(formData: Record<string, unknown>): boolean {
+  const stored = readFormPath(formData, '_meta.qualifyResult');
+  return (
+    stored.present &&
+    stored.value != null &&
+    typeof stored.value === 'object' &&
+    !Array.isArray(stored.value)
+  );
+}
+
+/**
+ * Persisted one-shot flags. Later real steps (signed, signing, stamps) still win.
+ * Rank + pricing opens the offer screen instead of jumping into eNACH.
+ */
+export function flaggedResumePhase(formData: Record<string, unknown>): PostSubmitPhase | null {
+  const flags = readPostSubmitFlags(formData);
+  const resume = resolveResumePhase(formData);
+  if (resume === 'delivery' || resume === 'signing' || resume === 'stamps') return null;
+
+  if (
+    flags.docFillStarted &&
+    httpsDoc(formData, '_meta.docs.sanctionLetter') &&
+    httpsDoc(formData, '_meta.docs.loanAgreement') &&
+    httpsDoc(formData, '_meta.docs.ckyc')
+  ) {
+    return 'stamp_step';
+  }
+  if (flags.rankStarted && roiGreaterThanZero(formData)) return 'offer';
+  if (flags.qualifyFired && qualifyResultObject(formData)) {
+    return hasPersistedQualifyPass(formData) ? 'offer' : 'rejected';
+  }
+  return null;
+}
+
 export function enginePhaseForResume(formData: Record<string, unknown>): PostSubmitPhase | null {
+  const flagged = flaggedResumePhase(formData);
+  if (flagged) return flagged;
   const resume = resolveResumePhase(formData);
   switch (resume) {
     case 'wizard':

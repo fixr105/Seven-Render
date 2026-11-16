@@ -17,9 +17,13 @@ vi.mock('../../../lib/postSubmitEngine/stampFlow', async (importOriginal) => {
   };
 });
 
-vi.mock('../../../lib/postSubmitEngine/dlaLead', () => ({
-  fireDlaLead: vi.fn(async (input: { formData: Record<string, unknown> }) => input.formData),
-}));
+vi.mock('../../../lib/postSubmitEngine/dlaLead', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/postSubmitEngine/dlaLead')>();
+  return {
+    ...actual,
+    fireDlaLead: vi.fn(async (input: { formData: Record<string, unknown> }) => input.formData),
+  };
+});
 
 vi.mock('../../../lib/featureFlags', () => ({
   isStampOrderEnabled: vi.fn(() => false),

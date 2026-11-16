@@ -6,6 +6,7 @@ import { isEsignEnabled } from '../../lib/featureFlags';
 import {
   buildEsignPayload,
   buildEsignRefId,
+  esignBootMode,
   esignEnabled,
   fetchEsignStatus,
   pingEsignTool,
@@ -142,6 +143,13 @@ export const EsignStep: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false;
+    if (esignBootMode(formRef.current) === 'poll') {
+      setPolling(true);
+      setBusy(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     void (async () => {
       if (cancelled) return;
       await refreshPrecheck(formRef.current);

@@ -120,6 +120,7 @@ import {
   qualifyApplicant,
 } from '../../services/engineClient';
 import { FindingLenderPanel } from './FindingLenderPanel';
+import { applyBureauGuard, loadBureauCacheDays } from '../../lib/bureauGuard';
 import {
   applyAddressIndexToPatch,
   buildBureauVerifyKey,
@@ -1607,6 +1608,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
         keepMobile: panPayload.mobileNumber,
         lastVerifiedKey: borrowerBureauVerifiedKeyRef.current,
         previousOutcome: borrowerBureauOutcomeRef.current,
+        formData: currentFormData,
+        cacheDays: await loadBureauCacheDays(),
       });
 
       borrowerBureauVerifiedKeyRef.current = buildBureauVerifyKey(
@@ -1648,6 +1651,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
           patched['borrower.mobile'] = panPayload.mobileNumber;
         }
         patched = mergeBureauMetaIntoFormData(patched, bureau.metaKey, bureau.meta);
+        if (bureau.guardWrite) patched = applyBureauGuard(patched, bureau.guardWrite);
         void persistFormDataIfRecordExists(patched);
         return {
           ...prev,
@@ -1851,6 +1855,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
         borrowerPan,
         lastVerifiedKey: supportBureauVerifiedKeyRef.current,
         previousOutcome: supportBureauOutcomeRef.current,
+        formData: formStateRef.current.form_data,
+        cacheDays: await loadBureauCacheDays(),
       });
 
       if (outcome.errorMessage?.match(/same person/i)) {
@@ -1904,6 +1910,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
           '_meta.supportPanLookup.phase': 'profile',
         });
         patched = mergeBureauMetaIntoFormData(patched, outcome.metaKey, outcome.meta);
+        if (outcome.guardWrite) patched = applyBureauGuard(patched, outcome.guardWrite);
         void persistFormDataIfRecordExists(patched);
         void fireEvent('CO_APPLICANT_CHECK', {
           summary: coSummary,

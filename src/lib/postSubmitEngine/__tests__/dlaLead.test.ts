@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireDlaLead, DLA_NAME } from '../dlaLead';
+import { fireDlaLead, DLA_NAME, dlaStepAlreadySent } from '../dlaLead';
 
 describe('dlaLead', () => {
   it('posts four fields with stamp_ordered false once', async () => {
@@ -100,5 +100,16 @@ describe('dlaLead', () => {
       post,
     });
     expect(post).not.toHaveBeenCalled();
+    expect(
+      dlaStepAlreadySent(
+        {
+          '_meta.crm': {
+            sent: [{ id: 'SF1-STAMP_STEP', at: 'x' }],
+            pending: [],
+          },
+        },
+        'SF1'
+      )
+    ).toBe(true);
   });
 });

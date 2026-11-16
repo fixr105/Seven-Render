@@ -99,6 +99,24 @@ describe('resolveResumePhase', () => {
     });
   });
 
+  it('opens offers when rank already started and pricing is stored', () => {
+    const form = {
+      '_meta.postSubmitFlags': { rankStarted: true },
+      '_meta.pricing': { roi_pct: 28 },
+    };
+    expect(enginePhaseForResume(form)).toBe('offer');
+  });
+
+  it('opens offers without calling qualify when qualify already fired and passed', () => {
+    const form = {
+      '_meta.postSubmitFlags': { qualifyFired: true },
+      '_meta.qualifyResult': { pass: true },
+    };
+    expect(resolveResumePhase(form)).toBe('post_qualify');
+    expect(enginePhaseForResume(form)).toBe('offer');
+    expect(buildResumeSession(form, 'rec1')?.resumePhase).toBe('offer');
+  });
+
   it('does not let a stale phase hint override a signed file', () => {
     expect(
       resolveResumePhase({

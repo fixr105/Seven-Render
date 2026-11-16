@@ -62,7 +62,12 @@ import {
   hasStrictQualifyPass,
   isPostQualifyLockedPhase,
 } from '../../lib/postSubmitEngine/qualifyPassGate';
-import { postSubmitPhaseHint } from '../../lib/postSubmitEngine/resolveResumePhase';
+import {
+  flaggedResumePhase,
+  postSubmitPhaseHint,
+  withPostSubmitFlag,
+  type PostSubmitFlagKey,
+} from '../../lib/postSubmitEngine/resolveResumePhase';
 import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
 import {
   areRequiredKycDocsUploaded,
@@ -280,6 +285,21 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     [formData, recordId]
   );
 
+  const markPostSubmitFlag = useCallback(
+    async (key: PostSubmitFlagKey) => {
+      const next = withPostSubmitFlag(formDataRef.current, key);
+      if (next === formDataRef.current) return;
+      formDataRef.current = next;
+      setFormData(next);
+      try {
+        await writeFormData({}, next);
+      } catch {
+        // The in-memory flag still stops a second fire in this mount.
+      }
+    },
+    [writeFormData]
+  );
+
   const resolveRecordId = useCallback(async (): Promise<string> => {
     if (recordId.startsWith('rec')) return recordId;
     const filter = `{File ID} = '${fileId}'`;
@@ -336,15 +356,21 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   );
 
   const runQualify = useCallback(async () => {
+    const already = flaggedResumePhase(formDataRef.current);
+    if (already === 'offer' || already === 'rejected' || already === 'stamp_step') {
+      setPhase(already);
+      return;
+    }
     setPhase('qualify');
     setBusy(true);
     setErrorMessage(null);
+    await markPostSubmitFlag('qualifyFired');
     try {
       const resolvedId = await resolveRecordId();
       setRecordId(resolvedId);
 
-      // Always call /engine/qualify — bureau DATA may be cached server-side, but BRE
-      // must re-run every time. Never reuse session.qualifyResult pass/fail.
+      // BRE runs on a first visit. A stored qualify result plus qualifyFired skips this
+      // on refresh so the dealer is not charged or shown a second eligibility pass.
       const basePayload = buildApplicantQualifyPayload();
       originalQualifyPayloadRef.current = basePayload;
 
@@ -371,7 +397,13 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
     } finally {
       setBusy(false);
     }
-  }, [buildApplicantQualifyPayload, formData, handleQualifyFailure, resolveRecordId]);
+  }, [
+    buildApplicantQualifyPayload,
+    formData,
+    handleQualifyFailure,
+    markPostSubmitFlag,
+    resolveRecordId,
+  ]);
 
   const handleNtcBankStatementSelected = async (file: File | null) => {
     if (!file || ntcUploading || busy) return;
@@ -576,6 +608,7 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   };
 
   const runLenderRank = async () => {
+    await markPostSubmitFlag('rankStarted');
     setPhase('lender_rank');
     setErrorMessage(null);
 
@@ -703,6 +736,7 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   ) => {
     const offer = selectedOffer ?? offerFromPersistedLoan(nextFormData);
     if (!offer) return;
+    await markPostSubmitFlag('docFillStarted');
     setPhase('doc_fill');
     const saved = await fillLoanDocuments({
       formData: nextFormData,
@@ -843,13 +877,16 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    if (resumePhase) {
-      safeDevLog('post-submit resume', { fileId, phase: resumePhase });
+    const flagged = flaggedResumePhase(session.formData);
+    if (resumePhase || flagged) {
+      if (!resumePhase && flagged) setPhase(flagged);
+      safeDevLog('post-submit resume', { fileId, phase: resumePhase || flagged });
       return;
     }
     safeDevLog('post-submit started', { fileId });
+    void markPostSubmitFlag('flowStarted');
     void runQualify();
-  }, [fileId, resumePhase, runQualify]);
+  }, [fileId, resumePhase, runQualify, markPostSubmitFlag, session.formData]);
 
   useEffect(() => {
     const hint = postSubmitPhaseHint(phase);
@@ -951,15 +988,22 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
   useEffect(() => {
     if (phase !== 'signing_sent' || signingSentWrittenRef.current) return;
     signingSentWrittenRef.current = true;
-    if (String(formData[SIGNING_SENT_KEY] || '').trim()) return;
-    const next = { ...formData, [SIGNING_SENT_KEY]: new Date().toISOString() };
+    const current = formDataRef.current;
+    if (String(current[SIGNING_SENT_KEY] || '').trim()) {
+      void markPostSubmitFlag('signingsentWritten');
+      return;
+    }
+    const stamped = { ...current, [SIGNING_SENT_KEY]: new Date().toISOString() };
+    const next = withPostSubmitFlag(stamped, 'signingsentWritten');
+    formDataRef.current = next;
+    setFormData(next);
     void writeFormData({}, next).catch((err) => {
       signingSentWrittenRef.current = false;
       safeDevLog('signing sentAt write failed', {
         message: err instanceof Error ? err.message : String(err),
       });
     });
-  }, [phase, formData, writeFormData]);
+  }, [phase, formData, writeFormData, markPostSubmitFlag]);
 
   if (phase === 'resolving' || phase === 'qualify' || phase === 'co_qualify' || phase === 'write_qualified') {
     return (

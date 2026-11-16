@@ -4,6 +4,7 @@ import {
   describeStampParties,
   mergeSigningPack,
   runStampFreeChecks,
+  stampBootMode,
 } from '../stampFlow';
 import type { StampConfig } from '../../stampConfig';
 
@@ -23,6 +24,18 @@ const FORM = {
   'coApplicant.name': 'RITA SHARMA',
   'coApplicant.mobile': '9876543210',
 };
+
+describe('stampBootMode', () => {
+  it('polls status when an access key is already stored', () => {
+    expect(stampBootMode({ '_meta.stamps': { accessKey: 'ABCD1234' } })).toBe('poll');
+  });
+
+  it('skips ordering and merge when the pack url is already stored', () => {
+    expect(
+      stampBootMode({ '_meta.signing': { pack_url: 'https://cdn.example/pack.pdf' } })
+    ).toBe('pack');
+  });
+});
 
 describe('describeStampParties', () => {
   it('names a co-applicant and the first party on every row', () => {

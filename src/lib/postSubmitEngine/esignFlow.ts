@@ -40,6 +40,14 @@ function readSigningMeta(formData: Record<string, unknown>): Record<string, unkn
   return {};
 }
 
+export type EsignBootMode = 'poll' | 'precheck';
+
+/** A stored document id means the envelope was already sent. Poll it. Do not send again. */
+export function esignBootMode(formData: Record<string, unknown>): EsignBootMode {
+  const documentId = String(readEsignMeta(formData).documentId || '').trim();
+  return documentId ? 'poll' : 'precheck';
+}
+
 export function readEsignMeta(formData: Record<string, unknown>): Record<string, unknown> {
   const raw = formData['_meta.esign'];
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {

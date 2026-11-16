@@ -1,8 +1,23 @@
 import {
   ENGINE_BASE_ID,
+  airtableGet,
   qualifyApplicant,
   type QualifyResponse,
 } from '../services/engineClient';
+import {
+  isBureauGuardFresh,
+  readBureauGuardEntry,
+  BUREAU_CACHE_DAYS_DEFAULT,
+  type BureauGuardRole,
+  type BureauGuardWrite,
+} from './bureauGuard';
+import {
+  BUREAU_CACHE_TABLE,
+  buildBureauCachePanFilter,
+  mapBureauCacheFieldsToProfile,
+  normalizeBureauCacheRecordFields,
+  pickBureauCacheRecord,
+} from './bureauCacheLookup';
 import { mapStateCodeToName } from './indiaStateCodes';
 import { collectHumanQualifyReasons } from './qualifyKillCodes';
 import { normalizeQualifyPayload } from './postSubmitEngine/qualifyResult';
@@ -52,6 +67,8 @@ export type BureauOutcome = {
   reused?: boolean;
   emptyApplicant?: boolean;
   errorMessage?: string;
+  /** Set only after a live qualify call. Persist with applyBureauGuard. */
+  guardWrite?: BureauGuardWrite;
 };
 
 export type RunBureauAndFillInput = {
@@ -70,7 +87,53 @@ export type RunBureauAndFillInput = {
   previousOutcome?: BureauOutcome | null;
   /** Block if equal to borrower PAN (support person only). */
   borrowerPan?: string | null;
+  /** Persisted `_meta.bureauGuard`. When fresh, qualify is not called. */
+  formData?: Record<string, unknown>;
+  now?: Date;
+  /** Window from Config `bureau_cache_days`. Defaults to 30. */
+  cacheDays?: number;
+  /** Bureau Cache read. Injected in tests. Defaults to an Airtable lookup. */
+  lookupBureauCache?: (pan: string) => Promise<QualifyResponse | null>;
 };
+
+function guardRoleForPrefix(prefix: BureauFillPrefix): BureauGuardRole {
+  return prefix === 'borrower' ? 'borrower' : 'support';
+}
+
+async function defaultLookupBureauCache(pan: string): Promise<QualifyResponse | null> {
+  const res = await airtableGet({
+    table: BUREAU_CACHE_TABLE,
+    filter_formula: buildBureauCachePanFilter(pan),
+    max: 5,
+  });
+  const record = pickBureauCacheRecord(res);
+  const fields = normalizeBureauCacheRecordFields(record);
+  if (!fields) return null;
+  const profile = mapBureauCacheFieldsToProfile(fields);
+  if (!profile) return null;
+  return {
+    ok: true,
+    pass: true,
+    cached: true,
+    applicant: {
+      name: profile.customer_name,
+      dob: profile.date_of_birth,
+      pan: profile.pan_card,
+      mobile: profile.mobile_number,
+      email: profile.email,
+      gender: profile.gender,
+      addresses: [
+        {
+          line1: profile['address Line 1'],
+          line2: profile['address Line 2'],
+          city: profile['village/City'],
+          pin: profile.pincode,
+          state_code: profile.state,
+        },
+      ],
+    },
+  };
+}
 
 function readString(value: unknown): string {
   if (value == null) return '';
@@ -381,33 +444,82 @@ export async function runBureauAndFill(input: RunBureauAndFillInput): Promise<Bu
     return { ...input.previousOutcome, reused: true };
   }
 
+  const now = input.now ?? new Date();
+  const cacheDays = input.cacheDays ?? BUREAU_CACHE_DAYS_DEFAULT;
+  const guardRole = guardRoleForPrefix(input.prefix);
+  const guardFresh = isBureauGuardFresh(
+    readBureauGuardEntry(input.formData, guardRole),
+    pan,
+    mobile,
+    now,
+    cacheDays
+  );
+
   let raw: QualifyResponse;
-  try {
-    raw = await qualifyApplicant({
-      Full_Name: fullName,
-      Mobile_Number: mobile,
-      PAN_Number: pan,
-      consent_bureau_at: input.consent_bureau_at,
-      application_id: input.application_id || '',
-      requested_amount: Number.isFinite(input.requested_amount) ? input.requested_amount : 0,
-    });
-  } catch (err) {
-    const message =
-      err instanceof Error && err.message
-        ? err.message
-        : 'Could not verify right now.';
-    const emptyRaw = { ok: false, state: 'BUREAU_ERROR', error: message } as QualifyResponse;
-    return {
-      status: 'error',
-      raw: emptyRaw,
-      formDataPatch: {},
-      reasons: [message],
-      addresses: [],
-      autofilledKeys: [],
-      meta: buildMeta('error', emptyRaw, pan),
-      metaKey,
-      errorMessage: 'Could not verify right now.',
-    };
+  let fromCache = false;
+  if (guardFresh) {
+    const lookup = input.lookupBureauCache ?? defaultLookupBureauCache;
+    try {
+      const cached = await lookup(pan);
+      if (!cached) {
+        const emptyRaw = { ok: false, state: 'CACHE_MISS', cached: true } as QualifyResponse;
+        return {
+          status: 'error',
+          raw: emptyRaw,
+          formDataPatch: {},
+          reasons: ['No cached bureau profile — enter details manually below.'],
+          addresses: [],
+          autofilledKeys: [],
+          meta: buildMeta('error', emptyRaw, pan),
+          metaKey,
+          errorMessage: 'No cached bureau profile — enter details manually below.',
+        };
+      }
+      raw = cached;
+      fromCache = true;
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Could not verify right now.';
+      const emptyRaw = { ok: false, state: 'BUREAU_ERROR', error: message } as QualifyResponse;
+      return {
+        status: 'error',
+        raw: emptyRaw,
+        formDataPatch: {},
+        reasons: [message],
+        addresses: [],
+        autofilledKeys: [],
+        meta: buildMeta('error', emptyRaw, pan),
+        metaKey,
+        errorMessage: 'Could not verify right now.',
+      };
+    }
+  } else {
+    try {
+      raw = await qualifyApplicant({
+        Full_Name: fullName,
+        Mobile_Number: mobile,
+        PAN_Number: pan,
+        consent_bureau_at: input.consent_bureau_at,
+        application_id: input.application_id || '',
+        requested_amount: Number.isFinite(input.requested_amount) ? input.requested_amount : 0,
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not verify right now.';
+      const emptyRaw = { ok: false, state: 'BUREAU_ERROR', error: message } as QualifyResponse;
+      return {
+        status: 'error',
+        raw: emptyRaw,
+        formDataPatch: {},
+        reasons: [message],
+        addresses: [],
+        autofilledKeys: [],
+        meta: buildMeta('error', emptyRaw, pan),
+        metaKey,
+        errorMessage: 'Could not verify right now.',
+      };
+    }
   }
 
   raw = normalizeQualifyPayload(raw) as QualifyResponse;
@@ -438,6 +550,15 @@ export async function runBureauAndFill(input: RunBureauAndFillInput): Promise<Bu
   const reasons =
     status === 'fail' || status === 'ntc' ? collectHumanQualifyReasons(raw) : [];
 
+  const guardWrite: BureauGuardWrite | undefined = fromCache
+    ? undefined
+    : {
+        role: guardRole,
+        pan,
+        mobile,
+        calledAt: now.toISOString(),
+      };
+
   return {
     status,
     raw,
@@ -448,6 +569,8 @@ export async function runBureauAndFill(input: RunBureauAndFillInput): Promise<Bu
     meta: buildMeta(status, raw, pan),
     metaKey,
     emptyApplicant,
+    reused: fromCache ? true : undefined,
+    guardWrite,
   };
 }
 

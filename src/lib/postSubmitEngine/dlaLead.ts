@@ -20,6 +20,12 @@ export function dlaLeadEventId(fileId: string, ordered: boolean): string {
   return ordered ? `${fileId}-STAMP_ORDERED` : `${fileId}-STAMP_STEP`;
 }
 
+/** True when `_meta.crm.sent` already has the STAMP_STEP entry for this file. */
+export function dlaStepAlreadySent(formData: Record<string, unknown>, fileId: string): boolean {
+  const id = dlaLeadEventId(fileId, false);
+  return asCrmMeta(formData).sent.some((entry) => entry.id === id);
+}
+
 export async function fireDlaLead(input: {
   fileId: string;
   formData: Record<string, unknown>;

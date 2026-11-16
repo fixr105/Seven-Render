@@ -108,6 +108,11 @@ describe('runBureauAndFill', () => {
     expect(outcome.status).toBe('pass');
     expect(outcome.formDataPatch['coApplicant.dob']).toBe('1992-09-30');
     expect(outcome.meta.bureau_ref).toBe('AL6af8test');
+    expect(outcome.guardWrite).toMatchObject({
+      role: 'support',
+      pan: 'ABCDE1234F',
+      mobile: '9876543210',
+    });
     expect(qualifyApplicant).toHaveBeenCalledTimes(1);
     const body = (qualifyApplicant as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(body).toMatchObject({
@@ -209,6 +214,68 @@ describe('runBureauAndFill', () => {
     expect(qualifyApplicant).toHaveBeenCalledTimes(2);
     expect(second.status).toBe('pass');
     expect(second.reused).not.toBe(true);
+  });
+
+  it('does not call qualify when a fresh bureau guard matches PAN and mobile', async () => {
+    const lookupBureauCache = vi.fn().mockResolvedValue({
+      ok: true,
+      pass: true,
+      cached: true,
+      applicant: PASS_RESPONSE.applicant,
+    });
+    const outcome = await runBureauAndFill({
+      prefix: 'borrower',
+      fullName: 'Priya Sharma',
+      mobile: '9876543210',
+      pan: 'ABCDE1234F',
+      consent_bureau_at: '2026-11-15T01:00:00.000Z',
+      application_id: 'FILE-1',
+      requested_amount: 100000,
+      formData: {
+        '_meta.bureauGuard': {
+          borrower: {
+            pan: 'ABCDE1234F',
+            mobile: '9876543210',
+            calledAt: '2026-11-01T00:00:00.000Z',
+          },
+        },
+      },
+      now: new Date('2026-11-15T00:00:00.000Z'),
+      cacheDays: 30,
+      lookupBureauCache,
+    });
+    expect(qualifyApplicant).not.toHaveBeenCalled();
+    expect(lookupBureauCache).toHaveBeenCalledWith('ABCDE1234F');
+    expect(outcome.status).toBe('pass');
+    expect(outcome.reused).toBe(true);
+  });
+
+  it('calls qualify when the bureau guard PAN does not match', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce(PASS_RESPONSE);
+    const lookupBureauCache = vi.fn();
+    await runBureauAndFill({
+      prefix: 'borrower',
+      fullName: 'Priya Sharma',
+      mobile: '9876543210',
+      pan: 'ABCDE1234F',
+      consent_bureau_at: '2026-11-15T01:00:00.000Z',
+      application_id: 'FILE-1',
+      requested_amount: 100000,
+      formData: {
+        '_meta.bureauGuard': {
+          borrower: {
+            pan: 'OTHER1234Z',
+            mobile: '9876543210',
+            calledAt: '2026-11-01T00:00:00.000Z',
+          },
+        },
+      },
+      now: new Date('2026-11-15T00:00:00.000Z'),
+      cacheDays: 30,
+      lookupBureauCache,
+    });
+    expect(qualifyApplicant).toHaveBeenCalledTimes(1);
+    expect(lookupBureauCache).not.toHaveBeenCalled();
   });
 
   it('reuses previous outcome for same PAN|mobile', async () => {

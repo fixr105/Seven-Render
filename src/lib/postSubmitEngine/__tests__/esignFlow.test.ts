@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildEsignPayload,
   buildEsignRefId,
+  esignBootMode,
   runEsignPrechecks,
 } from '../esignFlow';
 import type { EsignConfig } from '../../esignConfig';
@@ -99,6 +100,13 @@ describe('esignFlow', () => {
     expect(payload.videoRequired).toBe(false);
     expect(Array.isArray(payload.signatories)).toBe(true);
     expect((payload.signatories as unknown[]).length).toBe(2);
+  });
+
+  it('polls status when a document id is already stored', () => {
+    expect(esignBootMode({ '_meta.esign': { documentId: 'doc-1', stage: 'pending' } })).toBe(
+      'poll'
+    );
+    expect(esignBootMode({ '_meta.esign': { documentId: '' } })).toBe('precheck');
   });
 
   it('precheck ok when pack ready and parties valid', async () => {

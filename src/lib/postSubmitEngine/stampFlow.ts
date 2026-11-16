@@ -174,6 +174,21 @@ export function stampOrderEnabled(): boolean {
   return isStampOrderEnabled();
 }
 
+export type StampBootMode = 'pack' | 'poll' | 'checks';
+
+/** Pack url skips merge. Access key skips validate/quote/order and polls status. */
+export function stampBootMode(formData: Record<string, unknown>): StampBootMode {
+  const signing = formData['_meta.signing'];
+  const pack =
+    signing && typeof signing === 'object' && !Array.isArray(signing)
+      ? String((signing as { pack_url?: unknown }).pack_url || '').trim()
+      : '';
+  if (pack.startsWith('https://')) return 'pack';
+  const accessKey = String(readStampsMeta(formData).accessKey || '').trim();
+  if (accessKey) return 'poll';
+  return 'checks';
+}
+
 export function readStampsMeta(formData: Record<string, unknown>): Record<string, unknown> {
   const raw = formData['_meta.stamps'];
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {

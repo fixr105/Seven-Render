@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { DealerWaiting } from '../dealer-ui/DealerWaiting';
 import { formatElapsed } from '../../lib/postSubmitEngine/canonical';
-import { fireDlaLead } from '../../lib/postSubmitEngine/dlaLead';
+import { dlaStepAlreadySent, fireDlaLead } from '../../lib/postSubmitEngine/dlaLead';
 import { getApplicantParty } from '../../lib/postSubmitEngine/supportPersonParty';
 import {
   buildStampOrderPayload,
@@ -13,6 +13,7 @@ import {
   placeStampOrder,
   readStampsMeta,
   runStampFreeChecks,
+  stampBootMode,
   stampOrderEnabled,
   stampStatusAllDownloadable,
   type StampFreeCheckOk,
@@ -100,14 +101,7 @@ export const StampPapersStep: React.FC<Props> = ({
   const formRef = useRef(localForm);
   formRef.current = localForm;
 
-  const signingMeta = useMemo(() => {
-    const raw = localForm['_meta.signing'];
-    return asObj(raw);
-  }, [localForm]);
-
   const stampsMeta = useMemo(() => readStampsMeta(localForm), [localForm]);
-  const existingAccessKey = String(stampsMeta.accessKey || '').trim();
-  const existingPack = String(signingMeta.pack_url || '').trim();
 
   const persist = useCallback(
     async (next: Record<string, unknown>) => {
@@ -125,16 +119,18 @@ export const StampPapersStep: React.FC<Props> = ({
       setBusy(true);
       setErrorMessage(null);
 
-      if (existingPack.startsWith('https://')) {
+      const bootMode = stampBootMode(formRef.current);
+      if (bootMode === 'pack') {
+        const pack = String(asObj(formRef.current['_meta.signing']).pack_url || '').trim();
         if (!cancelled) {
-          setPackUrl(existingPack);
+          setPackUrl(pack);
           setBusy(false);
           setPolling(false);
         }
         return;
       }
 
-      if (!dlaStepFiredRef.current) {
+      if (!dlaStepAlreadySent(formRef.current, fileId) && !dlaStepFiredRef.current) {
         dlaStepFiredRef.current = true;
         const applicant = getApplicantParty(formRef.current);
         const next = await fireDlaLead({
@@ -151,7 +147,7 @@ export const StampPapersStep: React.FC<Props> = ({
         if (!cancelled) setLocalForm(next);
       }
 
-      if (existingAccessKey) {
+      if (bootMode === 'poll') {
         if (!cancelled) {
           setPolling(true);
           setBusy(false);
