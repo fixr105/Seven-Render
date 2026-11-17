@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { qualifyApplicant } from '../../services/engineClient';
+import { airtableGet, qualifyApplicant } from '../../services/engineClient';
 import {
   applyAddressIndexToPatch,
   buildAddressLine,
@@ -14,6 +14,7 @@ vi.mock('../../services/engineClient', async (importOriginal) => {
   return {
     ...actual,
     qualifyApplicant: vi.fn(),
+    airtableGet: vi.fn(),
   };
 });
 
@@ -337,6 +338,56 @@ describe('runBureauAndFill', () => {
     expect(merged['_meta.panLookup.status']).toBe('success');
     expect(merged['_meta.coApplicantBureau.status']).toBe('pass');
     expect(merged['borrower.pan']).toBe('BAIPG3083L');
+  });
+
+  it('returns every cached bureau address instead of only the first', async () => {
+    vi.mocked(airtableGet).mockResolvedValue({
+      records: [
+        {
+          id: 'recCache',
+          fields: {
+            pan: 'ABCDE1234F',
+            mobile: '9876543210',
+            score: 712,
+            applicant: {
+              name: 'PRIYA SHARMA',
+              addresses: [
+                { line1: '12 Main Street', city: 'Chennai', pincode: '600001', state: 'Tamil Nadu' },
+                { line1: '88 Lake Road', city: 'Madurai', pin: '625001', state_code: '33' },
+              ],
+            },
+          },
+        },
+      ],
+    } as never);
+
+    const now = new Date('2026-11-17T12:00:00.000Z');
+    const outcome = await runBureauAndFill({
+      prefix: 'borrower',
+      fullName: 'PRIYA SHARMA',
+      mobile: '9876543210',
+      pan: 'ABCDE1234F',
+      consent_bureau_at: now.toISOString(),
+      application_id: 'rec1',
+      requested_amount: 100000,
+      formData: {
+        '_meta.bureauGuard': {
+          borrower: {
+            pan: 'ABCDE1234F',
+            mobile: '9876543210',
+            calledAt: now.toISOString(),
+          },
+        },
+      },
+      now,
+    });
+
+    expect(qualifyApplicant).not.toHaveBeenCalled();
+    expect(outcome.addresses.map((address) => address.line1)).toEqual([
+      '12 Main Street',
+      '88 Lake Road',
+    ]);
+    expect(outcome.formDataPatch['borrower.address.line1']).toBe('12 Main Street');
   });
 
   it('switches address index', () => {

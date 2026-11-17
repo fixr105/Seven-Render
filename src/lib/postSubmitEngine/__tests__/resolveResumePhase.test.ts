@@ -234,6 +234,36 @@ describe('resolveResumePhase', () => {
     expect(buildResumeSession(form, 'rec1')?.resumePhase).toBe('offer');
   });
 
+  it('does not reopen documents when wizard KYC files are already complete', () => {
+    const form = {
+      '_meta.postSubmitFlags': { qualifyFired: true },
+      '_meta.qualifyResult': { pass: true },
+      '_meta.kycDocuments.documentsString':
+        'field-1a.1:https://cdn.example/a.jpg|a.jpg,co_applicant_pan:https://cdn.example/co.pdf|co.pdf',
+      '_meta.kycDocuments.uploads': {
+        'field-1a.1': { url: 'https://cdn.example/a.jpg', filename: 'a.jpg' },
+        'field-1a.2': { url: 'https://cdn.example/b.jpg', filename: 'b.jpg' },
+        co_applicant_pan: { url: 'https://cdn.example/co.pdf', filename: 'SF M Sep 26 1.pdf' },
+      },
+    };
+    expect(enginePhaseForResume(form)).toBe('offer');
+  });
+
+  it('does not send a ranked file back to upload when wizard KYC is complete', () => {
+    const form = {
+      '_meta.postSubmitFlags': { rankStarted: true, qualifyFired: true },
+      '_meta.qualifyResult': { pass: true },
+      '_meta.pricing': { roi_pct: 28 },
+      '_meta.postSubmitPhase': 'post_offer',
+      '_meta.kycDocuments.documentsString': 'field-1a.1:https://cdn.example/a.jpg|a.jpg',
+      '_meta.kycDocuments.uploads': {
+        'field-1a.1': { url: 'https://cdn.example/a.jpg', filename: 'a.jpg' },
+        co_applicant_pan: { url: 'https://cdn.example/co.pdf', filename: 'co.pdf' },
+      },
+    };
+    expect(enginePhaseForResume(form)).toBe('enach');
+  });
+
   it('returns to documents when qualify passed but a required upload is still missing', () => {
     const form = {
       '_meta.postSubmitFlags': { qualifyFired: true },

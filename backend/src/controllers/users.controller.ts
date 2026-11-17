@@ -518,6 +518,9 @@ export class UsersController {
       console.log('[createDealer] Created dealer account', { id: newId, email });
 
       let clientId: string | null = null;
+      if (req.user.role === 'kam' && !req.user.kamId) {
+        console.warn('[createDealer] KAM has no kamId; Assigned KAM left blank', { email });
+      }
       try {
         const clientResult = await n8nClient.postClient({
           id: newId,
@@ -526,6 +529,9 @@ export class UsersController {
           'Primary Contact Name': name,
           'Contact Email / Phone': email,
           Status: 'Active',
+          ...(req.user.role === 'kam' && req.user.kamId
+            ? { 'Assigned KAM': req.user.kamId }
+            : {}),
         });
         const clientError =
           clientResult && typeof clientResult === 'object' && 'error' in clientResult

@@ -10,6 +10,10 @@ vi.mock('../../CibilProbabilityBar', () => ({
   CibilProbabilityBar: () => <div data-testid="cibil-probability-bar" />,
 }));
 
+vi.mock('../../../../auth/AuthContext', () => ({
+  useAuth: () => ({ user: { email: 'kam@test.local' } }),
+}));
+
 vi.mock('../../../services/api', () => ({
   apiService: {
     kamB2cComplianceAction: vi.fn(),

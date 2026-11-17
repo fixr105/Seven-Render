@@ -13,6 +13,7 @@ import { formatEngineSetupError } from '../../lib/engineSetupError';
 import {
   fetchVkycByFileId,
   isVkycReadyForNext,
+  markLoanFileVkycRequested,
   requestVkyc,
   type VkycRow,
 } from '../../lib/vkycLinks';
@@ -262,6 +263,7 @@ export const KycDocumentsStep: React.FC<KycDocumentsStepProps> = ({
         existingRecordId: again ? vkycRow?.id : undefined,
       });
       setVkycRow(row);
+      await markLoanFileVkycRequested(fileId, row);
       const kamPatch = await openKamComplianceRequest({
         applicationId: recordId || fileId,
         itemId: 'vkyc',

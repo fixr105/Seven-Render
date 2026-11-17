@@ -1582,7 +1582,19 @@ class ApiService {
 
   async kamB2cDoRequestAction(
     applicationId: string,
-    body: { action: 'fulfill' | 'clear_request'; notes?: string; rejectionReason?: string }
+    body: {
+      action: 'fulfill' | 'clear_request' | 'save_checklist';
+      notes?: string;
+      rejectionReason?: string;
+      doApproval?: {
+        checklist: string[];
+        approvedBy: string;
+        approvedAt: string;
+        doUrl?: string;
+        doFileName?: string;
+        doGeneratedAt?: string;
+      };
+    }
   ): Promise<ApiResponse> {
     return this.request(`/kam/loan-applications/${applicationId}/b2c/do-request`, {
       method: 'POST',
@@ -2167,6 +2179,14 @@ class ApiService {
   async getDateRangeReport(params: { from: string; to: string }): Promise<ApiResponse<any>> {
     const q = new URLSearchParams({ from: params.from, to: params.to });
     return this.request(`/reports/date-range?${q.toString()}`);
+  }
+
+  /**
+   * Commission report: monthly payout, payin, net, and transaction counts
+   */
+  async getCommissionReport(params: { from: string; to: string }): Promise<ApiResponse<any>> {
+    const q = new URLSearchParams({ from: params.from, to: params.to });
+    return this.request(`/reports/commission?${q.toString()}`);
   }
 
   // ==================== AUDIT LOGS ====================

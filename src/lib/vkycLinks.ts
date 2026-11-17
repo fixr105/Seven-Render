@@ -140,6 +140,49 @@ export async function completeVkycLink(fileId: string, doneBy = 'KAM'): Promise<
   });
 }
 
+export async function markLoanFileVkycRequested(
+  fileId: string,
+  row: { id: string; status: string; requested_at: string }
+): Promise<void> {
+  if (!fileId) return;
+  const safe = fileId.replace(/'/g, "\\'");
+  const res = await airtableGet({
+    table: 'Loan Applications',
+    filter_formula: `{File ID} = '${safe}'`,
+  });
+  const record = res.records?.[0];
+  const recordId = String(record?.id || '');
+  if (!recordId) return;
+  const raw = readAirtableField(record, 'Form Data');
+  let formData: Record<string, unknown> = {};
+  if (typeof raw === 'string') {
+    try {
+      formData = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      formData = {};
+    }
+  } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    formData = raw as Record<string, unknown>;
+  }
+  const requestedAt = row.requested_at || new Date().toISOString();
+  const next = {
+    ...formData,
+    '_meta.vkyc.recordId': row.id,
+    '_meta.vkyc.status': row.status || 'Requested',
+    '_meta.vkyc.requestedAt': requestedAt,
+    '_meta.kamRequests.vkyc.requestedAt': requestedAt,
+    '_meta.kamRequests.vkyc.dismissedAt': '',
+  };
+  await airtableWrite({
+    table: 'Loan Applications',
+    record_id: recordId,
+    fields: {
+      'Form Data': JSON.stringify(next),
+      'Last Updated': new Date().toISOString(),
+    },
+  });
+}
+
 export async function markLoanFileVkycDone(fileId: string): Promise<void> {
   if (!fileId) return;
   const safe = fileId.replace(/'/g, "\\'");

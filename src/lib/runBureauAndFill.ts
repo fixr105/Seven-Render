@@ -14,6 +14,7 @@ import {
 import {
   BUREAU_CACHE_TABLE,
   buildBureauCachePanFilter,
+  extractBureauAddresses,
   mapBureauCacheFieldsToProfile,
   normalizeBureauCacheRecordFields,
   pickBureauCacheRecord,
@@ -111,6 +112,26 @@ async function defaultLookupBureauCache(pan: string): Promise<QualifyResponse | 
   if (!fields) return null;
   const profile = mapBureauCacheFieldsToProfile(fields);
   if (!profile) return null;
+  const extracted = extractBureauAddresses(fields);
+  const addresses =
+    extracted.length > 0
+      ? extracted.map((address) => ({
+          line1: address.line1,
+          line2: address.line2,
+          line3: address.line3,
+          city: address.city,
+          pin: address.pin,
+          state_code: address.state_code,
+        }))
+      : [
+          {
+            line1: profile['address Line 1'],
+            line2: profile['address Line 2'],
+            city: profile['village/City'],
+            pin: profile.pincode,
+            state_code: profile.state,
+          },
+        ];
   return {
     ok: true,
     pass: true,
@@ -122,15 +143,7 @@ async function defaultLookupBureauCache(pan: string): Promise<QualifyResponse | 
       mobile: profile.mobile_number,
       email: profile.email,
       gender: profile.gender,
-      addresses: [
-        {
-          line1: profile['address Line 1'],
-          line2: profile['address Line 2'],
-          city: profile['village/City'],
-          pin: profile.pincode,
-          state_code: profile.state,
-        },
-      ],
+      addresses,
     },
   };
 }

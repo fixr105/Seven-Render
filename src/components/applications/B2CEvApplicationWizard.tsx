@@ -366,6 +366,8 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [supportBureauConsentAt, setSupportBureauConsentAt] = useState<string | null>(null);
   const [supportBureauAutofilledKeys, setSupportBureauAutofilledKeys] = useState<string[]>([]);
   const [supportBureauAddressIndex, setSupportBureauAddressIndex] = useState(0);
+  const [borrowerBureauAddresses, setBorrowerBureauAddresses] = useState<BureauOutcome['addresses']>([]);
+  const [borrowerBureauAddressIndex, setBorrowerBureauAddressIndex] = useState(0);
   const supportBureauVerifiedKeyRef = useRef<string | null>(null);
   const supportBureauOutcomeRef = useRef<BureauOutcome | null>(null);
   const [kamRequestLoadingId, setKamRequestLoadingId] = useState<ComplianceItemId | null>(null);
@@ -1638,8 +1640,11 @@ export const B2CEvApplicationWizard: React.FC = () => {
         panPayload.mobileNumber
       );
       borrowerBureauOutcomeRef.current = bureau;
+      setBorrowerBureauAddresses(bureau.addresses);
+      setBorrowerBureauAddressIndex(0);
 
       if (bureau.status === 'error' && Object.keys(bureau.formDataPatch).length === 0) {
+        setBorrowerBureauAddresses([]);
         setPanLookupError(bureau.errorMessage || PAN_MANUAL_FAILURE_MESSAGE);
         commitFormState((prev) => ({
           ...prev,
@@ -2585,7 +2590,16 @@ export const B2CEvApplicationWizard: React.FC = () => {
           recordId={String(draftId)}
           fileId={fileId}
           saveStatus={draftSaveStatus}
-          onFormDataChange={(patch) => updateFields(patch)}
+          onFormDataChange={(patch) => {
+            updateFields(patch);
+            if (!('_meta.vkyc.status' in patch)) return;
+            const saved: Record<string, string> = {};
+            for (const [key, value] of Object.entries(patch)) {
+              if (value == null || typeof value === 'object') continue;
+              saved[key] = String(value);
+            }
+            void persistDraft(saved, { silent: true }).catch(() => undefined);
+          }}
           onDocumentsPersist={() => persistDraft(undefined, { silent: true }).then(() => undefined)}
           onReadyChange={setKycStepReady}
         />
@@ -2656,6 +2670,44 @@ export const B2CEvApplicationWizard: React.FC = () => {
         {addressFields.length > 0 && (
           <div className="space-y-4 border-t border-dealer-border pt-6">
             <h3 className="text-sm font-semibold text-dealer-text">Address</h3>
+            {borrowerBureauAddresses.length > 1 && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-dealer-text">
+                  Use a different address
+                </label>
+                <Select
+                  label=""
+                  tone="dealer"
+                  value={String(borrowerBureauAddressIndex)}
+                  options={borrowerBureauAddresses.map((addr, idx) => ({
+                    value: String(idx),
+                    label:
+                      [addr.line1, addr.line2, addr.pin].filter(Boolean).join(', ') ||
+                      `Address ${idx + 1}`,
+                  }))}
+                  onChange={(e) => {
+                    const index = Number(e.target.value);
+                    setBorrowerBureauAddressIndex(index);
+                    const outcome = borrowerBureauOutcomeRef.current;
+                    if (!outcome) return;
+                    const addressPatch = applyAddressIndexToPatch(
+                      'borrower',
+                      outcome.addresses,
+                      index,
+                      outcome.formDataPatch
+                    );
+                    commitFormState((prev) => ({
+                      ...prev,
+                      form_data: syncB2cEvComputedFields({
+                        ...prev.form_data,
+                        ...addressPatch,
+                      }),
+                    }));
+                  }}
+                  data-testid="borrower-bureau-address-select"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {addressFields.map((field) => (
                 <div key={field.key} className={field.colSpan === 2 ? 'md:col-span-2' : ''}>

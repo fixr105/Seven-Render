@@ -68,13 +68,14 @@ function createMockResponse(): Response & { statusCode: number; body: unknown } 
   return res as Response & { statusCode: number; body: unknown };
 }
 
-function requestAs(role: UserRole, body: Record<string, unknown> = {}): Request {
+function requestAs(role: UserRole, body: Record<string, unknown> = {}, kamId?: string): Request {
   return {
     user: {
       id: 'caller-1',
       email: 'kam@test.local',
       role,
       name: 'Test KAM',
+      kamId: kamId ?? null,
     },
     body,
     params: {},
@@ -210,5 +211,28 @@ describe('POST /users/create-dealer', () => {
 
     expect(res.statusCode).toBe(403);
     expect(mockPostUserAccount).not.toHaveBeenCalled();
+  });
+
+  it('sets Assigned KAM to the creating KAM id', async () => {
+    const req = requestAs(UserRole.KAM, { email: 'dealer@example.com', name: 'New Dealer' }, 'KAM-77');
+    const res = createMockResponse();
+
+    await usersController.createDealer(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockPostClient).toHaveBeenCalledWith(
+      expect.objectContaining({ 'Assigned KAM': 'KAM-77' })
+    );
+  });
+
+  it('leaves Assigned KAM blank when an admin creates the dealer', async () => {
+    const req = requestAs(UserRole.ADMIN, { email: 'dealer@example.com', name: 'New Dealer' });
+    const res = createMockResponse();
+
+    await usersController.createDealer(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const payload = mockPostClient.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload['Assigned KAM'] ?? '').toBe('');
   });
 });

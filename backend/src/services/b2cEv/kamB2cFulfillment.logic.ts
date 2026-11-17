@@ -52,11 +52,44 @@ export function buildCompliancePatch(
   return mergeFormDataPatch(formData, patch);
 }
 
+export type DoApprovalMeta = {
+  checklist: string[];
+  approvedBy: string;
+  approvedAt: string;
+  doUrl?: string;
+  doFileName?: string;
+  doGeneratedAt?: string;
+};
+
+export function buildDoChecklistPatch(
+  formData: Record<string, unknown>,
+  approval: DoApprovalMeta
+): Record<string, unknown> {
+  const existing = formData['_meta.doApproval'];
+  const current =
+    existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? (existing as Record<string, unknown>)
+      : {};
+  const next: Record<string, unknown> = {
+    ...current,
+    checklist: approval.checklist,
+    approvedBy: approval.approvedBy,
+    approvedAt: approval.approvedAt,
+  };
+  if (approval.doUrl) {
+    next.doUrl = approval.doUrl;
+    next.doFileName = approval.doFileName ?? '';
+    next.doGeneratedAt = approval.doGeneratedAt ?? '';
+  }
+  return mergeFormDataPatch(formData, { '_meta.doApproval': next });
+}
+
 export function buildDoFulfillPatch(
   formData: Record<string, unknown>,
-  options?: { notes?: string; fulfilledBy?: string }
+  options?: { notes?: string; fulfilledBy?: string; doApproval?: DoApprovalMeta }
 ): Record<string, unknown> {
   const now = new Date().toISOString();
+  const base = options?.doApproval ? buildDoChecklistPatch(formData, options.doApproval) : formData;
   const patch: Record<string, unknown> = {
     '_meta.doRequest.fulfilledAt': now,
     '_meta.doRequest.fulfilledBy': options?.fulfilledBy?.trim() ?? '',
@@ -68,7 +101,7 @@ export function buildDoFulfillPatch(
   if (options?.notes?.trim()) {
     patch['_meta.doRequest.fulfillmentNotes'] = options.notes.trim();
   }
-  return mergeFormDataPatch(formData, patch);
+  return mergeFormDataPatch(base, patch);
 }
 
 export function buildDoClearRequestPatch(
@@ -91,9 +124,12 @@ export function buildDoClearRequestPatch(
 }
 
 export function formatDoAuditMessage(
-  action: 'fulfill' | 'clear_request',
+  action: 'fulfill' | 'clear_request' | 'save_checklist',
   rejectionReason?: string
 ): string {
+  if (action === 'save_checklist') {
+    return 'KAM confirmed DO approval checklist';
+  }
   if (action === 'fulfill') {
     return 'KAM approved Disbursement Order (DO) request';
   }

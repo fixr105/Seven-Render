@@ -38,6 +38,35 @@ describe('b2cEvKamManagedFields', () => {
     expect(merged['_meta.doRequest.status']).toBe('approved');
   });
 
+  it('copies a server DO approval the dealer draft does not have', () => {
+    const local = { 'borrower.mobile': '9999999999' };
+    const server = {
+      '_meta.doApproval': {
+        doUrl: 'https://files.example/do.pdf',
+        approvedBy: 'kam@test.local',
+      },
+    };
+
+    expect(collectKamManagedFieldPatch(local, server)['_meta.doApproval']).toEqual(
+      server['_meta.doApproval']
+    );
+  });
+
+  it('copies KAM compliance confirmations the dealer draft does not have', () => {
+    const local = { 'borrower.mobile': '9999999999' };
+    const server = {
+      '_meta.compliance.ekyc': {
+        status: 'done',
+        confirmedBy: 'kam@test.local',
+        confirmedAt: '2026-11-15T09:00:00.000Z',
+      },
+    };
+
+    expect(collectKamManagedFieldPatch(local, server)['_meta.compliance.ekyc']).toEqual(
+      server['_meta.compliance.ekyc']
+    );
+  });
+
   it('returns empty patch when server and local match', () => {
     const formData = {
       'compliance.vkycDone': 'true',

@@ -57,6 +57,44 @@ describe('preserveB2cKamManagedFields', () => {
     expect(result['_meta.doRequest.rejectionReason']).toBe('Incomplete folder');
   });
 
+  it('keeps a saved DO approval when a later dealer save omits it', () => {
+    const existing = {
+      '_meta.doApproval': {
+        checklist: ['IoT live'],
+        approvedBy: 'kam@test.local',
+        doUrl: 'https://files.example/do.pdf',
+      },
+    };
+    const merged = { 'borrower.mobile': '9999999999' };
+
+    const result = preserveB2cKamManagedFields(existing, merged);
+
+    expect(result['_meta.doApproval']).toEqual(existing['_meta.doApproval']);
+    expect(result['borrower.mobile']).toBe('9999999999');
+  });
+
+  it('keeps a saved compliance confirmation when a later dealer save omits it', () => {
+    const existing = {
+      '_meta.compliance.ekyc': {
+        status: 'done',
+        confirmedBy: 'kam@test.local',
+        confirmedAt: '2026-11-15T09:00:00.000Z',
+      },
+      '_meta.compliance.enach': {
+        status: 'done',
+        confirmedBy: 'kam@test.local',
+        confirmedAt: '2026-11-15T09:20:00.000Z',
+      },
+    };
+    const merged = { 'borrower.mobile': '9999999999' };
+
+    const result = preserveB2cKamManagedFields(existing, merged);
+
+    expect(result['_meta.compliance.ekyc']).toEqual(existing['_meta.compliance.ekyc']);
+    expect(result['_meta.compliance.enach']).toEqual(existing['_meta.compliance.enach']);
+    expect(result['borrower.mobile']).toBe('9999999999');
+  });
+
   it('allows client updates when KAM has not approved compliance', () => {
     const existing = { 'compliance.vkycDone': false };
     const merged = { 'compliance.vkycDone': false, 'borrower.mobile': '9999999999' };

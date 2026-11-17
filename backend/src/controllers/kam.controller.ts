@@ -32,6 +32,36 @@ import { scanApplicationsForPendingB2cActions } from '../services/b2cEv/b2cEvKam
 import { resolveApplicationRecordStatus } from '../utils/loanApplicationAirtableStatus.js';
 import { mergeFormDataPatch, parseFormDataField } from '../utils/mergeFormDataPatch.js';
 
+function readDoApprovalBody(value: unknown): {
+  checklist: string[];
+  approvedBy: string;
+  approvedAt: string;
+  doUrl?: string;
+  doFileName?: string;
+  doGeneratedAt?: string;
+} | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.checklist) || record.checklist.length === 0) return null;
+  const checklist = record.checklist.map((item) => String(item ?? '').trim()).filter(Boolean);
+  const approvedBy = String(record.approvedBy ?? '').trim();
+  const approvedAt = String(record.approvedAt ?? '').trim();
+  if (checklist.length === 0 || !approvedBy || !approvedAt) return null;
+  const doUrl = String(record.doUrl ?? '').trim();
+  return {
+    checklist,
+    approvedBy,
+    approvedAt,
+    ...(doUrl
+      ? {
+          doUrl,
+          doFileName: String(record.doFileName ?? '').trim(),
+          doGeneratedAt: String(record.doGeneratedAt ?? '').trim(),
+        }
+      : {}),
+  };
+}
+
 /** Statuses that count as "forwarded to credit" (KAM has passed the file on). */
 const FORWARDED_STATUSES: string[] = [
   LoanStatus.PENDING_CREDIT_REVIEW,
@@ -1837,14 +1867,14 @@ export class KAMController {
    */
   async b2cDoRequestAction(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'kam') {
+      if (!req.user || (req.user.role !== 'kam' && req.user.role !== 'admin')) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
       const { id } = req.params;
-      const action = req.body?.action as 'fulfill' | 'clear_request';
-      if (action !== 'fulfill' && action !== 'clear_request') {
-        res.status(400).json({ success: false, error: 'action must be fulfill or clear_request' });
+      const action = req.body?.action as 'fulfill' | 'clear_request' | 'save_checklist';
+      if (action !== 'fulfill' && action !== 'clear_request' && action !== 'save_checklist') {
+        res.status(400).json({ success: false, error: 'action must be fulfill, clear_request, or save_checklist' });
         return;
       }
 
@@ -1854,10 +1884,13 @@ export class KAMController {
         res.status(404).json({ success: false, error: 'Application not found' });
         return;
       }
-      await assertKAMCanMutateApplication(req.user, application);
+      if (req.user.role === 'kam') {
+        await assertKAMCanMutateApplication(req.user, application);
+      }
 
       const {
         buildDoFulfillPatch,
+        buildDoChecklistPatch,
         buildDoClearRequestPatch,
         formatDoAuditMessage,
         getApplicationFormData,
@@ -1869,18 +1902,29 @@ export class KAMController {
       const notes = typeof req.body?.notes === 'string' ? req.body.notes : undefined;
       const rejectionReason =
         typeof req.body?.rejectionReason === 'string' ? req.body.rejectionReason : undefined;
+      const doApproval = readDoApprovalBody(req.body?.doApproval);
+      if (action === 'save_checklist' && !doApproval) {
+        res.status(400).json({ success: false, error: 'doApproval checklist is required' });
+        return;
+      }
       const merged =
         action === 'fulfill'
-          ? buildDoFulfillPatch(existing, { notes, fulfilledBy: req.user!.email })
-          : buildDoClearRequestPatch(existing, {
-              rejectionReason,
-              rejectedBy: req.user!.email,
-            });
+          ? buildDoFulfillPatch(existing, {
+              notes,
+              fulfilledBy: req.user!.email,
+              doApproval: doApproval ?? undefined,
+            })
+          : action === 'save_checklist' && doApproval
+            ? buildDoChecklistPatch(existing, doApproval)
+            : buildDoClearRequestPatch(existing, {
+                rejectionReason,
+                rejectedBy: req.user!.email,
+              });
       const auditMessage = formatDoAuditMessage(action, rejectionReason);
       await persistApplicationFormData(application, merged, req.user, auditMessage);
 
       const queryId = String(existing['_meta.doRequest.queryId'] ?? '').trim();
-      if (queryId) {
+      if (queryId && action !== 'save_checklist') {
         try {
           const { queryService } = await import('../services/queries/query.service.js');
           await queryService.resolveQuery(
@@ -1896,20 +1940,24 @@ export class KAMController {
         }
       }
 
-      const clientMessage =
-        action === 'fulfill'
-          ? 'Your Disbursement Order (DO) has been approved. You can continue with Insurance and Vehicle details.'
-          : rejectionReason?.trim()
-            ? `Your Disbursement Order (DO) request was rejected: ${rejectionReason.trim()}`
-            : 'Your Disbursement Order (DO) request was rejected. You may submit a new request when ready.';
-      await notifyClientOfDoDecision(application, req.user!, clientMessage);
+      if (action !== 'save_checklist') {
+        const clientMessage =
+          action === 'fulfill'
+            ? 'Your Disbursement Order (DO) has been approved. You can continue with Insurance and Vehicle details.'
+            : rejectionReason?.trim()
+              ? `Your Disbursement Order (DO) request was rejected: ${rejectionReason.trim()}`
+              : 'Your Disbursement Order (DO) request was rejected. You may submit a new request when ready.';
+        await notifyClientOfDoDecision(application, req.user!, clientMessage);
+      }
 
       res.json({
         success: true,
         message:
           action === 'fulfill'
             ? 'DO request marked processed'
-            : 'DO request rejected',
+            : action === 'save_checklist'
+              ? 'DO checklist saved'
+              : 'DO request rejected',
       });
     } catch (error: unknown) {
       if (error instanceof KamAccessError) {

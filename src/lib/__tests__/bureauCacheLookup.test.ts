@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildBureauCachePanFilter,
+  extractBureauAddresses,
   mapBureauCacheFieldsToProfile,
   mapBureauCacheRecordToFormDataPatch,
   pickBureauCacheRecord,
@@ -13,6 +14,111 @@ describe('buildBureauCachePanFilter', () => {
 
   it('escapes single quotes in PAN', () => {
     expect(buildBureauCachePanFilter("ABCDE1234F'")).toBe("{pan} = 'ABCDE1234F\\''");
+  });
+});
+
+describe('extractBureauAddresses', () => {
+  it('returns every structured address, not only the first', () => {
+    const addresses = extractBureauAddresses({
+      applicant: {
+        name: 'SHARAN KRISHNAN S',
+        addresses: [
+          { line1: '12 Main Street', line2: 'Near Temple', city: 'Chennai', pincode: '600001', state: 'Tamil Nadu' },
+          { line1: '88 Lake Road', city: 'Madurai', pin: '625001', state_code: '33' },
+        ],
+      },
+    });
+
+    expect(addresses).toEqual([
+      {
+        line1: '12 Main Street',
+        line2: 'Near Temple',
+        line3: '',
+        city: 'Chennai',
+        pin: '600001',
+        state_code: 'Tamil Nadu',
+      },
+      {
+        line1: '88 Lake Road',
+        line2: '',
+        line3: '',
+        city: 'Madurai',
+        pin: '625001',
+        state_code: '33',
+      },
+    ]);
+  });
+
+  it('keeps the current Experian address and a different CAIS address', () => {
+    const addresses = extractBureauAddresses({
+      raw_response: JSON.stringify({
+        result: {
+          credit_report: {
+            Current_Application: {
+              Current_Application_Details: {
+                Current_Applicant_Address_Details: {
+                  FlatNoPlotNoHouseNo: '2 FLOOR MI STORE',
+                  RoadNoNameAreaLocality: 'JP NAGAR',
+                  City: 'BANGALORE',
+                  State: '29',
+                  PINCode: '560078',
+                },
+              },
+            },
+            CAIS_Account: {
+              CAIS_Account_DETAILS: [
+                {
+                  CAIS_Holder_Address_Details: {
+                    First_Line_Of_Address_non_normalized: '14 RESIDENCY ROAD',
+                    Second_Line_Of_Address_non_normalized: 'ASHOK NAGAR',
+                    City_non_normalized: 'BANGALORE',
+                    State_non_normalized: '29',
+                    ZIP_Postal_Code_non_normalized: '560025',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    });
+
+    expect(addresses.map((address) => address.line1)).toEqual([
+      '2 FLOOR MI STORE',
+      '14 RESIDENCY ROAD',
+    ]);
+    expect(addresses[1]).toMatchObject({
+      line2: 'ASHOK NAGAR',
+      city: 'BANGALORE',
+      pin: '560025',
+      state_code: '29',
+    });
+  });
+
+  it('drops a repeated line and pin', () => {
+    const addresses = extractBureauAddresses({
+      applicant: {
+        addresses: [
+          { line1: '12 Main Street', city: 'Chennai', pincode: '600001' },
+          { line1: '12 main street', city: 'chennai', pin: '600001' },
+        ],
+      },
+    });
+    expect(addresses).toHaveLength(1);
+  });
+
+  it('still maps the flat profile from the first address', () => {
+    const profile = mapBureauCacheFieldsToProfile({
+      applicant: {
+        name: 'SHARAN KRISHNAN S',
+        addresses: [
+          { line1: '12 Main Street', city: 'Chennai', pincode: '600001', state: 'Tamil Nadu' },
+          { line1: '88 Lake Road', city: 'Madurai', pin: '625001' },
+        ],
+      },
+    });
+    expect(profile?.['address Line 1']).toBe('12 Main Street');
+    expect(profile?.['village/City']).toBe('Chennai');
   });
 });
 

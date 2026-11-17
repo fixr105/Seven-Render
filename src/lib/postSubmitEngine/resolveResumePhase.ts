@@ -1,4 +1,5 @@
 import { hasValue, readFormPath } from '../formPath';
+import { hasCompletedWizardKycDocuments } from '../kycRequiredDocs';
 import { hasIncompleteDocumentUploads, hasPartialRequiredDocuments } from './requiredDocs';
 import type { PostSubmitPhase, PostSubmitSession } from './types';
 
@@ -182,6 +183,16 @@ function qualifyResultObject(formData: Record<string, unknown>): boolean {
   );
 }
 
+function kycUploadsStillOwed(formData: Record<string, unknown>): boolean {
+  if (hasCompletedWizardKycDocuments(formData)) return false;
+  return hasIncompleteDocumentUploads(formData);
+}
+
+function partialFallbackUploads(formData: Record<string, unknown>): boolean {
+  if (hasCompletedWizardKycDocuments(formData)) return false;
+  return hasPartialRequiredDocuments(formData);
+}
+
 /**
  * Persisted one-shot flags. Later real steps (signed, signing, stamps) still win.
  * Rank + pricing opens the offer screen instead of jumping into eNACH.
@@ -204,7 +215,8 @@ export function flaggedResumePhase(formData: Record<string, unknown>): PostSubmi
   // with no account stays on eNACH instead of bouncing back to the offer.
   if (hasValue(formData, 'enach.accountNumber', nonEmptyString)) return 'doc_fill';
   // Older files can already have ranking flags. Missing uploads still belong on the upload step.
-  if (flags.rankStarted && hasIncompleteDocumentUploads(formData)) return 'documents';
+  // Wizard KYC uses form-config field ids, so fallback slot checks look incomplete after Request DO.
+  if (flags.rankStarted && kycUploadsStillOwed(formData)) return 'documents';
   // A post_offer hint saved before ranking is the loan calculator, not an accepted offer.
   if (
     flags.rankStarted &&
@@ -214,7 +226,7 @@ export function flaggedResumePhase(formData: Record<string, unknown>): PostSubmi
   }
   if (flags.rankStarted && roiGreaterThanZero(formData)) return 'offer';
   if (flags.qualifyFired && qualifyResultObject(formData)) {
-    if (hasPersistedQualifyPass(formData) && hasPartialRequiredDocuments(formData)) {
+    if (hasPersistedQualifyPass(formData) && partialFallbackUploads(formData)) {
       return 'documents';
     }
     return hasPersistedQualifyPass(formData) ? 'offer' : 'rejected';
@@ -244,7 +256,7 @@ export function enginePhaseForResume(formData: Record<string, unknown>): PostSub
     case 'stamps':
       return 'stamp_step';
     case 'post_offer':
-      if (hasIncompleteDocumentUploads(formData)) return 'documents';
+      if (kycUploadsStillOwed(formData)) return 'documents';
       return postOfferStartsAtEnach(formData) ? 'enach' : 'doc_fill';
     case 'post_qualify':
       return 'offer';

@@ -22,14 +22,36 @@ interface DailySummaryReport {
   deliveredTo: string;
 }
 
+function localISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getDefaultDateRange(): { from: string; to: string } {
   const to = new Date();
   const from = new Date(to);
   from.setDate(from.getDate() - 7);
   return {
-    from: from.toISOString().split('T')[0],
-    to: to.toISOString().split('T')[0],
+    from: localISODate(from),
+    to: localISODate(to),
   };
+}
+
+function getKamMonthRange(): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date(to.getFullYear(), to.getMonth(), 1);
+  return { from: localISODate(from), to: localISODate(to) };
+}
+
+function stripScopeMarker(content: string): string {
+  return content.replace(/^\[\[scope:[^\]]+\]\]\n?/, '');
+}
+
+interface KamClientOption {
+  id: string;
+  name: string;
 }
 
 export const Reports: React.FC = () => {
@@ -54,33 +76,77 @@ export const Reports: React.FC = () => {
   const [reportFrom, setReportFrom] = useState(() => getDefaultDateRange().from);
   const [reportTo, setReportTo] = useState(() => getDefaultDateRange().to);
   const [reportClientId, setReportClientId] = useState('');
+  const [kamClients, setKamClients] = useState<KamClientOption[]>([]);
+  const [noAssignedClients, setNoAssignedClients] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportData, setReportData] = useState<Record<string, unknown> | null>(null);
 
+  const canGenerate = userRole === 'credit_team' || userRole === 'admin' || userRole === 'kam';
+  const generateLabel = userRole === 'kam' ? t('pages.reports.generateMyReport') : t('pages.reports.generateTodayReport');
+
   const sidebarItems = useSidebarItems();
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  // Fetch on mount (including SPA navigation) when credit_team, admin, or kam (backend allows KAM via requireCreditOrKAM).
   useEffect(() => {
-    if (userRole === 'credit_team' || userRole === 'admin' || userRole === 'kam') {
-      fetchReports();
-      fetchLatestReport();
-    } else {
-      setLoading(false);
-      setLatestLoading(false);
-      setReports([]);
-      setLatestReport(null);
+    if (userRole === 'kam') {
+      const range = getKamMonthRange();
+      setReportFrom(range.from);
+      setReportTo(range.to);
+      void loadKamClients();
+      return;
     }
-  }, []);
+    if (userRole === 'credit_team' || userRole === 'admin') {
+      void fetchReports();
+      void fetchLatestReport();
+      return;
+    }
+    setLoading(false);
+    setLatestLoading(false);
+    setReports([]);
+    setLatestReport(null);
+  }, [userRole]);
 
   const normalizeReport = (raw: Record<string, unknown>): DailySummaryReport => ({
     id: (raw.id as string) || '',
     reportDate: (raw['Report Date'] ?? raw.reportDate ?? '') as string,
-    summaryContent: (raw['Summary Content'] ?? raw.summaryContent ?? '') as string,
+    summaryContent: stripScopeMarker((raw['Summary Content'] ?? raw.summaryContent ?? '') as string),
     generatedTimestamp: (raw['Generated Timestamp'] ?? raw.generatedTimestamp ?? '') as string,
     deliveredTo: (raw['Delivered To'] ?? raw.deliveredTo ?? '') as string,
   });
+
+  const loadKamClients = async () => {
+    try {
+      const response = await apiService.listClients();
+      const rows = response.success && Array.isArray(response.data) ? response.data : [];
+      const options = rows
+        .map((row) => {
+          const record = row as { clientId?: string; id?: string; clientName?: string };
+          const id = String(record.clientId || record.id || '').trim();
+          if (!id) return null;
+          return { id, name: record.clientName || id };
+        })
+        .filter((row): row is KamClientOption => row !== null);
+      setKamClients(options);
+      if (options.length === 0) {
+        setNoAssignedClients(true);
+        setReports([]);
+        setLatestReport(null);
+        setLoading(false);
+        setLatestLoading(false);
+        return;
+      }
+      setNoAssignedClients(false);
+      await fetchReports();
+      await fetchLatestReport();
+    } catch {
+      setNoAssignedClients(true);
+      setReports([]);
+      setLatestReport(null);
+      setLoading(false);
+      setLatestLoading(false);
+    }
+  };
 
   const fetchReports = async () => {
     try {
@@ -185,6 +251,7 @@ export const Reports: React.FC = () => {
     `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const runReport = async () => {
+    if (userRole === 'kam' && noAssignedClients) return;
     setReportError(null);
     setReportData(null);
     setReportLoading(true);
@@ -195,6 +262,10 @@ export const Reports: React.FC = () => {
           to: reportTo,
           ...(reportClientId && { clientId: reportClientId }),
         });
+        if (res.success && res.data) setReportData(res.data as Record<string, unknown>);
+        else setReportError(res.error || 'Failed to load report');
+      } else if (reportTab === 'commission') {
+        const res = await apiService.getCommissionReport({ from: reportFrom, to: reportTo });
         if (res.success && res.data) setReportData(res.data as Record<string, unknown>);
         else setReportError(res.error || 'Failed to load report');
       } else if (reportTab === 'client-wise') {
@@ -211,6 +282,18 @@ export const Reports: React.FC = () => {
     } finally {
       setReportLoading(false);
     }
+  };
+
+  const reportIsEmpty = (tab: ReportTab, data: Record<string, unknown>): boolean => {
+    if (tab === 'ledger') return !Array.isArray(data.entries) || data.entries.length === 0;
+    if (tab === 'commission') return !Array.isArray(data.months) || data.months.length === 0;
+    if (tab === 'client-wise') return !Array.isArray(data.clients) || data.clients.length === 0;
+    if (tab === 'date-range') {
+      const metrics = (data.metrics ?? {}) as Record<string, unknown>;
+      const keys = ['totalApplications', 'totalActivities', 'totalPayouts', 'totalPayins', 'statusChanges', 'queriesRaised'];
+      return keys.every((key) => Number(metrics[key] ?? 0) === 0);
+    }
+    return false;
   };
 
   const allTabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = useMemo(
@@ -246,9 +329,9 @@ export const Reports: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-center py-12">
-              <BarChart3 className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-neutral-900 mb-2">{t('common.accessRestricted')}</h3>
-              <p className="text-neutral-600">
+              <BarChart3 className="w-16 h-16 text-sf-border mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-sf-text mb-2">{t('common.accessRestricted')}</h3>
+              <p className="text-sf-quiet">
                 {t('pages.reports.accessRestrictedHint')}
               </p>
             </div>
@@ -269,21 +352,43 @@ export const Reports: React.FC = () => {
       notificationCount={unreadCount}
     >
       <div className="space-y-6">
+        {noAssignedClients ? (
+          <>
+            <PageHero
+              title={t('pages.reports.pageTitle')}
+              description={t('pages.reports.description')}
+            />
+            <Card>
+              <CardContent>
+                <div className="text-center py-12">
+                  <Users className="w-12 h-12 text-sf-border mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-sf-text mb-2">{t('pages.reports.noClientsAssigned')}</h3>
+                  <p className="text-sm text-sf-quiet">{t('pages.reports.noClientsAssignedHint')}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+        <>
         <div className="flex flex-col gap-4">
           <PageHero
             title={t('pages.reports.pageTitle')}
             description={t('pages.reports.description')}
           />
-          <div className="flex flex-wrap gap-1 border-b border-neutral-200">
+          <div className="flex flex-wrap gap-1 border-b border-sf-border">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setReportTab(tab.id)}
+                onClick={() => {
+                  setReportTab(tab.id);
+                  setReportData(null);
+                  setReportError(null);
+                }}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t border-b-2 -mb-px transition-colors ${
                   reportTab === tab.id
-                    ? 'border-sf-navy text-sf-navy bg-neutral-50'
-                    : 'border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                    ? 'border-sf-navy text-sf-navy bg-sf-soft'
+                    : 'border-transparent text-sf-quiet hover:text-sf-text hover:bg-sf-soft'
                 }`}
               >
                 {tab.icon}
@@ -297,6 +402,7 @@ export const Reports: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>
+                {reportTab === 'commission' && t('pages.reports.commissionReport')}
                 {reportTab === 'ledger' && t('pages.reports.ledgerReport')}
                 {reportTab === 'client-wise' && t('pages.reports.clientWiseReport')}
                 {reportTab === 'date-range' && t('pages.reports.dateRangeReport')}
@@ -305,32 +411,50 @@ export const Reports: React.FC = () => {
             <CardContent>
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-neutral-700">{t('common.from')}</label>
+                  <label className="text-sm font-medium text-sf-text" htmlFor="report-from">{t('common.from')}</label>
                   <input
+                    id="report-from"
                     type="date"
                     value={reportFrom}
                     onChange={(e) => setReportFrom(e.target.value)}
-                    className="border border-neutral-300 rounded px-3 py-2 text-sm"
+                    className="border border-sf-border rounded px-3 py-2 text-sm"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-neutral-700">{t('common.to')}</label>
+                  <label className="text-sm font-medium text-sf-text" htmlFor="report-to">{t('common.to')}</label>
                   <input
+                    id="report-to"
                     type="date"
                     value={reportTo}
                     onChange={(e) => setReportTo(e.target.value)}
-                    className="border border-neutral-300 rounded px-3 py-2 text-sm"
+                    className="border border-sf-border rounded px-3 py-2 text-sm"
                   />
                 </div>
-                {reportTab === 'ledger' && (
+                {reportTab === 'ledger' && userRole === 'kam' && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-neutral-700">{t('pages.reports.clientIdOptional')}</label>
+                    <label className="text-sm font-medium text-sf-text" htmlFor="kam-client-filter">{t('common.clientLabel')}</label>
+                    <select
+                      id="kam-client-filter"
+                      value={reportClientId}
+                      onChange={(e) => setReportClientId(e.target.value)}
+                      className="border border-sf-border rounded px-3 py-2 text-sm min-w-[180px] bg-sf-surface text-sf-text"
+                    >
+                      <option value="">{t('pages.reports.allClients')}</option>
+                      {kamClients.map((client) => (
+                        <option key={client.id} value={client.id}>{client.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {reportTab === 'ledger' && userRole !== 'kam' && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium text-sf-text">{t('pages.reports.clientIdOptional')}</label>
                     <input
                       type="text"
                       value={reportClientId}
                       onChange={(e) => setReportClientId(e.target.value)}
                       placeholder={t('pages.reports.filterByClient')}
-                      className="border border-neutral-300 rounded px-3 py-2 text-sm min-w-[140px]"
+                      className="border border-sf-border rounded px-3 py-2 text-sm min-w-[140px] bg-sf-surface text-sf-text"
                     />
                   </div>
                 )}
@@ -339,33 +463,62 @@ export const Reports: React.FC = () => {
                 </Button>
               </div>
               {reportError && (
-                <div className="mt-4 p-3 rounded bg-red-50 text-red-800 text-sm flex items-center gap-2">
+                <div className="mt-4 p-3 rounded bg-sf-soft text-sf-error text-sm flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   {reportError}
                 </div>
               )}
-              {reportData && reportTab === 'ledger' && (
+              {reportData && reportIsEmpty(reportTab, reportData) && (
+                <p className="mt-6 text-sm text-sf-quiet">{t('pages.reports.noDataForPeriod')}</p>
+              )}
+              {reportData && reportTab === 'commission' && !reportIsEmpty(reportTab, reportData) && (
+                <div className="mt-6 overflow-x-auto">
+                  <table className="w-full text-sm border border-sf-border">
+                    <thead>
+                      <tr className="bg-sf-soft border-b border-sf-border">
+                        <th className="text-left p-2">{t('pages.reports.month')}</th>
+                        <th className="text-right p-2">{t('pages.reports.totalPayouts')}</th>
+                        <th className="text-right p-2">{t('pages.reports.totalPayins')}</th>
+                        <th className="text-right p-2">{t('pages.reports.net')}</th>
+                        <th className="text-right p-2">{t('pages.reports.transactions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reportData.months as Record<string, unknown>[]).map((month) => (
+                        <tr key={String(month.month)} className="border-b border-sf-border">
+                          <td className="p-2">{String(month.month)}</td>
+                          <td className="p-2 text-right">{formatCurrency(Number(month.totalPayoutAmount ?? 0))}</td>
+                          <td className="p-2 text-right">{formatCurrency(Number(month.totalPayinAmount ?? 0))}</td>
+                          <td className="p-2 text-right">{formatCurrency(Number(month.net ?? 0))}</td>
+                          <td className="p-2 text-right">{Number(month.transactionCount ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {reportData && reportTab === 'ledger' && !reportIsEmpty(reportTab, reportData) && (
                 <div className="mt-6 space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="bg-neutral-50 rounded-lg p-3">
-                      <p className="text-xs text-neutral-500 uppercase">{t('pages.reports.totalPayouts')}</p>
-                      <p className="text-lg font-semibold text-neutral-900">
+                    <div className="bg-sf-soft rounded-lg p-3">
+                      <p className="text-xs text-sf-quiet uppercase">{t('pages.reports.totalPayouts')}</p>
+                      <p className="text-lg font-semibold text-sf-text">
                         {formatCurrency(Number(reportData.totalPayoutAmount ?? 0))}
                       </p>
-                      <p className="text-xs text-neutral-500">{t('pages.reports.entriesCount', { count: Number(reportData.payoutCount ?? 0) })}</p>
+                      <p className="text-xs text-sf-quiet">{t('pages.reports.entriesCount', { count: Number(reportData.payoutCount ?? 0) })}</p>
                     </div>
-                    <div className="bg-neutral-50 rounded-lg p-3">
-                      <p className="text-xs text-neutral-500 uppercase">{t('pages.reports.totalPayins')}</p>
-                      <p className="text-lg font-semibold text-neutral-900">
+                    <div className="bg-sf-soft rounded-lg p-3">
+                      <p className="text-xs text-sf-quiet uppercase">{t('pages.reports.totalPayins')}</p>
+                      <p className="text-lg font-semibold text-sf-text">
                         {formatCurrency(Number(reportData.totalPayinAmount ?? 0))}
                       </p>
-                      <p className="text-xs text-neutral-500">{t('pages.reports.entriesCount', { count: Number(reportData.payinCount ?? 0) })}</p>
+                      <p className="text-xs text-sf-quiet">{t('pages.reports.entriesCount', { count: Number(reportData.payinCount ?? 0) })}</p>
                     </div>
                   </div>
                   <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-sm border border-neutral-200">
+                    <table className="w-full text-sm border border-sf-border">
                       <thead>
-                        <tr className="bg-neutral-50 border-b border-neutral-200">
+                        <tr className="bg-sf-soft border-b border-sf-border">
                           <th className="text-left p-2">{t('common.date')}</th>
                           <th className="text-left p-2">{t('common.clientLabel')}</th>
                           <th className="text-right p-2">{t('common.amount')}</th>
@@ -375,7 +528,7 @@ export const Reports: React.FC = () => {
                       <tbody>
                         {Array.isArray(reportData.entries) &&
                           (reportData.entries as Record<string, unknown>[]).map((entry, i) => (
-                            <tr key={i} className="border-b border-neutral-100">
+                            <tr key={i} className="border-b border-sf-border">
                               <td className="p-2">{String(entry['Date'] ?? entry.date ?? '-')}</td>
                               <td className="p-2">{String(entry['Client'] ?? entry.client ?? '-')}</td>
                               <td className="p-2 text-right">
@@ -387,39 +540,39 @@ export const Reports: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
-                  <div className="md:hidden divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
+                  <div className="md:hidden divide-y divide-sf-border border border-sf-border rounded-lg">
                     {Array.isArray(reportData.entries) &&
                       (reportData.entries as Record<string, unknown>[]).map((entry, i) => (
                         <div key={i} className="p-4 space-y-2">
                           <div className="flex justify-between gap-2 py-1">
-                            <span className="text-sm font-medium text-neutral-700">{t('common.date')}</span>
-                            <span className="text-sm text-neutral-900">{String(entry['Date'] ?? entry.date ?? '-')}</span>
+                            <span className="text-sm font-medium text-sf-text">{t('common.date')}</span>
+                            <span className="text-sm text-sf-text">{String(entry['Date'] ?? entry.date ?? '-')}</span>
                           </div>
                           <div className="flex justify-between gap-2 py-1">
-                            <span className="text-sm font-medium text-neutral-700">{t('common.clientLabel')}</span>
-                            <span className="text-sm text-neutral-900 text-right">{String(entry['Client'] ?? entry.client ?? '-')}</span>
+                            <span className="text-sm font-medium text-sf-text">{t('common.clientLabel')}</span>
+                            <span className="text-sm text-sf-text text-right">{String(entry['Client'] ?? entry.client ?? '-')}</span>
                           </div>
                           <div className="flex justify-between gap-2 py-1">
-                            <span className="text-sm font-medium text-neutral-700">{t('common.amount')}</span>
-                            <span className="text-sm text-neutral-900">
+                            <span className="text-sm font-medium text-sf-text">{t('common.amount')}</span>
+                            <span className="text-sm text-sf-text">
                               {formatCurrency(Number(entry['Payout Amount'] ?? entry.payoutAmount ?? 0))}
                             </span>
                           </div>
                           <div className="flex justify-between gap-2 py-1">
-                            <span className="text-sm font-medium text-neutral-700">{t('common.description')}</span>
-                            <span className="text-sm text-neutral-900 text-right">{String(entry['Description'] ?? entry.description ?? '-')}</span>
+                            <span className="text-sm font-medium text-sf-text">{t('common.description')}</span>
+                            <span className="text-sm text-sf-text text-right">{String(entry['Description'] ?? entry.description ?? '-')}</span>
                           </div>
                         </div>
                       ))}
                   </div>
                 </div>
               )}
-              {reportData && reportTab === 'client-wise' && (
+              {reportData && reportTab === 'client-wise' && !reportIsEmpty(reportTab, reportData) && (
                 <>
                 <div className="mt-6 hidden md:block overflow-x-auto">
-                  <table className="w-full text-sm border border-neutral-200">
+                  <table className="w-full text-sm border border-sf-border">
                     <thead>
-                      <tr className="bg-neutral-50 border-b border-neutral-200">
+                      <tr className="bg-sf-soft border-b border-sf-border">
                         <th className="text-left p-2">{t('common.clientLabel')}</th>
                         <th className="text-left p-2">{t('pages.reports.clientName')}</th>
                         <th className="text-right p-2">{t('pages.reports.totalPayouts')}</th>
@@ -430,7 +583,7 @@ export const Reports: React.FC = () => {
                     <tbody>
                       {Array.isArray(reportData.clients) &&
                         (reportData.clients as Record<string, unknown>[]).map((c, i) => (
-                          <tr key={i} className="border-b border-neutral-100">
+                          <tr key={i} className="border-b border-sf-border">
                             <td className="p-2">{String(c.clientId ?? '-')}</td>
                             <td className="p-2">{String(c.clientName ?? '-')}</td>
                             <td className="p-2 text-right">{formatCurrency(Number(c.totalPayoutAmount ?? 0))}</td>
@@ -441,40 +594,40 @@ export const Reports: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-6 md:hidden divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
+                <div className="mt-6 md:hidden divide-y divide-sf-border border border-sf-border rounded-lg">
                   {Array.isArray(reportData.clients) &&
                     (reportData.clients as Record<string, unknown>[]).map((c, i) => (
                       <div key={i} className="p-4 space-y-2">
                         <div className="flex justify-between gap-2 py-1">
-                          <span className="text-sm font-medium text-neutral-700">{t('common.clientLabel')}</span>
-                          <span className="text-sm text-neutral-900">{String(c.clientId ?? '-')}</span>
+                          <span className="text-sm font-medium text-sf-text">{t('common.clientLabel')}</span>
+                          <span className="text-sm text-sf-text">{String(c.clientId ?? '-')}</span>
                         </div>
                         <div className="flex justify-between gap-2 py-1">
-                          <span className="text-sm font-medium text-neutral-700">{t('pages.reports.clientName')}</span>
-                          <span className="text-sm text-neutral-900 text-right">{String(c.clientName ?? '-')}</span>
+                          <span className="text-sm font-medium text-sf-text">{t('pages.reports.clientName')}</span>
+                          <span className="text-sm text-sf-text text-right">{String(c.clientName ?? '-')}</span>
                         </div>
                         <div className="flex justify-between gap-2 py-1">
-                          <span className="text-sm font-medium text-neutral-700">{t('pages.reports.totalPayouts')}</span>
-                          <span className="text-sm text-neutral-900">{formatCurrency(Number(c.totalPayoutAmount ?? 0))}</span>
+                          <span className="text-sm font-medium text-sf-text">{t('pages.reports.totalPayouts')}</span>
+                          <span className="text-sm text-sf-text">{formatCurrency(Number(c.totalPayoutAmount ?? 0))}</span>
                         </div>
                         <div className="flex justify-between gap-2 py-1">
-                          <span className="text-sm font-medium text-neutral-700">{t('pages.reports.totalPayins')}</span>
-                          <span className="text-sm text-neutral-900">{formatCurrency(Number(c.totalPayinAmount ?? 0))}</span>
+                          <span className="text-sm font-medium text-sf-text">{t('pages.reports.totalPayins')}</span>
+                          <span className="text-sm text-sf-text">{formatCurrency(Number(c.totalPayinAmount ?? 0))}</span>
                         </div>
                         <div className="flex justify-between gap-2 py-1">
-                          <span className="text-sm font-medium text-neutral-700">{t('common.entries')}</span>
-                          <span className="text-sm text-neutral-900">{Number(c.entryCount ?? 0)}</span>
+                          <span className="text-sm font-medium text-sf-text">{t('common.entries')}</span>
+                          <span className="text-sm text-sf-text">{Number(c.entryCount ?? 0)}</span>
                         </div>
                       </div>
                     ))}
                 </div>
                 </>
               )}
-              {reportData && reportTab === 'date-range' && (
+              {reportData && reportTab === 'date-range' && !reportIsEmpty(reportTab, reportData) && (
                 <div className="mt-6">
-                  <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
-                    <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-mono">
-                      {String(reportData.summaryContent ?? t('pages.reports.noSummary'))}
+                  <div className="bg-sf-soft rounded-lg p-4 border border-sf-border">
+                    <pre className="text-sm text-sf-text whitespace-pre-wrap font-mono">
+                      {stripScopeMarker(String(reportData.summaryContent ?? t('pages.reports.noSummary')))}
                     </pre>
                   </div>
                 </div>
@@ -489,8 +642,8 @@ export const Reports: React.FC = () => {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-neutral-900">{t('pages.reports.dailySummaryTitle')}</h2>
-              <p className="text-sm text-neutral-600 mt-1">
+              <h2 className="text-lg font-semibold text-sf-text">{t('pages.reports.dailySummaryTitle')}</h2>
+              <p className="text-sm text-sf-quiet mt-1">
                 {t('pages.reports.dailySummaryDescription')}
               </p>
             </div>
@@ -506,7 +659,7 @@ export const Reports: React.FC = () => {
               >
                 {t('common.refresh')}
               </Button>
-              {(userRole === 'credit_team' || userRole === 'admin') && (
+              {canGenerate && !noAssignedClients && (
                 <Button
                   variant="primary"
                   icon={Mail}
@@ -514,12 +667,12 @@ export const Reports: React.FC = () => {
                   loading={generating}
                   disabled={generating}
                 >
-                  {t('pages.reports.generateTodayReport')}
+                  {generateLabel}
                 </Button>
               )}
             </div>
           </div>
-          {(userRole === 'credit_team' || userRole === 'admin') && (
+          {canGenerate && (
             <div className="max-w-md">
               <Input
                 id="email-recipients"
@@ -542,17 +695,17 @@ export const Reports: React.FC = () => {
             {latestLoading ? (
               <div className="flex items-center gap-3 py-4">
                 <div className="animate-spin w-8 h-8 border-2 border-sf-navy border-t-transparent rounded-full" />
-                <span className="text-sm text-neutral-500">{t('pages.reports.loadingLatestReport')}</span>
+                <span className="text-sm text-sf-quiet">{t('pages.reports.loadingLatestReport')}</span>
               </div>
             ) : latestReport ? (
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <Calendar className="w-5 h-5 text-neutral-400" />
-                  <span className="font-medium text-neutral-900">
+                  <Calendar className="w-5 h-5 text-sf-quiet" />
+                  <span className="font-medium text-sf-text">
                     {t('pages.reports.reportFor', { date: formatDate(latestReport.reportDate) })}
                   </span>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-neutral-600 mb-3">
+                <div className="flex items-center gap-4 text-sm text-sf-quiet mb-3">
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
                     <span>{t('pages.reports.generated')} {formatDateTime(latestReport.generatedTimestamp)}</span>
@@ -564,8 +717,8 @@ export const Reports: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
-                  <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-mono line-clamp-6">
+                <div className="bg-sf-soft rounded-lg p-4 border border-sf-border">
+                  <pre className="text-sm text-sf-text whitespace-pre-wrap font-mono line-clamp-6">
                     {latestReport.summaryContent.length > 200
                       ? `${latestReport.summaryContent.slice(0, 200)}...`
                       : latestReport.summaryContent}
@@ -583,11 +736,11 @@ export const Reports: React.FC = () => {
               </div>
             ) : (
               <div className="text-center py-6">
-                <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-                <p className="text-neutral-600 mb-3">{t('pages.reports.noReportYet')}</p>
-                {(userRole === 'credit_team' || userRole === 'admin') && (
+                <BarChart3 className="w-12 h-12 text-sf-border mx-auto mb-3" />
+                <p className="text-sf-quiet mb-3">{t('pages.reports.noReportYet')}</p>
+                {canGenerate && (
                   <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
-                    {t('pages.reports.generateTodayReport')}
+                    {generateLabel}
                   </Button>
                 )}
               </div>
@@ -603,9 +756,9 @@ export const Reports: React.FC = () => {
           <CardContent>
             {reportsError ? (
               <div className="text-center py-12">
-                <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">{t('pages.reports.couldNotLoadReports')}</h3>
-                <p className="text-neutral-600 mb-4">{reportsError}</p>
+                <AlertCircle className="w-12 h-12 text-sf-error mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-sf-text mb-2">{t('pages.reports.couldNotLoadReports')}</h3>
+                <p className="text-sf-quiet mb-4">{reportsError}</p>
                 <Button variant="primary" icon={RefreshCw} onClick={fetchReports}>
                   {t('common.retry')}
                 </Button>
@@ -613,35 +766,35 @@ export const Reports: React.FC = () => {
             ) : loading ? (
               <div className="text-center py-10">
                 <div className="animate-spin w-8 h-8 border-4 border-sf-navy border-t-transparent rounded-full mx-auto mb-2" />
-                <p className="text-sm text-neutral-500">{t('pages.reports.loadingReports')}</p>
+                <p className="text-sm text-sf-quiet">{t('pages.reports.loadingReports')}</p>
               </div>
             ) : reports.length === 0 ? (
               <div className="text-center py-12">
-                <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">{t('pages.reports.noReports')}</h3>
-                <p className="text-neutral-600 mb-4">
+                <BarChart3 className="w-12 h-12 text-sf-border mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-sf-text mb-2">{t('pages.reports.noReports')}</h3>
+                <p className="text-sf-quiet mb-4">
                   {t('pages.reports.noReportsHint')}
                 </p>
-                {(userRole === 'credit_team' || userRole === 'admin') && (
+                {canGenerate && (
                   <Button variant="primary" icon={Mail} onClick={handleGenerateReport} loading={generating}>
-                    {t('pages.reports.generateFirstReport')}
+                    {generateLabel}
                   </Button>
                 )}
               </div>
             ) : (
               <div className="space-y-4">
                 {reports.map((report) => (
-                  <Card key={report.id} className="border border-neutral-200">
+                  <Card key={report.id} className="border border-sf-border">
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <Calendar className="w-5 h-5 text-neutral-400" />
+                            <Calendar className="w-5 h-5 text-sf-quiet" />
                             <CardTitle className="text-lg">
                               {t('pages.reports.reportFor', { date: formatDate(report.reportDate) })}
                             </CardTitle>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-neutral-600">
+                          <div className="flex items-center gap-4 text-sm text-sf-quiet">
                             <div className="flex items-center gap-1">
                               <Clock className="w-4 h-4" />
                               <span>{t('pages.reports.generated')} {formatDateTime(report.generatedTimestamp)}</span>
@@ -657,8 +810,8 @@ export const Reports: React.FC = () => {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
-                        <pre className="text-sm text-neutral-700 whitespace-pre-wrap font-mono">
+                      <div className="bg-sf-soft rounded-lg p-4 border border-sf-border">
+                        <pre className="text-sm text-sf-text whitespace-pre-wrap font-mono">
                           {report.summaryContent}
                         </pre>
                       </div>
@@ -670,6 +823,8 @@ export const Reports: React.FC = () => {
           </CardContent>
         </Card>
           </>
+        )}
+        </>
         )}
       </div>
     </MainLayout>

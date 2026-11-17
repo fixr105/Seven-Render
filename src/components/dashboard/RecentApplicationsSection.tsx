@@ -6,6 +6,8 @@ import { FileText, Plus } from 'lucide-react';
 import { getStatusDisplayNameForViewer, isClientEditableApplication } from '../../lib/statusUtils';
 import { Edit } from 'lucide-react';
 import type { LoanApplication } from '../../hooks/useApplications';
+import { DoColumnLink } from '../applications/DoColumnLink';
+import { readDashboardDoUrl } from '../../lib/doApproval';
 
 export type RecentApplicationsRole = 'client' | 'kam' | 'credit';
 
@@ -21,6 +23,7 @@ export interface ApplicationRow {
   statusKey: string;
   lastUpdate: string;
   formData?: Record<string, unknown>;
+  doUrl: string;
 }
 
 export interface RecentApplicationsSectionProps {
@@ -69,6 +72,10 @@ function mapToTableData(applications: LoanApplication[], role: RecentApplication
     status: formatStatus(app, role),
     statusKey: app.status,
     formData: app.form_data,
+    doUrl: readDashboardDoUrl({
+      DO: (app as LoanApplication & { DO?: unknown }).DO,
+      form_data: app.form_data,
+    }),
     lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -147,6 +154,11 @@ export function RecentApplicationsSection({
       ),
     },
     { key: 'lastUpdate', label: 'Last Update', sortable: true },
+    {
+      key: 'doUrl',
+      label: 'DO',
+      render: (value) => <DoColumnLink value={String(value ?? '')} />,
+    },
     ...(role === 'client' && onContinueEdit
       ? [
           {

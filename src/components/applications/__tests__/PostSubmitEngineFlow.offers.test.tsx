@@ -25,6 +25,7 @@ vi.mock('../../../services/engineClient', async () => {
 
 vi.mock('../../../lib/kycRequiredDocs', () => ({
   areRequiredKycDocsUploaded: () => true,
+  hasCompletedWizardKycDocuments: () => false,
 }));
 
 vi.mock('../../../lib/lenderBrePricing', async (importOriginal) => {

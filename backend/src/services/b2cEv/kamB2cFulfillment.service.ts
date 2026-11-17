@@ -12,6 +12,7 @@ export type { ComplianceItemId } from './kamB2cFulfillment.logic.js';
 export {
   buildCompliancePatch,
   buildDoFulfillPatch,
+  buildDoChecklistPatch,
   buildDoClearRequestPatch,
   formatComplianceAuditMessage,
   formatDoAuditMessage,

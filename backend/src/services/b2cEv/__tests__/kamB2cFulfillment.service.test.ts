@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   buildCompliancePatch,
+  buildDoChecklistPatch,
   buildDoClearRequestPatch,
   buildDoFulfillPatch,
   formatComplianceAuditMessage,
@@ -29,6 +30,38 @@ describe('kamB2cFulfillment.service', () => {
     expect(merged['_meta.doRequest.fulfilledBy']).toBe('kam@test.local');
     expect(merged['_meta.doRequest.status']).toBe('approved');
     expect(merged['_meta.doRequest.fulfillmentNotes']).toBe('Done');
+  });
+
+  it('saves the checklist without fulfilling the DO', () => {
+    const approval = {
+      checklist: ['Aadhaar OTP done on Fintree'],
+      approvedBy: 'kam@test.local',
+      approvedAt: '2026-11-17T10:00:00.000Z',
+    };
+    const merged = buildDoChecklistPatch(
+      { '_meta.doRequest.requestedAt': '2026-01-01' },
+      approval
+    );
+    expect(merged['_meta.doApproval']).toMatchObject(approval);
+    expect(merged['_meta.doRequest.fulfilledAt']).toBeUndefined();
+  });
+
+  it('fulfills only when the PDF approval is included', () => {
+    const approval = {
+      checklist: ['eNACH done'],
+      approvedBy: 'kam@test.local',
+      approvedAt: '2026-11-17T10:00:00.000Z',
+      doUrl: 'https://files.example/do.pdf',
+      doFileName: 'DO.pdf',
+      doGeneratedAt: '2026-11-17T10:01:00.000Z',
+    };
+    const merged = buildDoFulfillPatch(
+      { '_meta.doRequest.requestedAt': '2026-01-01' },
+      { fulfilledBy: 'kam@test.local', doApproval: approval }
+    );
+    expect(merged['_meta.doRequest.fulfilledAt']).toBeTruthy();
+    expect(merged['_meta.doRequest.status']).toBe('approved');
+    expect(merged['_meta.doApproval']).toMatchObject(approval);
   });
 
   it('buildDoClearRequestPatch stores rejection metadata', () => {

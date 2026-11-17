@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Loader2 } from 'lucide-react';
 import {
   COMPLIANCE_ITEMS,
   type ComplianceItemId,
@@ -15,13 +16,25 @@ import {
   isDoRequested,
 } from '../../../lib/b2cEvDoRequest';
 import { apiService } from '../../../services/api';
-import { completeVkycLink } from '../../../lib/vkycLinks';
+import { completeVkycLink, fetchVkycByFileId, type VkycRow } from '../../../lib/vkycLinks';
 import {
   doStatusLabel,
   isKamComplianceOpen,
   kamComplianceStatusLabel,
 } from '../../../lib/b2cEvStepStatus';
 import { Button } from '../../ui/Button';
+import { Toast } from '../../ui/Toast';
+import { useAuth } from '../../../auth/AuthContext';
+import { airtableWrite, DoPdfGenerationError, requestDoPdf } from '../../../services/engineClient';
+import {
+  buildDoWebhookPayload,
+  defaultDoChecklistTicks,
+  DO_APPROVAL_CHECKLIST,
+  formatDoApprovedWhen,
+  readDoApproval,
+  type DoApprovalRecord,
+} from '../../../lib/doApproval';
+import { KamComplianceChecklist } from './KamComplianceChecklist';
 
 function readString(value: unknown): string {
   if (value == null) return '';
@@ -49,6 +62,54 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   highlightDoRequest = false,
   onUpdated,
 }) => {
+  const [vkycLink, setVkycLink] = useState<VkycRow | null>(null);
+
+  const formFileId = readString(formData['_meta.fileId']);
+  const altFileId = readString(formData.fileId);
+
+  useEffect(() => {
+    const lookupIds = [fileId, formFileId, altFileId]
+      .map((value) => String(value ?? '').trim())
+      .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
+    if (lookupIds.length === 0) {
+      setVkycLink(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      for (const lookupId of lookupIds) {
+        try {
+          const row = await fetchVkycByFileId(lookupId);
+          if (cancelled) return;
+          if (row) {
+            setVkycLink(row);
+            return;
+          }
+        } catch {
+          // Try the next file id. A missing links row still leaves the saved form status.
+        }
+      }
+      if (!cancelled) setVkycLink(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, formFileId, altFileId]);
+
+  useEffect(() => {
+    setLocalForm(formData);
+  }, [formData]);
+
+  const reviewFormData = useMemo(() => {
+    if (!vkycLink?.status || readString(formData['_meta.vkyc.status'])) return formData;
+    return {
+      ...formData,
+      '_meta.vkyc.status': vkycLink.status,
+      '_meta.vkyc.requestedAt': vkycLink.requested_at || formData['_meta.vkyc.requestedAt'],
+      '_meta.kamRequests.vkyc.requestedAt':
+        readString(formData['_meta.kamRequests.vkyc.requestedAt']) || vkycLink.requested_at,
+    };
+  }, [formData, vkycLink]);
   const { doRequest } = extractPendingB2cActions(formData);
   const documentReadiness = getRequiredDocumentReadiness(formData, formConfig);
   const doRequested = isDoRequested(formData);
@@ -56,9 +117,106 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   const doRejectionReason = getDoRejectionReason(formData);
   const doRejectedOnRecord = hasDoRejectionOnRecord(formData);
   const canManageCompliance = userRole === 'kam' && Boolean(applicationId);
+  const canApproveDo = (userRole === 'kam' || userRole === 'admin') && Boolean(applicationId);
+  const { user } = useAuth();
+  const [localForm, setLocalForm] = useState(formData);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [checklistOpen, setChecklistOpen] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<boolean[]>(() =>
+    DO_APPROVAL_CHECKLIST.map(() => false)
+  );
+  const [sendingDo, setSendingDo] = useState(false);
+  const [doSendError, setDoSendError] = useState<string | null>(null);
+  const [doErrorKind, setDoErrorKind] = useState<'http' | 'failed' | 'network' | null>(null);
+  const [doToast, setDoToast] = useState<string | null>(null);
+  const [sentDo, setSentDo] = useState<DoApprovalRecord | null>(null);
+  const savedApprovalRef = useRef<DoApprovalRecord | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+
+  const storedApproval = readDoApproval(formData);
+  const approvedRecord = storedApproval?.doUrl ? storedApproval : sentDo;
+  const allChecksTicked = checkedItems.every(Boolean);
+
+  const sendDo = async (retry: boolean) => {
+    if (!applicationId || sendingDo) return;
+    if (!retry && !allChecksTicked) return;
+    setSendingDo(true);
+    setDoSendError(null);
+    setDoErrorKind(null);
+    try {
+      let approval = savedApprovalRef.current;
+      if (!retry || !approval) {
+        approval = {
+          checklist: [...DO_APPROVAL_CHECKLIST],
+          approvedBy: user?.email || '',
+          approvedAt: new Date().toISOString(),
+        };
+        const saved = await apiService.kamB2cDoRequestAction(applicationId, {
+          action: 'save_checklist',
+          doApproval: approval,
+        });
+        if (!saved.success) {
+          throw new Error(saved.error || 'Failed to save DO checklist');
+        }
+        savedApprovalRef.current = approval;
+      }
+      const pdf = await requestDoPdf(
+        buildDoWebhookPayload({
+          formData,
+          fileId: fileId || readString(formData['_meta.fileId']) || readString(formData.fileId),
+          applicationId,
+          approvedBy: approval.approvedBy,
+          approvedAt: approval.approvedAt,
+        })
+      );
+      const completed: DoApprovalRecord = {
+        ...approval,
+        doUrl: pdf.url,
+        doFileName: pdf.fileName,
+        doGeneratedAt: new Date().toISOString(),
+      };
+      const fulfilled = await apiService.kamB2cDoRequestAction(applicationId, {
+        action: 'fulfill',
+        doApproval: completed,
+      });
+      if (!fulfilled.success) {
+        throw new Error(fulfilled.error || 'Failed to update DO request');
+      }
+      if (String(applicationId).startsWith('rec')) {
+        try {
+          await airtableWrite({
+            table: 'Loan Applications',
+            record_id: applicationId,
+            fields: { DO: pdf.url },
+          });
+        } catch (columnError) {
+          console.error('[DO approval] DO column write failed', columnError);
+        }
+      }
+      setSentDo(completed);
+      setChecklistOpen(false);
+      setDoToast('DO sent ✓');
+      onUpdated?.();
+      window.dispatchEvent(new Event('dashboard:refresh'));
+    } catch (error: unknown) {
+      if (error instanceof DoPdfGenerationError) {
+        setDoErrorKind('failed');
+        setDoSendError(error.message);
+      } else if (error instanceof Error && error.message === 'Could not generate DO. Try again.') {
+        setDoErrorKind('http');
+        setDoSendError(error.message);
+      } else if (error instanceof Error && error.message === 'No response. Check with ops.') {
+        setDoErrorKind('network');
+        setDoSendError(error.message);
+      } else {
+        setDoErrorKind('failed');
+        setDoSendError(error instanceof Error ? error.message : 'Failed to update DO request');
+      }
+    } finally {
+      setSendingDo(false);
+    }
+  };
 
   const runDoAction = async (action: 'fulfill' | 'clear_request', rejectionReason?: string) => {
     if (!applicationId) return;
@@ -84,9 +242,9 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
 
   const highlightedItemId = useMemo(() => {
     if (highlightComplianceItem) return highlightComplianceItem;
-    const pending = COMPLIANCE_ITEMS.find((item) => isKamComplianceOpen(formData, item.id));
+    const pending = COMPLIANCE_ITEMS.find((item) => isKamComplianceOpen(reviewFormData, item.id));
     return pending?.id;
-  }, [formData, highlightComplianceItem]);
+  }, [reviewFormData, highlightComplianceItem]);
 
   const runComplianceAction = async (
     itemId: ComplianceItemId,
@@ -127,6 +285,16 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
       className="space-y-4 border-t border-neutral-200 pt-4"
       data-testid="b2c-compliance-review"
     >
+      <KamComplianceChecklist
+        formData={localForm}
+        applicationId={applicationId}
+        fileId={fileId}
+        userRole={userRole}
+        confirmedBy={user?.email || ''}
+        onFormData={setLocalForm}
+        onUpdated={onUpdated}
+      />
+
       <div>
         <h4 className="text-sm font-semibold text-neutral-900">Compliance checklist</h4>
         <p className="mt-1 text-sm text-neutral-600">
@@ -136,9 +304,9 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
 
       <div className="space-y-3">
         {COMPLIANCE_ITEMS.map((item) => {
-          const open = isKamComplianceOpen(formData, item.id);
-          const statusLabel = kamComplianceStatusLabel(formData, item.id);
-          const requestedAt = readString(formData[item.requestedAtKey]);
+          const open = isKamComplianceOpen(reviewFormData, item.id);
+          const statusLabel = kamComplianceStatusLabel(reviewFormData, item.id);
+          const requestedAt = readString(reviewFormData[item.requestedAtKey]);
           const isHighlighted = highlightedItemId === item.id;
 
           return (
@@ -228,30 +396,132 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
               Rejection reason: {doRejectionReason}
             </p>
           ) : null}
-          {canManageCompliance && doRequested && !doFulfilled && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                disabled={loadingAction != null}
-                onClick={() => void runDoAction('fulfill')}
-                data-testid="do-request-approve"
+          {approvedRecord?.doUrl ? (
+            <div className="mt-3 space-y-2" data-testid="do-approval-done">
+              <p className="text-sm font-medium text-sf-success">DO approved ✓</p>
+              <p className="text-sm text-sf-text">
+                DO approved on {formatDoApprovedWhen(approvedRecord.approvedAt)}
+                {approvedRecord.approvedBy ? ` by ${approvedRecord.approvedBy}` : ''}
+              </p>
+              <a
+                href={approvedRecord.doUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium text-sf-navy underline"
+                data-testid="do-approval-view"
               >
-                {loadingAction === 'fulfill' ? 'Saving…' : 'Approve DO'}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={loadingAction != null}
-                onClick={() => setShowRejectModal(true)}
-                data-testid="do-request-reject"
-              >
-                Reject DO
-              </Button>
+                View DO
+              </a>
+            </div>
+          ) : null}
+          {canApproveDo && doRequested && !doFulfilled && !approvedRecord?.doUrl && (
+            <div className="mt-3 space-y-3">
+              {!checklistOpen ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={loadingAction != null}
+                    onClick={() => {
+                      setCheckedItems(defaultDoChecklistTicks(localForm));
+                      setChecklistOpen(true);
+                    }}
+                    className="inline-flex h-11 min-h-[44px] items-center justify-center rounded-lg bg-sf-navy px-4 text-sm font-medium text-white"
+                    data-testid="do-request-approve"
+                  >
+                    Approve DO
+                  </button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={loadingAction != null}
+                    onClick={() => setShowRejectModal(true)}
+                    data-testid="do-request-reject"
+                  >
+                    Reject DO
+                  </Button>
+                </div>
+              ) : (
+                <div data-testid="do-approval-checklist">
+                  <p className="text-sm text-sf-text">Before approving, confirm:</p>
+                  <ul className="mt-2 space-y-2">
+                    {DO_APPROVAL_CHECKLIST.map((label, index) => {
+                      const ticked = checkedItems[index];
+                      return (
+                        <li key={label}>
+                          <label className="flex items-center gap-2 font-sans text-sm text-sf-text">
+                            <input
+                              type="checkbox"
+                              checked={ticked}
+                              disabled={sendingDo}
+                              onChange={(event) => {
+                                const next = [...checkedItems];
+                                next[index] = event.target.checked;
+                                setCheckedItems(next);
+                              }}
+                              data-testid={`do-approval-check-${index}`}
+                            />
+                            {ticked ? <Check className="h-4 w-4 text-sf-success" aria-hidden /> : null}
+                            <span className={ticked ? 'text-sf-success' : ''}>{label}</span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {doSendError ? (
+                    <p className="mt-3 text-sm text-sf-error" role="alert" data-testid="do-approval-error">
+                      {doSendError}
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={sendingDo}
+                      onClick={() => {
+                        setChecklistOpen(false);
+                        setCheckedItems(defaultDoChecklistTicks(localForm));
+                        setDoSendError(null);
+                        setDoErrorKind(null);
+                        savedApprovalRef.current = null;
+                      }}
+                      className="text-sm text-sf-navy disabled:opacity-45"
+                      data-testid="do-approval-cancel"
+                    >
+                      Cancel
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {doErrorKind === 'http' || doErrorKind === 'failed' ? (
+                        <button
+                          type="button"
+                          disabled={sendingDo}
+                          onClick={() => void sendDo(true)}
+                          className="text-sm text-sf-navy underline"
+                          data-testid="do-approval-retry"
+                        >
+                          Retry
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={!allChecksTicked || sendingDo}
+                        onClick={() => void sendDo(false)}
+                        className="inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-lg bg-sf-navy px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-45"
+                        data-testid="do-approval-send"
+                      >
+                        {sendingDo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                        {sendingDo ? 'Sending DO…' : 'Send DO'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+          {doToast ? (
+            <div className="fixed bottom-4 right-4 z-50">
+              <Toast type="success" message={doToast} onClose={() => setDoToast(null)} />
+            </div>
+          ) : null}
         </div>
       )}
 

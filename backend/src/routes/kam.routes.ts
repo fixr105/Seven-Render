@@ -6,11 +6,17 @@ import { Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import { kamController } from '../controllers/kam.controller.js';
 import { ledgerController } from '../controllers/ledger.controller.js';
-import { requireKAM, requireCreditOrKAM } from '../middleware/rbac.middleware.js';
+import { UserRole } from '../config/constants.js';
+import { requireKAM, requireCreditOrKAM, requireRole } from '../middleware/rbac.middleware.js';
 
 const router = Router();
 
 router.use(authenticate);
+router.post(
+  '/loan-applications/:id/b2c/do-request',
+  requireRole(UserRole.KAM, UserRole.ADMIN),
+  kamController.b2cDoRequestAction.bind(kamController)
+);
 router.use(requireKAM);
 
 router.get('/dashboard', kamController.getDashboard.bind(kamController));
@@ -30,7 +36,6 @@ router.get('/clients/:id/link-pool', kamController.getClientLinkPool.bind(kamCon
 router.get('/loan-applications', kamController.listApplications.bind(kamController));
 router.post('/loan-applications/:id/pan-lookup', kamController.lookupApplicationPan.bind(kamController));
 router.post('/loan-applications/:id/b2c/compliance', kamController.b2cComplianceAction.bind(kamController));
-router.post('/loan-applications/:id/b2c/do-request', kamController.b2cDoRequestAction.bind(kamController));
 router.post('/loan-applications/:id/edit', kamController.editApplication.bind(kamController));
 router.post('/loan-applications/:id/status', kamController.updateStatus.bind(kamController));
 router.post('/loan-applications/:id/queries', kamController.raiseQuery.bind(kamController));

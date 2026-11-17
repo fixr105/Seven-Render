@@ -78,6 +78,185 @@ function readApplicantString(applicant: Record<string, unknown>, aliases: string
   return '';
 }
 
+export type ExtractedBureauAddress = {
+  line1: string;
+  line2: string;
+  line3: string;
+  city: string;
+  pin: string;
+  state_code: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function asRecords(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  if (isRecord(value)) return [value];
+  return [];
+}
+
+function parseJsonRecord(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      return isRecord(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return isRecord(raw) ? raw : null;
+}
+
+function addressDedupKey(address: ExtractedBureauAddress): string {
+  return [address.line1, address.line2, address.city, address.pin]
+    .map((part) => part.trim().toLowerCase().replace(/\s+/g, ' '))
+    .join('|');
+}
+
+function pushUniqueAddress(
+  out: ExtractedBureauAddress[],
+  seen: Set<string>,
+  address: ExtractedBureauAddress | null
+) {
+  if (!address) return;
+  const key = addressDedupKey(address);
+  if (!key.replace(/\|/g, '').trim()) return;
+  if (seen.has(key)) return;
+  seen.add(key);
+  out.push(address);
+}
+
+function addressFromStructured(address: Record<string, unknown>): ExtractedBureauAddress | null {
+  const line1 = readAddressString(address, [
+    'line1',
+    'address_line_1',
+    'addressLine1',
+    'address Line 1',
+    'Address Line 1',
+    'address',
+  ]);
+  const line2 = readAddressString(address, [
+    'line2',
+    'address_line_2',
+    'addressLine2',
+    'address Line 2',
+    'Address Line 2',
+  ]);
+  const line3 = readAddressString(address, ['line3', 'address_line_3', 'addressLine3']);
+  const city = readAddressString(address, [
+    'city',
+    'village',
+    'village/City',
+    'Village/City',
+    'village_city',
+  ]);
+  const pin = readAddressString(address, ['pin', 'pincode', 'pin_code', 'postal_code', 'Pincode', 'PINCode']);
+  const state = readAddressString(address, ['state_code', 'state', 'State']);
+  if (!line1 && !line2 && !line3 && !city && !pin) return null;
+  return { line1, line2, line3, city, pin, state_code: state };
+}
+
+function addressFromCurrentApplication(address: Record<string, unknown>): ExtractedBureauAddress | null {
+  const line1 = [readString(address.FlatNoPlotNoHouseNo), readString(address.BldgNoSocietyName)]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  const line2 = readString(address.RoadNoNameAreaLocality);
+  const line3 = readString(address.Landmark);
+  const city = readString(address.City) || line3;
+  const pin = readString(address.PINCode) || readString(address.PinCode);
+  const state = readString(address.State);
+  if (!line1 && !line2 && !city && !pin) return null;
+  return { line1, line2, line3, city, pin, state_code: state };
+}
+
+function addressFromCais(address: Record<string, unknown>): ExtractedBureauAddress | null {
+  const line1 = readString(address.First_Line_Of_Address_non_normalized);
+  const line2 = readString(address.Second_Line_Of_Address_non_normalized);
+  const line3 = readString(address.Third_Line_Of_Address_non_normalized);
+  const city = readString(address.City_non_normalized);
+  const pin = readString(address.ZIP_Postal_Code_non_normalized);
+  const state = readString(address.State_non_normalized);
+  if (!line1 && !line2 && !line3 && !city && !pin) return null;
+  return { line1, line2, line3, city, pin, state_code: state };
+}
+
+function collectStructuredAddresses(
+  applicant: Record<string, unknown> | null,
+  out: ExtractedBureauAddress[],
+  seen: Set<string>
+) {
+  if (!applicant) return;
+  const addresses = applicant.addresses ?? applicant.Addresses ?? applicant.address;
+  for (const address of asRecords(addresses)) {
+    pushUniqueAddress(out, seen, addressFromStructured(address));
+  }
+}
+
+function creditReportFrom(root: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!root) return null;
+  const result = isRecord(root.result) ? root.result : root;
+  if (isRecord(result.credit_report)) return result.credit_report;
+  if (isRecord(root.credit_report)) return root.credit_report;
+  return null;
+}
+
+function collectExperianAddresses(
+  report: Record<string, unknown> | null,
+  out: ExtractedBureauAddress[],
+  seen: Set<string>
+) {
+  if (!report) return;
+  const currentApp = isRecord(report.Current_Application) ? report.Current_Application : null;
+  const details =
+    currentApp && isRecord(currentApp.Current_Application_Details)
+      ? currentApp.Current_Application_Details
+      : null;
+  if (details) {
+    for (const address of asRecords(details.Current_Applicant_Address_Details)) {
+      pushUniqueAddress(out, seen, addressFromCurrentApplication(address));
+    }
+  }
+
+  const caps = isRecord(report.CAPS) ? report.CAPS : null;
+  for (const application of asRecords(caps?.CAPS_Application_Details)) {
+    for (const address of asRecords(application.CAPS_Applicant_Address_Details)) {
+      pushUniqueAddress(out, seen, addressFromCurrentApplication(address));
+    }
+  }
+
+  const cais = isRecord(report.CAIS_Account) ? report.CAIS_Account : null;
+  for (const account of asRecords(cais?.CAIS_Account_DETAILS)) {
+    for (const address of asRecords(account.CAIS_Holder_Address_Details)) {
+      pushUniqueAddress(out, seen, addressFromCais(address));
+    }
+  }
+}
+
+/** Every usable address on a Bureau Cache row, current application first. */
+export function extractBureauAddresses(fields: Record<string, unknown>): ExtractedBureauAddress[] {
+  const out: ExtractedBureauAddress[] = [];
+  const seen = new Set<string>();
+  collectStructuredAddresses(parseApplicant(fields.applicant ?? fields.Applicant), out, seen);
+
+  const resultJson = parseJsonRecord(fields.result_json ?? fields.resultJson ?? fields['Result JSON']);
+  if (resultJson) {
+    collectStructuredAddresses(parseApplicant(resultJson.applicant), out, seen);
+  }
+
+  collectExperianAddresses(
+    creditReportFrom(parseJsonRecord(fields.raw_response ?? fields.rawResponse ?? fields['Raw Response'])),
+    out,
+    seen
+  );
+  collectExperianAddresses(creditReportFrom(resultJson), out, seen);
+  return out;
+}
+
 function pickAddress(applicant: Record<string, unknown>): Record<string, unknown> | null {
   const addresses = applicant.addresses ?? applicant.Addresses ?? applicant.address;
   if (Array.isArray(addresses) && addresses.length > 0) {

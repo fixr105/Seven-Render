@@ -7,6 +7,7 @@ import { ActionBar } from '../dealer-ui/ActionBar';
 import { documentOwner, orderDocumentSlots } from '../dealer-ui/documentOwner';
 import { UploadRow } from '../dealer-ui/UploadRow';
 import { DealerWaiting } from '../dealer-ui/DealerWaiting';
+import { apiService } from '../../services/api';
 import {
   airtableGet,
   airtableWrite,
@@ -76,12 +77,13 @@ import {
   type PostSubmitFlagKey,
 } from '../../lib/postSubmitEngine/resolveResumePhase';
 import { getBorrowerCibilScoreFromFormData } from '../../lib/b2cEvCibilProbability';
-import { areRequiredKycDocsUploaded } from '../../lib/kycRequiredDocs';
+import { areRequiredKycDocsUploaded, hasCompletedWizardKycDocuments } from '../../lib/kycRequiredDocs';
 import { formatEngineSetupError } from '../../lib/engineSetupError';
 import { openKamComplianceRequest } from '../../lib/b2cEvKamRequest';
 import {
   fetchVkycByFileId,
   isVkycDone,
+  markLoanFileVkycRequested,
   requestVkyc,
   type VkycRow,
 } from '../../lib/vkycLinks';
@@ -587,7 +589,7 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
       }
 
       // Jump past documents only when every required slot already has a stored link.
-      if (areRequiredKycDocsUploaded(formData)) {
+      if (areRequiredKycDocsUploaded(formData) || hasCompletedWizardKycDocuments(formData)) {
         const documentsString = String(
           formData['_meta.kycDocuments.documentsString'] || ''
         ).trim();
@@ -912,6 +914,7 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
         existingRecordId: again ? vkycRow?.id : undefined,
       });
       setVkycRow(row);
+      await markLoanFileVkycRequested(fileId, row);
       const kamPatch = await openKamComplianceRequest({
         applicationId: recordId || fileId,
         itemId: 'vkyc',
@@ -931,7 +934,31 @@ export const PostSubmitEngineFlow: React.FC<Props> = ({ session }) => {
       };
       formDataRef.current = nextFormData;
       setFormData(nextFormData);
-      await writeFormData({}, nextFormData);
+      const metaPatch: Record<string, string> = {
+        '_meta.vkyc.recordId': row.id,
+        '_meta.vkyc.status': row.status,
+        '_meta.vkyc.requestedAt': row.requested_at,
+        ...kamPatch,
+      };
+      let saved = false;
+      try {
+        await writeFormData({}, nextFormData);
+        saved = true;
+      } catch {
+        // The loan API below is the copy the KAM checklist reads.
+      }
+      for (const applicationId of [fileId, recordId]) {
+        if (!applicationId) continue;
+        try {
+          const response = await apiService.updateApplicationForm(applicationId, metaPatch);
+          if (response.success) saved = true;
+        } catch {
+          // The other id may still match the loan file the KAM opens.
+        }
+      }
+      if (!saved) {
+        setVkycError('Video KYC was requested, but the file status did not save.');
+      }
     } catch (err) {
       setVkycError(formatEngineSetupError(err, 'VKYC Links'));
     } finally {

@@ -22,6 +22,8 @@ import { StatusBadge, type DealerStatus } from '../components/dealer-ui/StatusBa
 import { buildWizardResumePath } from '../lib/b2cEvWizardResume';
 import { matchIds } from '../utils/idMatcher';
 import { sortApplicationsByUnresolvedQueries } from '../utils/applicationQuerySort';
+import { DoColumnLink } from '../components/applications/DoColumnLink';
+import { readDashboardDoUrl } from '../lib/doApproval';
 
 function dealerStatusWord(label: string): DealerStatus {
   const value = label.toLowerCase();
@@ -287,6 +289,10 @@ export const Applications: React.FC = () => {
         amount: String(amount),
         status:
           statusLabelByKey.get(nk) ?? getStatusDisplayNameForViewer(app.status, userRole || ''),
+        doUrl: readDashboardDoUrl({
+          DO: (app as { DO?: unknown }).DO,
+          form_data: app.form_data,
+        }),
         lastUpdate: new Date(app.updated_at || app.created_at).toLocaleDateString('en-GB', {
           day: '2-digit',
           month: 'short',
@@ -452,6 +458,11 @@ export const Applications: React.FC = () => {
       ),
     },
     { key: 'lastUpdate', label: t('pages.applications.lastUpdate'), sortable: true },
+    {
+      key: 'doUrl',
+      label: 'DO',
+      render: (value) => <DoColumnLink value={String(value ?? '')} />,
+    },
     {
       key: 'actions',
       label: t('common.actions'),

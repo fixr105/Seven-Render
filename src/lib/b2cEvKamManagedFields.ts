@@ -92,6 +92,22 @@ export function collectKamManagedFieldPatch(
     }
   }
 
+  const serverApproval = server['_meta.doApproval'];
+  const localApproval = local['_meta.doApproval'];
+  if (serverApproval != null && JSON.stringify(serverApproval) !== JSON.stringify(localApproval)) {
+    patch['_meta.doApproval'] = serverApproval;
+  }
+
+  for (const key of [
+    '_meta.compliance.ekyc',
+    '_meta.compliance.loanAgreement',
+    '_meta.compliance.enach',
+  ]) {
+    if (server[key] != null && JSON.stringify(server[key]) !== JSON.stringify(local[key])) {
+      patch[key] = server[key];
+    }
+  }
+
   return patch;
 }
 

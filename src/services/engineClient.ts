@@ -12,6 +12,7 @@ import {
 } from '../lib/bureauCacheLookup';
 import type { PanLookupFieldPrefix } from '../lib/b2cEvPanLookup';
 import { extractFilledDocUrl } from '../lib/postSubmitEngine/filledDocUrl';
+import { readDoPdfFromJson } from '../lib/doApproval';
 import { normalizeQualifyPayload } from '../lib/postSubmitEngine/qualifyResult';
 
 export const ENGINE_BASE_ID =
@@ -267,6 +268,56 @@ export async function uploadToUrl(file: File | Blob, filename: string): Promise<
     throw new EngineRequestError('Upload response missing url', res.status, data);
   }
   return url;
+}
+
+const DO_PDF_PATH = '/engine/85af8f18-a251-45a3-b95e-ad593070fd0e';
+export const DO_PDF_TIMEOUT_MS = 120_000;
+
+export class DoPdfGenerationError extends Error {
+  constructor(reason: string) {
+    super(`DO generation failed: ${reason}`);
+    this.name = 'DoPdfGenerationError';
+  }
+}
+
+/** Generate the disbursement-order PDF. One attempt, 120s, no retry. */
+export async function requestDoPdf(
+  payload: Record<string, string>
+): Promise<{ url: string; fileName: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DO_PDF_TIMEOUT_MS);
+  try {
+    const res = await fetch(DO_PDF_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/pdf')) {
+      if (!res.ok) {
+        throw new EngineRequestError('Could not generate DO. Try again.', res.status, null);
+      }
+      const blob = await res.blob();
+      const fileName = 'DO.pdf';
+      const url = await uploadToUrl(blob, fileName);
+      return { url, fileName };
+    }
+    const data = await parseJsonSafe(res);
+    if (!res.ok) {
+      throw new EngineRequestError('Could not generate DO. Try again.', res.status, data);
+    }
+    const parsed = readDoPdfFromJson(data);
+    if (!parsed.ok) {
+      throw new DoPdfGenerationError(parsed.error);
+    }
+    return { url: parsed.url, fileName: parsed.fileName };
+  } catch (err) {
+    if (err instanceof DoPdfGenerationError || err instanceof EngineRequestError) throw err;
+    throw new EngineRequestError('No response. Check with ops.', 408, null);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** @deprecated Prefer uploadToUrl — kept for NTC / legacy call sites. */

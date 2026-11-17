@@ -5,7 +5,9 @@
 import { Request, Response } from 'express';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { dailySummaryService } from '../services/reports/dailySummary.service.js';
-import { LoanStatus } from '../config/constants.js';
+import { filterLedgerEntries, reportVisibleTo, resolveReportScope } from '../services/reports/reportScope.js';
+import { matchIds } from '../utils/idMatcher.js';
+import type { SummaryScopeOptions } from '../services/reports/dailySummary.service.js';
 
 export class ReportsController {
   /**
@@ -28,32 +30,35 @@ export class ReportsController {
    */
   async generateDailySummary(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'credit_team') {
+      if (!req.user || !['credit_team', 'kam', 'admin'].includes(req.user.role)) {
         res.status(403).json({ success: false, error: 'Forbidden' });
         return;
       }
 
       const { date, emailRecipients } = req.body;
       const reportDate = date || new Date().toISOString().split('T')[0];
+      const summaryScope = await this.summaryScopeFor(req);
 
-      // Use daily summary service with overall timeout (60s to prevent hanging requests)
-      const { dailySummaryService } = await import('../services/reports/dailySummary.service.js');
-      
-      // Generate report with timeout wrapper
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Report generation timed out after 60 seconds')), 60000);
+        timeoutId = setTimeout(() => reject(new Error('Report generation timed out after 60 seconds')), 60000);
       });
 
-      const reportData = await Promise.race([
-        dailySummaryService.generateDailySummary(reportDate),
-        timeoutPromise,
-      ]) as any;
-      
-      // Save to database
-      const reportId = await dailySummaryService.saveDailySummary(
-        reportData,
-        emailRecipients
-      );
+      let reportData: Awaited<ReturnType<typeof dailySummaryService.generateDailySummary>>;
+      try {
+        reportData = await Promise.race([
+          dailySummaryService.generateDailySummary(reportDate, summaryScope),
+          timeoutPromise,
+        ]) as Awaited<ReturnType<typeof dailySummaryService.generateDailySummary>>;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+
+      const reportId = await dailySummaryService.saveDailySummary(reportData, {
+        deliveredTo: Array.isArray(emailRecipients) ? emailRecipients : undefined,
+        generatedBy: req.user.email,
+        scope: this.savedScope(req, summaryScope),
+      });
 
       // Send email to management if recipients provided (non-blocking)
       if (emailRecipients && Array.isArray(emailRecipients) && emailRecipients.length > 0) {
@@ -127,8 +132,9 @@ export class ReportsController {
       const { date } = req.params;
       // Fetch only Daily Summary Report table
       const reports = await n8nClient.fetchTable('Daily Summary Report');
+      const visible = reports.filter((report) => reportVisibleTo(report as Record<string, unknown>, req.user));
 
-      const report = reports.find((r) => r['Report Date'] === date);
+      const report = visible.find((r) => r['Report Date'] === date);
 
       if (!report) {
         res.status(404).json({ success: false, error: 'Report not found for this date' });
@@ -160,8 +166,9 @@ export class ReportsController {
 
       const { before } = req.query;
 
-      // Fetch only Daily Summary Report table
-      const reports = await n8nClient.fetchTable('Daily Summary Report');
+      const reports = (await n8nClient.fetchTable('Daily Summary Report')).filter((report) =>
+        reportVisibleTo(report as Record<string, unknown>, req.user)
+      );
 
       // Filter by date if 'before' query param is provided
       let filteredReports = reports;
@@ -214,8 +221,9 @@ export class ReportsController {
 
       const limit = parseInt(req.query.limit as string) || 7;
 
-      // Fetch only Daily Summary Report table
-      const reports = await n8nClient.fetchTable('Daily Summary Report');
+      const reports = (await n8nClient.fetchTable('Daily Summary Report')).filter((report) =>
+        reportVisibleTo(report as Record<string, unknown>, req.user)
+      );
 
       // Sort by date descending (newest first)
       reports.sort((a, b) => {
@@ -287,8 +295,7 @@ export class ReportsController {
         res.status(400).json({ success: false, error: 'Query params from and to (YYYY-MM-DD) are required' });
         return;
       }
-      const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
-      const filtered = this.filterLedgerByRange(ledgerEntries, from, to, clientId);
+      const filtered = await this.scopedLedgerEntries(req, from, to, clientId);
       let totalPayoutAmount = 0;
       let totalPayinAmount = 0;
       let payoutCount = 0;
@@ -336,11 +343,10 @@ export class ReportsController {
         res.status(400).json({ success: false, error: 'Query params from and to (YYYY-MM-DD) are required' });
         return;
       }
-      const [ledgerEntries, clientsRecords] = await Promise.all([
-        n8nClient.fetchTable('Commission Ledger'),
+      const [filtered, clientsRecords] = await Promise.all([
+        this.scopedLedgerEntries(req, from, to),
         n8nClient.fetchTable('Clients').catch(() => []),
       ]);
-      const filtered = this.filterLedgerByRange(ledgerEntries, from, to);
       const clientMap: Record<string, { totalPayoutAmount: number; totalPayinAmount: number; entryCount: number }> = {};
       const nameById: Record<string, string> = {};
       (clientsRecords as any[]).forEach((c) => {
@@ -380,6 +386,89 @@ export class ReportsController {
   }
 
   /**
+   * GET /reports/commission
+   * Monthly payout, payin, net, and transaction counts for the date range.
+   */
+  async getCommissionReport(req: Request, res: Response): Promise<void> {
+    try {
+      const from = (req.query.from as string)?.trim();
+      const to = (req.query.to as string)?.trim();
+      if (!from || !to) {
+        res.status(400).json({ success: false, error: 'Query params from and to (YYYY-MM-DD) are required' });
+        return;
+      }
+      const filtered = await this.scopedLedgerEntries(req, from, to);
+      const byMonth = new Map<string, { totalPayoutAmount: number; totalPayinAmount: number; transactionCount: number }>();
+      filtered.forEach((entry) => {
+        const dateStr = (entry['Date'] || entry.date || '').toString().trim();
+        const dateOnly = dateStr.slice(0, 10);
+        const month = dateOnly.slice(0, 7);
+        if (!byMonth.has(month)) {
+          byMonth.set(month, { totalPayoutAmount: 0, totalPayinAmount: 0, transactionCount: 0 });
+        }
+        const bucket = byMonth.get(month)!;
+        const amount = parseFloat(entry['Payout Amount'] || '0');
+        if (amount > 0) bucket.totalPayoutAmount += amount;
+        else if (amount < 0) bucket.totalPayinAmount += Math.abs(amount);
+        bucket.transactionCount += 1;
+      });
+      const months = Array.from(byMonth.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, agg]) => ({
+          month,
+          totalPayoutAmount: agg.totalPayoutAmount,
+          totalPayinAmount: agg.totalPayinAmount,
+          net: agg.totalPayoutAmount - agg.totalPayinAmount,
+          transactionCount: agg.transactionCount,
+        }));
+      res.json({ success: true, data: { from, to, months } });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to generate commission report',
+      });
+    }
+  }
+
+  /**
+   * Portfolio filter for generation. Credit and admin get an empty options object (every client).
+   */
+  private async summaryScopeFor(req: Request): Promise<SummaryScopeOptions> {
+    const user = req.user;
+    const scope = await resolveReportScope(user);
+    if (!user || scope.unscoped) return {};
+    const clients = await n8nClient.fetchTable('Clients').catch(() => []);
+    const clientNames = (clients as Array<Record<string, unknown>>)
+      .filter((client) =>
+        scope.clientIds.some((id) => matchIds(client.id, id) || matchIds(client['Client ID'], id))
+      )
+      .map((client) => String(client['Client Name'] || client['Primary Contact Name'] || '').trim())
+      .filter((name) => name.length > 0);
+    const who = user.name || user.email;
+    return {
+      clientIds: scope.clientIds,
+      clientNames,
+      heading: `Report for ${who}'s portfolio`,
+    };
+  }
+
+  private savedScope(req: Request, options: SummaryScopeOptions): string {
+    if (!options.clientIds) return 'all';
+    return `kam:${(req.user?.email || '').trim().toLowerCase()}`;
+  }
+
+  /**
+   * Ledger rows in the date range, limited to the caller's clients.
+   * A KAM asking for someone else's clientId gets an empty list.
+   */
+  private async scopedLedgerEntries(req: Request, from: string, to: string, clientId?: string): Promise<any[]> {
+    const scope = await resolveReportScope(req.user);
+    const ledgerEntries = await n8nClient.fetchTable('Commission Ledger');
+    const dated = this.filterLedgerByRange(ledgerEntries, from, to);
+    return filterLedgerEntries(dated, scope, clientId);
+  }
+
+  /**
    * GET /reports/date-range
    * Date-range report: daily-summary-style metrics over [from, to].
    */
@@ -391,7 +480,8 @@ export class ReportsController {
         res.status(400).json({ success: false, error: 'Query params from and to (YYYY-MM-DD) are required' });
         return;
       }
-      const result = await dailySummaryService.generateDateRangeSummary(from, to);
+      const summaryScope = await this.summaryScopeFor(req);
+      const result = await dailySummaryService.generateDateRangeSummary(from, to, summaryScope);
       res.json({
         success: true,
         data: {

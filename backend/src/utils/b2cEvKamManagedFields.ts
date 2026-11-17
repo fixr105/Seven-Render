@@ -21,6 +21,12 @@ const COMPLIANCE_QUERY_ID_KEYS: Record<(typeof COMPLIANCE_CHECKBOX_KEYS)[number]
   'compliance.enachDone': '_meta.kamRequests.enach.queryId',
 };
 
+const COMPLIANCE_CONFIRM_KEYS = [
+  '_meta.compliance.ekyc',
+  '_meta.compliance.loanAgreement',
+  '_meta.compliance.enach',
+] as const;
+
 const DO_META_KEYS = [
   '_meta.doRequest.requestedAt',
   '_meta.doRequest.queryId',
@@ -36,6 +42,11 @@ const DO_META_KEYS = [
 function readString(value: unknown): string {
   if (value == null) return '';
   return String(value).trim();
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
 }
 
 function isComplianceApproved(value: unknown): boolean {
@@ -57,6 +68,17 @@ export function preserveB2cKamManagedFields(
   merged: Record<string, unknown>
 ): Record<string, unknown> {
   const result = { ...merged };
+
+  if (existing['_meta.doApproval'] != null && result['_meta.doApproval'] == null) {
+    result['_meta.doApproval'] = existing['_meta.doApproval'];
+  }
+
+  for (const key of COMPLIANCE_CONFIRM_KEYS) {
+    const saved = asRecord(existing[key]);
+    if (readString(saved?.status) !== 'done') continue;
+    if (readString(asRecord(result[key])?.status) === 'done') continue;
+    result[key] = existing[key];
+  }
 
   for (const checkboxKey of COMPLIANCE_CHECKBOX_KEYS) {
     if (!isComplianceApproved(existing[checkboxKey])) continue;

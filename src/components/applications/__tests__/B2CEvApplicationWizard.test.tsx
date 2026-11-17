@@ -405,7 +405,52 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('b2c-field-borrower-address-village')).toHaveValue('Bhavnagar');
     expect(screen.getByTestId('b2c-field-borrower-address-pincode')).toHaveValue('364002');
     expect(screen.getByText('Address')).toBeInTheDocument();
+    expect(screen.queryByTestId('borrower-bureau-address-select')).not.toBeInTheDocument();
     expect(lookupBureauCacheByPan).not.toHaveBeenCalled();
+  });
+
+  it('lets the borrower pick a second bureau address', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...defaultQualifyPass,
+      applicant: {
+        ...defaultQualifyPass.applicant,
+        addresses: [
+          ...defaultQualifyPass.applicant.addresses,
+          {
+            line1: '88 Lake Road',
+            line2: null,
+            line3: null,
+            city: 'Madurai',
+            state_code: '33',
+            pin: '625001',
+          },
+        ],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await advancePastSection1(user);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('borrower-bureau-address-select')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('b2c-field-borrower-address-line1')).toHaveValue(
+      '107, Villa De Flores, Catholic Society, Vidhyanagar, Bhavnagar'
+    );
+
+    await user.selectOptions(screen.getByTestId('borrower-bureau-address-select'), '1');
+
+    expect(screen.getByTestId('b2c-field-borrower-address-line1')).toHaveValue('88 Lake Road');
+    expect(screen.getByTestId('b2c-field-borrower-address-village')).toHaveValue('Madurai');
+    expect(screen.getByTestId('b2c-field-borrower-address-pincode')).toHaveValue('625001');
+    expect(screen.getByTestId('b2c-field-borrower-address-state')).toHaveValue('Tamil Nadu');
   });
 
   it('shows Finding a lender panel then advances; never shows chances bar', async () => {

@@ -74,6 +74,38 @@ function renderFlow(
   );
 }
 
+const PASS = {
+  ok: true,
+  pass: true,
+  score: 750,
+  bureau_ref: 'AL-WIZARD-KYC',
+  is_ntc: false,
+  failed: [],
+  applicant: {
+    name: 'GOVIND PANDEY',
+    pan: 'HSJPP5704A',
+    mobile: '7355621712',
+  },
+};
+
+const WIZARD_KYC_FORM = {
+  'borrower.customerName': 'GOVIND PANDEY',
+  'borrower.pan': 'HSJPP5704A',
+  'borrower.mobile': '7355621712',
+  'loan.amount': '111725',
+  '_meta.supportPersonType': 'co_applicant',
+  'coApplicant.name': 'SHARAN KRISHNAN S',
+  'coApplicant.pan': 'ABCDE1234F',
+  'coApplicant.mobile': '9876543210',
+  '_meta.kycDocuments.documentsString':
+    'field-1a.1:https://cdn.example/pan.jpg|pan.jpg,co_applicant_pan:https://cdn.example/co.pdf|SF M Sep 26 1.pdf',
+  '_meta.kycDocuments.uploads': {
+    'field-1a.1': { url: 'https://cdn.example/pan.jpg', filename: 'pan.jpg' },
+    'field-1a.2': { url: 'https://cdn.example/aadhaar.jpg', filename: 'aadhaar.jpg' },
+    co_applicant_pan: { url: 'https://cdn.example/co.pdf', filename: 'SF M Sep 26 1.pdf' },
+  },
+};
+
 const NTC_ONLY = {
   ok: true,
   pass: false,
@@ -93,6 +125,25 @@ describe('PostSubmitEngineFlow qualify hard gate (BYYPP3849P)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(engineClient.qualifyApplicant).mockResolvedValue(GAURAV_FAIL);
+  });
+
+  it('skips Upload documents after Request DO when wizard KYC files are already stored', async () => {
+    vi.mocked(engineClient.qualifyApplicant).mockResolvedValue(PASS);
+    renderFlow(null, WIZARD_KYC_FORM);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Upload documents/i)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Matching lenders for your application/i) ||
+          screen.queryByTestId('post-submit-offers-error')
+      ).toBeTruthy();
+    });
+
+    const wroteDocuments = vi.mocked(engineClient.airtableWrite).mock.calls.some((call) => {
+      const arg = call[0] as { fields?: { Documents?: string } };
+      return String(arg.fields?.Documents || '').includes('field-1a.1:https://cdn.example/pan.jpg');
+    });
+    expect(wroteDocuments).toBe(true);
   });
 
   it('stops at rejection when live qualify returns pass:false — never shows documents or offers', async () => {
