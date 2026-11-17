@@ -414,7 +414,16 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
               </a>
             </div>
           ) : null}
-          {canApproveDo && doRequested && !doFulfilled && !approvedRecord?.doUrl && (
+          {doFulfilled && fileId ? (
+            <a
+              href={`/dealer/delivery/${encodeURIComponent(fileId)}`}
+              className="mt-3 inline-flex text-sm font-medium text-sf-navy underline"
+              data-testid="do-next-steps"
+            >
+              Next: Insurance and Vehicle
+            </a>
+          ) : null}
+          {canApproveDo && doRequested && !approvedRecord?.doUrl && (
             <div className="mt-3 space-y-3">
               {!checklistOpen ? (
                 <div className="flex flex-wrap gap-2">

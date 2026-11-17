@@ -36,6 +36,7 @@ import {
   type AirtableFlatRecord,
 } from '../services/engineClient';
 import { apiService } from '../services/api';
+import { isDeliveryCardOpen } from '../lib/b2cEvDoRequest';
 
 const LOAN_TABLE = 'Loan Applications';
 const DEADLINE_CHECK_MS = 30_000;
@@ -797,8 +798,10 @@ export const DealerDeliveryPage: React.FC = () => {
   const allDone = done.geo && done.insurance && done.vehicle && done.iot;
   const completedAt = readText(formData, DELIVERY_COMPLETED_KEY);
   const deliveryComplete = Boolean(completedAt) && allDone;
-  const unlocked = isSigningSent(formData);
-  const interactionDisabled = !unlocked || deliveryComplete;
+  const signingSent = isSigningSent(formData);
+  const insuranceOpen = isDeliveryCardOpen(formData, 'insurance', signingSent);
+  const vehicleOpen = isDeliveryCardOpen(formData, 'vehicle', signingSent);
+  const laterOpen = isDeliveryCardOpen(formData, 'geo', signingSent);
 
   const commit = useCallback(
     async (patch: FormData) => {
@@ -972,13 +975,14 @@ export const DealerDeliveryPage: React.FC = () => {
           </div>
         ) : null}
 
-        {!unlocked ? (
+        {!laterOpen ? (
           <div
             className="rounded-[12px] border border-dealer-border bg-dealer-surface-soft p-4 text-sm text-dealer-text"
             data-testid="delivery-locked"
           >
-            Delivery is locked until the loan documents have been sent for e-signing. Finish the
-            post-submit steps first, then return here.
+            {insuranceOpen
+              ? 'Insurance and Vehicle are open. Geo-tagged photos and IoT tagging open after the loan documents are sent for e-signing.'
+              : 'Delivery is locked until the loan documents have been sent for e-signing. Finish the post-submit steps first, then return here.'}
           </div>
         ) : null}
 
@@ -1016,7 +1020,7 @@ export const DealerDeliveryPage: React.FC = () => {
                 slot={slot}
                 fileId={fileId}
                 formData={formData}
-                disabled={interactionDisabled}
+                disabled={!laterOpen || deliveryComplete}
                 onCommit={commit}
               />
             ))}
@@ -1027,7 +1031,7 @@ export const DealerDeliveryPage: React.FC = () => {
           stage={B2C_EV_INSURANCE_STAGE}
           formData={formData}
           done={done.insurance}
-          disabled={interactionDisabled}
+          disabled={!insuranceOpen || deliveryComplete}
           testId="delivery-card-insurance"
           onSave={commit}
         />
@@ -1036,7 +1040,7 @@ export const DealerDeliveryPage: React.FC = () => {
           stage={B2C_EV_VEHICLE_STAGE}
           formData={formData}
           done={done.vehicle}
-          disabled={interactionDisabled}
+          disabled={!vehicleOpen || deliveryComplete}
           testId="delivery-card-vehicle"
           extraFields={VEHICLE_EXTRA_FIELDS}
           extraValidate={validateOptionalChassis}
@@ -1047,7 +1051,7 @@ export const DealerDeliveryPage: React.FC = () => {
           fileId={fileId}
           formData={formData}
           done={done.iot}
-          disabled={interactionDisabled}
+          disabled={!laterOpen || deliveryComplete}
           onSave={commit}
         />
       </div>

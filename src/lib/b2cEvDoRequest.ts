@@ -24,6 +24,19 @@ export function arePostDoStagesUnlocked(formData: Record<string, unknown>): bool
   return isDoFulfilled(formData);
 }
 
+export type DeliveryCardId = 'geo' | 'insurance' | 'vehicle' | 'iot';
+
+/** Insurance and Vehicle open when the DO is approved. Geo photos and IoT wait for e-sign. */
+export function isDeliveryCardOpen(
+  formData: Record<string, unknown>,
+  card: DeliveryCardId,
+  signingSent: boolean
+): boolean {
+  if (signingSent) return true;
+  if (card === 'insurance' || card === 'vehicle') return isDoFulfilled(formData);
+  return false;
+}
+
 export function buildDoRequestMessage(context: {
   applicantName?: string;
   applicationId?: string;

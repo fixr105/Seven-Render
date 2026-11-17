@@ -362,6 +362,48 @@ describe('B2cEvComplianceReview', () => {
     expect(screen.getByTestId('do-approval-view')).toHaveAttribute('href', 'https://files.example/saved.pdf');
   });
 
+  it('keeps Approve DO available when an older approval has no DO file', () => {
+    render(
+      <B2cEvComplianceReview
+        formData={{
+          '_meta.doRequest.requestedAt': '2026-01-02T00:00:00.000Z',
+          '_meta.doRequest.fulfilledAt': '2026-11-17T17:12:46.000Z',
+          '_meta.doRequest.status': 'approved',
+          '_meta.doRequest.fulfilledBy': 'Jaishali@sevenfincorp.email',
+        }}
+        userRole="kam"
+        applicationId="recAPP"
+        fileId="SF1"
+      />
+    );
+
+    expect(screen.getByTestId('do-request-approve')).toHaveTextContent('Approve DO');
+  });
+
+  it('opens insurance and vehicle after the DO file is saved', () => {
+    render(
+      <B2cEvComplianceReview
+        formData={{
+          ...pendingDoForm,
+          '_meta.doRequest.fulfilledAt': '2026-11-17T10:00:00.000Z',
+          '_meta.doApproval': {
+            checklist: [...DO_APPROVAL_CHECKLIST],
+            approvedBy: 'kam@test.local',
+            approvedAt: '2026-11-17T10:00:00.000Z',
+            doUrl: 'https://files.example/saved.pdf',
+          },
+        }}
+        userRole="kam"
+        applicationId="recAPP"
+        fileId="SF1"
+      />
+    );
+
+    expect(screen.getByTestId('do-next-steps')).toHaveAttribute('href', '/dealer/delivery/SF1');
+    expect(screen.getByTestId('do-next-steps')).toHaveTextContent('Insurance');
+    expect(screen.getByTestId('do-next-steps')).toHaveTextContent('Vehicle');
+  });
+
   function lastWrittenForm(): Record<string, unknown> {
     const fields = vi.mocked(airtableWrite).mock.calls.at(-1)?.[0].fields as
       | Record<string, unknown>

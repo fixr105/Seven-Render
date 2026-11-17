@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildDoRequestMessage, isDoFulfilled, isDoRequested, arePostDoStagesUnlocked } from '../b2cEvDoRequest';
+import {
+  arePostDoStagesUnlocked,
+  buildDoRequestMessage,
+  isDeliveryCardOpen,
+  isDoFulfilled,
+  isDoRequested,
+} from '../b2cEvDoRequest';
 
 describe('b2cEvDoRequest', () => {
   it('detects when DO has been requested', () => {
@@ -18,6 +24,16 @@ describe('b2cEvDoRequest', () => {
     expect(arePostDoStagesUnlocked({ '_meta.doRequest.fulfilledAt': '2026-01-02T00:00:00.000Z' })).toBe(
       true
     );
+  });
+
+  it('opens insurance and vehicle after DO approval, and the rest after signing', () => {
+    const approved = { '_meta.doRequest.fulfilledAt': '2026-01-02T00:00:00.000Z' };
+    expect(isDeliveryCardOpen(approved, 'insurance', false)).toBe(true);
+    expect(isDeliveryCardOpen(approved, 'vehicle', false)).toBe(true);
+    expect(isDeliveryCardOpen(approved, 'geo', false)).toBe(false);
+    expect(isDeliveryCardOpen(approved, 'iot', false)).toBe(false);
+    expect(isDeliveryCardOpen({}, 'insurance', true)).toBe(true);
+    expect(isDeliveryCardOpen({}, 'geo', true)).toBe(true);
   });
 
   it('builds DO request message for KAM', () => {
