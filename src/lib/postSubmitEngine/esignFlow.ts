@@ -3,6 +3,7 @@ import {
   postEdrafterEsign,
 } from '../../services/toolsClient';
 import { isEsignEnabled } from '../featureFlags';
+import { esignPreviewActive, previewEsignSend, previewEsignStatus } from './paidCallPreview';
 import { isValidEmail, loadEsignConfig, type EsignConfig } from '../esignConfig';
 import { fileIdAlnum } from '../stampConfig';
 import { getApplicantParty, getSupportPersonParty } from './supportPersonParty';
@@ -57,8 +58,10 @@ export function readEsignMeta(formData: Record<string, unknown>): Record<string,
 }
 
 export function esignEnabled(): boolean {
-  return isEsignEnabled();
+  return isEsignEnabled() || esignPreviewActive();
 }
+
+export { esignPreviewActive };
 
 export function buildEsignRefId(fileId: string): string {
   return `${fileIdAlnum(fileId)}-SIGN1`;
@@ -184,10 +187,12 @@ export function buildEsignPayload(input: {
 }
 
 export async function sendEsign(payload: Record<string, unknown>) {
+  if (esignPreviewActive()) return previewEsignSend();
   return postEdrafterEsign(payload);
 }
 
 export async function fetchEsignStatus(refId: string) {
+  if (esignPreviewActive()) return previewEsignStatus();
   return getEdrafterEsignStatus(refId);
 }
 

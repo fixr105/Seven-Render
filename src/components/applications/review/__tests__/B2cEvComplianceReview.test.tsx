@@ -521,7 +521,8 @@ describe('B2cEvComplianceReview', () => {
     );
     await confirmMark('loanAgreement');
     expect(await screen.findByText(/quote ₹300/)).toBeInTheDocument();
-    expect(screen.getByTestId('stamp-order-flag-off')).toBeInTheDocument();
+    expect(screen.getByTestId('order-stamps-button')).toBeInTheDocument();
+    expect(screen.getByTestId('paid-call-preview')).toBeInTheDocument();
     expect(stampFlow.runStampFreeChecks).toHaveBeenCalled();
     expect(stampFlow.placeStampOrder).not.toHaveBeenCalled();
     expect(screen.getByTestId('kam-compliance-status-loanAgreement')).toHaveTextContent(
@@ -545,7 +546,7 @@ describe('B2cEvComplianceReview', () => {
     await waitFor(() => expect(fillSanctionLetter).toHaveBeenCalled());
     expect(fillLoanAgreement).toHaveBeenCalled();
     expect(fillCkyc).toHaveBeenCalled();
-    expect(await screen.findByTestId('stamp-order-flag-off')).toBeInTheDocument();
+    expect(await screen.findByTestId('order-stamps-button')).toBeInTheDocument();
   });
 
   it('does not restart stamp checks when an access key is already saved', async () => {

@@ -8,6 +8,12 @@ import {
 } from '../../services/toolsClient';
 import { isStampOrderEnabled } from '../featureFlags';
 import {
+  previewSigningPack,
+  previewStampOrder,
+  previewStampStatus,
+  stampOrderPreviewActive,
+} from './paidCallPreview';
+import {
   buildStampRefIds,
   fileIdAlnum,
   loadStampConfig,
@@ -171,8 +177,10 @@ export async function runStampFreeChecks(input: {
 }
 
 export function stampOrderEnabled(): boolean {
-  return isStampOrderEnabled();
+  return isStampOrderEnabled() || stampOrderPreviewActive();
 }
+
+export { stampOrderPreviewActive };
 
 export type StampBootMode = 'pack' | 'poll' | 'checks';
 
@@ -270,10 +278,12 @@ export function stampStatusAllDownloadable(body: Record<string, unknown>): boole
 }
 
 export async function placeStampOrder(payload: Record<string, unknown>) {
+  if (stampOrderPreviewActive()) return previewStampOrder(payload);
   return postEdrafterStampOrder(payload);
 }
 
 export async function fetchStampStatus(accessKey: string, groupId: string) {
+  if (stampOrderPreviewActive()) return previewStampStatus(groupId);
   return getEdrafterStampStatus(accessKey, groupId);
 }
 
@@ -307,6 +317,8 @@ export async function mergeSigningPack(input: {
       return { ok: false, message: 'Could not prepare the signing pack. Try again.' };
     }
   }
+
+  if (stampOrderPreviewActive() && !input.postMerge) return previewSigningPack(input.fileId);
 
   const run = async () =>
     postMerge({

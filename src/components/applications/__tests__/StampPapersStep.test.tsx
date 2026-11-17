@@ -78,7 +78,7 @@ describe('StampPapersStep', () => {
     });
   });
 
-  it('flag off shows ready to order and never places order', async () => {
+  it('flag off shows the order button and does not place an order until it is clicked', async () => {
     const write = vi.fn().mockResolvedValue(undefined);
     render(
       <StampPapersStep
@@ -91,8 +91,9 @@ describe('StampPapersStep', () => {
       />
     );
     await waitFor(() => {
-      expect(screen.getByTestId('stamp-order-flag-off')).toBeInTheDocument();
+      expect(screen.getByTestId('order-stamps-button')).toBeInTheDocument();
     });
+    expect(screen.getByTestId('paid-call-preview')).toHaveTextContent('No paid stamp order is sent');
     expect(stampFlow.placeStampOrder).not.toHaveBeenCalled();
     expect(dlaLead.fireDlaLead).toHaveBeenCalled();
   });

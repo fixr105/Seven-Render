@@ -9,6 +9,7 @@ import {
   buildEsignRefId,
   esignBootMode,
   esignEnabled,
+  esignPreviewActive,
   fetchEsignStatus,
   pingEsignTool,
   readEsignMeta,
@@ -285,7 +286,7 @@ export const EsignStep: React.FC<Props> = ({
   };
 
   const doSend = async () => {
-    if (!isEsignEnabled()) {
+    if (!esignEnabled()) {
       setConfirmOpen(false);
       return;
     }
@@ -527,6 +528,11 @@ export const EsignStep: React.FC<Props> = ({
             {applicant.name} ({maskEmailForDisplay(applicant.email)}) then {support.name} (
             {maskEmailForDisplay(support.email)})
           </p>
+          {esignPreviewActive() ? (
+            <p className="mb-3 text-sm text-dealer-text-quiet" data-testid="paid-call-preview">
+              Preview success. No paid eSign is sent.
+            </p>
+          ) : null}
           {esignEnabled() ? (
             <button
               type="button"

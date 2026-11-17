@@ -15,12 +15,12 @@ import {
   runStampFreeChecks,
   stampBootMode,
   stampOrderEnabled,
+  stampOrderPreviewActive,
   stampStatusAllDownloadable,
   type StampFreeCheckOk,
   type StampPaperPlan,
 } from '../../lib/postSubmitEngine/stampFlow';
 import { fileIdAlnum, loadStampConfig } from '../../lib/stampConfig';
-import { isStampOrderEnabled } from '../../lib/featureFlags';
 import type { FilledDocs } from '../../lib/postSubmitEngine/types';
 
 const STATUS_POLL_MS = 60_000;
@@ -397,7 +397,7 @@ export const StampPapersStep: React.FC<Props> = ({
   }, [polling, packUrl, pollOnce]);
 
   const placeOrder = async (onlyRefIds?: string[]) => {
-    if (!isStampOrderEnabled()) {
+    if (!stampOrderEnabled()) {
       setReadyToOrder(true);
       setConfirmOpen(false);
       return;
@@ -532,7 +532,7 @@ export const StampPapersStep: React.FC<Props> = ({
         };
         await persist(next);
 
-        if (status === 200) {
+        if (status === 200 && body.preview !== true) {
           const applicant = getApplicantParty(next);
           const afterDla = await fireDlaLead({
             fileId,
@@ -635,6 +635,11 @@ export const StampPapersStep: React.FC<Props> = ({
               </li>
             ))}
           </ul>
+          {stampOrderPreviewActive() ? (
+            <p className="mb-3 text-sm text-dealer-text-quiet" data-testid="paid-call-preview">
+              Preview success. No paid stamp order is sent.
+            </p>
+          ) : null}
           {stampOrderEnabled() ? (
             <button
               type="button"

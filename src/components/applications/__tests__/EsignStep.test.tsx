@@ -76,7 +76,7 @@ describe('EsignStep', () => {
     });
   });
 
-  it('flag off shows ready and never posts', async () => {
+  it('flag off shows the send button and does not post until it is clicked', async () => {
     render(
       <EsignStep
         fileId="SF1"
@@ -86,7 +86,8 @@ describe('EsignStep', () => {
         onBackToStamp={vi.fn()}
       />
     );
-    await waitFor(() => expect(screen.getByTestId('esign-flag-off')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('esign-send-button')).toBeInTheDocument());
+    expect(screen.getByTestId('paid-call-preview')).toHaveTextContent('No paid eSign is sent');
     expect(esignFlow.sendEsign).not.toHaveBeenCalled();
     expect(document.body.innerHTML).toContain('g***@example.com');
     expect(document.body.innerHTML).not.toContain('govind@example.com');
