@@ -1580,6 +1580,16 @@ class ApiService {
     });
   }
 
+  async storeGeneratedDoPdf(body: {
+    url: string;
+    fileName: string;
+  }): Promise<ApiResponse<{ url: string; fileName: string }>> {
+    return this.request('/kam/do-pdf/store', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   async kamB2cDoRequestAction(
     applicationId: string,
     body: {

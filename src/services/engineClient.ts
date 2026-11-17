@@ -13,6 +13,7 @@ import {
 import type { PanLookupFieldPrefix } from '../lib/b2cEvPanLookup';
 import { extractFilledDocUrl } from '../lib/postSubmitEngine/filledDocUrl';
 import { readDoPdfFromJson } from '../lib/doApproval';
+import { apiService } from './api';
 import { normalizeQualifyPayload } from '../lib/postSubmitEngine/qualifyResult';
 
 export const ENGINE_BASE_ID =
@@ -311,7 +312,17 @@ export async function requestDoPdf(
     if (!parsed.ok) {
       throw new DoPdfGenerationError(parsed.error);
     }
-    return { url: parsed.url, fileName: parsed.fileName };
+    const stored = await apiService.storeGeneratedDoPdf({
+      url: parsed.url,
+      fileName: parsed.fileName,
+    });
+    if (!stored.success || !stored.data?.url) {
+      throw new DoPdfGenerationError(stored.error || 'Could not save the DO file');
+    }
+    return {
+      url: stored.data.url,
+      fileName: stored.data.fileName || parsed.fileName,
+    };
   } catch (err) {
     if (err instanceof DoPdfGenerationError || err instanceof EngineRequestError) throw err;
     throw new EngineRequestError('No response. Check with ops.', 408, null);

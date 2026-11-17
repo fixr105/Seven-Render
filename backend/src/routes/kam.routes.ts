@@ -8,6 +8,7 @@ import { kamController } from '../controllers/kam.controller.js';
 import { ledgerController } from '../controllers/ledger.controller.js';
 import { UserRole } from '../config/constants.js';
 import { requireKAM, requireCreditOrKAM, requireRole } from '../middleware/rbac.middleware.js';
+import { storeGeneratedDoPdf } from '../services/b2cEv/doPdfFile.js';
 
 const router = Router();
 
@@ -17,6 +18,19 @@ router.post(
   requireRole(UserRole.KAM, UserRole.ADMIN),
   kamController.b2cDoRequestAction.bind(kamController)
 );
+router.post('/do-pdf/store', requireRole(UserRole.KAM, UserRole.ADMIN), async (req, res) => {
+  try {
+    const stored = await storeGeneratedDoPdf({
+      url: req.body?.url,
+      fileName: req.body?.fileName,
+    });
+    res.json({ success: true, data: stored });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not save the DO file';
+    const status = message === 'Unsupported DO file URL' ? 400 : 502;
+    res.status(status).json({ success: false, error: message });
+  }
+});
 router.use(requireKAM);
 
 router.get('/dashboard', kamController.getDashboard.bind(kamController));

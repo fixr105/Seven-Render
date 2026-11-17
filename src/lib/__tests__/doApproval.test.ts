@@ -79,6 +79,22 @@ describe('doApproval', () => {
     expect(readDoPdfFromJson(body)).toMatchObject({ ok: true, url });
   });
 
+  it('reads the PDF url from the generator array', () => {
+    expect(
+      readDoPdfFromJson([
+        {
+          pageCount: 1,
+          url: 'https://pdf-temp-files.s3.us-west-2.amazonaws.com/job/DO.pdf?X-Amz-Expires=3600',
+          name: 'CKYC_Template_Individual_2.pdf',
+        },
+      ])
+    ).toEqual({
+      ok: true,
+      url: 'https://pdf-temp-files.s3.us-west-2.amazonaws.com/job/DO.pdf?X-Amz-Expires=3600',
+      fileName: 'CKYC_Template_Individual_2.pdf',
+    });
+  });
+
   it('keeps an explicit failure on the checklist', () => {
     expect(readDoPdfFromJson({ ok: false, error: 'template missing' })).toEqual({
       ok: false,

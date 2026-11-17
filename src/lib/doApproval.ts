@@ -140,10 +140,15 @@ export function buildDoWebhookPayload(input: {
 
 const PDF_URL_KEYS = ['url', 'pdf_url', 'document_url', 'link'] as const;
 
+function firstPdfRecord(data: unknown): Record<string, unknown> | null {
+  if (Array.isArray(data)) return asRecord(data[0]);
+  return asRecord(data);
+}
+
 export function readDoPdfFromJson(
   data: unknown
 ): { ok: true; url: string; fileName: string } | { ok: false; error: string } {
-  const record = asRecord(data);
+  const record = firstPdfRecord(data);
   if (!record) return { ok: false, error: 'Unexpected response' };
   if (record.ok === false) {
     const reason = readString(record.error) || 'Unknown error';
@@ -162,7 +167,8 @@ export function readDoPdfFromJson(
     url = nested ? readString(nested.url) : '';
   }
   if (!url) return { ok: false, error: 'Response did not include a PDF URL' };
-  const fileName = readString(record.file_name) || readString(record.fileName) || 'DO.pdf';
+  const fileName =
+    readString(record.file_name) || readString(record.fileName) || readString(record.name) || 'DO.pdf';
   return { ok: true, url, fileName };
 }
 
