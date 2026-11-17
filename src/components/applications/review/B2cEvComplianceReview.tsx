@@ -100,17 +100,6 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   useEffect(() => {
     setLocalForm((current) => keepDoneComplianceConfirmations(formData, current));
   }, [formData]);
-
-  const reviewFormData = useMemo(() => {
-    if (!vkycLink?.status || readString(formData['_meta.vkyc.status'])) return formData;
-    return {
-      ...formData,
-      '_meta.vkyc.status': vkycLink.status,
-      '_meta.vkyc.requestedAt': vkycLink.requested_at || formData['_meta.vkyc.requestedAt'],
-      '_meta.kamRequests.vkyc.requestedAt':
-        readString(formData['_meta.kamRequests.vkyc.requestedAt']) || vkycLink.requested_at,
-    };
-  }, [formData, vkycLink]);
   const { doRequest } = extractPendingB2cActions(formData);
   const documentReadiness = getRequiredDocumentReadiness(formData, formConfig);
   const doRequested = isDoRequested(formData);
@@ -121,6 +110,16 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   const canApproveDo = (userRole === 'kam' || userRole === 'admin') && Boolean(applicationId);
   const { user } = useAuth();
   const [localForm, setLocalForm] = useState(formData);
+  const reviewFormData = useMemo(() => {
+    if (!vkycLink?.status || readString(localForm['_meta.vkyc.status'])) return localForm;
+    return {
+      ...localForm,
+      '_meta.vkyc.status': vkycLink.status,
+      '_meta.vkyc.requestedAt': vkycLink.requested_at || localForm['_meta.vkyc.requestedAt'],
+      '_meta.kamRequests.vkyc.requestedAt':
+        readString(localForm['_meta.kamRequests.vkyc.requestedAt']) || vkycLink.requested_at,
+    };
+  }, [localForm, vkycLink]);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [checklistOpen, setChecklistOpen] = useState(false);
   const [checkedItems, setCheckedItems] = useState<boolean[]>(() =>

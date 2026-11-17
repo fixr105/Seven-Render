@@ -18,6 +18,18 @@ describe('b2cEvStepStatus', () => {
     expect(kamComplianceStatusLabel({ 'compliance.vkycDone': 'true' }, 'vkyc')).toBe('Done');
   });
 
+  it('treats a KAM eNACH or loan agreement confirmation as done', () => {
+    const done = { status: 'done', confirmedBy: 'kam@test.local', confirmedAt: '2026-11-15T09:00:00.000Z' };
+    expect(kamComplianceStatusLabel({ '_meta.compliance.enach': done }, 'enach')).toBe('Done');
+    expect(isKamComplianceOpen({ '_meta.compliance.enach': done }, 'enach')).toBe(false);
+    expect(
+      kamComplianceStatusLabel({ '_meta.compliance.loanAgreement': done }, 'loanAgreement')
+    ).toBe('Done');
+    expect(
+      isKamComplianceOpen({ '_meta.compliance.loanAgreement': done }, 'loanAgreement')
+    ).toBe(false);
+  });
+
   it('opens eNACH when an account is saved and closes it when confirmed', () => {
     const saved = { 'enach.accountNumber': '123456789012' };
     expect(isKamComplianceOpen(saved, 'enach')).toBe(true);

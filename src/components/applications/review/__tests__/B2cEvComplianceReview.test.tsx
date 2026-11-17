@@ -413,6 +413,7 @@ describe('B2cEvComplianceReview', () => {
     vi.mocked(airtableWrite).mockResolvedValue({ ok: true });
     await confirmMark('enach');
     expect(screen.getByTestId('kam-compliance-status-enach')).toHaveTextContent('eNACH Done ✓');
+    expect(screen.getByTestId('compliance-status-enach')).toHaveTextContent('Done');
     expect(lastWrittenForm()['_meta.compliance.enach']).toMatchObject({
       status: 'done',
       confirmedBy: 'kam@test.local',

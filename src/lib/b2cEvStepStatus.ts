@@ -23,17 +23,37 @@ function esignStage(formData: Record<string, unknown>): string {
   return readString((esign as { stage?: unknown }).stage);
 }
 
+function confirmationDone(formData: Record<string, unknown>, key: string): boolean {
+  const raw = formData[key];
+  let record: Record<string, unknown> | null = null;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        record = parsed as Record<string, unknown>;
+      }
+    } catch {
+      record = null;
+    }
+  } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    record = raw as Record<string, unknown>;
+  }
+  return readString(record?.status) === 'done';
+}
+
 export function isVkycComplete(formData: Record<string, unknown>): boolean {
   if (isComplianceChecked(formData, 'compliance.vkycDone')) return true;
   return readString(formData['_meta.vkyc.status']).toLowerCase() === 'done';
 }
 
 export function isEnachComplete(formData: Record<string, unknown>): boolean {
-  return isComplianceChecked(formData, 'compliance.enachDone');
+  if (isComplianceChecked(formData, 'compliance.enachDone')) return true;
+  return confirmationDone(formData, '_meta.compliance.enach');
 }
 
 export function isAgreementComplete(formData: Record<string, unknown>): boolean {
   if (isComplianceChecked(formData, 'compliance.loanAgreementSigned')) return true;
+  if (confirmationDone(formData, '_meta.compliance.loanAgreement')) return true;
   return esignStage(formData).toLowerCase() === 'signed';
 }
 
