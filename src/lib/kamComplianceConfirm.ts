@@ -72,6 +72,22 @@ export function isKamComplianceConfirmationDone(
   return readKamComplianceConfirmation(formData, id) != null;
 }
 
+/** Keep local "done" marks when a later form snapshot omitted them. */
+export function keepDoneComplianceConfirmations(
+  incoming: Record<string, unknown>,
+  local: Record<string, unknown>
+): Record<string, unknown> {
+  const kept: Record<string, unknown> = {};
+  for (const id of KAM_COMPLIANCE_CONFIRM_IDS) {
+    const key = KAM_COMPLIANCE_CONFIRM_KEYS[id];
+    if (isKamComplianceConfirmationDone(incoming, id)) continue;
+    if (!isKamComplianceConfirmationDone(local, id)) continue;
+    kept[key] = local[key];
+  }
+  if (Object.keys(kept).length === 0) return incoming;
+  return { ...incoming, ...kept };
+}
+
 export function applyKamComplianceConfirmation(
   formData: Record<string, unknown>,
   id: KamComplianceConfirmId,

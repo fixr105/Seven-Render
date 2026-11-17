@@ -419,6 +419,72 @@ describe('B2cEvComplianceReview', () => {
     });
   });
 
+  it('keeps an earlier confirmation when the next one is saved after a stale refresh', async () => {
+    const stale = { 'borrower.customerName': 'Ajay Kumar' };
+    const { rerender } = render(
+      <B2cEvComplianceReview formData={stale} userRole="kam" applicationId="recAPP" />
+    );
+
+    await confirmMark('ekyc');
+    expect(screen.getByTestId('kam-compliance-status-ekyc')).toHaveTextContent('eKYC Done ✓');
+
+    rerender(
+      <B2cEvComplianceReview formData={{ ...stale }} userRole="kam" applicationId="recAPP" />
+    );
+
+    expect(screen.getByTestId('kam-compliance-status-ekyc')).toHaveTextContent('eKYC Done ✓');
+    await confirmMark('enach');
+    expect(screen.getByTestId('kam-compliance-status-ekyc')).toHaveTextContent('eKYC Done ✓');
+    expect(screen.getByTestId('kam-compliance-status-enach')).toHaveTextContent('eNACH Done ✓');
+    expect(lastWrittenForm()['_meta.compliance.ekyc']).toMatchObject({
+      status: 'done',
+      confirmedBy: 'kam@test.local',
+    });
+    expect(lastWrittenForm()['_meta.compliance.enach']).toMatchObject({
+      status: 'done',
+      confirmedBy: 'kam@test.local',
+    });
+  });
+
+  it('keeps the loan agreement signing panel after a stale refresh', async () => {
+    const stale = {
+      'borrower.customerName': 'Ajay Kumar',
+      'loan.amount': '500000',
+      '_meta.docs.sanctionLetter': 'https://files.example/s.pdf',
+      '_meta.docs.loanAgreement': 'https://files.example/a.pdf',
+      '_meta.docs.ckyc': 'https://files.example/c.pdf',
+    };
+    const { rerender } = render(
+      <B2cEvComplianceReview
+        formData={stale}
+        userRole="kam"
+        applicationId="recAPP"
+        fileId="SF1"
+      />
+    );
+
+    await confirmMark('loanAgreement');
+    expect(screen.getByTestId('kam-compliance-status-loanAgreement')).toHaveTextContent(
+      'Loan Agreement Done'
+    );
+    expect(screen.getByTestId('kam-loan-agreement-progress')).toBeInTheDocument();
+
+    rerender(
+      <B2cEvComplianceReview
+        formData={{ ...stale }}
+        userRole="kam"
+        applicationId="recAPP"
+        fileId="SF1"
+      />
+    );
+
+    expect(screen.getByTestId('kam-compliance-status-loanAgreement')).toHaveTextContent(
+      'Loan Agreement Done'
+    );
+    expect(screen.getByTestId('kam-loan-agreement-progress')).toBeInTheDocument();
+    expect(stampFlow.placeStampOrder).not.toHaveBeenCalled();
+  });
+
   it('shows a saved confirmation without a button', () => {
     render(
       <B2cEvComplianceReview

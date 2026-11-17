@@ -34,6 +34,7 @@ import {
   readDoApproval,
   type DoApprovalRecord,
 } from '../../../lib/doApproval';
+import { keepDoneComplianceConfirmations } from '../../../lib/kamComplianceConfirm';
 import { KamComplianceChecklist } from './KamComplianceChecklist';
 
 function readString(value: unknown): string {
@@ -97,7 +98,7 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   }, [fileId, formFileId, altFileId]);
 
   useEffect(() => {
-    setLocalForm(formData);
+    setLocalForm((current) => keepDoneComplianceConfirmations(formData, current));
   }, [formData]);
 
   const reviewFormData = useMemo(() => {

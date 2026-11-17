@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { airtableWrite } from '../../../services/engineClient';
 import { formatDoApprovedWhen } from '../../../lib/doApproval';
 import { isVkycComplete } from '../../../lib/b2cEvStepStatus';
@@ -6,6 +6,7 @@ import {
   KAM_COMPLIANCE_CONFIRM_IDS,
   applyKamComplianceConfirmation,
   canConfirmKamCompliance,
+  keepDoneComplianceConfirmations,
   isComplianceChecklistComplete,
   isKamComplianceConfirmationDone,
   kamComplianceActionLabel,
@@ -58,6 +59,8 @@ export const KamComplianceChecklist: React.FC<Props> = ({
 }) => {
   const [pendingId, setPendingId] = useState<KamComplianceConfirmId | null>(null);
   const [saving, setSaving] = useState(false);
+  const formDataRef = useRef(formData);
+  formDataRef.current = keepDoneComplianceConfirmations(formData, formDataRef.current);
   const canAct = canConfirmKamCompliance(userRole) && Boolean(applicationId);
   const applicantName = readString(formData['borrower.customerName']);
   const allComplete = isComplianceChecklistComplete(formData);
@@ -69,17 +72,19 @@ export const KamComplianceChecklist: React.FC<Props> = ({
       stampFlowAlreadyStarted(formData));
 
   const persist = async (next: Record<string, unknown>, notify = false) => {
+    const merged = keepDoneComplianceConfirmations(next, formDataRef.current);
+    formDataRef.current = merged;
     if (applicationId && applicationId.startsWith('rec')) {
       await airtableWrite({
         table: 'Loan Applications',
         record_id: applicationId,
         fields: {
           'Last Updated': new Date().toISOString(),
-          'Form Data': JSON.stringify(next),
+          'Form Data': JSON.stringify(merged),
         },
       });
     }
-    onFormData(next);
+    onFormData(merged);
     if (notify) onUpdated?.();
   };
 
@@ -87,10 +92,14 @@ export const KamComplianceChecklist: React.FC<Props> = ({
     if (!pendingId || saving) return;
     setSaving(true);
     try {
-      const applied = applyKamComplianceConfirmation(formData, pendingId, {
-        confirmedBy,
-        confirmedAt: new Date().toISOString(),
-      });
+      const applied = applyKamComplianceConfirmation(
+        keepDoneComplianceConfirmations(formData, formDataRef.current),
+        pendingId,
+        {
+          confirmedBy,
+          confirmedAt: new Date().toISOString(),
+        }
+      );
       if (applied.wrote) await persist(applied.formData, true);
       setPendingId(null);
     } catch (error: unknown) {
