@@ -1,4 +1,5 @@
 import type { QualifyResponse } from '../services/engineClient';
+import { isOnlyNtcBankStatementRequired } from './postSubmitEngine/ntcBankStatementGate';
 import { normalizeQualifyPayload } from './postSubmitEngine/qualifyResult';
 
 /** Plain-English map for qualify kill / rejection codes. */
@@ -174,7 +175,7 @@ export type Section1LenderOutcome =
  * - pass === true → found
  * - score-only null kill + knownBureauScore ≥ 680 (or unknown) → found
  * - score-only null kill + knownBureauScore < 680 → soft_block
- * - NTC-only → ntc (soft continue)
+ * - NTC, including a score-floor row → ntc (soft continue)
  * - failed criteria ≤ 2 → soft_block
  * - failed criteria > 2 → hard_reject
  */
@@ -204,15 +205,16 @@ export function decideSection1LenderOutcome(
     return { kind: 'found', raw };
   }
 
+  if (isOnlyNtcBankStatementRequired(raw)) {
+    return {
+      kind: 'ntc',
+      raw,
+      reasons: [QUALIFY_KILL_CODE_MESSAGES.NTC_BANK_STATEMENT_REQUIRED],
+    };
+  }
+
   const failed = Array.isArray(raw.failed) ? raw.failed : [];
   const reasons = collectHumanQualifyReasons(raw);
-
-  const onlyNtc =
-    failed.length > 0 &&
-    failed.every((item) => readRejectionCode(item) === 'NTC_BANK_STATEMENT_REQUIRED');
-  if (onlyNtc) {
-    return { kind: 'ntc', raw, reasons };
-  }
 
   const criteriaCount = failed.length > 0 ? failed.length : reasons.length;
   if (criteriaCount <= 2) {

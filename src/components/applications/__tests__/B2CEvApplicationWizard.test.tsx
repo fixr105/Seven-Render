@@ -615,6 +615,42 @@ describe('B2CEvApplicationWizard submit gating', () => {
     expect(screen.getByTestId('b2c-stepper-step-borrower').className).toMatch(/opacity-45/);
   });
 
+  it('advances when new to credit also fails the score floor', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultQualifyPass,
+      pass: false,
+      kill_code: 'KILLED',
+      failed: [
+        { parameter: 'ntc', rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+        { parameter: 'score', rejection_code: 'CIBIL_BELOW_680' },
+      ],
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<B2CEvApplicationWizard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-loan-product-select')).toBeInTheDocument();
+    });
+
+    await fillStageOne(user);
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('finding-lender-panel')).toHaveTextContent(
+        /Lender path available/i
+      );
+    });
+    expect(screen.queryByText(/Rejected/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/lending criteria/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('b2c-wizard-next')).toBeEnabled();
+
+    await user.click(screen.getByTestId('b2c-wizard-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('b2c-field-borrower-firstName')).toBeInTheDocument();
+    });
+  });
+
   it('allows editing autofilled borrower fields and recomputes customer name', async () => {
     const user = userEvent.setup();
     renderWithProviders(<B2CEvApplicationWizard />);

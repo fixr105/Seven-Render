@@ -34,6 +34,30 @@ describe('isOnlyNtcBankStatementRequired', () => {
     ).toBe(true);
   });
 
+  it('returns true when NTC is accompanied only by a score-floor code', () => {
+    expect(
+      isOnlyNtcBankStatementRequired({
+        pass: false,
+        failed: [
+          { rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+          { rejection_code: 'CIBIL_BELOW_680' },
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it('returns true when NTC is accompanied only by a bare score parameter', () => {
+    expect(
+      isOnlyNtcBankStatementRequired({
+        pass: false,
+        failed: [
+          { parameter: 'ntc', rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+          { parameter: 'score' },
+        ],
+      })
+    ).toBe(true);
+  });
+
   it('returns false when any non-NTC rejection_code is present', () => {
     expect(
       isOnlyNtcBankStatementRequired({
@@ -86,13 +110,37 @@ describe('routeAfterQualifyFail', () => {
     ).toBe('ntc_upload');
   });
 
-  it('routes to rejected when any non-NTC rule failed', () => {
+  it('routes to ntc_upload when NTC is accompanied only by CIBIL_BELOW_680', () => {
     expect(
       routeAfterQualifyFail({
         pass: false,
         failed: [
           { rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
           { rejection_code: 'CIBIL_BELOW_680' },
+        ],
+      })
+    ).toBe('ntc_upload');
+  });
+
+  it('routes to ntc_upload when NTC is accompanied only by a bare score parameter', () => {
+    expect(
+      routeAfterQualifyFail({
+        pass: false,
+        failed: [
+          { rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+          { parameter: 'cibil_score' },
+        ],
+      })
+    ).toBe('ntc_upload');
+  });
+
+  it('routes to rejected when NTC is accompanied by a non-score failure', () => {
+    expect(
+      routeAfterQualifyFail({
+        pass: false,
+        failed: [
+          { rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+          { rejection_code: 'CC_OVERDUE_GT_5000' },
         ],
       })
     ).toBe('rejected');

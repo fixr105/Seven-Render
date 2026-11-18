@@ -145,6 +145,28 @@ describe('runBureauAndFill', () => {
     expect(outcome.status).toBe('ntc');
   });
 
+  it('treats NTC plus a score-floor failure as ntc', async () => {
+    (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      pass: false,
+      failed: [
+        { rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+        { rejection_code: 'CIBIL_BELOW_650' },
+      ],
+      applicant: { name: 'NTC PERSON', addresses: [] },
+    });
+    const outcome = await runBureauAndFill({
+      prefix: 'coApplicant',
+      fullName: 'NTC PERSON',
+      mobile: '9876543210',
+      pan: 'ABCDE1234F',
+      consent_bureau_at: '2026-11-15T01:00:00.000Z',
+      application_id: '',
+      requested_amount: 0,
+    });
+    expect(outcome.status).toBe('ntc');
+  });
+
   it('autofills on fail and returns reasons', async () => {
     (qualifyApplicant as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,

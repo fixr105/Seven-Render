@@ -203,6 +203,25 @@ describe('PostSubmitEngineFlow qualify hard gate (BYYPP3849P)', () => {
     expect(screen.queryByText(/Upload documents/i)).not.toBeInTheDocument();
   });
 
+  it('opens bank statement upload when NTC is accompanied only by a score-floor failure', async () => {
+    vi.mocked(engineClient.qualifyApplicant).mockResolvedValue({
+      ok: true,
+      pass: false,
+      kill_code: 'KILLED',
+      failed: [
+        { parameter: 'ntc', rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+        { parameter: 'score', rejection_code: 'CIBIL_BELOW_680' },
+      ],
+      borrower_message: 'New to credit — bank statement required',
+    });
+    renderFlow(null);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('post-submit-ntc-upload')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('post-submit-not-eligible-reason')).not.toBeInTheDocument();
+  });
+
   it('continues to the co-applicant check when the statement is uploaded and qualify is still NTC-only', async () => {
     const user = userEvent.setup();
     vi.mocked(engineClient.uploadFileToUrl).mockResolvedValue(

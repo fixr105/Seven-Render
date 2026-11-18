@@ -20,8 +20,9 @@ import {
   pickBureauCacheRecord,
 } from './bureauCacheLookup';
 import { mapStateCodeToName } from './indiaStateCodes';
-import { collectHumanQualifyReasons } from './qualifyKillCodes';
+import { isOnlyNtcBankStatementRequired } from './postSubmitEngine/ntcBankStatementGate';
 import { normalizeQualifyPayload } from './postSubmitEngine/qualifyResult';
+import { collectHumanQualifyReasons } from './qualifyKillCodes';
 
 export type BureauFillPrefix = 'borrower' | 'coApplicant' | 'guarantor';
 
@@ -212,12 +213,7 @@ function readFailedCodes(failed: unknown[]): string[] {
 }
 
 function isNtcOnly(failed: unknown[]): boolean {
-  if (failed.length === 0) return false;
-  return failed.every((item) => {
-    if (!item || typeof item !== 'object') return false;
-    const code = (item as { rejection_code?: unknown }).rejection_code;
-    return typeof code === 'string' && code.trim() === 'NTC_BANK_STATEMENT_REQUIRED';
-  });
+  return isOnlyNtcBankStatementRequired({ failed });
 }
 
 function asApplicant(raw: unknown): QualifyApplicant | null {

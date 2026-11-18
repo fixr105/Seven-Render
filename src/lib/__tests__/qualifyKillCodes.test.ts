@@ -48,6 +48,21 @@ describe('decideSection1LenderOutcome', () => {
     expect(outcome.kind).toBe('ntc');
   });
 
+  it('returns ntc when NTC is accompanied only by a score-floor failure', () => {
+    const outcome = decideSection1LenderOutcome({
+      ok: true,
+      pass: false,
+      kill_code: 'KILLED',
+      failed: [
+        { parameter: 'ntc', rejection_code: 'NTC_BANK_STATEMENT_REQUIRED' },
+        { parameter: 'score', rejection_code: 'CIBIL_BELOW_680' },
+      ],
+    });
+    expect(outcome.kind).toBe('ntc');
+    if (outcome.kind !== 'ntc') throw new Error('expected ntc');
+    expect(outcome.reasons).toEqual(['New to credit — bank statement required']);
+  });
+
   it('soft-blocks when 2 or fewer failed criteria', () => {
     const outcome = decideSection1LenderOutcome({
       ok: true,
