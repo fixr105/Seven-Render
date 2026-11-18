@@ -1,6 +1,6 @@
 import {
   COMPLIANCE_ITEMS,
-  isComplianceChecked,
+  isComplianceDone,
   type ComplianceItemId,
 } from './b2cEvCompliance';
 
@@ -42,18 +42,16 @@ function confirmationDone(formData: Record<string, unknown>, key: string): boole
 }
 
 export function isVkycComplete(formData: Record<string, unknown>): boolean {
-  if (isComplianceChecked(formData, 'compliance.vkycDone')) return true;
+  if (isComplianceDone(formData, 'compliance.vkycDone')) return true;
   return readString(formData['_meta.vkyc.status']).toLowerCase() === 'done';
 }
 
 export function isEnachComplete(formData: Record<string, unknown>): boolean {
-  if (isComplianceChecked(formData, 'compliance.enachDone')) return true;
-  return confirmationDone(formData, '_meta.compliance.enach');
+  return isComplianceDone(formData, 'compliance.enachDone');
 }
 
 export function isAgreementComplete(formData: Record<string, unknown>): boolean {
-  if (isComplianceChecked(formData, 'compliance.loanAgreementSigned')) return true;
-  if (confirmationDone(formData, '_meta.compliance.loanAgreement')) return true;
+  if (isComplianceDone(formData, 'compliance.loanAgreementSigned')) return true;
   return esignStage(formData).toLowerCase() === 'signed';
 }
 
@@ -99,7 +97,7 @@ export function kamComplianceStatusLabel(
     return 'Not requested';
   }
   if (itemId === 'enach') {
-    if (isEnachComplete(formData)) return 'Done';
+    if (isEnachComplete(formData) || confirmationDone(formData, '_meta.compliance.enach')) return 'Done';
     if (readString(formData['enach.accountNumber'])) return 'Needs confirmation';
     if (isKamComplianceOpen(formData, itemId)) return 'Requested';
     return 'Not requested';
@@ -107,6 +105,7 @@ export function kamComplianceStatusLabel(
   if (isAgreementComplete(formData)) {
     return esignStage(formData).toLowerCase() === 'signed' ? 'signed' : 'Done';
   }
+  if (confirmationDone(formData, '_meta.compliance.loanAgreement')) return 'Done';
   const stage = esignStage(formData);
   if (stage) return stage;
   if (isKamComplianceOpen(formData, itemId)) return 'Requested';

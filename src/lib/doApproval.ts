@@ -1,3 +1,5 @@
+import { isComplianceDone } from './b2cEvCompliance';
+
 export const DO_APPROVAL_CHECKLIST = [
   'Aadhaar OTP done on Fintree',
   'PAN OTP done on Fintree',
@@ -27,20 +29,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function complianceStatusDone(formData: Record<string, unknown>, key: string): boolean {
-  const raw = formData[key];
-  const record =
-    typeof raw === 'string'
-      ? (() => {
-          try {
-            return asRecord(JSON.parse(raw));
-          } catch {
-            return null;
-          }
-        })()
-      : asRecord(raw);
-  return readString(record?.status) === 'done';
-}
 
 function qualifyPassed(formData: Record<string, unknown>): boolean {
   const raw = formData['_meta.qualifyResult'];
@@ -59,8 +47,8 @@ function qualifyPassed(formData: Record<string, unknown>): boolean {
 
 /** Suggested ticks when the KAM opens the DO checklist. IoT stays manual. */
 export function defaultDoChecklistTicks(formData: Record<string, unknown>): boolean[] {
-  const ekycDone = complianceStatusDone(formData, '_meta.compliance.ekyc');
-  const enachDone = complianceStatusDone(formData, '_meta.compliance.enach');
+  const ekycDone = isComplianceDone(formData, 'compliance.ekycDone');
+  const enachDone = isComplianceDone(formData, 'compliance.enachDone');
   return [ekycDone, ekycDone, qualifyPassed(formData), enachDone, false];
 }
 

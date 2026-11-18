@@ -49,6 +49,11 @@ export function isComplianceChecked(formData: Record<string, unknown>, checkboxK
   return value === true || value === 'true';
 }
 
+/** Screens, the DO checklist, and the delivery lock use this for compliance.* flags. */
+export function isComplianceDone(formData: Record<string, unknown>, key: string): boolean {
+  return isComplianceChecked(formData, key);
+}
+
 export function isComplianceItemRequested(
   formData: Record<string, unknown>,
   itemId: ComplianceItemId

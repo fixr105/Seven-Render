@@ -101,6 +101,7 @@ describe('B2cEvComplianceReview', () => {
     vi.mocked(fillCkyc).mockClear();
     vi.mocked(featureFlags.isStampOrderEnabled).mockReturnValue(false);
     vi.mocked(featureFlags.isEsignEnabled).mockReturnValue(false);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ status: 200 })));
     vi.mocked(stampFlow.runStampFreeChecks).mockReset();
     vi.mocked(stampFlow.runStampFreeChecks).mockResolvedValue({
       ok: true,
@@ -419,6 +420,11 @@ describe('B2cEvComplianceReview', () => {
     });
   }
 
+  async function openStamps() {
+    fireEvent.click(screen.getByTestId('open-stamps-and-signing'));
+    expect(await screen.findByTestId('kam-loan-agreement-progress')).toBeInTheDocument();
+  }
+
   it('disables each confirmation while saving and writes the compliance record', async () => {
     let release: (value: { ok: true }) => void = () => undefined;
     vi.mocked(airtableWrite).mockImplementation(
@@ -507,6 +513,7 @@ describe('B2cEvComplianceReview', () => {
     );
 
     await confirmMark('loanAgreement');
+    await openStamps();
     expect(screen.getByTestId('kam-compliance-status-loanAgreement')).toHaveTextContent(
       'Loan Agreement Done'
     );
@@ -563,6 +570,7 @@ describe('B2cEvComplianceReview', () => {
       />
     );
     await confirmMark('loanAgreement');
+    await openStamps();
     expect(await screen.findByText(/quote ₹300/)).toBeInTheDocument();
     expect(screen.getByTestId('order-stamps-button')).toBeInTheDocument();
     expect(screen.getByTestId('paid-call-preview')).toBeInTheDocument();
@@ -586,6 +594,7 @@ describe('B2cEvComplianceReview', () => {
       />
     );
     await confirmMark('loanAgreement');
+    await openStamps();
     await waitFor(() => expect(fillSanctionLetter).toHaveBeenCalled());
     expect(fillLoanAgreement).toHaveBeenCalled();
     expect(fillCkyc).toHaveBeenCalled();
@@ -604,6 +613,7 @@ describe('B2cEvComplianceReview', () => {
         fileId="SF1"
       />
     );
+    fireEvent.click(screen.getByTestId('open-stamps-and-signing'));
     expect(await screen.findByTestId('kam-stamp-status')).toHaveTextContent('Ordering stamp papers…');
     await confirmMark('loanAgreement');
     expect(stampFlow.runStampFreeChecks).not.toHaveBeenCalled();
@@ -693,5 +703,70 @@ describe('B2cEvComplianceReview', () => {
     );
     expect(screen.getByTestId('kam-compliance-all-complete')).toHaveTextContent('All complete ✓');
     expect(screen.queryByTestId('kam-compliance-mark-ekyc')).not.toBeInTheDocument();
+  });
+
+  it('writes the eNACH flag and the audit note in one save', async () => {
+    render(
+      <B2cEvComplianceReview
+        formData={{ 'borrower.customerName': 'Ajay Kumar' }}
+        userRole="kam"
+        applicationId="recAPP"
+      />
+    );
+    await confirmMark('enach');
+    expect(airtableWrite).toHaveBeenCalledTimes(1);
+    expect(lastWrittenForm()['compliance.enachDone']).toBe('true');
+    expect(lastWrittenForm()['_meta.compliance.enach']).toMatchObject({ status: 'done' });
+  });
+
+  it('does not set loanAgreementSigned when the agreement is marked ready', async () => {
+    render(
+      <B2cEvComplianceReview
+        formData={{ 'borrower.customerName': 'Ajay Kumar' }}
+        userRole="kam"
+        applicationId="recAPP"
+        fileId="SF1"
+      />
+    );
+    await confirmMark('loanAgreement');
+    expect(lastWrittenForm()['compliance.loanAgreementSigned']).toBeUndefined();
+    expect(lastWrittenForm()['_meta.postSubmitPhase']).toBe('stamps');
+    expect(fillSanctionLetter).not.toHaveBeenCalled();
+  });
+
+  it('fills an expired document link once, saves the new links, then runs the stamp check', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ status: 403 })));
+    render(
+      <B2cEvComplianceReview
+        formData={{
+          'borrower.customerName': 'Ajay Kumar',
+          'loan.amount': '500000',
+          '_meta.compliance.loanAgreement': {
+            status: 'done',
+            confirmedBy: 'kam@test.local',
+            confirmedAt: '2026-11-15T09:00:00.000Z',
+          },
+          '_meta.docs.sanctionLetter': 'https://files.example/expired-s.pdf',
+          '_meta.docs.loanAgreement': 'https://files.example/expired-a.pdf',
+          '_meta.docs.ckyc': 'https://files.example/expired-c.pdf',
+        }}
+        userRole="kam"
+        applicationId="recAPP"
+        fileId="SF1"
+      />
+    );
+    await openStamps();
+    await waitFor(() => expect(fillSanctionLetter).toHaveBeenCalledTimes(1));
+    expect(fillLoanAgreement).toHaveBeenCalledTimes(1);
+    expect(fillCkyc).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      const written = lastWrittenForm();
+      expect(written['_meta.docs.sanctionLetter']).toBe('https://files.example/s.pdf');
+      expect(written['_meta.docs.loanAgreement']).toBe('https://files.example/a.pdf');
+      expect(written['_meta.docs.ckyc']).toBe('https://files.example/c.pdf');
+    });
+    expect(await screen.findByText(/quote ₹300/)).toBeInTheDocument();
+    expect(stampFlow.runStampFreeChecks).toHaveBeenCalledTimes(1);
+    expect(stampFlow.placeStampOrder).not.toHaveBeenCalled();
   });
 });

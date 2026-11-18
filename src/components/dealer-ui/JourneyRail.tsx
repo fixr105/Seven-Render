@@ -50,9 +50,9 @@ const PHASES: JourneyPhase[] = [
     label: 'Delivery',
     numbered: false,
     steps: [
-      { id: 'photos', label: 'Photos', phaseId: 'delivery' },
       { id: 'insurance', label: 'Insurance', phaseId: 'delivery' },
-      { id: 'vehicle', label: 'Vehicle', phaseId: 'delivery' },
+      { id: 'vehicle', label: 'Vehicle details', phaseId: 'delivery' },
+      { id: 'photos', label: 'Photos', phaseId: 'delivery' },
       { id: 'iot', label: 'IoT tagging', phaseId: 'delivery' },
     ],
   },

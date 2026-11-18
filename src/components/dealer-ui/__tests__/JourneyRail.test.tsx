@@ -123,6 +123,15 @@ describe('JourneyRail', () => {
     expect(within(sheet).getAllByText('Locked').length).toBeGreaterThan(0);
   });
 
+  it('lists delivery steps as insurance, vehicle details, photos, then IoT', () => {
+    renderRail({ currentStepId: 'insurance' });
+    const steps = screen.getByTestId('journey-steps');
+    const labels = within(steps)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent?.replace(/\s+/g, ' ').trim());
+    expect(labels).toEqual(['Insurance', 'Vehicle details', 'Photos', 'IoT tagging']);
+  });
+
   it('does not let the step scroller widen the page', () => {
     renderRail({ currentIndex: 0 });
     const rail = screen.getByTestId('journey-rail');

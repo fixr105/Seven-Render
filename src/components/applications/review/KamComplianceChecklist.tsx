@@ -1,5 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { airtableWrite } from '../../../services/engineClient';
+import { airtableWrite, fillCkyc, fillLoanAgreement, fillSanctionLetter } from '../../../services/engineClient';
+import { ensureFilledLoanDocs } from '../../../lib/loanDocReadiness';
+import { StampsAndSigningBlock } from '../StampsAndSigningBlock';
 import { formatDoApprovedWhen } from '../../../lib/doApproval';
 import { isVkycComplete } from '../../../lib/b2cEvStepStatus';
 import {
@@ -18,7 +20,6 @@ import {
   stampFlowAlreadyStarted,
   type KamComplianceConfirmId,
 } from '../../../lib/kamComplianceConfirm';
-import { KamLoanAgreementProgress } from './KamLoanAgreementProgress';
 
 type Props = {
   formData: Record<string, unknown>;
@@ -67,9 +68,9 @@ export const KamComplianceChecklist: React.FC<Props> = ({
   const resolvedFileId =
     readString(fileId) || readString(formData['_meta.fileId']) || readString(formData.fileId);
   const showStampProgress =
-    canAct &&
-    (isKamComplianceConfirmationDone(formData, 'loanAgreement') ||
-      stampFlowAlreadyStarted(formData));
+    isKamComplianceConfirmationDone(formData, 'loanAgreement') ||
+    stampFlowAlreadyStarted(formData) ||
+    formData['_meta.postSubmitPhase'] === 'stamps';
 
   const persist = async (next: Record<string, unknown>, notify = false) => {
     const merged = keepDoneComplianceConfirmations(next, formDataRef.current);
@@ -92,15 +93,22 @@ export const KamComplianceChecklist: React.FC<Props> = ({
     if (!pendingId || saving) return;
     setSaving(true);
     try {
-      const applied = applyKamComplianceConfirmation(
-        keepDoneComplianceConfirmations(formData, formDataRef.current),
-        pendingId,
-        {
-          confirmedBy,
-          confirmedAt: new Date().toISOString(),
-        }
-      );
-      if (applied.wrote) await persist(applied.formData, true);
+      let source = keepDoneComplianceConfirmations(formData, formDataRef.current);
+      let filled = false;
+      if (pendingId === 'loanAgreement' && resolvedFileId) {
+        const prepared = await ensureFilledLoanDocs(source, resolvedFileId, {
+          fillSanctionLetter,
+          fillLoanAgreement,
+          fillCkyc,
+        });
+        source = prepared.formData;
+        filled = prepared.filled;
+      }
+      const applied = applyKamComplianceConfirmation(source, pendingId, {
+        confirmedBy,
+        confirmedAt: new Date().toISOString(),
+      });
+      if (applied.wrote || filled) await persist(applied.formData, applied.wrote);
       setPendingId(null);
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : 'Failed to save compliance');
@@ -186,7 +194,7 @@ export const KamComplianceChecklist: React.FC<Props> = ({
               </div>
               {id === 'loanAgreement' && showStampProgress ? (
                 <div className="px-4 pb-3">
-                  <KamLoanAgreementProgress
+                  <StampsAndSigningBlock
                     fileId={resolvedFileId}
                     formData={formData}
                     onPersist={persist}

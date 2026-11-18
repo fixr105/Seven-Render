@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   B2C_EV_GEO_PHOTO_SLOTS,
   B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS,
+  DEV_FALLBACK_COORDS,
   isB2cEvGeoPhotoSlotId,
   isGeoPhotoSlotComplete,
+  locationAfterFailure,
   validateGeoPhotosStage,
 } from '../b2cEvGeoPhotos';
 
@@ -38,5 +40,12 @@ describe('b2cEvGeoPhotos', () => {
     for (const slot of B2C_EV_GEO_PHOTO_SLOTS) {
       expect(isGeoPhotoSlotComplete(formData, slot)).toBe(true);
     }
+  });
+
+  it('does not use the dev location fallback when DEV is false', () => {
+    expect(locationAfterFailure(false, 'localhost')).toBeNull();
+    expect(locationAfterFailure(false, '127.0.0.1')).toBeNull();
+    expect(locationAfterFailure(true, 'example.com')).toBeNull();
+    expect(locationAfterFailure(true, 'localhost')).toEqual(DEV_FALLBACK_COORDS);
   });
 });

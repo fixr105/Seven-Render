@@ -1,3 +1,4 @@
+import { isComplianceDone } from './b2cEvCompliance';
 import { isVkycComplete } from './b2cEvStepStatus';
 import { stampBootMode } from './postSubmitEngine/stampFlow';
 
@@ -7,6 +8,11 @@ export const KAM_COMPLIANCE_CONFIRM_KEYS: Record<KamComplianceConfirmId, string>
   ekyc: '_meta.compliance.ekyc',
   loanAgreement: '_meta.compliance.loanAgreement',
   enach: '_meta.compliance.enach',
+};
+
+const COMPLIANCE_FLAG_KEYS: Partial<Record<KamComplianceConfirmId, string>> = {
+  ekyc: 'compliance.ekycDone',
+  enach: 'compliance.enachDone',
 };
 
 export const KAM_COMPLIANCE_CONFIRM_IDS: KamComplianceConfirmId[] = [
@@ -101,13 +107,36 @@ export function applyKamComplianceConfirmation(
     confirmedBy: input.confirmedBy,
     confirmedAt: input.confirmedAt,
   };
-  return {
-    wrote: true,
-    formData: {
-      ...formData,
-      [KAM_COMPLIANCE_CONFIRM_KEYS[id]]: confirmation,
-    },
+  const next: Record<string, unknown> = {
+    ...formData,
+    [KAM_COMPLIANCE_CONFIRM_KEYS[id]]: confirmation,
   };
+  const flagKey = COMPLIANCE_FLAG_KEYS[id];
+  if (flagKey) next[flagKey] = 'true';
+  if (id === 'loanAgreement') next['_meta.postSubmitPhase'] = 'stamps';
+  return { wrote: true, formData: next };
+}
+
+/**
+ * Older files stored the audit note without the compliance.* flag.
+ * Agreement-ready is not signed, so that note never sets loanAgreementSigned.
+ */
+export function repairComplianceFlags(formData: Record<string, unknown>): {
+  formData: Record<string, unknown>;
+  changed: boolean;
+} {
+  const next: Record<string, unknown> = { ...formData };
+  let changed = false;
+  const setFlag = (key: string) => {
+    if (isComplianceDone(next, key)) return;
+    next[key] = 'true';
+    changed = true;
+  };
+  if (isKamComplianceConfirmationDone(next, 'enach')) setFlag('compliance.enachDone');
+  if (isKamComplianceConfirmationDone(next, 'ekyc')) setFlag('compliance.ekycDone');
+  const stage = readString(readObject(next, '_meta.esign').stage);
+  if (stage === 'signed') setFlag('compliance.loanAgreementSigned');
+  return changed ? { formData: next, changed } : { formData, changed: false };
 }
 
 export function kamComplianceConfirmMessage(id: KamComplianceConfirmId, applicantName: string): string {
@@ -173,6 +202,37 @@ export function kamComplianceRowLabel(id: KamComplianceConfirmId): string {
 
 export function loanDocsReady(formData: Record<string, unknown>): boolean {
   return DOC_KEYS.every((key) => httpsUrl(formData[key]));
+}
+
+/** True only when every filled document link answers GET 200. */
+export async function filledLoanDocsOpen(formData: Record<string, unknown>): Promise<boolean> {
+  if (!loanDocsReady(formData)) return false;
+  try {
+    const results = await Promise.all(
+      DOC_KEYS.map(async (key) => {
+        const response = await fetch(String(formData[key]), { method: 'GET' });
+        return response.status === 200;
+      })
+    );
+    return results.every(Boolean);
+  } catch {
+    return false;
+  }
+}
+
+export function stampsSigningStateLabel(formData: Record<string, unknown>): string {
+  const signing = kamSigningProgressLabel(formData);
+  if (signing === 'Both signed ✓') return 'Signed';
+  if (signing === 'Sent for signing' || signing === 'Applicant signed') return 'Sent for signing';
+  if (stampBootMode(formData) === 'pack') return 'Pack ready';
+  const stamps = readObject(formData, '_meta.stamps');
+  if (readString(stamps.accessKey)) return `Ordered ${stampOrdersReadyCount(formData)} of 3`;
+  const quote = asRecord(stamps.quote);
+  const total = quote?.total ?? stamps.quote;
+  if (typeof total === 'number' || (typeof total === 'string' && total.trim())) {
+    return `Ready to order · quote ₹${String(total)}`;
+  }
+  return 'Not started';
 }
 
 /** True when validate/quote still has to run and a filled document URL is missing. */

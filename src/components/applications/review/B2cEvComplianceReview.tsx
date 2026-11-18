@@ -34,7 +34,7 @@ import {
   readDoApproval,
   type DoApprovalRecord,
 } from '../../../lib/doApproval';
-import { keepDoneComplianceConfirmations } from '../../../lib/kamComplianceConfirm';
+import { keepDoneComplianceConfirmations, repairComplianceFlags } from '../../../lib/kamComplianceConfirm';
 import { KamComplianceChecklist } from './KamComplianceChecklist';
 
 function readString(value: unknown): string {
@@ -97,9 +97,6 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
     };
   }, [fileId, formFileId, altFileId]);
 
-  useEffect(() => {
-    setLocalForm((current) => keepDoneComplianceConfirmations(formData, current));
-  }, [formData]);
   const { doRequest } = extractPendingB2cActions(formData);
   const documentReadiness = getRequiredDocumentReadiness(formData, formConfig);
   const doRequested = isDoRequested(formData);
@@ -110,6 +107,33 @@ export const B2cEvComplianceReview: React.FC<B2cEvComplianceReviewProps> = ({
   const canApproveDo = (userRole === 'kam' || userRole === 'admin') && Boolean(applicationId);
   const { user } = useAuth();
   const [localForm, setLocalForm] = useState(formData);
+  const localFormRef = useRef(formData);
+  localFormRef.current = localForm;
+  const repairKey = useRef('');
+  useEffect(() => {
+    const next = repairComplianceFlags(
+      keepDoneComplianceConfirmations(formData, localFormRef.current)
+    );
+    if (next.changed) setLocalForm(next.formData);
+    else setLocalForm((current) => keepDoneComplianceConfirmations(formData, current));
+    if (!next.changed || !applicationId?.startsWith('rec')) return;
+    const key = [
+      applicationId,
+      next.formData['compliance.ekycDone'],
+      next.formData['compliance.enachDone'],
+      next.formData['compliance.loanAgreementSigned'],
+    ].join('|');
+    if (repairKey.current === key) return;
+    repairKey.current = key;
+    void airtableWrite({
+      table: 'Loan Applications',
+      record_id: applicationId,
+      fields: {
+        'Last Updated': new Date().toISOString(),
+        'Form Data': JSON.stringify(next.formData),
+      },
+    });
+  }, [formData, applicationId]);
   const reviewFormData = useMemo(() => {
     if (!vkycLink?.status || readString(localForm['_meta.vkyc.status'])) return localForm;
     return {

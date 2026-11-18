@@ -421,6 +421,7 @@ class ApiService {
       const isAuthMe = endpoint.includes('/auth/me');
       const isNBFCUpload = endpoint.includes('/nbfc/tools/raad') || endpoint.includes('/nbfc/tools/pager');
       const isDocumentUpload = endpoint.includes('/documents/upload');
+      const isDoPdfStore = endpoint.includes('/do-pdf/store');
       const isPanLookupRequest =
         endpoint.includes('/client/pan-lookup') || endpoint.includes('/pan-lookup');
       const timeoutMs = isAuthRequest ? 120000
@@ -429,6 +430,7 @@ class ApiService {
         : isApplicationRequest ? 60000
         : isNBFCUpload ? 120000
         : isDocumentUpload ? 120000
+        : isDoPdfStore ? 120000
         : isGetRequest ? 55000
         : 30000;
       

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { DealerWaiting } from '../dealer-ui/DealerWaiting';
 import { maskEmailForDisplay, isValidEmail } from '../../lib/esignConfig';
+import { withSignedLoanAgreement } from '../../lib/esignCompliance';
 import { isEsignEnabled } from '../../lib/featureFlags';
 import { openKamComplianceRequest } from '../../lib/b2cEvKamRequest';
 import {
@@ -206,16 +207,19 @@ export const EsignStep: React.FC<Props> = ({
 
       if (nextStage === 'signed') {
         const url = String(body.signedUrl || '');
-        const withSigned = {
-          ...next,
-          '_meta.esign': {
+        const signedAt = new Date().toISOString();
+        const withSigned = withSignedLoanAgreement(
+          {
+            ...next,
+            [SIGNING_SENT_KEY]: signedAt,
+          },
+          {
             ...asObj(next['_meta.esign']),
             stage: 'signed',
             signed_url: url,
-            signed_at: new Date().toISOString(),
-          },
-          [SIGNING_SENT_KEY]: new Date().toISOString(),
-        };
+            signed_at: signedAt,
+          }
+        );
         await persist(withSigned);
         setSignedUrl(url.startsWith('https://') ? url : null);
         setPolling(false);

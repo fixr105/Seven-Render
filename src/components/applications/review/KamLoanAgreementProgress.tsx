@@ -7,12 +7,11 @@ import {
   fillLoanAgreement,
   fillSanctionLetter,
 } from '../../../services/engineClient';
-import { fillLoanDocuments, offerFromPersistedLoan } from '../../../lib/postSubmitEngine/filledDocs';
+import { ensureFilledLoanDocs } from '../../../lib/loanDocReadiness';
 import {
   kamSigningProgressLabel,
   kamStampProgressLabel,
   loanDocsReady,
-  shouldFillLoanDocs,
 } from '../../../lib/kamComplianceConfirm';
 import { stampBootMode } from '../../../lib/postSubmitEngine/stampFlow';
 import type { FilledDocs } from '../../../lib/postSubmitEngine/types';
@@ -37,51 +36,34 @@ export const KamLoanAgreementProgress: React.FC<Props> = ({ fileId, formData, on
   const persistRef = useRef(onPersist);
   persistRef.current = onPersist;
   const [workingForm, setWorkingForm] = useState(formData);
-  const [readyForStamps, setReadyForStamps] = useState(() => !shouldFillLoanDocs(formData));
-  const [filling, setFilling] = useState(() => shouldFillLoanDocs(formData));
+  const [readyForStamps, setReadyForStamps] = useState(false);
+  const [filling, setFilling] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEsign, setShowEsign] = useState(() => stampBootMode(formData) === 'pack');
 
   useEffect(() => {
     const initial = initialFormRef.current;
-    if (!shouldFillLoanDocs(initial)) return;
     let cancelled = false;
 
     const run = async () => {
-      const offer = offerFromPersistedLoan(initial);
-      if (!offer) {
-        if (!cancelled) {
-          setError('The accepted offer is missing.');
-          setFilling(false);
-        }
+      const result = await ensureFilledLoanDocs(initial, fileId, {
+        fillSanctionLetter,
+        fillLoanAgreement,
+        fillCkyc,
+      });
+      if (cancelled) return;
+      if (result.error) {
+        setError(result.error);
+        setFilling(false);
         return;
       }
-      try {
-        const saved = await fillLoanDocuments({
-          formData: initial,
-          offer,
-          fileId,
-          fillSanctionLetter,
-          fillLoanAgreement,
-          fillCkyc,
-        });
-        if (cancelled) return;
-        if (!saved.complete) {
-          setError(saved.errors[0] || 'Loan documents are not ready yet.');
-          setFilling(false);
-          return;
-        }
-        setWorkingForm(saved.formData);
-        await persistRef.current(saved.formData);
-        if (!cancelled) {
-          setReadyForStamps(true);
-          setFilling(false);
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Loan documents are not ready yet.');
-          setFilling(false);
-        }
+      if (result.filled) {
+        setWorkingForm(result.formData);
+        await persistRef.current(result.formData);
+      }
+      if (!cancelled) {
+        setReadyForStamps(true);
+        setFilling(false);
       }
     };
 

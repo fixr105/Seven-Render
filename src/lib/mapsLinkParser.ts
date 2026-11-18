@@ -3,12 +3,19 @@ export type MapsParseResult =
   | { ok: false; error: string };
 
 const SHORT_LINK_MESSAGE =
-  "Short links can't be read. Open the link in Google Maps, then copy the full link from the address bar, or long-press the pin and copy the coordinates.";
+  "Short links cannot be read. Tap 'Use my current location', or open the link and copy the coordinates.";
 
 const OUTSIDE_INDIA_MESSAGE = 'This location is not in India. Check the link.';
 
 function isInIndia(lat: number, lng: number): boolean {
   return lat >= 6 && lat <= 38 && lng >= 68 && lng <= 98;
+}
+
+export function indiaLocationError(lat: number, lng: number): string | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !isInIndia(lat, lng)) {
+    return OUTSIDE_INDIA_MESSAGE;
+  }
+  return null;
 }
 
 function isShortMapsLink(text: string): boolean {

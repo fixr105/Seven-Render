@@ -9,8 +9,10 @@ import {
   kamStampProgressLabel,
   loanAgreementDoneSuffix,
   readKamComplianceConfirmation,
+  repairComplianceFlags,
   shouldFillLoanDocs,
 } from '../kamComplianceConfirm';
+import { withSignedLoanAgreement } from '../esignCompliance';
 
 const done = {
   status: 'done' as const,
@@ -26,6 +28,7 @@ describe('kamComplianceConfirm', () => {
     });
     expect(first.wrote).toBe(true);
     expect(first.formData['_meta.compliance.ekyc']).toEqual(done);
+    expect(first.formData['compliance.ekycDone']).toBe('true');
     expect(isKamComplianceConfirmationDone(first.formData, 'ekyc')).toBe(true);
 
     const second = applyKamComplianceConfirmation(first.formData, 'ekyc', {
@@ -34,6 +37,54 @@ describe('kamComplianceConfirm', () => {
     });
     expect(second.wrote).toBe(false);
     expect(readKamComplianceConfirmation(second.formData, 'ekyc')).toEqual(done);
+  });
+
+  it('writes the eNACH flag with the audit note and leaves signing unset', () => {
+    const saved = applyKamComplianceConfirmation({}, 'enach', {
+      confirmedBy: 'kam@test.local',
+      confirmedAt: '2026-11-15T09:00:00.000Z',
+    });
+    expect(saved.formData['compliance.enachDone']).toBe('true');
+    expect(saved.formData['_meta.compliance.enach']).toEqual(done);
+    expect(saved.formData['compliance.loanAgreementSigned']).toBeUndefined();
+  });
+
+  it('marks the agreement ready without setting the signed flag and moves to stamps', () => {
+    const saved = applyKamComplianceConfirmation({}, 'loanAgreement', {
+      confirmedBy: 'kam@test.local',
+      confirmedAt: '2026-11-15T09:00:00.000Z',
+    });
+    expect(saved.formData['compliance.loanAgreementSigned']).toBeUndefined();
+    expect(saved.formData['_meta.postSubmitPhase']).toBe('stamps');
+    expect(saved.formData['_meta.compliance.loanAgreement']).toEqual(done);
+  });
+
+  it('sets the signed flag in the same object as the signed url', () => {
+    const saved = withSignedLoanAgreement(
+      {},
+      { stage: 'signed', signed_url: 'https://files.example/signed.pdf', signed_at: '2026-11-18T00:00:00.000Z' }
+    );
+    expect(saved['compliance.loanAgreementSigned']).toBe('true');
+    expect(saved['_meta.esign']).toMatchObject({
+      stage: 'signed',
+      signed_url: 'https://files.example/signed.pdf',
+    });
+  });
+
+  it('repairs flags from the audit note and a signed stage, not from agreement-ready', () => {
+    const repaired = repairComplianceFlags({
+      'compliance.enachDone': false,
+      '_meta.compliance.enach': done,
+      '_meta.compliance.loanAgreement': done,
+      '_meta.esign': { stage: 'signed' },
+    });
+    expect(repaired.changed).toBe(true);
+    expect(repaired.formData['compliance.enachDone']).toBe('true');
+    expect(repaired.formData['compliance.loanAgreementSigned']).toBe('true');
+
+    const readyOnly = repairComplianceFlags({ '_meta.compliance.loanAgreement': done });
+    expect(readyOnly.changed).toBe(false);
+    expect(readyOnly.formData['compliance.loanAgreementSigned']).toBeUndefined();
   });
 
   it('reads a JSON-string confirmation', () => {

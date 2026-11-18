@@ -102,12 +102,15 @@ export function validateGeoPhotosStage(formData: Record<string, unknown>): Recor
   return errors;
 }
 
-const DEV_FALLBACK_COORDS = { latitude: 19.076, longitude: 72.8777 };
+export const DEV_FALLBACK_COORDS = { latitude: 19.076, longitude: 72.8777 };
 
-function isLocalDevHost(): boolean {
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname;
-  return host === 'localhost' || host === '127.0.0.1';
+export function locationAfterFailure(
+  envDev: boolean,
+  host: string
+): { latitude: number; longitude: number } | null {
+  if (envDev !== true) return null;
+  if (host !== 'localhost' && host !== '127.0.0.1') return null;
+  return DEV_FALLBACK_COORDS;
 }
 
 function mapGeolocationError(error: GeolocationPositionError): string {
@@ -159,12 +162,16 @@ export async function captureGeolocation(): Promise<{ latitude: number; longitud
         maximumAge: 60_000,
       });
     } catch (lowAccuracyError) {
-      if (import.meta.env.DEV && isLocalDevHost()) {
+      const fallback = locationAfterFailure(
+        import.meta.env.DEV,
+        typeof window === 'undefined' ? '' : window.location.hostname
+      );
+      if (fallback) {
         console.warn(
           '[geo] Using dev fallback coordinates after location capture failed:',
           lowAccuracyError instanceof Error ? lowAccuracyError.message : lowAccuracyError
         );
-        return DEV_FALLBACK_COORDS;
+        return fallback;
       }
       throw lowAccuracyError instanceof Error ? lowAccuracyError : highAccuracyError;
     }

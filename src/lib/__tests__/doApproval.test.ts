@@ -102,14 +102,20 @@ describe('doApproval', () => {
     });
   });
 
-  it('pre-checks Aadhaar, PAN, credit, and eNACH when those confirmations exist', () => {
+  it('pre-checks Aadhaar, PAN, credit, and eNACH from the compliance flags', () => {
     const ticks = defaultDoChecklistTicks({
-      '_meta.compliance.ekyc': { status: 'done' },
-      '_meta.compliance.enach': { status: 'done' },
+      'compliance.ekycDone': 'true',
+      'compliance.enachDone': 'true',
       '_meta.qualifyResult': { pass: true },
     });
     expect(ticks).toEqual([true, true, true, true, false]);
     expect(defaultDoChecklistTicks({})).toEqual([false, false, false, false, false]);
+    expect(
+      defaultDoChecklistTicks({
+        '_meta.compliance.ekyc': { status: 'done' },
+        '_meta.compliance.enach': { status: 'done' },
+      })
+    ).toEqual([false, false, false, false, false]);
   });
 
   it('reads the dashboard link from the row, then form data', () => {

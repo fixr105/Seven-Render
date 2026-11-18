@@ -22,10 +22,10 @@ export function isValidImeiLuhn(digits: string): boolean {
 export function validateIotDeviceId(raw: string): string | null {
   const id = normalizeIotDeviceId(raw);
   if (id.length < 6 || id.length > 30) {
-    return 'IoT device ID must be 6 to 30 letters or digits';
+    return 'Enter the device ID printed on the IoT unit.';
   }
   if (/^\d{15}$/.test(id) && !isValidImeiLuhn(id)) {
-    return 'IMEI failed Luhn check';
+    return 'This IMEI is not valid. Check the 15 digits.';
   }
   return null;
 }

@@ -229,4 +229,43 @@ describe('apiService request logical success handling', () => {
     expect(url).toContain('/credit/ledger/ledger-1/flag-dispute');
     expect(JSON.parse(requestInit.body)).toEqual({ reason: 'Incorrect amount' });
   });
+
+  it('keeps waiting past 30 seconds while the generated DO file is saved', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            headers: new Headers({ 'content-type': 'application/json' }),
+            text: async () =>
+              JSON.stringify({
+                success: true,
+                data: { url: 'https://files.example/stored-do.pdf', fileName: 'DO.pdf' },
+              }),
+          });
+        }, 31_000);
+        init.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          const error = new Error('aborted');
+          error.name = 'AbortError';
+          reject(error);
+        });
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pending = apiService.storeGeneratedDoPdf({
+      url: 'https://pdf-temp-files.s3.us-west-2.amazonaws.com/job/DO.pdf',
+      fileName: 'DO.pdf',
+    });
+    await vi.advanceTimersByTimeAsync(31_000);
+    const result = await pending;
+
+    expect(result.success).toBe(true);
+    expect(result.error).toBeUndefined();
+    vi.useRealTimers();
+  });
 });
