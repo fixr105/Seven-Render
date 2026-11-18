@@ -2300,7 +2300,9 @@
             "Assigned KAM": "={{ $json.body['Assigned KAM'] }}",
             "Enabled Modules": "={{ $json.body['Enabled Modules'] }}",
             "Commission Rate": "={{ $json.body['Commission Rate'] }}",
-            "Status": "={{ $json.body.Status }}"
+            "Status": "={{ $json.body.Status }}",
+            "Products": "={{ $json.body.Products }}",
+            "Client KYC": "={{ $json.body['Client KYC'] }}"
           },
           "matchingColumns": [
             "id"
@@ -2400,6 +2402,28 @@
               "canBeUsedToMatch": true,
               "display": true,
               "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Products",
+              "displayName": "Products",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Client KYC",
+              "displayName": "Client KYC",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
               "readOnly": false,
               "removed": false
             },
@@ -10694,7 +10718,9 @@
             "Assigned KAM": "={{ $json.body['Assigned KAM'] }}",
             "Enabled Modules": "={{ $json.body['Enabled Modules'] }}",
             "Commission Rate": "={{ $json.body['Commission Rate'] }}",
-            "Status": "={{ $json.body.Status }}"
+            "Status": "={{ $json.body.Status }}",
+            "Products": "={{ $json.body.Products }}",
+            "Client KYC": "={{ $json.body['Client KYC'] }}"
           },
           "matchingColumns": [
             "id"
@@ -10794,6 +10820,28 @@
               "canBeUsedToMatch": true,
               "display": true,
               "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Products",
+              "displayName": "Products",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Client KYC",
+              "displayName": "Client KYC",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
               "readOnly": false,
               "removed": false
             },
@@ -12402,7 +12450,9 @@
             "Assigned KAM": "={{ $json.body['Assigned KAM'] }}",
             "Enabled Modules": "={{ $json.body['Enabled Modules'] }}",
             "Commission Rate": "={{ $json.body['Commission Rate'] }}",
-            "Status": "={{ $json.body.Status }}"
+            "Status": "={{ $json.body.Status }}",
+            "Products": "={{ $json.body.Products }}",
+            "Client KYC": "={{ $json.body['Client KYC'] }}"
           },
           "matchingColumns": [
             "id"
@@ -12502,6 +12552,28 @@
               "canBeUsedToMatch": true,
               "display": true,
               "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Products",
+              "displayName": "Products",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Client KYC",
+              "displayName": "Client KYC",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
               "readOnly": false,
               "removed": false
             },
@@ -14991,6 +15063,121 @@
       "typeVersion": 1,
       "id": "84085afc-006a-47aa-8cae-b8a03cbacf12",
       "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appzbyi8q7pJRl1cd",
+          "mode": "list",
+          "cachedResultName": "Seven Dashboard",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblClientKYC",
+          "mode": "list",
+          "cachedResultName": "Client KYC",
+          "cachedResultUrl": "https://airtable.com/appzbyi8q7pJRl1cd/tblClientKYC"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.body.id }}",
+            "Client KYC Record": "={{ $json.body['Client KYC Record'] }}",
+            "Client ID": "={{ $json.body['Client ID'] }}",
+            "Login Email": "={{ $json.body['Login Email'] }}",
+            "Status": "={{ $json.body.Status }}",
+            "KYC Verified": "={{ $json.body['KYC Verified'] }}",
+            "KYC Verified Date": "={{ $json.body['KYC Verified Date'] }}",
+            "Dealer ID": "={{ $json.body['Dealer ID'] }}",
+            "Trade Name": "={{ $json.body['Trade Name'] }}",
+            "Dealer Name": "={{ $json.body['Dealer Name'] }}",
+            "Dealer Contact": "={{ $json.body['Dealer Contact'] }}",
+            "Dealer Email": "={{ $json.body['Dealer Email'] }}",
+            "GST Number": "={{ $json.body['GST Number'] }}",
+            "Dealer PAN": "={{ $json.body['Dealer PAN'] }}",
+            "Dealer Address": "={{ $json.body['Dealer Address'] }}",
+            "Dealer City": "={{ $json.body['Dealer City'] }}",
+            "Dealer State": "={{ $json.body['Dealer State'] }}",
+            "Dealer Pincode": "={{ $json.body['Dealer Pincode'] }}",
+            "Dealer Bank Name": "={{ $json.body['Dealer Bank Name'] }}",
+            "Dealer Account Number": "={{ $json.body['Dealer Account Number'] }}",
+            "Dealer IFSC Code": "={{ $json.body['Dealer IFSC Code'] }}",
+            "Name in Bank": "={{ $json.body['Name in Bank'] }}",
+            "Selected Dealer Display": "={{ $json.body['Selected Dealer Display'] }}",
+            "Notes": "={{ $json.body.Notes }}",
+            "Client Link": "={{ $json.body['Client Link'] }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": [
+            { "id": "id", "displayName": "id", "required": false, "defaultMatch": true, "display": true, "type": "string", "readOnly": true, "removed": false },
+            { "id": "Client KYC Record", "displayName": "Client KYC Record", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Client ID", "displayName": "Client ID", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Login Email", "displayName": "Login Email", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "KYC Verified", "displayName": "KYC Verified", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "boolean", "readOnly": false, "removed": false },
+            { "id": "KYC Verified Date", "displayName": "KYC Verified Date", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer ID", "displayName": "Dealer ID", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Trade Name", "displayName": "Trade Name", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer Name", "displayName": "Dealer Name", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer Contact", "displayName": "Dealer Contact", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer Email", "displayName": "Dealer Email", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "GST Number", "displayName": "GST Number", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer PAN", "displayName": "Dealer PAN", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer Address", "displayName": "Dealer Address", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer City", "displayName": "Dealer City", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer State", "displayName": "Dealer State", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer Pincode", "displayName": "Dealer Pincode", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer Bank Name", "displayName": "Dealer Bank Name", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer Account Number", "displayName": "Dealer Account Number", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Dealer IFSC Code", "displayName": "Dealer IFSC Code", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Name in Bank", "displayName": "Name in Bank", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Selected Dealer Display", "displayName": "Selected Dealer Display", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Notes", "displayName": "Notes", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Client Link", "displayName": "Client Link", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "array", "readOnly": false, "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [-592, 1904],
+      "id": "c4e1a7b2-9d33-4f61-8a10-6b2e0d4f91aa",
+      "name": "Post Client KYC"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clientkyc",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -816,
+        1904
+      ],
+      "id": "b7c2e4a1-5f08-4d9c-9e21-3a6d8f0b12c4",
+      "name": "Webhook Client KYC",
+      "webhookId": "7e1c4a90-2b55-4d18-9f63-0c8a1d5e6b77"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -368,
+        1904
+      ],
+      "id": "d8f3a6c2-1e47-4b90-8c52-4f9a0d7e13b5",
+      "name": "Respond to Webhook Client KYC"
     }
   ],
   "pinData": {},
@@ -15066,6 +15253,17 @@
         [
           {
             "node": "Post Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Client KYC": {
+      "main": [
+        [
+          {
+            "node": "Post Client KYC",
             "type": "main",
             "index": 0
           }
@@ -15577,6 +15775,17 @@
         [
           {
             "node": "Respond to Webhook6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Client KYC": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook Client KYC",
             "type": "main",
             "index": 0
           }

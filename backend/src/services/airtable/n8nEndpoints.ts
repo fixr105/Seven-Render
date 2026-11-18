@@ -130,6 +130,9 @@ export const N8N_POST_WEBHOOK_PATHS = {
   
   // Clients
   CLIENT: 'Client',
+
+  // Client KYC
+  CLIENT_KYC: 'clientkyc',
   
   // Notifications
   NOTIFICATION: 'notification',
@@ -276,6 +279,7 @@ export function getTableToPostWebhookPath(): Record<string, keyof typeof N8N_POS
     [AIRTABLE_TABLE_NAMES.NBFC_PARTNERS]: 'NBFC_PARTNERS',
     [AIRTABLE_TABLE_NAMES.NOTIFICATIONS]: 'NOTIFICATION',
     [AIRTABLE_TABLE_NAMES.USER_ACCOUNTS]: 'ADD_USER',
+    [AIRTABLE_TABLE_NAMES.CLIENT_KYC]: 'CLIENT_KYC',
     [AIRTABLE_TABLE_NAMES.VEHICLES]: 'VEHICLES',
   };
 }
@@ -306,6 +310,7 @@ export const n8nEndpoints = {
     nbfcPartners: process.env.N8N_POST_NBFC_PARTNERS_URL || getPostWebhookUrl('NBFC_PARTNERS'),
     addUser: process.env.N8N_POST_ADD_USER_URL || getPostWebhookUrl('ADD_USER'),
     client: process.env.N8N_POST_CLIENT_URL || getPostWebhookUrl('CLIENT'),
+    clientKyc: process.env.N8N_POST_CLIENT_KYC_URL || getPostWebhookUrl('CLIENT_KYC'),
     notification: process.env.N8N_POST_NOTIFICATION_URL || getPostWebhookUrl('NOTIFICATION'),
     email: process.env.N8N_POST_EMAIL_URL || getPostWebhookUrl('EMAIL'),
     userAccountValidate: process.env.N8N_POST_USER_ACCOUNT_VALIDATE_URL || getGetWebhookUrl('USER_ACCOUNT'),

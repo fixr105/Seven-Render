@@ -723,18 +723,42 @@ class ApiService {
   }
 
   /**
-   * Create a dealer login. The server sets the default password.
+   * Create a dealer login from the password and KYC details the KAM entered.
    */
   async createDealer(payload: {
     email: string;
-    name: string;
+    password: string;
+    clientName: string;
+    name?: string;
+    primaryContactName?: string;
+    dealerEmail?: string;
+    enabledModules?: string[];
+    products?: string;
+    commissionRate?: number | string;
+    status?: string;
+    clientKycRecord?: string;
+    dealerId?: string;
+    dealerContact: string;
+    gstNumber: string;
+    dealerPan: string;
+    tradeName?: string;
+    dealerName?: string;
+    kycVerified?: boolean;
+    kycVerifiedDate?: string;
+    notes?: string;
+    dealerAddress?: string;
+    dealerCity?: string;
+    dealerState?: string;
+    dealerPincode: string;
+    dealerBankName?: string;
+    dealerAccountNumber?: string;
+    dealerIfscCode: string;
+    nameInBank?: string;
+    selectedDealerDisplay?: string;
   }): Promise<ApiResponse<{ email: string; name: string; role: string; clientId: string | null }>> {
     return this.request('/users/create-dealer', {
       method: 'POST',
-      body: JSON.stringify({
-        email: payload.email,
-        name: payload.name,
-      }),
+      body: JSON.stringify(payload),
     });
   }
 

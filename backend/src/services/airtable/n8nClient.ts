@@ -1463,9 +1463,15 @@ export class N8nClient {
       'PIN': data['Password'] || data.password || data.PIN || data.pin || '', // n8n expects PIN
       'Role': data['Role'] || data.role || '',
       'Associated Profile': data['Associated Profile'] || data.associatedProfile || '',
-      'Last Login': data['Last Login'] || data.lastLogin || '',
       'Account Status': data['Account Status'] || data.accountStatus || 'Active',
+      client_ID: data.client_ID ?? data['client_ID'] ?? '',
+      Kam_ID: data.Kam_ID ?? '',
+      NBFC_ID: data.NBFC_ID ?? '',
+      CreditTeam_ID: data.CreditTeam_ID ?? '',
     };
+    if (data['Last Login'] != null || data.lastLogin != null) {
+      userAccountData['Last Login'] = data['Last Login'] || data.lastLogin || '';
+    }
     // Explicitly exclude Password - n8n adduser expects PIN only
     delete userAccountData.Password;
     delete userAccountData.password;
@@ -1487,7 +1493,7 @@ export class N8nClient {
     console.log('[postClient] Starting postClient with data:', JSON.stringify(data, null, 2));
     console.log('[postClient] Webhook URL:', n8nConfig.postClientUrl);
     
-    const clientData = {
+    const clientData: Record<string, any> = {
       id: data.id, // for matching
       'Client ID': data['Client ID'] || data.clientId || data.id,
       'Client Name': data['Client Name'] || data.clientName || '',
@@ -1496,10 +1502,14 @@ export class N8nClient {
       'Assigned KAM': data['Assigned KAM'] || data.assignedKAM || '',
       'Assigned Products': data['Assigned Products'] ?? data.assignedProducts ?? '',
       'Enabled Modules': data['Enabled Modules'] || data.enabledModules || '',
-      'Commission Rate': data['Commission Rate'] || data.commissionRate || '',
+      'Commission Rate': data['Commission Rate'] ?? data.commissionRate ?? '',
       'Status': data['Status'] || data.status || 'Active',
       'Form Categories': data['Form Categories'] || data.formCategories || '',
+      Products: data.Products ?? data.products ?? '',
     };
+    if (data['Client KYC'] !== undefined) {
+      clientData['Client KYC'] = data['Client KYC'];
+    }
     
     console.log('[postClient] Prepared clientData:', JSON.stringify(clientData, null, 2));
     console.log('[postClient] Calling postData with URL:', n8nConfig.postClientUrl);
@@ -1525,6 +1535,43 @@ export class N8nClient {
       console.error('[postClient] Error stack:', error.stack);
       throw error;
     }
+  }
+
+  async postClientKyc(data: Record<string, any>) {
+    const kycData = {
+      id: data.id,
+      'Client KYC Record': data['Client KYC Record'] || data.id || '',
+      'Client ID': data['Client ID'] || '',
+      'Login Email': data['Login Email'] || '',
+      Status: data.Status || 'Active',
+      'KYC Verified': data['KYC Verified'] === true,
+      'KYC Verified Date': data['KYC Verified Date'] || '',
+      'Dealer ID': data['Dealer ID'] || '',
+      'Trade Name': data['Trade Name'] || '',
+      'Dealer Name': data['Dealer Name'] || '',
+      'Dealer Contact': data['Dealer Contact'] || '',
+      'Dealer Email': data['Dealer Email'] || '',
+      'GST Number': data['GST Number'] || '',
+      'Dealer PAN': data['Dealer PAN'] || '',
+      'Dealer Address': data['Dealer Address'] || '',
+      'Dealer City': data['Dealer City'] || '',
+      'Dealer State': data['Dealer State'] || '',
+      'Dealer Pincode': data['Dealer Pincode'] || '',
+      'Dealer Bank Name': data['Dealer Bank Name'] || '',
+      'Dealer Account Number': data['Dealer Account Number'] || '',
+      'Dealer IFSC Code': data['Dealer IFSC Code'] || '',
+      'Name in Bank': data['Name in Bank'] || '',
+      'Selected Dealer Display': data['Selected Dealer Display'] || '',
+      Notes: data.Notes || '',
+      'Client Link': Array.isArray(data['Client Link']) ? data['Client Link'] : [],
+    };
+    const result = await this.postData(n8nConfig.postClientKycUrl, kycData, 3, {
+      operationName: 'client kyc sync',
+    });
+    if (result && !result.error) {
+      this.invalidateCache('Client KYC');
+    }
+    return result;
   }
 
   async postNotification(data: Record<string, any>) {

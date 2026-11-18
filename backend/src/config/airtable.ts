@@ -104,6 +104,7 @@ export const n8nConfig = {
   // POST: Clients
   // n8n path: /Client → Airtable: Clients
   postClientUrl: n8nEndpoints.post.client,
+  postClientKycUrl: n8nEndpoints.post.clientKyc,
   
   // POST: Notifications
   // n8n path: /notification → Airtable: Notifications
