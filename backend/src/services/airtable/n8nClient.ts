@@ -35,6 +35,23 @@ export class NonRetryableWebhookError extends Error {
   }
 }
 
+function redactWebhookText(text: string): string {
+  return text
+    .replace(/\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/g, '[redacted]')
+    .replace(/"(?:PIN|Password|password|Dealer PAN|Dealer Account Number)"\s*:\s*"[^"]*"/g, (match) => {
+      const key = match.slice(0, match.indexOf(':'));
+      return `${key}: "[redacted]"`;
+    });
+}
+
+function redactWebhookPayload(data: Record<string, unknown>): Record<string, unknown> {
+  const redacted = { ...data };
+  for (const key of ['PIN', 'Password', 'password', 'Dealer PAN', 'Dealer Account Number']) {
+    if (redacted[key]) redacted[key] = '[redacted]';
+  }
+  return redacted;
+}
+
 function hasWriteIdentifier(payload: unknown): boolean {
   if (!payload || typeof payload !== 'object') return false;
   const record = payload as Record<string, unknown>;
@@ -658,7 +675,7 @@ export class N8nClient {
         );
 
         console.log(`[postData] Posting to webhook: ${webhookUrl} (attempt ${attempt}/${retries})`);
-        console.log(`[postData] Data:`, JSON.stringify(data, null, 2));
+        console.log(`[postData] Data:`, JSON.stringify(redactWebhookPayload(data), null, 2));
         
         // Add timeout to prevent hanging requests (55 seconds)
         const controller = new AbortController();
@@ -677,7 +694,7 @@ export class N8nClient {
           clearTimeout(timeoutId);
           const responseText = await response.text();
           console.log(`[postData] Response status: ${response.status} ${response.statusText}`);
-          console.log(`[postData] Response body: ${responseText.substring(0, 500)}`);
+          console.log(`[postData] Response body: ${redactWebhookText(responseText).substring(0, 500)}`);
 
           if (!response.ok) {
             const errorMessage = `n8n POST webhook failed: ${response.status} ${response.statusText}. Response: ${responseText}`;
@@ -1458,7 +1475,7 @@ export class N8nClient {
     // Only send: id, Username, PIN, Role, Associated Profile, Last Login, Account Status
     // Note: n8n adduser workflow expects PIN (not Password); value should be hashed before calling
     const userAccountData: Record<string, any> = {
-      id: data.id, // for matching
+      ...(typeof data.id === 'string' && data.id.startsWith('rec') ? { id: data.id } : {}),
       'Username': data['Username'] || data.username || data.email || '',
       'PIN': data['Password'] || data.password || data.PIN || data.pin || '', // n8n expects PIN
       'Role': data['Role'] || data.role || '',
@@ -1488,14 +1505,11 @@ export class N8nClient {
   }
 
   async postClient(data: Record<string, any>) {
-    // Ensure only exact fields are sent to Client webhook
-    // Only send: id, Client ID, Client Name, Primary Contact Name, Contact Email / Phone, Assigned KAM, Enabled Modules, Commission Rate, Status, Form Categories
-    console.log('[postClient] Starting postClient with data:', JSON.stringify(data, null, 2));
     console.log('[postClient] Webhook URL:', n8nConfig.postClientUrl);
     
     const clientData: Record<string, any> = {
-      id: data.id, // for matching
-      'Client ID': data['Client ID'] || data.clientId || data.id,
+      ...(typeof data.id === 'string' && data.id.startsWith('rec') ? { id: data.id } : {}),
+      'Client ID': data['Client ID'] || data.clientId || (typeof data.id === 'string' && data.id.startsWith('rec') ? '' : data.id) || '',
       'Client Name': data['Client Name'] || data.clientName || '',
       'Primary Contact Name': data['Primary Contact Name'] || data.primaryContactName || '',
       'Contact Email / Phone': data['Contact Email / Phone'] || data.contactEmailPhone || '',
@@ -1511,12 +1525,16 @@ export class N8nClient {
       clientData['Client KYC'] = data['Client KYC'];
     }
     
-    console.log('[postClient] Prepared clientData:', JSON.stringify(clientData, null, 2));
-    console.log('[postClient] Calling postData with URL:', n8nConfig.postClientUrl);
+    console.log('[postClient] Calling postData', {
+      hasRecordId: typeof clientData.id === 'string',
+      clientId: clientData['Client ID'] || '',
+    });
     
     try {
       const result = await this.postData(n8nConfig.postClientUrl, clientData);
-      console.log('[postClient] postData completed successfully:', JSON.stringify(result, null, 2));
+      console.log('[postClient] postData completed', {
+        hasError: Boolean(result && result.error),
+      });
       
       // Invalidate cache for Clients and related tables only after successful POST
       if (result && !result.error) {
@@ -1537,9 +1555,28 @@ export class N8nClient {
     }
   }
 
+  async listClientKyc(): Promise<ParsedRecord[]> {
+    const base = (process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud').replace(/\/$/, '');
+    const url = `${base}/webhook/clientkyc`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error(`Client KYC webhook failed: ${response.status} ${response.statusText}`);
+    }
+    const text = (await response.text()).trim();
+    if (!text) return [];
+    const parsed = JSON.parse(text) as unknown;
+    if (!Array.isArray(parsed)) {
+      throw new Error('Client KYC webhook did not return a list');
+    }
+    return parsed as ParsedRecord[];
+  }
+
   async postClientKyc(data: Record<string, any>) {
-    const kycData = {
-      id: data.id,
+    const kycData: Record<string, any> = {
+      ...(typeof data.id === 'string' && data.id.startsWith('rec') ? { id: data.id } : {}),
       'Client KYC Record': data['Client KYC Record'] || data.id || '',
       'Client ID': data['Client ID'] || '',
       'Login Email': data['Login Email'] || '',

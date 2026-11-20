@@ -33,6 +33,10 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   code?: string;
+  error_type?: string;
+  errors?: Array<{ field: string; message: string }>;
+  step?: string;
+  resume?: { clientId: string; clientRecordId: string; kycRecordId: string };
 }
 
 export interface ClientLinkPoolItem {
@@ -80,6 +84,8 @@ export interface UserContext {
   nbfcId?: string | null;
   creditTeamId?: string | null;
   name?: string;
+  /** Display name from User Accounts → Associated Profile. */
+  associatedProfile?: string | null;
   /** User preferences (notifications, preferences, security) from User Accounts.Settings */
   settings?: Record<string, unknown>;
 }
@@ -523,12 +529,17 @@ class ApiService {
             success: false,
             error: data.error || `Authentication failed (${response.status}).`,
             code: errorCode,
+            error_type: typeof data.error_type === 'string' ? data.error_type : undefined,
           };
         }
         // Pass through validation payload (missingFields, formatErrors) for 400 responses
         const errorPayload: ApiResponse<T> = {
           success: false,
           error: data.error || `HTTP ${response.status}: ${response.statusText}`,
+          error_type: typeof data.error_type === 'string' ? data.error_type : undefined,
+          errors: Array.isArray(data.errors) ? data.errors : undefined,
+          step: typeof data.step === 'string' ? data.step : undefined,
+          resume: data.resume,
         };
         if (data.missingFields !== undefined || data.formatErrors !== undefined) {
           (errorPayload as any).data = {
@@ -726,36 +737,44 @@ class ApiService {
    * Create a dealer login from the password and KYC details the KAM entered.
    */
   async createDealer(payload: {
+    clientName: string;
+    primaryContactName: string;
     email: string;
     password: string;
-    clientName: string;
-    name?: string;
-    primaryContactName?: string;
-    dealerEmail?: string;
-    enabledModules?: string[];
-    products?: string;
-    commissionRate?: number | string;
-    status?: string;
-    clientKycRecord?: string;
-    dealerId?: string;
-    dealerContact: string;
-    gstNumber: string;
-    dealerPan: string;
-    tradeName?: string;
-    dealerName?: string;
-    kycVerified?: boolean;
-    kycVerifiedDate?: string;
-    notes?: string;
-    dealerAddress?: string;
-    dealerCity?: string;
-    dealerState?: string;
-    dealerPincode: string;
-    dealerBankName?: string;
-    dealerAccountNumber?: string;
-    dealerIfscCode: string;
-    nameInBank?: string;
-    selectedDealerDisplay?: string;
-  }): Promise<ApiResponse<{ email: string; name: string; role: string; clientId: string | null }>> {
+    enabledModules: string[];
+    products: string;
+    commissionRate: number;
+    status: string;
+    kyc: {
+      tradeName: string;
+      dealerName: string;
+      dealerContact: string;
+      gstNumber: string;
+      dealerPan: string;
+      kycVerified: boolean;
+      kycVerifiedDate: string;
+      notes: string;
+      address: string;
+      city: string;
+      state: string;
+      pincode: string;
+      bankName: string;
+      accountNumber: string;
+      ifsc: string;
+      nameInBank: string;
+      selectedDealerDisplay: string;
+    };
+    resume?: { clientId: string; clientRecordId: string; kycRecordId: string };
+  }): Promise<ApiResponse<{
+    clientId: string;
+    clientRecordId: string;
+    kycRecordId: string;
+    kycRecord: string;
+    dealerId: string;
+    email: string;
+    name: string;
+    role: string;
+  }>> {
     return this.request('/users/create-dealer', {
       method: 'POST',
       body: JSON.stringify(payload),

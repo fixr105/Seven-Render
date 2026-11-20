@@ -31,7 +31,7 @@ function test(name: string, fn: () => void): void {
   }
 }
 
-// Test data (tests use Sagar@gmail.com / pass@123)
+// Test data. Passwords come from the environment, not this file.
 const clientUser: AuthUser = {
   id: 'user-1',
   email: 'Sagar@gmail.com',

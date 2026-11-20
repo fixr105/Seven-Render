@@ -9,6 +9,8 @@ export interface UserContext {
   email: string;
   role: UserRole;
   name?: string | null;
+  /** Display name from User Accounts → Associated Profile. */
+  associatedProfile?: string | null;
   phone?: string | null;
   company?: string | null;
   clientId?: string | null;

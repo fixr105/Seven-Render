@@ -17,7 +17,7 @@ import { n8nApiClient } from './services/airtable/n8nApiClient.js';
 console.log('🔍 Module 0: Foundation Verification\n');
 console.log('=' .repeat(60));
 
-// Test users for each role (Sagar@gmail.com / pass@123)
+// Test users for each role. Passwords come from the environment, not this file.
 const testUsers: Record<string, AuthUser> = {
   client: {
     id: 'user-1',

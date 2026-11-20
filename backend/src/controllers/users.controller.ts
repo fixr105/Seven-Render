@@ -9,9 +9,13 @@ import { authService } from '../auth/auth.service.js';
 import { AIRTABLE_TABLE_NAMES } from '../services/airtable/n8nEndpoints.js';
 import {
   airtableErrorMessage,
+  createClientId,
+  maskAccountNumber,
+  maskPan,
   nextSerialId,
   parseDealerOnboardingBody,
   readCreatedRecordId,
+  type DealerResume,
 } from '../services/dealerOnboarding.js';
 
 const VALID_ROLES = ['client', 'kam', 'credit_team', 'nbfc', 'admin'];
@@ -478,9 +482,31 @@ export class UsersController {
         return;
       }
 
-      const parsed = parseDealerOnboardingBody(req.body as Record<string, unknown>);
+      let allowedProducts: string[] = [];
+      try {
+        const productRows = await n8nClient.fetchTable(AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS);
+        allowedProducts = productRows
+          .map((row) => String(row['Product ID'] || row.productId || '').trim())
+          .filter(Boolean);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Loan products could not be loaded';
+        res.status(400).json({
+          success: false,
+          error_type: 'VALIDATION_ERROR',
+          errors: [{ field: 'products', message }],
+        });
+        return;
+      }
+
+      const parsed = parseDealerOnboardingBody(req.body as Record<string, unknown>, {
+        allowedProducts,
+      });
       if (parsed.ok === false) {
-        res.status(400).json({ success: false, error: parsed.error });
+        res.status(400).json({
+          success: false,
+          error_type: 'VALIDATION_ERROR',
+          errors: parsed.errors,
+        });
         return;
       }
       const dealer = parsed.value;
@@ -495,31 +521,50 @@ export class UsersController {
       if (existingUser) {
         res.status(409).json({
           success: false,
+          error_type: 'DUPLICATE_EMAIL',
           error: 'A user with this email already exists',
         });
         return;
       }
 
-      const hashedPassword = await authService.hashPassword(dealer.password);
-      const newId = `USER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const createdAt = new Date().toISOString();
-      const assignedKam =
-        req.user.role === 'kam' && req.user.kamId ? req.user.kamId : '';
-      if (req.user.role === 'kam' && !req.user.kamId) {
-        console.warn('[createDealer] KAM has no kamId; Assigned KAM left blank', { email });
+      const kycRows = (await n8nClient.listClientKyc()) as Array<Record<string, unknown>>;
+      const duplicatePan = kycRows.some((row) => {
+        const pan = typeof row['Dealer PAN'] === 'string' ? row['Dealer PAN'].trim().toUpperCase() : '';
+        return pan !== '' && pan === dealer.dealerPan;
+      });
+      if (duplicatePan) {
+        res.status(409).json({
+          success: false,
+          error_type: 'DUPLICATE_PAN',
+          error: 'A dealer with this PAN already exists',
+        });
+        return;
       }
 
-      const kycRows = (await n8nClient.fetchTable(
-        AIRTABLE_TABLE_NAMES.CLIENT_KYC,
-        false
-      )) as Array<Record<string, unknown>>;
-      const clientKycRecord =
-        dealer.clientKycRecord || nextSerialId(kycRows, 'Client KYC Record', 'KYC');
-      const dealerId = dealer.dealerId || nextSerialId(kycRows, 'Dealer ID', 'DLR');
+      const callerEmail = (req.user.email || '').trim().toLowerCase();
+      const callerAccount = existingUsers.find((user) => {
+        const record = user as { Username?: string; Email?: string };
+        const username = (record.Username || record.Email || '').toString().trim().toLowerCase();
+        return username === callerEmail;
+      }) as { Kam_ID?: string } | undefined;
+      const assignedKam = req.user.role === 'kam'
+        ? String(callerAccount?.Kam_ID || '').trim()
+        : '';
+      if (req.user.role === 'kam' && !assignedKam) {
+        console.warn('[createDealer] KAM has no Kam_ID; Assigned KAM left blank', { email });
+      }
 
-      const clientPayload = {
-        id: newId,
-        'Client ID': newId,
+      const resume: DealerResume = {
+        clientId: dealer.resume.clientId || createClientId(),
+        clientRecordId: dealer.resume.clientRecordId,
+        kycRecordId: dealer.resume.kycRecordId,
+      };
+      const clientKycRecord = nextSerialId(kycRows, 'Client KYC Record', 'KYC');
+      const dealerSerial = nextSerialId(kycRows, 'Dealer ID', 'DLR');
+      const createdAt = new Date().toISOString();
+
+      const clientFields = {
+        'Client ID': resume.clientId,
         'Client Name': name,
         'Primary Contact Name': dealer.primaryContactName,
         'Contact Email / Phone': email,
@@ -530,82 +575,118 @@ export class UsersController {
         Products: dealer.products,
       };
 
-      const clientResult = await n8nClient.postClient(clientPayload);
-      const clientWriteError = airtableErrorMessage(clientResult);
-      if (clientWriteError) {
-        throw new Error(clientWriteError);
-      }
-      const clientRecordId = await resolveWrittenRecordId(
-        clientResult,
-        AIRTABLE_TABLE_NAMES.CLIENTS,
-        (row) => row['Client ID'] === newId || row.id === newId
-      );
-
-      const kycPayload = {
-        id: clientKycRecord,
-        'Client KYC Record': clientKycRecord,
-        'Client ID': newId,
-        'Login Email': email,
-        Status: dealer.status,
-        'KYC Verified': dealer.kycVerified,
-        'KYC Verified Date': dealer.kycVerifiedDate,
-        'Dealer ID': dealerId,
-        'Trade Name': dealer.tradeName,
-        'Dealer Name': dealer.dealerName,
-        'Dealer Contact': dealer.dealerContact,
-        'Dealer Email': dealer.dealerEmail,
-        'GST Number': dealer.gstNumber,
-        'Dealer PAN': dealer.dealerPan,
-        'Dealer Address': dealer.dealerAddress,
-        'Dealer City': dealer.dealerCity,
-        'Dealer State': dealer.dealerState,
-        'Dealer Pincode': dealer.dealerPincode,
-        'Dealer Bank Name': dealer.dealerBankName,
-        'Dealer Account Number': dealer.dealerAccountNumber,
-        'Dealer IFSC Code': dealer.dealerIfscCode,
-        'Name in Bank': dealer.nameInBank,
-        'Selected Dealer Display': dealer.selectedDealerDisplay,
-        Notes: dealer.notes,
-        'Client Link': [clientRecordId],
+      const fail = (step: 'A' | 'B' | 'C' | 'D', error: string) => {
+        console.error('[createDealer] Step failed', {
+          step,
+          email,
+          accountLast4: maskAccountNumber(dealer.dealerAccountNumber),
+          pan: maskPan(dealer.dealerPan),
+          error,
+        });
+        res.status(502).json({
+          success: false,
+          error_type: 'STEP_FAILED',
+          step,
+          error,
+          resume,
+        });
       };
-      const kycResult = await n8nClient.postClientKyc(kycPayload);
-      const kycWriteError = airtableErrorMessage(kycResult);
-      if (kycWriteError) {
-        throw new Error(kycWriteError);
-      }
-      const kycRecordId = await resolveWrittenRecordId(
-        kycResult,
-        AIRTABLE_TABLE_NAMES.CLIENT_KYC,
-        (row) => row['Client KYC Record'] === clientKycRecord || row['Client ID'] === newId
-      );
 
-      const linkResult = await n8nClient.postClient({
-        ...clientPayload,
-        'Client KYC': [kycRecordId],
+      const clientRecordId = await writeDealerStep('A', async () => {
+        const payload = resume.clientRecordId
+          ? { ...clientFields, id: resume.clientRecordId }
+          : clientFields;
+        const result = await n8nClient.postClient(payload);
+        const writeError = airtableErrorMessage(result);
+        if (writeError) throw new Error(writeError);
+        if (resume.clientRecordId) return resume.clientRecordId;
+        return resolveWrittenRecordId(
+          result,
+          AIRTABLE_TABLE_NAMES.CLIENTS,
+          (row) => row['Client ID'] === resume.clientId
+        );
+      }, fail);
+      if (!clientRecordId) return;
+      resume.clientRecordId = clientRecordId;
+
+      const kycRecordId = await writeDealerStep('B', async () => {
+        const kycPayload: Record<string, unknown> = {
+          'Client KYC Record': clientKycRecord,
+          'Client ID': resume.clientId,
+          'Login Email': email,
+          Status: dealer.status,
+          'KYC Verified': dealer.kycVerified,
+          'KYC Verified Date': dealer.kycVerifiedDate,
+          'Dealer ID': dealerSerial,
+          'Trade Name': dealer.tradeName,
+          'Dealer Name': dealer.dealerName,
+          'Dealer Contact': dealer.dealerContact,
+          'Dealer Email': email,
+          'GST Number': dealer.gstNumber,
+          'Dealer PAN': dealer.dealerPan,
+          'Dealer Address': dealer.dealerAddress,
+          'Dealer City': dealer.dealerCity,
+          'Dealer State': dealer.dealerState,
+          'Dealer Pincode': dealer.dealerPincode,
+          'Dealer Bank Name': dealer.dealerBankName,
+          'Dealer Account Number': dealer.dealerAccountNumber,
+          'Dealer IFSC Code': dealer.dealerIfscCode,
+          'Name in Bank': dealer.nameInBank,
+          'Selected Dealer Display': dealer.selectedDealerDisplay,
+          Notes: dealer.notes,
+          'Client Link': [clientRecordId],
+        };
+        if (resume.kycRecordId) kycPayload.id = resume.kycRecordId;
+        const result = await n8nClient.postClientKyc(kycPayload);
+        const writeError = airtableErrorMessage(result);
+        if (writeError) throw new Error(writeError);
+        if (resume.kycRecordId) return resume.kycRecordId;
+        return resolveWrittenRecordId(
+          result,
+          AIRTABLE_TABLE_NAMES.CLIENT_KYC,
+          (row) => row['Client ID'] === resume.clientId || row['Client KYC Record'] === clientKycRecord
+        );
+      }, fail);
+      if (!kycRecordId) return;
+      resume.kycRecordId = kycRecordId;
+
+      const linked = await writeDealerStep('C', async () => {
+        const result = await n8nClient.postClient({
+          ...clientFields,
+          id: clientRecordId,
+          'Client KYC': [kycRecordId],
+        });
+        const writeError = airtableErrorMessage(result);
+        if (writeError) throw new Error(writeError);
+        return clientRecordId;
+      }, fail);
+      if (!linked) return;
+
+      const hashedPassword = await authService.hashPassword(dealer.password);
+      const userWritten = await writeDealerStep('D', async () => {
+        const result = await n8nClient.postUserAccount({
+          Username: email,
+          Password: hashedPassword,
+          Role: 'client',
+          client_ID: resume.clientId,
+          Kam_ID: '',
+          NBFC_ID: '',
+          CreditTeam_ID: '',
+          'Associated Profile': name,
+          'Account Status': 'Active',
+        });
+        const writeError = airtableErrorMessage(result);
+        if (writeError) throw new Error(writeError);
+        return 'ok';
+      }, fail);
+      if (!userWritten) return;
+
+      console.log('[createDealer] Created dealer account', {
+        clientId: resume.clientId,
+        email,
+        accountLast4: maskAccountNumber(dealer.dealerAccountNumber),
+        pan: maskPan(dealer.dealerPan),
       });
-      const linkWriteError = airtableErrorMessage(linkResult);
-      if (linkWriteError) {
-        throw new Error(linkWriteError);
-      }
-
-      const userResult = await n8nClient.postUserAccount({
-        id: newId,
-        Username: email,
-        Password: hashedPassword,
-        Role: 'client',
-        client_ID: newId,
-        Kam_ID: '',
-        NBFC_ID: '',
-        CreditTeam_ID: '',
-        'Associated Profile': name,
-        'Account Status': dealer.status || 'Active',
-      });
-      const userWriteError = airtableErrorMessage(userResult);
-      if (userWriteError) {
-        throw new Error(userWriteError);
-      }
-
-      console.log('[createDealer] Created dealer account', { id: newId, email });
 
       n8nClient
         .postAdminActivityLog({
@@ -621,12 +702,22 @@ export class UsersController {
           console.warn('[createDealer] Failed to log admin activity (non-critical):', logError);
         });
 
-      res.status(200).json({
+      n8nClient.invalidateCacheMultiple([
+        'Clients',
+        'Client KYC',
+        'User Accounts',
+      ]);
+
+      res.status(201).json({
         success: true,
+        clientId: resume.clientId,
+        clientRecordId,
+        kycRecordId,
+        kycRecord: clientKycRecord,
+        dealerId: dealerSerial,
         email,
         name,
         role: 'client',
-        clientId: newId,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to create dealer account';
@@ -639,6 +730,20 @@ export class UsersController {
         error: message,
       });
     }
+  }
+}
+
+async function writeDealerStep<T>(
+  step: 'A' | 'B' | 'C' | 'D',
+  action: () => Promise<T>,
+  fail: (step: 'A' | 'B' | 'C' | 'D', error: string) => void
+): Promise<T | null> {
+  try {
+    return await action();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Write failed';
+    fail(step, message);
+    return null;
   }
 }
 

@@ -18,7 +18,7 @@ import { AuthUser } from './types/auth.js';
 console.log('🔍 Module 1: M2 Master Form Builder + Client Dashboard Config Verification\n');
 console.log('='.repeat(60));
 
-// Test data (Sagar@gmail.com / pass@123)
+// Test data. Passwords come from the environment, not this file.
 const testKAMUser: AuthUser = {
   id: 'kam-1',
   email: 'Sagar@gmail.com',

@@ -161,6 +161,11 @@ export const Clients: React.FC = () => {
   // Fetch on mount (including SPA navigation) and via Refresh.
   useEffect(() => {
     fetchClients();
+    const onDealerCreated = () => {
+      void fetchClients(true);
+    };
+    window.addEventListener('dealer-created', onDealerCreated);
+    return () => window.removeEventListener('dealer-created', onDealerCreated);
   }, []);
 
   const clientsWithCounts = useMemo(() => {

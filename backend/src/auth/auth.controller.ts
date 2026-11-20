@@ -288,11 +288,17 @@ export class AuthController {
     try {
       const userAccounts = await n8nClient.fetchTable('User Accounts');
       const account = userAccounts.find((a: any) => a.id === req.user!.id || a['User Account ID'] === req.user!.id);
-      if (account && account['Settings']) {
-        try {
-          data.settings = typeof account['Settings'] === 'string' ? JSON.parse(account['Settings']) : account['Settings'];
-        } catch {
-          data.settings = {};
+      if (account) {
+        const profile = account['Associated Profile'];
+        if (typeof profile === 'string' && profile.trim()) {
+          data.associatedProfile = profile.trim();
+        }
+        if (account['Settings']) {
+          try {
+            data.settings = typeof account['Settings'] === 'string' ? JSON.parse(account['Settings']) : account['Settings'];
+          } catch {
+            data.settings = {};
+          }
         }
       }
     } catch {
