@@ -302,7 +302,7 @@ export const B2CEvApplicationWizard: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [stepAdvanceMessage, setStepAdvanceMessage] = useState<string | null>(null);
-  const [panLookupLoading, setPanLookupLoading] = useState(false);
+  const [panLookupLoading] = useState(false);
   const [panLookupError, setPanLookupError] = useState<string | null>(null);
   const [postSubmitApplication, setPostSubmitApplication] = useState<SubmittedApplication | null>(
     null
