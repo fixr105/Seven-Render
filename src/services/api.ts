@@ -628,26 +628,6 @@ class ApiService {
   }
 
   /**
-   * Request password reset email. Backend sends link if account exists (no user enumeration).
-   */
-  async forgotPassword(email: string): Promise<ApiResponse<{ message?: string }>> {
-    return this.request<{ message?: string }>('/auth/forgot-password', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    });
-  }
-
-  /**
-   * Set new password using token from reset email link.
-   */
-  async resetPassword(token: string, newPassword: string): Promise<ApiResponse<{ message?: string }>> {
-    return this.request<{ message?: string }>('/auth/reset-password', {
-      method: 'POST',
-      body: JSON.stringify({ token, newPassword }),
-    });
-  }
-
-  /**
    * Get current user from /auth/me.
    * Requires valid auth cookie.
    */

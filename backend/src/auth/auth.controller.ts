@@ -11,6 +11,7 @@ import { tokenBlacklist } from '../services/auth/tokenBlacklist.service.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import { usersController } from '../controllers/users.controller.js';
 import { sendGridService } from '../services/notifications/sendgrid.service.js';
+import { displayPhone, readField, sameId } from './profilePhone.js';
 
 /** Append Partitioned to auth cookie so Chrome accepts it in cross-site (Vercel→Fly) requests. */
 function addPartitionedToAuthCookie(res: Response): void {
@@ -262,10 +263,10 @@ export class AuthController {
     try {
       const { name, phone, company } = await this.fetchProfileFromRoleTable(req.user);
       if (name) data.name = name;
-      if (phone !== undefined) data.phone = phone;
+      data.phone = phone;
       if (company !== undefined) data.company = company;
     } catch {
-      // Non-fatal: keep JWT-derived name if role table fetch fails
+      data.phone = '—';
     }
     if (req.user.role === 'client' && req.user.clientId) {
       try {
@@ -304,64 +305,77 @@ export class AuthController {
   /**
    * Fetch name, phone, company from role-specific tables (Clients, KAM Users, etc.)
    */
-  private async fetchProfileFromRoleTable(user: { role: string; clientId?: string | null; kamId?: string | null; creditTeamId?: string | null; nbfcId?: string | null; email: string }): Promise<{ name?: string; phone?: string; company?: string }> {
-    const matchId = (a: any, b: string | null | undefined) =>
-      !b ? false : String(a || '').trim() === String(b).trim();
-    if (user.role === 'client' && user.clientId) {
+  private async fetchProfileFromRoleTable(user: { id?: string; role: string; clientId?: string | null; kamId?: string | null; creditTeamId?: string | null; nbfcId?: string | null; email: string }): Promise<{ name?: string; phone: string; company?: string }> {
+    const accounts = await n8nClient.fetchTable('User Accounts');
+    const account = accounts.find((row: any) =>
+      sameId(row.id, user.id) ||
+      String(readField(row, 'Username', 'username') || '').trim().toLowerCase() === user.email.trim().toLowerCase()
+    );
+    const accountPhone = displayPhone(readField(account, 'Phone', 'phone'));
+    const roleIds = {
+      client: readField(account, 'client_ID', 'clientId') ?? user.clientId,
+      kam: readField(account, 'Kam_ID', 'kamId') ?? user.kamId,
+      credit: readField(account, 'CreditTeam_ID', 'creditTeamId') ?? user.creditTeamId,
+      nbfc: readField(account, 'NBFC_ID', 'nbfcId') ?? user.nbfcId,
+    };
+
+    if (accountPhone !== '—') {
+      return { phone: accountPhone };
+    }
+    if (user.role === 'admin') {
+      return { phone: '—' };
+    }
+    if (user.role === 'client' && roleIds.client) {
       const clients = await n8nClient.fetchTable('Clients');
-      const c = clients.find((x: any) =>
-        matchId(x.id, user.clientId) || matchId(x['Client ID'], user.clientId)
+      const match = clients.find((row: any) =>
+        sameId(row.id, roleIds.client) || sameId(readField(row, 'Client ID'), roleIds.client)
       );
-      if (c) {
-        const contact = (c['Contact Email / Phone'] || c.contactEmailPhone || '').toString();
-        const phonePart = contact.includes(' | ') ? contact.split(' | ')[1]?.trim() : null;
-        const phone = phonePart || (contact.match(/[\d+\-\s()]{10,}/)?.[0]?.trim());
+      if (match) {
         return {
-          name: (c['Primary Contact Name'] || c.primaryContactName || '').toString().trim() || undefined,
-          phone: phone || undefined,
-          company: (c['Client Name'] || c.clientName || '').toString().trim() || undefined,
+          name: String(readField(match, 'Primary Contact Name', 'primaryContactName') || '').trim() || undefined,
+          phone: displayPhone(readField(match, 'Contact Email / Phone', 'contactEmailPhone')),
+          company: String(readField(match, 'Client Name', 'clientName') || '').trim() || undefined,
         };
       }
     }
-    if (user.role === 'kam' && user.kamId) {
+    if (user.role === 'kam' && roleIds.kam) {
       const kamUsers = await n8nClient.fetchTable('KAM Users');
-      const k = kamUsers.find((x: any) =>
-        matchId(x.id, user.kamId) || matchId(x['KAM ID'], user.kamId)
+      const match = kamUsers.find((row: any) =>
+        sameId(row.id, roleIds.kam) || sameId(readField(row, 'KAM ID'), roleIds.kam)
       );
-      if (k) {
+      if (match) {
         return {
-          name: (k['Name'] || k.Name || '').toString().trim() || undefined,
-          phone: (k['Phone'] || k.Phone || '').toString().trim() || undefined,
+          name: String(readField(match, 'Name') || '').trim() || undefined,
+          phone: displayPhone(readField(match, 'Phone')),
         };
       }
     }
-    if (user.role === 'credit_team' && user.creditTeamId) {
+    if (user.role === 'credit_team' && roleIds.credit) {
       const creditUsers = await n8nClient.fetchTable('Credit Team Users');
-      const c = creditUsers.find((x: any) =>
-        matchId(x.id, user.creditTeamId) || matchId(x['Credit User ID'], user.creditTeamId)
+      const match = creditUsers.find((row: any) =>
+        sameId(row.id, roleIds.credit) || sameId(readField(row, 'Credit User ID'), roleIds.credit)
       );
-      if (c) {
+      if (match) {
         return {
-          name: (c['Name'] || c.Name || '').toString().trim() || undefined,
-          phone: (c['Phone'] || c.Phone || '').toString().trim() || undefined,
+          name: String(readField(match, 'Name') || '').trim() || undefined,
+          phone: displayPhone(readField(match, 'Phone')),
         };
       }
     }
-    if (user.role === 'nbfc' && user.nbfcId) {
+    if (user.role === 'nbfc' && roleIds.nbfc) {
       const partners = await n8nClient.fetchTable('NBFC Partners');
-      const p = partners.find((x: any) =>
-        matchId(x.id, user.nbfcId) || matchId(x['Lender ID'], user.nbfcId)
+      const match = partners.find((row: any) =>
+        sameId(row.id, roleIds.nbfc) || sameId(readField(row, 'Lender ID'), roleIds.nbfc)
       );
-      if (p) {
-        const contact = (p['Contact Email/Phone'] || p.contactEmailPhone || '').toString();
+      if (match) {
         return {
-          name: (p['Contact Person'] || p.contactPerson || '').toString().trim() || undefined,
-          phone: contact || undefined,
-          company: (p['Lender Name'] || p.lenderName || '').toString().trim() || undefined,
+          name: String(readField(match, 'Contact Person', 'contactPerson') || '').trim() || undefined,
+          phone: displayPhone(readField(match, 'Contact Email/Phone', 'contactEmailPhone')),
+          company: String(readField(match, 'Lender Name', 'lenderName') || '').trim() || undefined,
         };
       }
     }
-    return {};
+    return { phone: '—' };
   }
 
   /**

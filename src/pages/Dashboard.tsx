@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { useAuth } from '../auth/AuthContext';
@@ -9,11 +9,18 @@ import { ClientDashboard } from './dashboards/ClientDashboard';
 import { KAMDashboard } from './dashboards/KAMDashboard';
 import { CreditDashboard } from './dashboards/CreditDashboard';
 import { NBFCDashboard } from './dashboards/NBFCDashboard';
+import { getGreeting } from '../utils/greeting';
 
 export const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const userRole = user?.role || null;
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const sidebarItems = useSidebarItems();
 
@@ -76,12 +83,7 @@ export const Dashboard: React.FC = () => {
 
   const { activeItem, handleNavigation } = useNavigation(sidebarItems);
 
-  const pageTitle =
-    userRole === 'client'
-      ? t('pages.dashboard.welcomeBack', {
-          name: getUserDisplayName() || t('pages.dashboard.welcomeFallback'),
-        })
-      : t('pages.dashboard.pageTitle');
+  const pageTitle = `${getGreeting(now)}, ${getUserDisplayName()}`;
 
   return (
     <MainLayout

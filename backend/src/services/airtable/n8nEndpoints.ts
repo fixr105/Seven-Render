@@ -14,10 +14,31 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-/** Default matches production n8n host (also set in historical fly.toml). */
+/** Old n8n origin. Paths that are not in the 32-path LMS set stay here. */
 const DEFAULT_N8N_BASE_URL = 'https://fixrrahul.app.n8n.cloud';
+/** LMS webhook base. Includes /webhook. No trailing slash. */
+const DEFAULT_N8N_LMS_BASE_URL = 'https://n8n-fvmj.srv1499064.hstgr.cloud/webhook';
 
-const N8N_BASE_URL = (process.env.N8N_BASE_URL || DEFAULT_N8N_BASE_URL).replace(/\/$/, '');
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, '');
+}
+
+/** Origin only (no /webhook). Email, qualify, PAN, CIBIL, and dropped paths use this. */
+const N8N_LEGACY_ORIGIN = stripTrailingSlash(
+  (process.env.N8N_LEGACY_BASE_URL || process.env.N8N_BASE_URL || DEFAULT_N8N_BASE_URL).replace(
+    /\/webhook$/i,
+    ''
+  )
+);
+
+/** Webhook base for the 32 LMS paths. Exactly one slash is added before the path. */
+const N8N_LMS_BASE_URL = stripTrailingSlash(process.env.N8N_LMS_BASE_URL || DEFAULT_N8N_LMS_BASE_URL);
+
+function lmsWebhook(path: string): string {
+  return `${N8N_LMS_BASE_URL}/${path.replace(/^\/+/, '')}`;
+}
+
+const N8N_BASE_URL = N8N_LEGACY_ORIGIN;
 
 /**
  * Airtable Table IDs from SEVEN-DASHBOARD-2.json
@@ -137,7 +158,7 @@ export const N8N_POST_WEBHOOK_PATHS = {
   // Email (Outlook Send a message)
   EMAIL: 'email',
   // Vehicles
-  VEHICLES: 'VehiclesPOST',
+  VEHICLES: 'VehiclesPOST1',
 } as const;
 
 /**
@@ -198,7 +219,7 @@ export const N8N_GET_WEBHOOK_PATHS = {
   
   // User Accounts
   USER_ACCOUNT: 'useraccount',
-  VEHICLES: 'VehiclesGET',
+  VEHICLES: 'VehiclesGET1',
   CLIENT_KYC: 'getclientKYC',
   /** Lender BRE pricing bands. Alias of NBFC_BRE_CONFIG. */
   LENDER_BRE: 'lenderbre',
@@ -286,12 +307,12 @@ export function getTableToPostWebhookPath(): Record<string, keyof typeof N8N_POS
 export const n8nEndpoints = {
   // POST Webhook URLs (with env var overrides)
   post: {
-    log: process.env.N8N_POST_LOG_URL || getPostWebhookUrl('POST_LOG'),
+    log: lmsWebhook('POSTLOG'),
     /** @deprecated Form config now uses Form Link + Record Titles */
     clientFormMapping: process.env.N8N_POST_CLIENT_FORM_MAPPING_URL || getPostWebhookUrl('POST_CLIENT_FORM_MAPPING'),
-    commissionLedger: process.env.N8N_POST_COMMISSION_LEDGER_URL || getPostWebhookUrl('COMMISSION_LEDGER'),
-    creditTeamUsers: process.env.N8N_POST_CREDIT_TEAM_USERS_URL || getPostWebhookUrl('CREDIT_TEAM_USERS'),
-    dailySummary: process.env.N8N_POST_DAILY_SUMMARY_URL || getPostWebhookUrl('DAILY_SUMMARY'),
+    commissionLedger: lmsWebhook('COMISSIONLEDGER'),
+    creditTeamUsers: lmsWebhook('CREDITTEAMUSERS'),
+    dailySummary: lmsWebhook('DAILYSUMMARY'),
     fileAuditLog: process.env.N8N_POST_FILE_AUDIT_LOG_URL || getPostWebhookUrl('FILE_AUDIT_LOG'),
     /** @deprecated Form config now uses Form Link + Record Titles */
     formCategory: process.env.N8N_POST_FORM_CATEGORY_URL || getPostWebhookUrl('FORM_CATEGORY'),
@@ -299,14 +320,14 @@ export const n8nEndpoints = {
     formFields: process.env.N8N_POST_FORM_FIELDS_URL || getPostWebhookUrl('FORM_FIELDS'),
     formLink: process.env.N8N_POST_FORM_LINK_URL || getPostWebhookUrl('FORM_LINK'),
     recordTitles: process.env.N8N_POST_RECORD_TITLES_URL || getPostWebhookUrl('RECORD_TITLES'),
-    kamUsers: process.env.N8N_POST_KAM_USERS_URL || getPostWebhookUrl('KAM_USERS'),
+    kamUsers: lmsWebhook('KAMusers'),
     loanApplications: process.env.N8N_POST_APPLICATIONS_URL || getPostWebhookUrl('LOAN_APPLICATIONS'),
     loanProducts: process.env.N8N_POST_LOAN_PRODUCTS_URL || getPostWebhookUrl('LOAN_PRODUCTS'),
-    productDocuments: process.env.N8N_POST_PRODUCT_DOCUMENTS_URL || getPostWebhookUrl('PRODUCT_DOCUMENTS'),
+    productDocuments: lmsWebhook('productdocument'),
     nbfcPartners: process.env.N8N_POST_NBFC_PARTNERS_URL || getPostWebhookUrl('NBFC_PARTNERS'),
-    addUser: process.env.N8N_POST_ADD_USER_URL || getPostWebhookUrl('ADD_USER'),
-    client: process.env.N8N_POST_CLIENT_URL || getPostWebhookUrl('CLIENT'),
-    notification: process.env.N8N_POST_NOTIFICATION_URL || getPostWebhookUrl('NOTIFICATION'),
+    addUser: lmsWebhook('adduser'),
+    client: lmsWebhook('Client'),
+    notification: lmsWebhook('notification'),
     email: process.env.N8N_POST_EMAIL_URL || getPostWebhookUrl('EMAIL'),
     userAccountValidate: process.env.N8N_POST_USER_ACCOUNT_VALIDATE_URL || getGetWebhookUrl('USER_ACCOUNT'),
     link: process.env.N8N_LINK_WEBHOOK_URL || `${N8N_BASE_URL}/webhook/3212b705-b54a-4d4e-9648-e7a6bfb06d2b`,
@@ -316,59 +337,53 @@ export const n8nEndpoints = {
   patch: {
     formLink: process.env.N8N_PATCH_FORM_LINK_URL || `${N8N_BASE_URL}/webhook/formlink` as string,
     recordTitles: process.env.N8N_PATCH_RECORD_TITLES_URL || `${N8N_BASE_URL}/webhook/recordtitle` as string,
-    productDocuments: process.env.N8N_PATCH_PRODUCT_DOCUMENTS_URL || `${N8N_BASE_URL}/webhook/productdocument` as string,
-    loanProducts: process.env.N8N_PATCH_LOAN_PRODUCTS_URL || `${N8N_BASE_URL}/webhook/loanproducts` as string,
+    productDocuments: lmsWebhook('productdocument'),
+    loanProducts: lmsWebhook('loanproducts'),
   },
 
   // DELETE Webhook URLs (Form Link, Record Titles, Product Documents, Loan Products)
   delete: {
     formLink: process.env.N8N_DELETE_FORM_LINK_URL || `${N8N_BASE_URL}/webhook/formlink`,
     recordTitles: process.env.N8N_DELETE_RECORD_TITLES_URL || `${N8N_BASE_URL}/webhook/recordtitle`,
-    productDocuments: process.env.N8N_DELETE_PRODUCT_DOCUMENTS_URL || `${N8N_BASE_URL}/webhook/productdocument`,
+    productDocuments: lmsWebhook('productdocument'),
     loanProducts: process.env.N8N_DELETE_LOAN_PRODUCTS_URL || `${N8N_BASE_URL}/webhook/loanproducts`,
   },
 
   // GET Webhook URLs (with env var overrides)
   get: {
-    adminActivity: process.env.N8N_GET_ADMIN_ACTIVITY_URL || getGetWebhookUrl('ADMIN_ACTIVITY'),
+    adminActivity: lmsWebhook('Adminactivity'),
     /** @deprecated Form config now uses Form Link + Record Titles */
     clientFormMapping: process.env.N8N_GET_CLIENT_FORM_MAPPING_URL || getGetWebhookUrl('CLIENT_FORM_MAPPING'),
-    client: process.env.N8N_GET_CLIENT_URL || getGetWebhookUrl('CLIENT'),
-    commissionLedger: process.env.N8N_GET_COMMISSION_LEDGER_URL || getGetWebhookUrl('COMMISSION_LEDGER'),
-    creditTeamUser: process.env.N8N_GET_CREDIT_TEAM_USER_URL || getGetWebhookUrl('CREDIT_TEAM_USER'),
-    dailySummaryReport: process.env.N8N_GET_DAILY_SUMMARY_REPORT_URL || getGetWebhookUrl('DAILY_SUMMARY_REPORT'),
-    fileAuditingLog: process.env.N8N_GET_FILE_AUDITING_LOG_URL || getGetWebhookUrl('FILE_AUDITING_LOG'),
+    client: lmsWebhook('client'),
+    commissionLedger: lmsWebhook('commisionledger'),
+    creditTeamUser: lmsWebhook('creditteamuser'),
+    dailySummaryReport: lmsWebhook('dailysummaryreport'),
+    fileAuditingLog: lmsWebhook('fileauditinglog'),
     /** @deprecated Form config now uses Form Link + Record Titles */
     formCategories: process.env.N8N_GET_FORM_CATEGORIES_URL || getGetWebhookUrl('FORM_CATEGORIES'),
     /** @deprecated Form config now uses Form Link + Record Titles */
     formFields: process.env.N8N_GET_FORM_FIELDS_URL || getGetWebhookUrl('FORM_FIELDS'),
     formLink: process.env.N8N_GET_FORM_LINK_URL || getGetWebhookUrl('FORM_LINK'),
     recordTitles: process.env.N8N_GET_RECORD_TITLES_URL || getGetWebhookUrl('RECORD_TITLES'),
-    kamUsers: process.env.N8N_GET_KAM_USERS_URL || getGetWebhookUrl('KAM_USERS'),
-    loanApplication: process.env.N8N_GET_LOAN_APPLICATION_URL || getGetWebhookUrl('LOAN_APPLICATION'),
-    loanProducts: process.env.N8N_GET_LOAN_PRODUCTS_URL || getGetWebhookUrl('LOAN_PRODUCTS'),
-    productDocuments: process.env.N8N_GET_PRODUCT_DOCUMENTS_URL || getGetWebhookUrl('PRODUCT_DOCUMENTS'),
-    nbfcPartners: process.env.N8N_GET_NBFC_PARTNERS_URL || getGetWebhookUrl('NBFC_PARTNERS'),
-    notifications: process.env.N8N_GET_NOTIFICATIONS_URL || getGetWebhookUrl('NOTIFICATIONS'),
-    userAccount: process.env.N8N_GET_USER_ACCOUNTS_URL || getGetWebhookUrl('USER_ACCOUNT'),
-    vehicles:
-      process.env.N8N_GET_VEHICLES_URL ||
-      'https://fixrrahul.app.n8n.cloud/webhook/VehiclesGET',
-    clientKyc:
-      process.env.N8N_GET_CLIENT_KYC_URL ||
-      'https://fixrrahul.app.n8n.cloud/webhook/getclientKYC',
+    kamUsers: lmsWebhook('kamusers'),
+    loanApplication: lmsWebhook('loanapplication'),
+    loanProducts: lmsWebhook('loanproducts'),
+    productDocuments: lmsWebhook('productdocument'),
+    nbfcPartners: lmsWebhook('nbfcpartners'),
+    notifications: lmsWebhook('notifications'),
+    userAccount: lmsWebhook('useraccount'),
+    vehicles: lmsWebhook('VehiclesGET1'),
+    clientKyc: lmsWebhook('getclientKYC'),
     cibilRateMatrix:
       process.env.CIBIL_RATE_MATRIX_WEBHOOK_URL ||
       'https://fixrrahul.app.n8n.cloud/webhook/getmatrix',
-    nbfcBreConfig:
-      process.env.N8N_GET_NBFC_BRE_CONFIG_URL || getGetWebhookUrl('LENDER_BRE'),
-    lenderBreCheckpoints:
-      process.env.N8N_GET_LENDER_BRE_CHECKPOINTS_URL || getGetWebhookUrl('LENDER_BRE_CHECKPOINTS'),
+    nbfcBreConfig: lmsWebhook('lenderbre'),
+    lenderBreCheckpoints: lmsWebhook('lenderbreconfig'),
   },
   vehicles: {
-    post:
-      process.env.N8N_POST_VEHICLES_URL ||
-      'https://fixrrahul.app.n8n.cloud/webhook/VehiclesPOST',
+    post: lmsWebhook('VehiclesPOST1'),
+    patch: lmsWebhook('VehiclesPatch1'),
+    delete: lmsWebhook('VehiclesDelete1'),
   },
 } as const;
 

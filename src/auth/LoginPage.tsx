@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Mail, Lock } from 'lucide-react';
 import { useAuth } from './AuthContext';
@@ -145,10 +145,7 @@ export const LoginPage: React.FC = () => {
           </Button>
 
           <p className="login-forgot-hint text-sm text-neutral-500 mt-4">
-            <Link to="/forgot-password" className="text-brand-primary hover:underline">
-              {t('auth.forgotPassword')}
-            </Link>{' '}
-            {t('auth.contactAdminReset')}
+            Forgot your password? Contact your administrator to reset it.
           </p>
         </form>
       </div>

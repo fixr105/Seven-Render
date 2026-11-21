@@ -1,5 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './auth/LoginPage';
@@ -13,8 +12,6 @@ import { Clients } from './pages/Clients';
 import { Profile } from './pages/Profile';
 import { Reports } from './pages/Reports';
 import { FormConfiguration } from './pages/FormConfiguration';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
 import { PrivacyPage } from './pages/Privacy';
 import { TermsPage } from './pages/Terms';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -24,11 +21,6 @@ import { AdminNBFCPartners } from './pages/AdminNBFCPartners';
 import { NBFCTools } from './pages/NBFCTools';
 import { Calculator } from './pages/Calculator';
 import { LoanCalculatorDevPage } from './pages/dev/LoanCalculatorDevPage';
-import { useAuth } from './auth/AuthContext';
-import { getProfileCompletion } from './auth/profileCompletion';
-import { getIsPromptDismissedForSession, getProfilePromptDismissKey, shouldShowProfilePrompt } from './auth/profilePromptSession';
-import { BuildYourProfilePrompt } from './components/BuildYourProfilePrompt';
-import { apiService } from './services/api';
 
 function DealerNewApplicationRedirect() {
   const [searchParams] = useSearchParams();
@@ -50,50 +42,10 @@ function App() {
 }
 
 function AppRoutes() {
-  const location = useLocation();
-  const { user, loading, refreshUser, authSessionId } = useAuth();
-  const [dismissedInUi, setDismissedInUi] = useState(false);
-
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/forgot-password' || location.pathname === '/reset-password';
-  const completion = useMemo(() => getProfileCompletion(user), [user]);
-
-  const dismissKey = getProfilePromptDismissKey(user?.id || null, authSessionId);
-  const isDismissedForSession = getIsPromptDismissedForSession(dismissKey);
-  const dismissedForSession = isDismissedForSession || dismissedInUi;
-
-  useEffect(() => {
-    setDismissedInUi(false);
-  }, [dismissKey]);
-
-  const shouldShowPrompt = shouldShowProfilePrompt({
-    hasUser: Boolean(user),
-    loading,
-    isAuthPage,
-    completion,
-    dismissedForSession,
-  });
-
-  const handleDismissPrompt = () => {
-    setDismissedInUi(true);
-    if (dismissKey) {
-      sessionStorage.setItem(dismissKey, 'true');
-    }
-  };
-
-  const handlePromptSave = async (payload: { name?: string; phone?: string; company?: string }) => {
-    const response = await apiService.updateProfile(payload);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to update profile');
-    }
-    await refreshUser({ silent: true });
-  };
-
   return (
     <>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/LOGIN" element={<Navigate to="/login" replace />} />
         <Route path="/Login" element={<Navigate to="/login" replace />} />
         <Route path="/privacy" element={<PrivacyPage />} />
@@ -283,15 +235,6 @@ function AppRoutes() {
       {/* Catch-all route for 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-      {user && (
-        <BuildYourProfilePrompt
-          isOpen={shouldShowPrompt}
-          user={user}
-          missingFields={completion.missingFields}
-          onDismiss={handleDismissPrompt}
-          onSave={handlePromptSave}
-        />
-      )}
     </>
   );
 }
