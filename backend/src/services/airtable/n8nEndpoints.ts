@@ -7,8 +7,7 @@
  * POST endpoints: Used for creating/updating records
  * GET endpoints: Used for searching/fetching records
  * 
- * LMS calls use N8N_LMS_BASE_URL (Hostinger). Calls with no Hostinger path use
- * N8N_LEGACY_BASE_URL. Neither base falls back to a hardcoded host.
+ * Every LMS webhook uses N8N_LMS_BASE_URL (Hostinger). There is no second host.
  */
 
 import dotenv from 'dotenv';
@@ -17,9 +16,6 @@ dotenv.config();
 
 const LMS_BASE_MISSING =
   'N8N_LMS_BASE_URL is required. Set it to https://n8n-fvmj.srv1499064.hstgr.cloud (no /webhook suffix). Refusing to use the old n8n host.';
-
-const LEGACY_BASE_MISSING =
-  'N8N_LEGACY_BASE_URL is required for webhooks that are not on Hostinger yet. Refusing to use a hardcoded n8n host.';
 
 /** Strip a trailing slash and a trailing /webhook so callers can pass either form. */
 export function normalizeN8nOrigin(raw: string): string {
@@ -40,14 +36,6 @@ export function readLmsBaseUrl(): string {
   return base;
 }
 
-export function readLegacyBaseUrl(): string {
-  const raw = process.env.N8N_LEGACY_BASE_URL?.trim();
-  if (!raw) {
-    throw new Error(LEGACY_BASE_MISSING);
-  }
-  return normalizeN8nOrigin(raw);
-}
-
 /** Log one error and throw when the LMS base is missing. Call at process startup. */
 export function assertN8nLmsBaseUrl(): string {
   try {
@@ -63,8 +51,9 @@ export function lmsWebhook(path: string): string {
   return `${readLmsBaseUrl()}/webhook/${path}`;
 }
 
+/** Same host as lmsWebhook. Kept so existing callers keep their path names. */
 export function legacyWebhook(path: string): string {
-  return `${readLegacyBaseUrl()}/webhook/${path}`;
+  return lmsWebhook(path);
 }
 
 function envOr(envName: string, build: () => string): string {
@@ -266,7 +255,7 @@ export const N8N_GET_WEBHOOK_PATHS = {
 /**
  * Helper function to build full POST webhook URL
  */
-/** POST paths that exist on the Hostinger LMS n8n. Everything else stays on the legacy base. */
+/** POST paths. Every path is served by the Hostinger LMS workflow. */
 const LMS_POST_PATHS = new Set<keyof typeof N8N_POST_WEBHOOK_PATHS>([
   'POST_LOG',
   'COMMISSION_LEDGER',
@@ -291,7 +280,7 @@ export function getPostWebhookUrl(path: keyof typeof N8N_POST_WEBHOOK_PATHS): st
 /**
  * Helper function to build full GET webhook URL
  */
-/** GET paths that exist on the Hostinger LMS n8n. formlink / Recordtitle stay on the legacy base. */
+/** GET paths that use the same Hostinger LMS host. */
 const LEGACY_GET_PATHS = new Set<keyof typeof N8N_GET_WEBHOOK_PATHS>([
   'CLIENT_FORM_MAPPING',
   'FORM_CATEGORIES',

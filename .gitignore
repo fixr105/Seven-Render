@@ -23,6 +23,10 @@ dist-ssr
 .env
 .vercel
 
+# n8n migration secrets and exported workflows
+scripts/.n8n-migrate.env
+scripts/n8n-export/
+
 # Vercel serverless API bundle (built during deploy)
 api/express.cjs
 

@@ -16,7 +16,7 @@ function requiredN8nOrigin(name) {
  *   POST: node macha-test.js POST <webhook-url> [test-data-file]
  * 
  * Examples:
- *   node macha-test.js GET ${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52
+ *   node macha-test.js GET ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52
  *   node macha-test.js POST ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/POSTLOG
  *   node macha-test.js POST ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/POSTLOG test-data.json
  */

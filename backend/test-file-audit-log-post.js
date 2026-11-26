@@ -9,12 +9,12 @@ function requiredN8nOrigin(name) {
 
 /**
  * Test POST to File Audit Log Webhook
- * Tests: ${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/Fileauditinglog
+ * Tests: ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/Fileauditinglog
  */
 
 import fetch from 'node-fetch';
 
-const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/Fileauditinglog`;
+const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/Fileauditinglog`;
 
 // Test data with exact fields as specified
 const testData = {

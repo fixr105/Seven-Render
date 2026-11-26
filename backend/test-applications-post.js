@@ -9,12 +9,12 @@ function requiredN8nOrigin(name) {
 
 /**
  * Test POST to Loan Applications Webhook
- * Tests: ${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/applications
+ * Tests: ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/applications
  */
 
 import fetch from 'node-fetch';
 
-const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/applications`;
+const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/applications`;
 
 // Test data with exact fields as specified
 const testData = {

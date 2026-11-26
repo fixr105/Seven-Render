@@ -1,5 +1,5 @@
 /**
- * Fail if the old n8n host is hardcoded outside N8N_LEGACY_BASE_URL values.
+ * Fail if the old n8n host appears in runtime code, config, or env examples.
  * Usage: node scripts/check-n8n.js
  */
 
@@ -8,7 +8,7 @@ import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const HOST = 'fixrrahul';
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git', '.next', 'build']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git', '.next', 'build', 'n8n-export']);
 const SKIP_FILES = new Set([
   'check-n8n.js',
   'SEVEN-DASHBOARD(2).json',
@@ -31,9 +31,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-const allowedLine = /N8N_LEGACY_BASE_URL|VITE_N8N_LEGACY_BASE_URL/;
 const violations = [];
-const docs = [];
 
 for (const path of walk(ROOT)) {
   const rel = relative(ROOT, path);
@@ -50,7 +48,6 @@ for (const path of walk(ROOT)) {
   const lines = text.split('\n');
   lines.forEach((line, index) => {
     if (!line.includes(HOST)) return;
-    if (allowedLine.test(line)) return;
     violations.push(`${rel}:${index + 1}: ${line.trim().slice(0, 180)}`);
   });
 }
@@ -60,4 +57,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log('check-n8n: no hardcoded old n8n host outside N8N_LEGACY_BASE_URL values.');
+console.log('check-n8n: old n8n host is not in runtime code.');

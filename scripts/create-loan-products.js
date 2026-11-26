@@ -14,7 +14,7 @@ function requiredN8nOrigin(name) {
 
 import fetch from 'node-fetch';
 
-const WEBHOOK_URL = process.env.N8N_POST_LOAN_PRODUCTS_URL || `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/loanproducts1`;
+const WEBHOOK_URL = process.env.N8N_POST_LOAN_PRODUCTS_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/loanproducts1`;
 
 // Loan products to create
 const loanProducts = [

@@ -12,7 +12,7 @@ function requiredN8nOrigin(name) {
  * Seed Product Documents for LP008 (Credit Card).
  * Run: cd backend && node scripts/seed-product-documents-lp008.js
  *
- * Requires N8N_BASE_URL (default: N8N_LEGACY_BASE_URL).
+ * Requires N8N_BASE_URL (default: N8N_LMS_BASE_URL).
  * POSTs to /webhook/productdocument.
  */
 import 'dotenv/config';

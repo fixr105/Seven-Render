@@ -16,7 +16,7 @@ import fetch from 'node-fetch';
 
 const WEBHOOK_URL = process.env.N8N_BASE_URL 
   ? `${process.env.N8N_BASE_URL}/webhook/validate`
-  : `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/validate`;
+  : `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/validate`;
 
 const credentials = {
   username: 'Sagar',

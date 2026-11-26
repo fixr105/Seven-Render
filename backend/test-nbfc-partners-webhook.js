@@ -9,7 +9,7 @@ function requiredN8nOrigin(name) {
 
 /**
  * Test NBFC Partners POST Webhook
- * URL: ${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/NBFCPartners
+ * URL: ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/NBFCPartners
  * 
  * Fields:
  * - id (using to match)
@@ -21,7 +21,7 @@ function requiredN8nOrigin(name) {
  * - Active
  */
 
-const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/NBFCPartners`;
+const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/NBFCPartners`;
 
 const testData = {
   id: 'APP-TEST-' + Date.now(),

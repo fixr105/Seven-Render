@@ -1,11 +1,11 @@
 /**
- * Transparent proxy for /engine/* calls that do not exist on the Hostinger LMS n8n.
- * Forwards method, content-type, and body unchanged to N8N_LEGACY_BASE_URL/webhook.
+ * Transparent proxy for /engine/* .
+ * Forwards method, content-type, and body unchanged to N8N_LMS_BASE_URL/webhook.
  */
 
 import { Router } from 'express';
 import express from 'express';
-import { readLegacyBaseUrl } from '../services/airtable/n8nEndpoints.js';
+import { readLmsBaseUrl } from '../services/airtable/n8nEndpoints.js';
 
 const router = Router();
 
@@ -13,7 +13,7 @@ router.use(express.raw({ type: () => true, limit: '25mb' }));
 
 router.all('*', async (req, res, next) => {
   try {
-    const target = `${readLegacyBaseUrl()}/webhook${req.url.startsWith('/') ? '' : '/'}${req.url}`;
+    const target = `${readLmsBaseUrl()}/webhook${req.url.startsWith('/') ? '' : '/'}${req.url}`;
     const headers: Record<string, string> = {};
     const contentType = req.headers['content-type'];
     if (typeof contentType === 'string' && contentType) headers['content-type'] = contentType;

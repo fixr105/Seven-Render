@@ -73,7 +73,6 @@ export default defineConfig({
           timeout: 240 * 1000, // 4 min for backend cold start (n8n, DB connections)
           env: {
             N8N_LMS_BASE_URL: process.env.N8N_LMS_BASE_URL || 'https://n8n-fvmj.srv1499064.hstgr.cloud',
-            N8N_LEGACY_BASE_URL: process.env.N8N_LEGACY_BASE_URL || '',
             NODE_ENV: 'development',
             SKIP_AUTH_RATE_LIMIT: 'true',
             SKIP_E2E_RATE_LIMITS: 'true',

@@ -4,7 +4,7 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RAAD_URL="${N8N_RAAD_WEBHOOK_URL:-${N8N_LEGACY_BASE_URL}/webhook/big-brain-bro-1}"
+RAAD_URL="${N8N_RAAD_WEBHOOK_URL:-${N8N_LMS_BASE_URL}/webhook/big-brain-bro-1}"
 PDF_FILE="${SCRIPT_DIR}/test-sample.pdf"
 
 # Create minimal valid PDF if it doesn't exist

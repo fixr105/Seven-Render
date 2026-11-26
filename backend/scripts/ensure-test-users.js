@@ -26,7 +26,7 @@ const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || `${requiredN8nOrig
 const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/Client`;
 const N8N_POST_KAM_USERS_URL = process.env.N8N_POST_KAM_USERS_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/KAMusers`;
 const N8N_POST_CREDIT_TEAM_USERS_URL = process.env.N8N_POST_CREDIT_TEAM_USERS_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/CREDITTEAMUSERS`;
-const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/NBFCPartners`;
+const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/NBFCPartners`;
 
 // Use environment variables for test users - NEVER hardcode credentials
 // WARNING: This script should ONLY be used in development/test environments

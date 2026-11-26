@@ -17,7 +17,7 @@ function requiredN8nOrigin(name) {
 import fetch from 'node-fetch';
 
 const LMS = requiredN8nOrigin('N8N_LMS_BASE_URL');
-const LEGACY = requiredN8nOrigin('N8N_LEGACY_BASE_URL');
+const LEGACY = requiredN8nOrigin('N8N_LMS_BASE_URL');
 
 // Paths that exist on Hostinger use LMS. The rest stay on the legacy base.
 const n8nEndpoints = {

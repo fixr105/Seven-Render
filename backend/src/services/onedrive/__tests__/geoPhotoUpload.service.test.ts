@@ -3,7 +3,7 @@ import { uploadGeoPhotoToWebhook } from '../geoPhotoUpload.service.js';
 
 describe('uploadGeoPhotoToWebhook', () => {
   const originalEnv = {
-    N8N_LEGACY_BASE_URL: process.env.N8N_LEGACY_BASE_URL,
+    N8N_LMS_BASE_URL: process.env.N8N_LMS_BASE_URL,
     N8N_GEO_UPLOAD_UPL1_URL: process.env.N8N_GEO_UPLOAD_UPL1_URL,
     N8N_GEO_UPLOAD_UPL2_URL: process.env.N8N_GEO_UPLOAD_UPL2_URL,
     N8N_GEO_UPLOAD_UPL3_URL: process.env.N8N_GEO_UPLOAD_UPL3_URL,
@@ -11,7 +11,7 @@ describe('uploadGeoPhotoToWebhook', () => {
   const fetchMock = jest.fn();
 
   beforeEach(() => {
-    process.env.N8N_LEGACY_BASE_URL = 'https://legacy.n8n.test';
+    process.env.N8N_LMS_BASE_URL = 'https://lms.example.test';
     delete process.env.N8N_GEO_UPLOAD_UPL1_URL;
     delete process.env.N8N_GEO_UPLOAD_UPL2_URL;
     delete process.env.N8N_GEO_UPLOAD_UPL3_URL;
@@ -20,7 +20,7 @@ describe('uploadGeoPhotoToWebhook', () => {
   });
 
   afterEach(() => {
-    process.env.N8N_LEGACY_BASE_URL = originalEnv.N8N_LEGACY_BASE_URL;
+    process.env.N8N_LMS_BASE_URL = originalEnv.N8N_LMS_BASE_URL;
     if (originalEnv.N8N_GEO_UPLOAD_UPL1_URL) {
       process.env.N8N_GEO_UPLOAD_UPL1_URL = originalEnv.N8N_GEO_UPLOAD_UPL1_URL;
     } else {
@@ -55,7 +55,7 @@ describe('uploadGeoPhotoToWebhook', () => {
     expect(result.shareLink).toBe('https://cdn.example.com/geo-1.jpg');
     expect(result.fieldId).toBe('withSupportPerson');
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://legacy.n8n.test/webhook/UPL1',
+      'https://lms.example.test/webhook/UPL1',
       expect.objectContaining({ method: 'POST' })
     );
   });
@@ -75,7 +75,7 @@ describe('uploadGeoPhotoToWebhook', () => {
 
     expect(result.shareLink).toBe('https://cdn.example.com/geo-2.jpg');
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://legacy.n8n.test/webhook/UPL2',
+      'https://lms.example.test/webhook/UPL2',
       expect.objectContaining({ method: 'POST' })
     );
   });
@@ -99,7 +99,7 @@ describe('uploadGeoPhotoToWebhook', () => {
 
     expect(result.shareLink).toBe('https://cdn.example.com/geo-3.jpg');
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://legacy.n8n.test/webhook/UPL3',
+      'https://lms.example.test/webhook/UPL3',
       expect.objectContaining({ method: 'POST' })
     );
   });

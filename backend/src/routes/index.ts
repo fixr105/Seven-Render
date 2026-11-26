@@ -114,7 +114,6 @@ router.get('/debug/env', (req, res) => {
         NODE_ENV: process.env.NODE_ENV || 'not set',
         VERCEL: process.env.VERCEL || 'not set',
         N8N_LMS_BASE_URL: process.env.N8N_LMS_BASE_URL || 'NOT SET',
-        N8N_LEGACY_BASE_URL: process.env.N8N_LEGACY_BASE_URL || 'NOT SET',
       },
       timestamp: new Date().toISOString(),
     });
@@ -187,7 +186,6 @@ router.get('/debug/webhook-config', (req, res) => {
         NODE_ENV: process.env.NODE_ENV || 'not set',
         VERCEL: process.env.VERCEL || 'not set',
         N8N_LMS_BASE_URL: process.env.N8N_LMS_BASE_URL || 'NOT SET',
-        N8N_LEGACY_BASE_URL: process.env.N8N_LEGACY_BASE_URL || 'NOT SET',
       },
       webhookUrls,
       timestamp: new Date().toISOString(),

@@ -14,7 +14,7 @@ function requiredN8nOrigin(name) {
 
 import fetch from 'node-fetch';
 
-const N8N_BASE_URL = requiredN8nOrigin('N8N_LEGACY_BASE_URL');
+const N8N_BASE_URL = requiredN8nOrigin('N8N_LMS_BASE_URL');
 
 // All GET webhooks from n8n "ALL GET WEBHOOKS" flow
 const webhooks = [

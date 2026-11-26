@@ -4,7 +4,7 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RAAD_URL="${N8N_RAAD_WEBHOOK_URL:-${N8N_LEGACY_BASE_URL}/webhook/big-brain-bro-1}"
+RAAD_URL="${N8N_RAAD_WEBHOOK_URL:-${N8N_LMS_BASE_URL}/webhook/big-brain-bro-1}"
 LOAN_ID="TEST-4FILES-$(date +%s)"
 
 # Minimal valid PDF bytes (same content used for all 4 dummy files)

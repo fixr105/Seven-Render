@@ -15,7 +15,7 @@ function requiredN8nOrigin(name) {
  *   cd backend && npx tsx scripts/test-n8n-loan-create.ts
  *
  * Env:
- *   N8N_BASE_URL              - default N8N_LEGACY_BASE_URL
+ *   N8N_BASE_URL              - default N8N_LMS_BASE_URL
  *   TEST_CLIENT_ID            - Airtable client id (optional; fetched from GET /webhook/client if unset)
  *   TEST_LOAN_PRODUCT_ID      - optional product id for payload
  */

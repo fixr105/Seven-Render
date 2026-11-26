@@ -6,7 +6,7 @@
 
 import fetch from 'node-fetch';
 
-const BASE_URL = 'N8N_LEGACY_BASE_URL/webhook';
+const BASE_URL = 'N8N_LMS_BASE_URL/webhook';
 
 const webhookTests = [
   {

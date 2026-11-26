@@ -13,7 +13,7 @@ function requiredN8nOrigin(name) {
 
 import fetch from 'node-fetch';
 
-const N8N_BASE_URL = requiredN8nOrigin('N8N_LEGACY_BASE_URL');
+const N8N_BASE_URL = requiredN8nOrigin('N8N_LMS_BASE_URL');
 const POST_WEBHOOK_URL = `${N8N_BASE_URL}/webhook/Fileauditinglog1`;
 
 async function testPostFileAuditLog() {

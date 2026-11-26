@@ -30,7 +30,7 @@ const webhookTests = [
   },
   {
     name: '2. POSTCLIENTFORMMAPPING (Client Form Mapping)',
-    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/POSTCLIENTFORMMAPPING`,
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/POSTCLIENTFORMMAPPING`,
     data: {
       id: 'MAP-TEST-' + Date.now(),
       'Mapping ID': 'MAP-TEST-' + Date.now(),
@@ -83,7 +83,7 @@ const webhookTests = [
   },
   {
     name: '6. FILEAUDITLOGGING (File Audit Log)',
-    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/FILEAUDITLOGGING`,
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/FILEAUDITLOGGING`,
     data: {
       id: 'AUDIT-TEST-' + Date.now(),
       'Log Entry ID': 'AUDIT-TEST-' + Date.now(),
@@ -98,7 +98,7 @@ const webhookTests = [
   },
   {
     name: '7. FormCategory (Form Fields)',
-    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/FormCategory`,
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/FormCategory`,
     data: {
       id: 'FIELD-TEST-' + Date.now(),
       'Field ID': 'FIELD-TEST-' + Date.now(),
@@ -114,7 +114,7 @@ const webhookTests = [
   },
   {
     name: '8. FormCategory (Form Categories)',
-    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/FormCategory`,
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/FormCategory`,
     data: {
       id: 'CAT-TEST-' + Date.now(),
       'Category ID': 'CAT-TEST-' + Date.now(),
@@ -140,7 +140,7 @@ const webhookTests = [
   },
   {
     name: '10. applications (Loan Applications)',
-    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/applications`,
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/applications`,
     data: {
       id: 'APP-TEST-' + Date.now(),
       'File ID': 'SF20250115001',
@@ -178,7 +178,7 @@ const webhookTests = [
   },
   {
     name: '12. applications (NBFC Partners)',
-    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/applications`,
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/applications`,
     data: {
       id: 'NBFC-TEST-' + Date.now(),
       'Lender ID': 'NBFC-TEST-' + Date.now(),

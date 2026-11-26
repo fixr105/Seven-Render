@@ -16,7 +16,7 @@ function requiredN8nOrigin(name) {
 
 const LINK_WEBHOOK_URL =
   process.env.N8N_LINK_WEBHOOK_URL ||
-  `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/3212b705-b54a-4d4e-9648-e7a6bfb06d2b`;
+  `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/3212b705-b54a-4d4e-9648-e7a6bfb06d2b`;
 
 async function main() {
   const testUrl = process.argv[2] || 'https://example.com/test-share-link';

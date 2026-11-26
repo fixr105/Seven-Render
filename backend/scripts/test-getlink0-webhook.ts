@@ -20,7 +20,7 @@ function requiredN8nOrigin(name) {
  */
 
 const GETLINK_WEBHOOK_URL =
-  process.env.N8N_GET_LINK_WEBHOOK_URL || `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/getlink0`;
+  process.env.N8N_GET_LINK_WEBHOOK_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/getlink0`;
 
 function parseArgs(): { consumeLink?: string } {
   const args = process.argv.slice(2);
