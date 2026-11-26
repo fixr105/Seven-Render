@@ -342,10 +342,10 @@ const ENTITLEMENT_ERROR_CODES = new Set([
   'AUTH_REQUIRED',
 ]);
 
-function shouldClearAuthOnError(status: number, code?: string): boolean {
+function shouldClearAuthOnError(_status: number, code?: string): boolean {
   if (code === 'LOGIN_REQUIRED') return true;
   if (code && ENTITLEMENT_ERROR_CODES.has(code)) return false;
-  return status === 401;
+  return code === 'LOGIN_REQUIRED' || code === 'TOKEN_EXPIRED' || code === 'INVALID_TOKEN';
 }
 
 class ApiService {
@@ -391,8 +391,15 @@ class ApiService {
   // Generic request method
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    attempt = 0
   ): Promise<ApiResponse<T>> {
+    const retryUnavailable = async (result: ApiResponse<T>): Promise<ApiResponse<T>> => {
+      if (attempt > 0) return result;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return this.request<T>(endpoint, options, attempt + 1);
+    };
+
     const base = getApiBaseUrl();
     const url = `${base}${endpoint}`;
     const isFormData = options.body instanceof FormData;
@@ -476,17 +483,6 @@ class ApiService {
       const isHtml = contentType?.includes('text/html') || text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<!doctype') || text.trim().startsWith('<html');
       
       if (isHtml) {
-        // This is likely a 404 or error page
-        let errorMessage = `Server returned HTML instead of JSON (${response.status} ${response.statusText})`;
-        
-        if (response.status === 404) {
-          errorMessage = `Endpoint not found: ${endpoint}. Ensure the API is deployed and reachable at /api.`;
-        } else if (response.status === 401 || response.status === 403) {
-          errorMessage = `Authentication failed (${response.status}).`;
-        } else if (response.status >= 500) {
-          errorMessage = `Server error (${response.status}). The backend may be experiencing issues.`;
-        }
-        
         defaultLogger.error('Server returned HTML response', {
           endpoint,
           url,
@@ -494,11 +490,14 @@ class ApiService {
           contentType,
           responsePreview: text.substring(0, 500),
         });
-        
-        return {
+
+        const unavailable: ApiResponse<T> = {
           success: false,
-          error: errorMessage,
+          error: 'Server is temporarily unavailable. Please retry.',
+          error_type: 'server_unavailable',
         };
+        if (response.status >= 500) return retryUnavailable(unavailable);
+        return unavailable;
       }
 
       // Try to parse as JSON
@@ -521,6 +520,13 @@ class ApiService {
 
       if (!response.ok) {
         const errorCode = typeof data?.code === 'string' ? data.code : undefined;
+        if (response.status >= 500) {
+          return retryUnavailable({
+            success: false,
+            error: 'Server is temporarily unavailable. Please retry.',
+            error_type: 'server_unavailable',
+          });
+        }
         if (shouldClearAuthOnError(response.status, errorCode)) {
           this.clearAuthToken();
         }
@@ -618,9 +624,15 @@ class ApiService {
         errorMessage = error.message;
       }
       
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return this.request<T>(endpoint, options, attempt + 1);
+      }
+
       return {
         success: false,
         error: errorMessage,
+        error_type: 'server_unavailable',
       };
     }
   }

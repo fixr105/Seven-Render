@@ -21,6 +21,9 @@ import {
 } from '../../utils/loanApplicationAirtableMapping.js';
 import { resolveDocumentsFromFormData } from '../../utils/loanApplicationCoreFields.js';
 import { normalizeRecords } from './recordNormalizer.service.js';
+import { UpstreamTimeoutError } from '../../utils/errors.js';
+
+const UPSTREAM_TIMEOUT_MS = 25_000;
 
 interface PostDataOptions {
   strictWriteAck?: boolean;
@@ -390,7 +393,8 @@ export class N8nClient {
     try {
       // Add timeout support to prevent hanging requests
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const effectiveTimeoutMs = Math.min(timeoutMs, UPSTREAM_TIMEOUT_MS);
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeoutMs);
       
       try {
         const response = await fetch(url, {
@@ -438,11 +442,9 @@ export class N8nClient {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         if (fetchError.name === 'AbortError') {
-          const timeoutError = new Error(`Webhook timeout for ${tableName} after ${timeoutMs}ms`);
-          console.error(`⏱️ [fetchTable] ${timeoutError.message}`);
+          console.error(`⏱️ [fetchTable] Webhook timeout for ${tableName} after ${effectiveTimeoutMs}ms`);
           console.error(`⏱️ [fetchTable] Webhook URL: ${url}`);
-          // Return empty array instead of throwing to prevent cascading failures
-          return [];
+          throw new UpstreamTimeoutError();
         }
         console.error(`❌ [fetchTable] Fetch error for ${tableName}:`, fetchError.message);
         console.error(`❌ [fetchTable] Webhook URL: ${url}`);
@@ -450,6 +452,7 @@ export class N8nClient {
         return [];
       }
     } catch (error) {
+      if (error instanceof UpstreamTimeoutError) throw error;
       console.error(`❌ [fetchTable] Error fetching ${tableName}:`, error);
       console.error(`❌ [fetchTable] Error details:`, {
         message: error instanceof Error ? error.message : String(error),
@@ -513,8 +516,9 @@ export class N8nClient {
    * Includes timeout to prevent Vercel function timeouts
    */
   async getUserAccounts(timeoutMs: number = 5000): Promise<UserAccount[]> {
+    const effectiveTimeoutMs = Math.min(timeoutMs, UPSTREAM_TIMEOUT_MS);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeoutMs);
 
     try {
       const webhookUrl = n8nConfig.getUserAccountsUrl;
@@ -563,8 +567,8 @@ export class N8nClient {
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => {
           controller.abort();
-          reject(new Error(`User Accounts webhook timed out after ${timeoutMs}ms`));
-        }, timeoutMs)
+          reject(new UpstreamTimeoutError());
+        }, effectiveTimeoutMs)
       );
 
       const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
@@ -612,8 +616,8 @@ export class N8nClient {
       });
     } catch (error: any) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError' || error.message?.includes('timed out') || error.message?.includes('timeout')) {
-        throw new Error(`User Accounts webhook timed out after ${timeoutMs}ms. Please try again.`);
+      if (error instanceof UpstreamTimeoutError || error.name === 'AbortError' || error.message?.includes('timed out') || error.message?.includes('timeout')) {
+        throw new UpstreamTimeoutError();
       }
       console.error('Error fetching User Accounts from dedicated webhook:', error);
       throw error;
@@ -677,7 +681,7 @@ export class N8nClient {
         
         // Add timeout to prevent hanging requests (55 seconds)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
         
         try {
           const response = await fetch(webhookUrl, {
@@ -759,7 +763,7 @@ export class N8nClient {
         } catch (fetchError: any) {
           clearTimeout(timeoutId);
           if (fetchError.name === 'AbortError') {
-            throw new Error(`Webhook request timed out after 55 seconds`);
+            throw new UpstreamTimeoutError();
           }
           throw fetchError;
         }
@@ -767,7 +771,7 @@ export class N8nClient {
         lastError = error;
         console.error(`[postData] Attempt ${attempt} failed:`, error.message);
 
-        if (error instanceof NonRetryableWebhookError) {
+        if (error instanceof NonRetryableWebhookError || error instanceof UpstreamTimeoutError) {
           throw error;
         }
         
@@ -807,7 +811,7 @@ export class N8nClient {
     data?: Record<string, any>
   ): Promise<any> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
     try {
       const response = await fetch(webhookUrl, {
         method,
@@ -828,6 +832,7 @@ export class N8nClient {
       }
     } catch (e: any) {
       clearTimeout(timeoutId);
+      if (e?.name === 'AbortError') throw new UpstreamTimeoutError();
       throw e;
     }
   }

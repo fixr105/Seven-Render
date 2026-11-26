@@ -12,7 +12,7 @@ import fetch from 'node-fetch';
 import { getWebhookUrl } from '../../config/webhookConfig.js';
 
 // Configuration
-const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+const DEFAULT_TIMEOUT_MS = 25_000;
 const DEFAULT_MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000; // 1 second between retries
 
@@ -34,8 +34,9 @@ export class N8nApiError extends Error {
 
 export class N8nTimeoutError extends N8nApiError {
   constructor(webhookUrl: string, timeoutMs: number) {
-    super(`Request to ${webhookUrl} timed out after ${timeoutMs}ms`, 408, webhookUrl);
+    super('Upstream slow, retry', 503, webhookUrl);
     this.name = 'N8nTimeoutError';
+    void timeoutMs;
   }
 }
 

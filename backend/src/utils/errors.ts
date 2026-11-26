@@ -7,13 +7,27 @@ import { errorTracker } from './errorTracker.js';
 import { defaultLogger } from './logger.js';
 
 export class AppError extends Error {
+  status?: number;
+  code?: string;
+  error_type?: string;
+
   constructor(
     public statusCode: number,
     public message: string,
     public isOperational = true
   ) {
     super(message);
+    this.status = statusCode;
     Object.setPrototypeOf(this, AppError.prototype);
+  }
+}
+
+export class UpstreamTimeoutError extends AppError {
+  constructor() {
+    super(503, 'Upstream slow, retry');
+    this.name = 'UpstreamTimeoutError';
+    this.code = 'UPSTREAM_TIMEOUT';
+    this.error_type = 'server_unavailable';
   }
 }
 
@@ -50,9 +64,12 @@ export const handleError = (error: any, req: Request, res: Response, next: NextF
       requestId,
     });
 
-    return res.status(error.statusCode).json({
+    const status = error.status || error.statusCode || 500;
+    return res.status(status).json({
       success: false,
-      error: error.message,
+      error: error.message || 'Internal error',
+      code: error.code,
+      ...(error.error_type ? { error_type: error.error_type } : {}),
       requestId,
     });
   }
@@ -72,9 +89,12 @@ export const handleError = (error: any, req: Request, res: Response, next: NextF
     requestId,
   });
 
-  return res.status(500).json({
+  const status = error?.status || error?.statusCode || 500;
+  return res.status(status).json({
     success: false,
-    error: 'Internal server error',
+    error: error?.message || 'Internal error',
+    code: error?.code,
+    ...(error?.error_type ? { error_type: error.error_type } : {}),
     requestId,
   });
 };
