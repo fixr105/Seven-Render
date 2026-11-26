@@ -473,11 +473,30 @@ export class NBFCToolsController {
       }
 
       const webhookBody = isListAll ? {} : { loanApplicationId };
-      const webhookRes = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(webhookBody),
-      });
+      const upstreamController = new AbortController();
+      const upstreamTimer = setTimeout(() => upstreamController.abort(), 25_000);
+      let webhookRes: Awaited<ReturnType<typeof fetch>>;
+      try {
+        webhookRes = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(webhookBody),
+          signal: upstreamController.signal,
+        });
+      } catch (error: unknown) {
+        const name = error instanceof Error ? error.name : '';
+        if (name === 'AbortError' || name === 'TimeoutError') {
+          res.status(503).json({
+            success: false,
+            error: 'Upstream slow, retry',
+            error_type: 'server_unavailable',
+          });
+          return;
+        }
+        throw error;
+      } finally {
+        clearTimeout(upstreamTimer);
+      }
 
       const contentType = webhookRes.headers.get('content-type') || '';
       const isJson = contentType.includes('application/json');

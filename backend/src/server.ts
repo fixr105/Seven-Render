@@ -147,6 +147,24 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+app.use((_req, res, next) => {
+  const send = res.json.bind(res);
+  res.json = ((body?: unknown) => {
+    if (
+      body &&
+      typeof body === 'object' &&
+      (body as { error?: unknown }).error === 'Upstream slow, retry'
+    ) {
+      res.status(503);
+      const payload = body as { success?: boolean; error_type?: string };
+      payload.success = false;
+      payload.error_type = payload.error_type || 'server_unavailable';
+    }
+    return send(body);
+  }) as typeof res.json;
+  next();
+});
+
 // Disable caching for API responses - prevents 304 from serving stale/empty cached bodies
 app.use('/api', (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -176,7 +194,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Error handling
+app.use((_req, res) => {
+  res.status(404).json({ success: false, error: 'Not found' });
+});
+
+// Thrown errors return JSON. Register last so it covers every route.
 app.use(handleError);
 
 // Daily summary job disabled: it uses n8nClient.fetchTable (n8n) on a cron and would exhaust n8n executions.

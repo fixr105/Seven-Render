@@ -195,6 +195,48 @@ describe('apiService request logical success handling', () => {
     expect(sessionStorage.getItem('seven_auth_token')).toBeNull();
   });
 
+  it('does not clear auth token on a bare 401', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () =>
+          JSON.stringify({
+            success: true,
+            data: {
+              user: {
+                id: 'user-1',
+                email: 'client@example.com',
+                role: 'client',
+                clientId: 'CL001',
+              },
+              token: 'test-token',
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () =>
+          JSON.stringify({
+            success: false,
+            error: 'Not allowed',
+          }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.login('client@example.com', 'password');
+    const result = await apiService.getMe();
+
+    expect(result.success).toBe(false);
+    expect(sessionStorage.getItem('seven_auth_token')).toBe('test-token');
+  });
+
   it('posts closeApplication to credit close endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

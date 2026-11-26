@@ -1770,6 +1770,15 @@ export class KAMController {
       });
 
       if (result.success === false) {
+        if (result.error === 'Upstream slow, retry') {
+          res.status(503).json({
+            success: false,
+            error: 'Upstream slow, retry',
+            error_type: 'server_unavailable',
+            code: result.code,
+          });
+          return;
+        }
         const status =
           result.code === 'VALIDATION_ERROR' ? 400 : result.code === 'WEBHOOK_ERROR' ? 502 : 422;
         res.status(status).json({ success: false, error: result.error, code: result.code });

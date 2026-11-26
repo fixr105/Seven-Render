@@ -10,7 +10,7 @@ import {
   type PanLookupFieldPrefix,
 } from './panLookup.mapper.js';
 
-const WEBHOOK_TIMEOUT_MS = 150_000;
+const WEBHOOK_TIMEOUT_MS = 25_000;
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_INITIAL_BACKOFF_MS = 300;
 
@@ -101,7 +101,7 @@ async function callWebhookWithRetry(
       }
     } catch (error: unknown) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      // Do not retry aborts/timeouts — a single attempt may already use the full 150s budget.
+      // Do not retry aborts/timeouts — a single attempt already uses the 25s upstream budget.
       const isTimeout =
         lastError.name === 'TimeoutError' ||
         lastError.name === 'AbortError' ||
@@ -145,9 +145,13 @@ export async function lookupBorrowerByPan(input: PanLookupRequest): Promise<PanL
   );
 
   if (attempt.error) {
+    const timedOut =
+      attempt.error.name === 'TimeoutError' ||
+      attempt.error.name === 'AbortError' ||
+      /aborted|timed? ?out/i.test(attempt.error.message);
     return {
       success: false,
-      error: attempt.error.message || 'Failed to reach PAN lookup service',
+      error: timedOut ? 'Upstream slow, retry' : (attempt.error.message || 'Failed to reach PAN lookup service'),
       code: 'WEBHOOK_ERROR',
     };
   }
