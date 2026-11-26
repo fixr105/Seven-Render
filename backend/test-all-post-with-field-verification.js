@@ -6,7 +6,7 @@
 
 import fetch from 'node-fetch';
 
-const BASE_URL = 'https://fixrrahul.app.n8n.cloud/webhook';
+const BASE_URL = 'N8N_LEGACY_BASE_URL/webhook';
 
 const webhookTests = [
   {

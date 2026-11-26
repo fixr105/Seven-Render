@@ -7,17 +7,70 @@
  * POST endpoints: Used for creating/updating records
  * GET endpoints: Used for searching/fetching records
  * 
- * Base URL: https://fixrrahul.app.n8n.cloud/webhook/
+ * LMS calls use N8N_LMS_BASE_URL (Hostinger). Calls with no Hostinger path use
+ * N8N_LEGACY_BASE_URL. Neither base falls back to a hardcoded host.
  */
 
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-/** Default matches production n8n host (also set in historical fly.toml). */
-const DEFAULT_N8N_BASE_URL = 'https://fixrrahul.app.n8n.cloud';
+const LMS_BASE_MISSING =
+  'N8N_LMS_BASE_URL is required. Set it to https://n8n-fvmj.srv1499064.hstgr.cloud (no /webhook suffix). Refusing to use the old n8n host.';
 
-const N8N_BASE_URL = (process.env.N8N_BASE_URL || DEFAULT_N8N_BASE_URL).replace(/\/$/, '');
+const LEGACY_BASE_MISSING =
+  'N8N_LEGACY_BASE_URL is required for webhooks that are not on Hostinger yet. Refusing to use a hardcoded n8n host.';
+
+/** Strip a trailing slash and a trailing /webhook so callers can pass either form. */
+export function normalizeN8nOrigin(raw: string): string {
+  return raw.trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+}
+
+export function readLmsBaseUrl(): string {
+  const raw = process.env.N8N_LMS_BASE_URL?.trim();
+  if (!raw) {
+    throw new Error(LMS_BASE_MISSING);
+  }
+  const base = normalizeN8nOrigin(raw);
+  if (/app\.n8n\.cloud/i.test(base)) {
+    throw new Error(
+      'N8N_LMS_BASE_URL points at the old n8n host. Set it to https://n8n-fvmj.srv1499064.hstgr.cloud.'
+    );
+  }
+  return base;
+}
+
+export function readLegacyBaseUrl(): string {
+  const raw = process.env.N8N_LEGACY_BASE_URL?.trim();
+  if (!raw) {
+    throw new Error(LEGACY_BASE_MISSING);
+  }
+  return normalizeN8nOrigin(raw);
+}
+
+/** Log one error and throw when the LMS base is missing. Call at process startup. */
+export function assertN8nLmsBaseUrl(): string {
+  try {
+    return readLmsBaseUrl();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
+    throw error;
+  }
+}
+
+export function lmsWebhook(path: string): string {
+  return `${readLmsBaseUrl()}/webhook/${path}`;
+}
+
+export function legacyWebhook(path: string): string {
+  return `${readLegacyBaseUrl()}/webhook/${path}`;
+}
+
+function envOr(envName: string, build: () => string): string {
+  const override = process.env[envName]?.trim();
+  return override || build();
+}
 
 /**
  * Airtable Table IDs from SEVEN-DASHBOARD-2.json
@@ -140,7 +193,7 @@ export const N8N_POST_WEBHOOK_PATHS = {
   // Email (Outlook Send a message)
   EMAIL: 'email',
   // Vehicles
-  VEHICLES: 'VehiclesPOST',
+  VEHICLES: 'VehiclesPOST1',
 } as const;
 
 /**
@@ -201,7 +254,7 @@ export const N8N_GET_WEBHOOK_PATHS = {
   
   // User Accounts
   USER_ACCOUNT: 'useraccount',
-  VEHICLES: 'VehiclesGET',
+  VEHICLES: 'VehiclesGET1',
   CLIENT_KYC: 'getclientKYC',
   /** Lender BRE pricing bands. Alias of NBFC_BRE_CONFIG. */
   LENDER_BRE: 'lenderbre',
@@ -213,17 +266,43 @@ export const N8N_GET_WEBHOOK_PATHS = {
 /**
  * Helper function to build full POST webhook URL
  */
+/** POST paths that exist on the Hostinger LMS n8n. Everything else stays on the legacy base. */
+const LMS_POST_PATHS = new Set<keyof typeof N8N_POST_WEBHOOK_PATHS>([
+  'POST_LOG',
+  'COMMISSION_LEDGER',
+  'CREDIT_TEAM_USERS',
+  'DAILY_SUMMARY',
+  'FILE_AUDIT_LOG',
+  'KAM_USERS',
+  'LOAN_APPLICATIONS',
+  'PRODUCT_DOCUMENTS',
+  'NBFC_PARTNERS',
+  'ADD_USER',
+  'CLIENT',
+  'NOTIFICATION',
+  'VEHICLES',
+]);
+
 export function getPostWebhookUrl(path: keyof typeof N8N_POST_WEBHOOK_PATHS): string {
   const webhookPath = N8N_POST_WEBHOOK_PATHS[path];
-  return `${N8N_BASE_URL}/webhook/${webhookPath}`;
+  return LMS_POST_PATHS.has(path) ? lmsWebhook(webhookPath) : legacyWebhook(webhookPath);
 }
 
 /**
  * Helper function to build full GET webhook URL
  */
+/** GET paths that exist on the Hostinger LMS n8n. formlink / Recordtitle stay on the legacy base. */
+const LEGACY_GET_PATHS = new Set<keyof typeof N8N_GET_WEBHOOK_PATHS>([
+  'CLIENT_FORM_MAPPING',
+  'FORM_CATEGORIES',
+  'FORM_FIELDS',
+  'FORM_LINK',
+  'RECORD_TITLES',
+]);
+
 export function getGetWebhookUrl(path: keyof typeof N8N_GET_WEBHOOK_PATHS): string {
   const webhookPath = N8N_GET_WEBHOOK_PATHS[path];
-  return `${N8N_BASE_URL}/webhook/${webhookPath}`;
+  return LEGACY_GET_PATHS.has(path) ? legacyWebhook(webhookPath) : lmsWebhook(webhookPath);
 }
 
 /**
@@ -285,95 +364,84 @@ export function getTableToPostWebhookPath(): Record<string, keyof typeof N8N_POS
 }
 
 /**
- * Complete n8n endpoint configuration with environment variable overrides
+ * Complete n8n endpoint configuration with environment variable overrides.
+ * Getters resolve the base at call time so a missing legacy base does not
+ * block LMS calls such as login.
  */
 export const n8nEndpoints = {
-  // POST Webhook URLs (with env var overrides)
   post: {
-    log: process.env.N8N_POST_LOG_URL || getPostWebhookUrl('POST_LOG'),
+    get log() { return envOr('N8N_POST_LOG_URL', () => getPostWebhookUrl('POST_LOG')); },
     /** @deprecated Form config now uses Form Link + Record Titles */
-    clientFormMapping: process.env.N8N_POST_CLIENT_FORM_MAPPING_URL || getPostWebhookUrl('POST_CLIENT_FORM_MAPPING'),
-    commissionLedger: process.env.N8N_POST_COMMISSION_LEDGER_URL || getPostWebhookUrl('COMMISSION_LEDGER'),
-    creditTeamUsers: process.env.N8N_POST_CREDIT_TEAM_USERS_URL || getPostWebhookUrl('CREDIT_TEAM_USERS'),
-    dailySummary: process.env.N8N_POST_DAILY_SUMMARY_URL || getPostWebhookUrl('DAILY_SUMMARY'),
-    fileAuditLog: process.env.N8N_POST_FILE_AUDIT_LOG_URL || getPostWebhookUrl('FILE_AUDIT_LOG'),
+    get clientFormMapping() { return envOr('N8N_POST_CLIENT_FORM_MAPPING_URL', () => getPostWebhookUrl('POST_CLIENT_FORM_MAPPING')); },
+    get commissionLedger() { return envOr('N8N_POST_COMMISSION_LEDGER_URL', () => getPostWebhookUrl('COMMISSION_LEDGER')); },
+    get creditTeamUsers() { return envOr('N8N_POST_CREDIT_TEAM_USERS_URL', () => getPostWebhookUrl('CREDIT_TEAM_USERS')); },
+    get dailySummary() { return envOr('N8N_POST_DAILY_SUMMARY_URL', () => getPostWebhookUrl('DAILY_SUMMARY')); },
+    get fileAuditLog() { return envOr('N8N_POST_FILE_AUDIT_LOG_URL', () => getPostWebhookUrl('FILE_AUDIT_LOG')); },
     /** @deprecated Form config now uses Form Link + Record Titles */
-    formCategory: process.env.N8N_POST_FORM_CATEGORY_URL || getPostWebhookUrl('FORM_CATEGORY'),
+    get formCategory() { return envOr('N8N_POST_FORM_CATEGORY_URL', () => getPostWebhookUrl('FORM_CATEGORY')); },
     /** @deprecated Form config now uses Form Link + Record Titles */
-    formFields: process.env.N8N_POST_FORM_FIELDS_URL || getPostWebhookUrl('FORM_FIELDS'),
-    formLink: process.env.N8N_POST_FORM_LINK_URL || getPostWebhookUrl('FORM_LINK'),
-    recordTitles: process.env.N8N_POST_RECORD_TITLES_URL || getPostWebhookUrl('RECORD_TITLES'),
-    kamUsers: process.env.N8N_POST_KAM_USERS_URL || getPostWebhookUrl('KAM_USERS'),
-    loanApplications: process.env.N8N_POST_APPLICATIONS_URL || getPostWebhookUrl('LOAN_APPLICATIONS'),
-    loanProducts: process.env.N8N_POST_LOAN_PRODUCTS_URL || getPostWebhookUrl('LOAN_PRODUCTS'),
-    productDocuments: process.env.N8N_POST_PRODUCT_DOCUMENTS_URL || getPostWebhookUrl('PRODUCT_DOCUMENTS'),
-    nbfcPartners: process.env.N8N_POST_NBFC_PARTNERS_URL || getPostWebhookUrl('NBFC_PARTNERS'),
-    addUser: process.env.N8N_POST_ADD_USER_URL || getPostWebhookUrl('ADD_USER'),
-    client: process.env.N8N_POST_CLIENT_URL || getPostWebhookUrl('CLIENT'),
-    clientKyc: process.env.N8N_POST_CLIENT_KYC_URL || getPostWebhookUrl('CLIENT_KYC'),
-    notification: process.env.N8N_POST_NOTIFICATION_URL || getPostWebhookUrl('NOTIFICATION'),
-    email: process.env.N8N_POST_EMAIL_URL || getPostWebhookUrl('EMAIL'),
-    userAccountValidate: process.env.N8N_POST_USER_ACCOUNT_VALIDATE_URL || getGetWebhookUrl('USER_ACCOUNT'),
-    link: process.env.N8N_LINK_WEBHOOK_URL || `${N8N_BASE_URL}/webhook/3212b705-b54a-4d4e-9648-e7a6bfb06d2b`,
+    get formFields() { return envOr('N8N_POST_FORM_FIELDS_URL', () => getPostWebhookUrl('FORM_FIELDS')); },
+    get formLink() { return envOr('N8N_POST_FORM_LINK_URL', () => getPostWebhookUrl('FORM_LINK')); },
+    get recordTitles() { return envOr('N8N_POST_RECORD_TITLES_URL', () => getPostWebhookUrl('RECORD_TITLES')); },
+    get kamUsers() { return envOr('N8N_POST_KAM_USERS_URL', () => getPostWebhookUrl('KAM_USERS')); },
+    get loanApplications() { return envOr('N8N_POST_APPLICATIONS_URL', () => getPostWebhookUrl('LOAN_APPLICATIONS')); },
+    get loanProducts() { return envOr('N8N_POST_LOAN_PRODUCTS_URL', () => getPostWebhookUrl('LOAN_PRODUCTS')); },
+    get productDocuments() { return envOr('N8N_POST_PRODUCT_DOCUMENTS_URL', () => getPostWebhookUrl('PRODUCT_DOCUMENTS')); },
+    get nbfcPartners() { return envOr('N8N_POST_NBFC_PARTNERS_URL', () => getPostWebhookUrl('NBFC_PARTNERS')); },
+    get addUser() { return envOr('N8N_POST_ADD_USER_URL', () => getPostWebhookUrl('ADD_USER')); },
+    get client() { return envOr('N8N_POST_CLIENT_URL', () => getPostWebhookUrl('CLIENT')); },
+    get clientKyc() { return envOr('N8N_POST_CLIENT_KYC_URL', () => getPostWebhookUrl('CLIENT_KYC')); },
+    get notification() { return envOr('N8N_POST_NOTIFICATION_URL', () => getPostWebhookUrl('NOTIFICATION')); },
+    get email() { return envOr('N8N_POST_EMAIL_URL', () => getPostWebhookUrl('EMAIL')); },
+    get userAccountValidate() { return envOr('N8N_POST_USER_ACCOUNT_VALIDATE_URL', () => getGetWebhookUrl('USER_ACCOUNT')); },
+    get link() { return envOr('N8N_LINK_WEBHOOK_URL', () => legacyWebhook('3212b705-b54a-4d4e-9648-e7a6bfb06d2b')); },
   },
 
-  // PATCH Webhook URLs (Form Link, Record Titles, Product Documents, Loan Products)
   patch: {
-    formLink: process.env.N8N_PATCH_FORM_LINK_URL || `${N8N_BASE_URL}/webhook/formlink` as string,
-    recordTitles: process.env.N8N_PATCH_RECORD_TITLES_URL || `${N8N_BASE_URL}/webhook/recordtitle` as string,
-    productDocuments: process.env.N8N_PATCH_PRODUCT_DOCUMENTS_URL || `${N8N_BASE_URL}/webhook/productdocument` as string,
-    loanProducts: process.env.N8N_PATCH_LOAN_PRODUCTS_URL || `${N8N_BASE_URL}/webhook/loanproducts` as string,
+    get formLink() { return envOr('N8N_PATCH_FORM_LINK_URL', () => legacyWebhook('formlink')); },
+    get recordTitles() { return envOr('N8N_PATCH_RECORD_TITLES_URL', () => legacyWebhook('recordtitle')); },
+    get productDocuments() { return envOr('N8N_PATCH_PRODUCT_DOCUMENTS_URL', () => lmsWebhook('productdocument')); },
+    get loanProducts() { return envOr('N8N_PATCH_LOAN_PRODUCTS_URL', () => lmsWebhook('loanproducts')); },
   },
 
-  // DELETE Webhook URLs (Form Link, Record Titles, Product Documents, Loan Products)
   delete: {
-    formLink: process.env.N8N_DELETE_FORM_LINK_URL || `${N8N_BASE_URL}/webhook/formlink`,
-    recordTitles: process.env.N8N_DELETE_RECORD_TITLES_URL || `${N8N_BASE_URL}/webhook/recordtitle`,
-    productDocuments: process.env.N8N_DELETE_PRODUCT_DOCUMENTS_URL || `${N8N_BASE_URL}/webhook/productdocument`,
-    loanProducts: process.env.N8N_DELETE_LOAN_PRODUCTS_URL || `${N8N_BASE_URL}/webhook/loanproducts`,
+    get formLink() { return envOr('N8N_DELETE_FORM_LINK_URL', () => legacyWebhook('formlink')); },
+    get recordTitles() { return envOr('N8N_DELETE_RECORD_TITLES_URL', () => legacyWebhook('recordtitle')); },
+    get productDocuments() { return envOr('N8N_DELETE_PRODUCT_DOCUMENTS_URL', () => lmsWebhook('productdocument')); },
+    /** DELETE loanproducts is not on the Hostinger path list. */
+    get loanProducts() { return envOr('N8N_DELETE_LOAN_PRODUCTS_URL', () => legacyWebhook('loanproducts')); },
   },
 
-  // GET Webhook URLs (with env var overrides)
   get: {
-    adminActivity: process.env.N8N_GET_ADMIN_ACTIVITY_URL || getGetWebhookUrl('ADMIN_ACTIVITY'),
+    get adminActivity() { return envOr('N8N_GET_ADMIN_ACTIVITY_URL', () => getGetWebhookUrl('ADMIN_ACTIVITY')); },
     /** @deprecated Form config now uses Form Link + Record Titles */
-    clientFormMapping: process.env.N8N_GET_CLIENT_FORM_MAPPING_URL || getGetWebhookUrl('CLIENT_FORM_MAPPING'),
-    client: process.env.N8N_GET_CLIENT_URL || getGetWebhookUrl('CLIENT'),
-    commissionLedger: process.env.N8N_GET_COMMISSION_LEDGER_URL || getGetWebhookUrl('COMMISSION_LEDGER'),
-    creditTeamUser: process.env.N8N_GET_CREDIT_TEAM_USER_URL || getGetWebhookUrl('CREDIT_TEAM_USER'),
-    dailySummaryReport: process.env.N8N_GET_DAILY_SUMMARY_REPORT_URL || getGetWebhookUrl('DAILY_SUMMARY_REPORT'),
-    fileAuditingLog: process.env.N8N_GET_FILE_AUDITING_LOG_URL || getGetWebhookUrl('FILE_AUDITING_LOG'),
+    get clientFormMapping() { return envOr('N8N_GET_CLIENT_FORM_MAPPING_URL', () => getGetWebhookUrl('CLIENT_FORM_MAPPING')); },
+    get client() { return envOr('N8N_GET_CLIENT_URL', () => getGetWebhookUrl('CLIENT')); },
+    get commissionLedger() { return envOr('N8N_GET_COMMISSION_LEDGER_URL', () => getGetWebhookUrl('COMMISSION_LEDGER')); },
+    get creditTeamUser() { return envOr('N8N_GET_CREDIT_TEAM_USER_URL', () => getGetWebhookUrl('CREDIT_TEAM_USER')); },
+    get dailySummaryReport() { return envOr('N8N_GET_DAILY_SUMMARY_REPORT_URL', () => getGetWebhookUrl('DAILY_SUMMARY_REPORT')); },
+    get fileAuditingLog() { return envOr('N8N_GET_FILE_AUDITING_LOG_URL', () => getGetWebhookUrl('FILE_AUDITING_LOG')); },
     /** @deprecated Form config now uses Form Link + Record Titles */
-    formCategories: process.env.N8N_GET_FORM_CATEGORIES_URL || getGetWebhookUrl('FORM_CATEGORIES'),
+    get formCategories() { return envOr('N8N_GET_FORM_CATEGORIES_URL', () => getGetWebhookUrl('FORM_CATEGORIES')); },
     /** @deprecated Form config now uses Form Link + Record Titles */
-    formFields: process.env.N8N_GET_FORM_FIELDS_URL || getGetWebhookUrl('FORM_FIELDS'),
-    formLink: process.env.N8N_GET_FORM_LINK_URL || getGetWebhookUrl('FORM_LINK'),
-    recordTitles: process.env.N8N_GET_RECORD_TITLES_URL || getGetWebhookUrl('RECORD_TITLES'),
-    kamUsers: process.env.N8N_GET_KAM_USERS_URL || getGetWebhookUrl('KAM_USERS'),
-    loanApplication: process.env.N8N_GET_LOAN_APPLICATION_URL || getGetWebhookUrl('LOAN_APPLICATION'),
-    loanProducts: process.env.N8N_GET_LOAN_PRODUCTS_URL || getGetWebhookUrl('LOAN_PRODUCTS'),
-    productDocuments: process.env.N8N_GET_PRODUCT_DOCUMENTS_URL || getGetWebhookUrl('PRODUCT_DOCUMENTS'),
-    nbfcPartners: process.env.N8N_GET_NBFC_PARTNERS_URL || getGetWebhookUrl('NBFC_PARTNERS'),
-    notifications: process.env.N8N_GET_NOTIFICATIONS_URL || getGetWebhookUrl('NOTIFICATIONS'),
-    userAccount: process.env.N8N_GET_USER_ACCOUNTS_URL || getGetWebhookUrl('USER_ACCOUNT'),
-    vehicles:
-      process.env.N8N_GET_VEHICLES_URL ||
-      'https://fixrrahul.app.n8n.cloud/webhook/VehiclesGET',
-    clientKyc:
-      process.env.N8N_GET_CLIENT_KYC_URL ||
-      'https://fixrrahul.app.n8n.cloud/webhook/getclientKYC',
-    cibilRateMatrix:
-      process.env.CIBIL_RATE_MATRIX_WEBHOOK_URL ||
-      'https://fixrrahul.app.n8n.cloud/webhook/getmatrix',
-    nbfcBreConfig:
-      process.env.N8N_GET_NBFC_BRE_CONFIG_URL || getGetWebhookUrl('LENDER_BRE'),
-    lenderBreCheckpoints:
-      process.env.N8N_GET_LENDER_BRE_CHECKPOINTS_URL || getGetWebhookUrl('LENDER_BRE_CHECKPOINTS'),
+    get formFields() { return envOr('N8N_GET_FORM_FIELDS_URL', () => getGetWebhookUrl('FORM_FIELDS')); },
+    get formLink() { return envOr('N8N_GET_FORM_LINK_URL', () => getGetWebhookUrl('FORM_LINK')); },
+    get recordTitles() { return envOr('N8N_GET_RECORD_TITLES_URL', () => getGetWebhookUrl('RECORD_TITLES')); },
+    get kamUsers() { return envOr('N8N_GET_KAM_USERS_URL', () => getGetWebhookUrl('KAM_USERS')); },
+    get loanApplication() { return envOr('N8N_GET_LOAN_APPLICATION_URL', () => getGetWebhookUrl('LOAN_APPLICATION')); },
+    get loanProducts() { return envOr('N8N_GET_LOAN_PRODUCTS_URL', () => getGetWebhookUrl('LOAN_PRODUCTS')); },
+    get productDocuments() { return envOr('N8N_GET_PRODUCT_DOCUMENTS_URL', () => getGetWebhookUrl('PRODUCT_DOCUMENTS')); },
+    get nbfcPartners() { return envOr('N8N_GET_NBFC_PARTNERS_URL', () => getGetWebhookUrl('NBFC_PARTNERS')); },
+    get notifications() { return envOr('N8N_GET_NOTIFICATIONS_URL', () => getGetWebhookUrl('NOTIFICATIONS')); },
+    get userAccount() { return envOr('N8N_GET_USER_ACCOUNTS_URL', () => getGetWebhookUrl('USER_ACCOUNT')); },
+    get vehicles() { return envOr('N8N_GET_VEHICLES_URL', () => getGetWebhookUrl('VEHICLES')); },
+    get clientKyc() { return envOr('N8N_GET_CLIENT_KYC_URL', () => getGetWebhookUrl('CLIENT_KYC')); },
+    get cibilRateMatrix() { return envOr('CIBIL_RATE_MATRIX_WEBHOOK_URL', () => legacyWebhook('getmatrix')); },
+    get nbfcBreConfig() { return envOr('N8N_GET_NBFC_BRE_CONFIG_URL', () => getGetWebhookUrl('LENDER_BRE')); },
+    get lenderBreCheckpoints() { return envOr('N8N_GET_LENDER_BRE_CHECKPOINTS_URL', () => getGetWebhookUrl('LENDER_BRE_CHECKPOINTS')); },
   },
   vehicles: {
-    post:
-      process.env.N8N_POST_VEHICLES_URL ||
-      'https://fixrrahul.app.n8n.cloud/webhook/VehiclesPOST',
+    get post() { return envOr('N8N_POST_VEHICLES_URL', () => getPostWebhookUrl('VEHICLES')); },
   },
-} as const;
+};
 

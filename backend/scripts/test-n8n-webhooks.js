@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Test n8n Webhook Connectivity
  * 
@@ -7,44 +16,45 @@
 
 import fetch from 'node-fetch';
 
-const BASE_URL = 'https://fixrrahul.app.n8n.cloud';
+const LMS = requiredN8nOrigin('N8N_LMS_BASE_URL');
+const LEGACY = requiredN8nOrigin('N8N_LEGACY_BASE_URL');
 
-// Webhook paths from n8n flow (SEVEN-DASHBOARD-2.json)
+// Paths that exist on Hostinger use LMS. The rest stay on the legacy base.
 const n8nEndpoints = {
   get: {
-    userAccount: `${BASE_URL}/webhook/useraccount`,
-    client: `${BASE_URL}/webhook/client`,
-    kamUsers: `${BASE_URL}/webhook/kamusers`,
-    creditTeamUser: `${BASE_URL}/webhook/creditteamuser`,
-    loanApplication: `${BASE_URL}/webhook/loanapplication`,
-    loanProducts: `${BASE_URL}/webhook/loanproducts`,
-    nbfcPartners: `${BASE_URL}/webhook/nbfcpartners`,
-    formCategories: `${BASE_URL}/webhook/formcategories`,
-    formFields: `${BASE_URL}/webhook/formfields`,
-    commissionLedger: `${BASE_URL}/webhook/commisionledger`,
-    clientFormMapping: `${BASE_URL}/webhook/clientformmapping`,
-    adminActivity: `${BASE_URL}/webhook/adminactivity`,
-    dailySummaryReport: `${BASE_URL}/webhook/dailysummaryreport`,
-    fileAuditingLog: `${BASE_URL}/webhook/fileauditinglog`,
-    notifications: `${BASE_URL}/webhook/notifications`,
+    userAccount: `${LMS}/webhook/useraccount`,
+    client: `${LMS}/webhook/client`,
+    kamUsers: `${LMS}/webhook/kamusers`,
+    creditTeamUser: `${LMS}/webhook/creditteamuser`,
+    loanApplication: `${LMS}/webhook/loanapplication`,
+    loanProducts: `${LMS}/webhook/loanproducts`,
+    nbfcPartners: `${LMS}/webhook/nbfcpartners`,
+    formCategories: `${LEGACY}/webhook/formcategories`,
+    formFields: `${LEGACY}/webhook/formfields`,
+    commissionLedger: `${LMS}/webhook/commisionledger`,
+    clientFormMapping: `${LEGACY}/webhook/clientformmapping`,
+    adminActivity: `${LEGACY}/webhook/adminactivity`,
+    dailySummaryReport: `${LMS}/webhook/dailysummaryreport`,
+    fileAuditingLog: `${LMS}/webhook/fileauditinglog`,
+    notifications: `${LMS}/webhook/notifications`,
   },
   post: {
-    addUser: `${BASE_URL}/webhook/adduser`,
-    client: `${BASE_URL}/webhook/Client`,
-    log: `${BASE_URL}/webhook/POSTLOG`,
-    clientFormMapping: `${BASE_URL}/webhook/POSTCLIENTFORMMAPPING`,
-    commissionLedger: `${BASE_URL}/webhook/COMISSIONLEDGER`,
-    creditTeamUsers: `${BASE_URL}/webhook/CREDITTEAMUSERS`,
-    dailySummary: `${BASE_URL}/webhook/DAILYSUMMARY`,
-    fileAuditLog: `${BASE_URL}/webhook/Fileauditinglog`,
-    formCategory: `${BASE_URL}/webhook/FormCategory`,
-    formFields: `${BASE_URL}/webhook/FormFields`,
-    kamUsers: `${BASE_URL}/webhook/KAMusers`,
-    loanApplications: `${BASE_URL}/webhook/loanapplications`,
-    loanProducts: `${BASE_URL}/webhook/loanproducts`,
-    nbfcPartners: `${BASE_URL}/webhook/NBFCPartners`,
-    notification: `${BASE_URL}/webhook/notification`,
-    email: `${BASE_URL}/webhook/email`,
+    addUser: `${LMS}/webhook/adduser`,
+    client: `${LMS}/webhook/Client`,
+    log: `${LMS}/webhook/POSTLOG`,
+    clientFormMapping: `${LEGACY}/webhook/POSTCLIENTFORMMAPPING`,
+    commissionLedger: `${LMS}/webhook/COMISSIONLEDGER`,
+    creditTeamUsers: `${LMS}/webhook/CREDITTEAMUSERS`,
+    dailySummary: `${LMS}/webhook/DAILYSUMMARY`,
+    fileAuditLog: `${LEGACY}/webhook/Fileauditinglog`,
+    formCategory: `${LEGACY}/webhook/FormCategory`,
+    formFields: `${LEGACY}/webhook/FormFields`,
+    kamUsers: `${LMS}/webhook/KAMusers`,
+    loanApplications: `${LEGACY}/webhook/loanapplications`,
+    loanProducts: `${LEGACY}/webhook/loanproducts`,
+    nbfcPartners: `${LEGACY}/webhook/NBFCPartners`,
+    notification: `${LMS}/webhook/notification`,
+    email: `${LEGACY}/webhook/email`,
   },
 };
 

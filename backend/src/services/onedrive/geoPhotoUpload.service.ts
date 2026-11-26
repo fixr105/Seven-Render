@@ -2,6 +2,7 @@ import {
   B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS,
   type B2cEvGeoPhotoSlotId,
 } from '../../constants/b2cEvGeoPhotoUpload.js';
+import { legacyWebhook } from '../airtable/n8nEndpoints.js';
 import type { OneDriveUploadInput, OneDriveUploadResult } from './onedriveUpload.service.js';
 
 const GEO_UPLOAD_ENV_KEYS: Record<B2cEvGeoPhotoSlotId, string> = {
@@ -10,17 +11,12 @@ const GEO_UPLOAD_ENV_KEYS: Record<B2cEvGeoPhotoSlotId, string> = {
   atResidence: 'N8N_GEO_UPLOAD_UPL3_URL',
 };
 
-function readN8nBaseUrl(): string {
-  const base = process.env.N8N_BASE_URL?.trim() || 'https://fixrrahul.app.n8n.cloud';
-  return base.replace(/\/$/, '');
-}
-
 function readGeoPhotoWebhookUrl(slotId: B2cEvGeoPhotoSlotId): string {
   const override = process.env[GEO_UPLOAD_ENV_KEYS[slotId]]?.trim();
   if (override) return override;
 
   const path = B2C_EV_GEO_PHOTO_UPLOAD_WEBHOOK_PATHS[slotId];
-  return `${readN8nBaseUrl()}/webhook/${path}`;
+  return legacyWebhook(path);
 }
 
 function firstNonEmptyString(...values: unknown[]): string {

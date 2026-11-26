@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Script to create test users in Airtable via n8n webhooks
  * 
@@ -17,8 +26,8 @@
 
 import fetch from 'node-fetch';
 
-const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
-const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
+const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/adduser`;
+const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/Client`;
 
 // Use environment variables for test users - NEVER hardcode credentials
 const testUsers = [

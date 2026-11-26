@@ -35,6 +35,7 @@ export default {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  setupFiles: ['<rootDir>/jest.env.cjs'],
   testTimeout: 10000,
   verbose: true,
 };

@@ -6,10 +6,26 @@ import { serviceWorkerCacheVersion } from './vite-plugin-service-worker';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const engineBase =
-    env.VITE_ENGINE_BASE || 'https://fixrrahul.app.n8n.cloud/webhook';
-  const toolsBase =
-    env.VITE_TOOLS_BASE || 'https://n8n-fvmj.srv1499064.hstgr.cloud/webhook';
+  const legacyOrigin = (env.VITE_N8N_LEGACY_BASE_URL || env.N8N_LEGACY_BASE_URL || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/webhook$/i, '');
+  const engineBase = (env.VITE_ENGINE_BASE || '').trim() || (legacyOrigin ? `${legacyOrigin}/webhook` : '');
+  if (!engineBase) {
+    throw new Error(
+      'VITE_N8N_LEGACY_BASE_URL or N8N_LEGACY_BASE_URL is required for the /engine proxy. No fallback to the old n8n host.'
+    );
+  }
+  const lmsOrigin = (env.VITE_N8N_LMS_BASE_URL || env.N8N_LMS_BASE_URL || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/webhook$/i, '');
+  const toolsBase = (env.VITE_TOOLS_BASE || '').trim() || (lmsOrigin ? `${lmsOrigin}/webhook` : '');
+  if (!toolsBase) {
+    throw new Error(
+      'VITE_TOOLS_BASE or N8N_LMS_BASE_URL is required for the /tools proxy. No fallback host.'
+    );
+  }
 
   return {
     plugins: [react(), demoVideos(), serviceWorkerCacheVersion()],

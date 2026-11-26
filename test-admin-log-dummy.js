@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Test Admin Activity Log POST with Dummy Data
  * POSTs dummy admin activity data to the activity log webhook
@@ -5,7 +14,7 @@
 
 import fetch from 'node-fetch';
 
-const POST_LOG_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/POSTLOG';
+const POST_LOG_WEBHOOK_URL = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/POSTLOG`;
 
 // Dummy admin activity data samples
 const dummyActivities = [

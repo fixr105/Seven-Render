@@ -1,3 +1,5 @@
+import { legacyWebhook } from '../airtable/n8nEndpoints.js';
+
 const DO_PDF_HOST = 'pdf-temp-files.s3.us-west-2.amazonaws.com';
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -40,8 +42,7 @@ export async function storeGeneratedDoPdf(input: {
     throw new Error('Could not save the DO file');
   }
 
-  const base = (process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud').replace(/\/$/, '');
-  const urllinkUrl = input.urllinkUrl || `${base}/webhook/urllink`;
+  const urllinkUrl = input.urllinkUrl || legacyWebhook('urllink');
   const form = new FormData();
   form.append('data', new Blob([bytes], { type: 'application/pdf' }), fileName);
   const uploaded = await fetchImpl(urllinkUrl, { method: 'POST', body: form });

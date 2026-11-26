@@ -21,93 +21,93 @@ export interface WebhookTableConfig {
 
 export const WEBHOOK_CONFIG: Record<string, WebhookTableConfig> = {
   [AIRTABLE_TABLE_NAMES.ADMIN_ACTIVITY_LOG]: {
-    url: n8nEndpoints.get.adminActivity,
+    get url() { return n8nEndpoints.get.adminActivity; },
     tableName: AIRTABLE_TABLE_NAMES.ADMIN_ACTIVITY_LOG,
   },
   // DEPRECATED: Form config now uses Form Link + Record Titles
   [AIRTABLE_TABLE_NAMES.CLIENT_FORM_MAPPING]: {
-    url: n8nEndpoints.get.clientFormMapping,
+    get url() { return n8nEndpoints.get.clientFormMapping; },
     tableName: AIRTABLE_TABLE_NAMES.CLIENT_FORM_MAPPING,
   },
   [AIRTABLE_TABLE_NAMES.CLIENTS]: {
-    url: n8nEndpoints.get.client,
+    get url() { return n8nEndpoints.get.client; },
     tableName: AIRTABLE_TABLE_NAMES.CLIENTS,
   },
   [AIRTABLE_TABLE_NAMES.COMMISSION_LEDGER]: {
-    url: n8nEndpoints.get.commissionLedger,
+    get url() { return n8nEndpoints.get.commissionLedger; },
     tableName: AIRTABLE_TABLE_NAMES.COMMISSION_LEDGER,
   },
   [AIRTABLE_TABLE_NAMES.CREDIT_TEAM_USERS]: {
-    url: n8nEndpoints.get.creditTeamUser,
+    get url() { return n8nEndpoints.get.creditTeamUser; },
     tableName: AIRTABLE_TABLE_NAMES.CREDIT_TEAM_USERS,
   },
   [AIRTABLE_TABLE_NAMES.DAILY_SUMMARY_REPORTS]: {
-    url: n8nEndpoints.get.dailySummaryReport,
+    get url() { return n8nEndpoints.get.dailySummaryReport; },
     tableName: AIRTABLE_TABLE_NAMES.DAILY_SUMMARY_REPORTS,
   },
   [AIRTABLE_TABLE_NAMES.FILE_AUDITING_LOG]: {
-    url: n8nEndpoints.get.fileAuditingLog,
+    get url() { return n8nEndpoints.get.fileAuditingLog; },
     tableName: AIRTABLE_TABLE_NAMES.FILE_AUDITING_LOG,
   },
   // DEPRECATED: Form config now uses Form Link + Record Titles
   [AIRTABLE_TABLE_NAMES.FORM_CATEGORIES]: {
-    url: n8nEndpoints.get.formCategories,
+    get url() { return n8nEndpoints.get.formCategories; },
     tableName: AIRTABLE_TABLE_NAMES.FORM_CATEGORIES,
   },
   [AIRTABLE_TABLE_NAMES.FORM_FIELDS]: {
-    url: n8nEndpoints.get.formFields,
+    get url() { return n8nEndpoints.get.formFields; },
     tableName: AIRTABLE_TABLE_NAMES.FORM_FIELDS,
   },
   [AIRTABLE_TABLE_NAMES.FORM_LINK]: {
-    url: n8nEndpoints.get.formLink,
+    get url() { return n8nEndpoints.get.formLink; },
     tableName: AIRTABLE_TABLE_NAMES.FORM_LINK,
   },
   [AIRTABLE_TABLE_NAMES.RECORD_TITLES]: {
-    url: n8nEndpoints.get.recordTitles,
+    get url() { return n8nEndpoints.get.recordTitles; },
     tableName: AIRTABLE_TABLE_NAMES.RECORD_TITLES,
   },
   [AIRTABLE_TABLE_NAMES.KAM_USERS]: {
-    url: n8nEndpoints.get.kamUsers,
+    get url() { return n8nEndpoints.get.kamUsers; },
     tableName: AIRTABLE_TABLE_NAMES.KAM_USERS,
   },
   [AIRTABLE_TABLE_NAMES.LOAN_APPLICATIONS]: {
-    url: n8nEndpoints.get.loanApplication,
+    get url() { return n8nEndpoints.get.loanApplication; },
     tableName: AIRTABLE_TABLE_NAMES.LOAN_APPLICATIONS,
   },
   [AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS]: {
-    url: n8nEndpoints.get.loanProducts,
+    get url() { return n8nEndpoints.get.loanProducts; },
     tableName: AIRTABLE_TABLE_NAMES.LOAN_PRODUCTS,
   },
   [AIRTABLE_TABLE_NAMES.PRODUCT_DOCUMENTS]: {
-    url: n8nEndpoints.get.productDocuments,
+    get url() { return n8nEndpoints.get.productDocuments; },
     tableName: AIRTABLE_TABLE_NAMES.PRODUCT_DOCUMENTS,
   },
   [AIRTABLE_TABLE_NAMES.NBFC_PARTNERS]: {
-    url: n8nEndpoints.get.nbfcPartners,
+    get url() { return n8nEndpoints.get.nbfcPartners; },
     tableName: AIRTABLE_TABLE_NAMES.NBFC_PARTNERS,
   },
   [AIRTABLE_TABLE_NAMES.NOTIFICATIONS]: {
-    url: n8nEndpoints.get.notifications,
+    get url() { return n8nEndpoints.get.notifications; },
     tableName: AIRTABLE_TABLE_NAMES.NOTIFICATIONS,
   },
   [AIRTABLE_TABLE_NAMES.USER_ACCOUNTS]: {
-    url: n8nEndpoints.get.userAccount,
+    get url() { return n8nEndpoints.get.userAccount; },
     tableName: AIRTABLE_TABLE_NAMES.USER_ACCOUNTS,
   },
   [AIRTABLE_TABLE_NAMES.VEHICLES]: {
-    url: n8nEndpoints.get.vehicles,
+    get url() { return n8nEndpoints.get.vehicles; },
     tableName: AIRTABLE_TABLE_NAMES.VEHICLES,
   },
   [AIRTABLE_TABLE_NAMES.CLIENT_KYC]: {
-    url: n8nEndpoints.get.clientKyc,
+    get url() { return n8nEndpoints.get.clientKyc; },
     tableName: AIRTABLE_TABLE_NAMES.CLIENT_KYC,
   },
   [AIRTABLE_TABLE_NAMES.NBFC_BRE_CONFIG]: {
-    url: n8nEndpoints.get.nbfcBreConfig,
+    get url() { return n8nEndpoints.get.nbfcBreConfig; },
     tableName: AIRTABLE_TABLE_NAMES.NBFC_BRE_CONFIG,
   },
   [AIRTABLE_TABLE_NAMES.NBFC_BRE_CHECKPOINTS]: {
-    url: n8nEndpoints.get.lenderBreCheckpoints,
+    get url() { return n8nEndpoints.get.lenderBreCheckpoints; },
     tableName: AIRTABLE_TABLE_NAMES.NBFC_BRE_CHECKPOINTS,
   },
 };

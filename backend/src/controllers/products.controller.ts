@@ -53,7 +53,7 @@ export class ProductsController {
       const timeoutMs = 5000; // 5 seconds - n8n responds in ~1.08s
       
       console.log(`[listLoanProducts] Fetching loan products with ${timeoutMs}ms timeout`);
-      console.log(`[listLoanProducts] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
+      console.log(`[listLoanProducts] N8N_LMS_BASE_URL: ${process.env.N8N_LMS_BASE_URL || 'NOT SET'}`);
       
       // Fetch Loan Products and Clients in parallel (Clients for KAM→product remapping)
       // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)

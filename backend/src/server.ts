@@ -14,8 +14,16 @@ import { setupErrorHandlers } from './utils/errorTracker.js';
 import { apmMiddleware } from './utils/apm.js';
 import { setupUptimeMonitoring } from './utils/uptimeMonitor.js';
 import { validateEnvironment } from './utils/envValidation.js';
+import { assertN8nLmsBaseUrl, readLegacyBaseUrl, readLmsBaseUrl } from './services/airtable/n8nEndpoints.js';
+import { engineProxy } from './routes/engineProxy.routes.js';
 
 dotenv.config();
+
+try {
+  assertN8nLmsBaseUrl();
+} catch {
+  process.exit(1);
+}
 
 // Validate environment variables (warn only, don't exit in production)
 if (process.env.NODE_ENV === 'production') {
@@ -106,6 +114,11 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Engine webhooks are not on Hostinger. Proxy them to N8N_LEGACY_BASE_URL.
+// Mount before the JSON parser so multipart uploads keep their raw body.
+app.use('/engine', engineProxy);
+app.use('/api/engine', engineProxy);
+
 // Security Headers (after CORS so preflight succeeds)
 app.use(helmet({
   contentSecurityPolicy: {
@@ -114,7 +127,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", process.env.N8N_BASE_URL || ''].filter(Boolean),
+      connectSrc: ["'self'", readLmsBaseUrl(), process.env.N8N_LEGACY_BASE_URL?.trim() ? readLegacyBaseUrl() : ''].filter(Boolean),
     },
   },
   hsts: {

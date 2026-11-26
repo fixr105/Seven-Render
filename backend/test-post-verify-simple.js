@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Simple POST and Verify Test
  * POSTs data, then uses GET to find and verify the exact record
@@ -5,8 +14,8 @@
 
 import fetch from 'node-fetch';
 
-const BASE_URL = 'https://fixrrahul.app.n8n.cloud/webhook';
-const GET_URL = 'https://fixrrahul.app.n8n.cloud/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52';
+const BASE_URL = 'N8N_LEGACY_BASE_URL/webhook';
+const GET_URL = `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52`;
 
 // Test one webhook at a time to verify retrieval
 async function testSingleWebhook() {

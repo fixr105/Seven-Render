@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Script to create a KAM user and Credit Team user in the database
  * Run this to set up test users for client onboarding testing
@@ -6,9 +15,9 @@
 import fetch from 'node-fetch';
 
 // Webhook URLs
-const KAM_USERS_WEBHOOK = 'https://fixrrahul.app.n8n.cloud/webhook/KAMusers';
-const CREDIT_TEAM_USERS_WEBHOOK = 'https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS';
-const USER_ACCOUNTS_WEBHOOK = 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
+const KAM_USERS_WEBHOOK = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/KAMusers`;
+const CREDIT_TEAM_USERS_WEBHOOK = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/CREDITTEAMUSERS`;
+const USER_ACCOUNTS_WEBHOOK = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/adduser`;
 
 // KAM User Data
 const kamUserData = {

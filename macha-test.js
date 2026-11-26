@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Macha Test - Reusable Webhook Test Script
  * Tests GET and POST webhooks with configurable URLs and data
@@ -7,9 +16,9 @@
  *   POST: node macha-test.js POST <webhook-url> [test-data-file]
  * 
  * Examples:
- *   node macha-test.js GET https://fixrrahul.app.n8n.cloud/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52
- *   node macha-test.js POST https://fixrrahul.app.n8n.cloud/webhook/POSTLOG
- *   node macha-test.js POST https://fixrrahul.app.n8n.cloud/webhook/POSTLOG test-data.json
+ *   node macha-test.js GET ${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/46a2b46b-3288-4970-bd13-99c2ba08d52
+ *   node macha-test.js POST ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/POSTLOG
+ *   node macha-test.js POST ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/POSTLOG test-data.json
  */
 
 import fetch from 'node-fetch';

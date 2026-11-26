@@ -1,4 +1,13 @@
 #!/usr/bin/env tsx
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Test the link webhook (POST file to n8n)
  * Usage: npx tsx scripts/test-link-webhook.ts [url]
@@ -7,7 +16,7 @@
 
 const LINK_WEBHOOK_URL =
   process.env.N8N_LINK_WEBHOOK_URL ||
-  `${process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud'}/webhook/3212b705-b54a-4d4e-9648-e7a6bfb06d2b`;
+  `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/3212b705-b54a-4d4e-9648-e7a6bfb06d2b`;
 
 async function main() {
   const testUrl = process.argv[2] || 'https://example.com/test-share-link';

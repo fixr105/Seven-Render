@@ -1,6 +1,15 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Test NBFC Partners POST Webhook
- * URL: https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners
+ * URL: ${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/NBFCPartners
  * 
  * Fields:
  * - id (using to match)
@@ -12,7 +21,7 @@
  * - Active
  */
 
-const WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners';
+const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/NBFCPartners`;
 
 const testData = {
   id: 'APP-TEST-' + Date.now(),

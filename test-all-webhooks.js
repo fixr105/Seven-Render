@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Test all webhooks one by one with exact field mappings
  */
@@ -8,7 +17,7 @@ import fetch from 'node-fetch';
 const webhookTests = [
   {
     name: '1. POSTLOG (Admin Activity Log)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/POSTLOG',
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/POSTLOG`,
     data: {
       id: 'TEST-POSTLOG-' + Date.now(),
       'Activity ID': 'ACT-TEST-' + Date.now(),
@@ -21,7 +30,7 @@ const webhookTests = [
   },
   {
     name: '2. POSTCLIENTFORMMAPPING (Client Form Mapping)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/POSTCLIENTFORMMAPPING',
+    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/POSTCLIENTFORMMAPPING`,
     data: {
       id: 'MAP-TEST-' + Date.now(),
       'Mapping ID': 'MAP-TEST-' + Date.now(),
@@ -33,7 +42,7 @@ const webhookTests = [
   },
   {
     name: '3. COMISSIONLEDGER (Commission Ledger)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/COMISSIONLEDGER',
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/COMISSIONLEDGER`,
     data: {
       id: 'LEDGER-TEST-' + Date.now(),
       'Ledger Entry ID': 'LEDGER-TEST-' + Date.now(),
@@ -50,7 +59,7 @@ const webhookTests = [
   },
   {
     name: '4. CREDITTEAMUSERS (Credit Team Users)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS',
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/CREDITTEAMUSERS`,
     data: {
       id: 'CREDIT-TEST-' + Date.now(),
       'Credit User ID': 'CREDIT-TEST-' + Date.now(),
@@ -63,7 +72,7 @@ const webhookTests = [
   },
   {
     name: '5. DAILYSUMMARY (Daily Summary Reports)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/DAILYSUMMARY',
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/DAILYSUMMARY`,
     data: {
       id: 'SUMMARY-' + new Date().toISOString().split('T')[0].replace(/-/g, ''),
       'Report Date': new Date().toISOString().split('T')[0],
@@ -74,7 +83,7 @@ const webhookTests = [
   },
   {
     name: '6. FILEAUDITLOGGING (File Audit Log)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/FILEAUDITLOGGING',
+    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/FILEAUDITLOGGING`,
     data: {
       id: 'AUDIT-TEST-' + Date.now(),
       'Log Entry ID': 'AUDIT-TEST-' + Date.now(),
@@ -89,7 +98,7 @@ const webhookTests = [
   },
   {
     name: '7. FormCategory (Form Fields)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/FormCategory',
+    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/FormCategory`,
     data: {
       id: 'FIELD-TEST-' + Date.now(),
       'Field ID': 'FIELD-TEST-' + Date.now(),
@@ -105,7 +114,7 @@ const webhookTests = [
   },
   {
     name: '8. FormCategory (Form Categories)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/FormCategory',
+    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/FormCategory`,
     data: {
       id: 'CAT-TEST-' + Date.now(),
       'Category ID': 'CAT-TEST-' + Date.now(),
@@ -117,7 +126,7 @@ const webhookTests = [
   },
   {
     name: '9. KAMusers (KAM Users)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/KAMusers',
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/KAMusers`,
     data: {
       id: 'KAM-TEST-' + Date.now(),
       'KAM ID': 'KAM-TEST-' + Date.now(),
@@ -131,7 +140,7 @@ const webhookTests = [
   },
   {
     name: '10. applications (Loan Applications)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/applications',
+    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/applications`,
     data: {
       id: 'APP-TEST-' + Date.now(),
       'File ID': 'SF20250115001',
@@ -156,7 +165,7 @@ const webhookTests = [
   },
   {
     name: '11. adduser (User Accounts)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/adduser',
+    url: `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/adduser`,
     data: {
       id: 'USER-TEST-' + Date.now(),
       'Username': 'testuser@example.com',
@@ -169,7 +178,7 @@ const webhookTests = [
   },
   {
     name: '12. applications (NBFC Partners)',
-    url: 'https://fixrrahul.app.n8n.cloud/webhook/applications',
+    url: `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/applications`,
     data: {
       id: 'NBFC-TEST-' + Date.now(),
       'Lender ID': 'NBFC-TEST-' + Date.now(),

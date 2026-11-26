@@ -1,4 +1,13 @@
 #!/usr/bin/env tsx
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Comprehensive Test Suite for Functionality Fixes
  * Tests all fixes implemented for:
@@ -12,7 +21,7 @@ import fetch from 'node-fetch';
 import * as fs from 'fs';
 
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001/api';
-const N8N_BASE_URL = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
+const N8N_BASE_URL = requiredN8nOrigin('N8N_LMS_BASE_URL');
 
 interface TestResult {
   phase: string;

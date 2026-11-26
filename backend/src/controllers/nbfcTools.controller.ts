@@ -10,9 +10,9 @@ import { matchIds } from '../utils/idMatcher.js';
 import { getPrisma } from '../lib/prisma.js';
 import { nbfcToolsStorage } from '../services/nbfcToolsStorage.service.js';
 import { generateRaadPdf, type RaadResult } from '../services/raadPdfGenerator.service.js';
+import { legacyWebhook } from '../services/airtable/n8nEndpoints.js';
 
 const N8N_NBFC_TOOLS_BASE_URL = 'https://n8n-h9n3.srv1314414.hstgr.cloud';
-const DEFAULT_RAAD_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/big-brain-bro-1';
 
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -24,7 +24,7 @@ function getN8nWebhookUrl(tool: 'raad' | 'pager'): string {
   const base = process.env.N8N_NBFC_TOOLS_BASE_URL || N8N_NBFC_TOOLS_BASE_URL;
   const baseClean = base.replace(/\/$/, '');
   if (tool === 'raad') {
-    return process.env.N8N_RAAD_WEBHOOK_URL || DEFAULT_RAAD_WEBHOOK_URL;
+    return process.env.N8N_RAAD_WEBHOOK_URL || legacyWebhook('big-brain-bro-1');
   }
   if (process.env.N8N_PAGER_WEBHOOK_URL) {
     return process.env.N8N_PAGER_WEBHOOK_URL;

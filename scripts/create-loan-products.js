@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Script to create loan products in Airtable via n8n webhook
  * Run this to populate loan products for the dashboard
@@ -5,7 +14,7 @@
 
 import fetch from 'node-fetch';
 
-const WEBHOOK_URL = process.env.N8N_POST_LOAN_PRODUCTS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/loanproducts1';
+const WEBHOOK_URL = process.env.N8N_POST_LOAN_PRODUCTS_URL || `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/loanproducts1`;
 
 // Loan products to create
 const loanProducts = [

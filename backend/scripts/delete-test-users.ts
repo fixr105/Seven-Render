@@ -7,7 +7,7 @@
  * 3. Reports what was deleted
  * 
  * Usage:
- *   N8N_BASE_URL=https://fixrrahul.app.n8n.cloud npx tsx scripts/delete-test-users.ts
+ *   N8N_BASE_URL=N8N_LEGACY_BASE_URL npx tsx scripts/delete-test-users.ts
  */
 
 import { n8nClient } from '../src/services/airtable/n8nClient.js';

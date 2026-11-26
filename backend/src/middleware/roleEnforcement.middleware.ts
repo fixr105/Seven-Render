@@ -13,6 +13,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../config/constants.js';
+import { n8nEndpoints } from '../services/airtable/n8nEndpoints.js';
 import { n8nClient } from '../services/airtable/n8nClient.js';
 import fetch from 'node-fetch';
 
@@ -251,7 +252,7 @@ async function sendAdminAlert(
 ): Promise<void> {
   try {
     // Only send if email webhook is configured
-    const emailWebhookUrl = process.env.N8N_POST_EMAIL_URL || `${process.env.N8N_BASE_URL}/webhook/email`;
+    const emailWebhookUrl = n8nEndpoints.post.email;
     
     // Get admin emails from environment or use default
     const adminEmails = process.env.ADMIN_ALERT_EMAILS?.split(',').map(e => e.trim()).filter(Boolean) || [];

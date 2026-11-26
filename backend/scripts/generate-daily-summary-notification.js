@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Script to generate and send daily summary notifications
  * 
@@ -22,7 +31,7 @@ import { dirname } from 'path';
 
 dotenv.config();
 
-const N8N_BASE_URL = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
+const N8N_BASE_URL = requiredN8nOrigin('N8N_LMS_BASE_URL');
 
 // Webhook URLs
 const N8N_GET_LOAN_APPLICATION_URL = `${N8N_BASE_URL}/webhook/loanapplication`;

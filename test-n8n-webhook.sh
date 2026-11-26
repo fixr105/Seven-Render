@@ -5,7 +5,7 @@ echo "Testing n8n Webhook: /webhook/useraccount"
 echo "=========================================="
 echo ""
 
-WEBHOOK_URL="https://fixrrahul.app.n8n.cloud/webhook/useraccount"
+WEBHOOK_URL="${N8N_LMS_BASE_URL}/webhook/useraccount"
 
 echo "URL: $WEBHOOK_URL"
 echo ""

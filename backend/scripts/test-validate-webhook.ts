@@ -1,4 +1,13 @@
 #!/usr/bin/env tsx
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Test script to verify the validate webhook can be called from the backend
  */
@@ -7,7 +16,7 @@ import fetch from 'node-fetch';
 
 const WEBHOOK_URL = process.env.N8N_BASE_URL 
   ? `${process.env.N8N_BASE_URL}/webhook/validate`
-  : 'https://fixrrahul.app.n8n.cloud/webhook/validate';
+  : `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/validate`;
 
 const credentials = {
   username: 'Sagar',

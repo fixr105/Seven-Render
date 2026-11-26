@@ -5,6 +5,7 @@
  */
 
 import fetch from 'node-fetch';
+import { n8nEndpoints } from '../airtable/n8nEndpoints.js';
 import { n8nClient } from '../airtable/n8nClient.js';
 
 const ASANA_API_BASE = 'https://app.asana.com/api/1.0';
@@ -240,11 +241,7 @@ export async function getUserName(userId: string): Promise<string> {
     // If userId looks like an email/username, try query parameter first
     if (userId.includes('@') || userId.includes('.')) {
       try {
-        const { n8nEndpoints } = await import('../airtable/n8nEndpoints.js');
-        if (!process.env.N8N_BASE_URL) {
-          throw new Error('N8N_BASE_URL is not configured.');
-        }
-        const userAccountUrl = `${process.env.N8N_BASE_URL}/webhook/useraccount?username=${encodeURIComponent(userId)}`;
+        const userAccountUrl = `${n8nEndpoints.get.userAccount}?username=${encodeURIComponent(userId)}`;
         
         const response = await fetch(userAccountUrl);
         if (response.ok) {

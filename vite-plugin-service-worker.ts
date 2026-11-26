@@ -17,7 +17,7 @@ export function serviceWorkerCacheVersion(): Plugin {
         Date.now().toString();
       const source = readFileSync(templatePath, 'utf8').replace(
         '__SW_CACHE_VERSION__',
-        `seven-fincorp-${buildId}`
+        `seven-fincorp-n8n-lms-${buildId}`
       );
 
       this.emitFile({

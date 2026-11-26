@@ -17,7 +17,7 @@ export interface EnvValidationResult {
 const REQUIRED_ENV_VARS = [
   'NODE_ENV',
   'JWT_SECRET',
-  'N8N_BASE_URL',
+  'N8N_LMS_BASE_URL',
   'CORS_ORIGIN',
 ];
 

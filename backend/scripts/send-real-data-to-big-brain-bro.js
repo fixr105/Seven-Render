@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Send real loan application data to the big-brain-bro webhook.
  *
@@ -7,7 +16,7 @@
  *
  * 1. GETs real records from /webhook/loanapplication
  * 2. Picks one record (first by default, or by --index N or --file-id XYZ)
- * 3. POSTs it to https://fixrrahul.app.n8n.cloud/webhook/big-brain-bro
+ * 3. POSTs it to ${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/big-brain-bro
  *
  * Usage:
  *   node backend/scripts/send-real-data-to-big-brain-bro.js
@@ -20,9 +29,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const N8N_BASE_URL = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
+const N8N_BASE_URL = requiredN8nOrigin('N8N_LMS_BASE_URL');
 const GET_LOAN_APPLICATION_URL = `${N8N_BASE_URL}/webhook/loanapplication`;
-const BIG_BRAIN_BRO_URL = 'https://fixrrahul.app.n8n.cloud/webhook/big-brain-bro';
+const BIG_BRAIN_BRO_URL = `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/big-brain-bro`;
 
 function getField(record, fieldName) {
   if (record.fields && record[fieldName] === undefined && record.fields[fieldName] !== undefined) {

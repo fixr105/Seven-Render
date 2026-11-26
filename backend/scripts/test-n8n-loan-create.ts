@@ -1,4 +1,13 @@
 #!/usr/bin/env tsx
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Direct n8n loan application create test (no Express middleware).
  *
@@ -6,14 +15,14 @@
  *   cd backend && npx tsx scripts/test-n8n-loan-create.ts
  *
  * Env:
- *   N8N_BASE_URL              - default https://fixrrahul.app.n8n.cloud
+ *   N8N_BASE_URL              - default N8N_LEGACY_BASE_URL
  *   TEST_CLIENT_ID            - Airtable client id (optional; fetched from GET /webhook/client if unset)
  *   TEST_LOAN_PRODUCT_ID      - optional product id for payload
  */
 
 import fetch from 'node-fetch';
 
-const N8N_BASE_URL = (process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud').replace(/\/$/, '');
+const N8N_BASE_URL = (requiredN8nOrigin('N8N_LMS_BASE_URL')).replace(/\/$/, '');
 const POST_URL = `${N8N_BASE_URL}/webhook/loanapplications1`;
 const GET_URL = `${N8N_BASE_URL}/webhook/loanapplication`;
 const GET_CLIENTS_URL = `${N8N_BASE_URL}/webhook/client`;

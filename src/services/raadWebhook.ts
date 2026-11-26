@@ -1,13 +1,12 @@
 /**
  * Direct n8n get-raad webhook client.
  * Bypasses the backend when configured, avoiding 404 from API base URL issues.
- * Set VITE_N8N_RAAD_FETCH_WEBHOOK_URL in Vercel to enable (e.g. https://fixrrahul.app.n8n.cloud/webhook/get-raad).
- * When unset in production, uses default get-raad URL so RAAD reports load without backend proxy.
+ * Set VITE_N8N_RAAD_FETCH_WEBHOOK_URL to call n8n directly.
+ * When unset, NBFC Tools uses the backend API instead. There is no hardcoded host.
  */
 
 const ENV_URL = (import.meta.env.VITE_N8N_RAAD_FETCH_WEBHOOK_URL || '').trim();
-const DEFAULT_RAAD_WEBHOOK = 'https://fixrrahul.app.n8n.cloud/webhook/get-raad';
-const RAAD_WEBHOOK_URL = ENV_URL || (import.meta.env.PROD ? DEFAULT_RAAD_WEBHOOK : '');
+const RAAD_WEBHOOK_URL = ENV_URL;
 
 export function hasDirectRaadWebhook(): boolean {
   return RAAD_WEBHOOK_URL.length > 0;

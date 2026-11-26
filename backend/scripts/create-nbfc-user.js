@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Create a single NBFC user (User Account + NBFC Partners profile)
  * Sends bcrypt hash as PIN - n8n adduser expects PIN (not Password). Auth reads both.
@@ -16,7 +25,7 @@
 import fetch from 'node-fetch';
 import bcrypt from 'bcryptjs';
 
-const N8N_BASE = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
+const N8N_BASE = requiredN8nOrigin('N8N_LMS_BASE_URL');
 const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || `${N8N_BASE}/webhook/adduser`;
 const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || `${N8N_BASE}/webhook/NBFCPartners`;
 const N8N_GET_USER_ACCOUNTS = process.env.N8N_GET_USER_ACCOUNTS_URL || `${N8N_BASE}/webhook/useraccount`;

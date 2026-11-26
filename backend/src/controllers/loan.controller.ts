@@ -326,7 +326,7 @@ export class LoanController {
       const user = req.user;
       const unmappedOnly = unmapped === 'true' || unmapped === '1';
       
-      console.log(`[listApplications] N8N_BASE_URL: ${process.env.N8N_BASE_URL || 'NOT SET - using default'}`);
+      console.log(`[listApplications] N8N_LMS_BASE_URL: ${process.env.N8N_LMS_BASE_URL || 'NOT SET'}`);
       console.log(`[listApplications] Fetching 3 tables in parallel...`);
 
       // Cache by default; bypass only on explicit Refresh (?forceRefresh=true)

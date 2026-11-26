@@ -28,6 +28,7 @@ import usersRoutes from './users.routes.js';
 import documentsRoutes from './documents.routes.js';
 import publicRoutes from './public.routes.js';
 import configRoutes from './config.routes.js';
+import { n8nEndpoints } from '../services/airtable/n8nEndpoints.js';
 
 const router = Router();
 
@@ -112,7 +113,8 @@ router.get('/debug/env', (req, res) => {
       environment: {
         NODE_ENV: process.env.NODE_ENV || 'not set',
         VERCEL: process.env.VERCEL || 'not set',
-        N8N_BASE_URL: process.env.N8N_BASE_URL || 'NOT SET - using default',
+        N8N_LMS_BASE_URL: process.env.N8N_LMS_BASE_URL || 'NOT SET',
+        N8N_LEGACY_BASE_URL: process.env.N8N_LEGACY_BASE_URL || 'NOT SET',
       },
       timestamp: new Date().toISOString(),
     });
@@ -167,34 +169,25 @@ router.get('/debug/nbfc-partners-check', async (req, res) => {
 router.get('/debug/webhook-config', (req, res) => {
   console.log('[DEBUG] /debug/webhook-config endpoint called at', new Date().toISOString());
   try {
-    if (!process.env.N8N_BASE_URL) {
-      res.status(500).json({
-        success: false,
-        error: 'N8N_BASE_URL environment variable is required. Please set it in your environment configuration.',
-      });
-      return;
-    }
-    const n8nBaseUrl = process.env.N8N_BASE_URL;
-    
-    // Manually construct webhook URLs without importing modules (to avoid timeout)
     const webhookUrls = {
-      'Loan Products': `${n8nBaseUrl}/webhook/loanproducts`,
-      'Loan Application': `${n8nBaseUrl}/webhook/loanapplication`,
-      'Clients': `${n8nBaseUrl}/webhook/client`,
-      'Commission Ledger': `${n8nBaseUrl}/webhook/commisionledger`,
-      'Notifications': `${n8nBaseUrl}/webhook/notifications`,
-      'Client Form Mapping': `${n8nBaseUrl}/webhook/clientformmapping`,
+      'Loan Products': n8nEndpoints.get.loanProducts,
+      'Loan Application': n8nEndpoints.get.loanApplication,
+      'Clients': n8nEndpoints.get.client,
+      'Commission Ledger': n8nEndpoints.get.commissionLedger,
+      'Notifications': n8nEndpoints.get.notifications,
+      'Client Form Mapping': n8nEndpoints.get.clientFormMapping,
     };
-    
-    console.log('[DEBUG] N8N_BASE_URL:', n8nBaseUrl);
+
+    console.log('[DEBUG] N8N_LMS_BASE_URL:', process.env.N8N_LMS_BASE_URL || 'NOT SET');
     console.log('[DEBUG] Webhook URLs constructed');
-    
+
     const response = {
       success: true,
       environment: {
         NODE_ENV: process.env.NODE_ENV || 'not set',
         VERCEL: process.env.VERCEL || 'not set',
-        N8N_BASE_URL: n8nBaseUrl,
+        N8N_LMS_BASE_URL: process.env.N8N_LMS_BASE_URL || 'NOT SET',
+        N8N_LEGACY_BASE_URL: process.env.N8N_LEGACY_BASE_URL || 'NOT SET',
       },
       webhookUrls,
       timestamp: new Date().toISOString(),

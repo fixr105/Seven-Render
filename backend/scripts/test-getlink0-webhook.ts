@@ -1,4 +1,13 @@
 #!/usr/bin/env tsx
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Verify the document folder link pool webhook (getlink0).
  *
@@ -11,7 +20,7 @@
  */
 
 const GETLINK_WEBHOOK_URL =
-  process.env.N8N_GET_LINK_WEBHOOK_URL || 'https://fixrrahul.app.n8n.cloud/webhook/getlink0';
+  process.env.N8N_GET_LINK_WEBHOOK_URL || `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/getlink0`;
 
 function parseArgs(): { consumeLink?: string } {
   const args = process.argv.slice(2);

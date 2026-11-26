@@ -3,6 +3,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { lmsWebhook } from '../services/airtable/n8nEndpoints.js';
 import { defaultLogger } from '../utils/logger.js';
 import { performHealthCheck } from '../utils/uptimeMonitor.js';
 
@@ -56,10 +57,10 @@ router.get('/health', async (req: Request, res: Response) => {
     };
 
     // Optional n8n reachability check (env-gated to avoid exhausting n8n executions)
-    if (process.env.N8N_HEALTH_CHECK_ENABLED === 'true' && process.env.N8N_BASE_URL) {
+    if (process.env.N8N_HEALTH_CHECK_ENABLED === 'true' && process.env.N8N_LMS_BASE_URL) {
       const start = Date.now();
       try {
-        const res = await fetch(`${process.env.N8N_BASE_URL}/webhook/useraccount`, {
+        const res = await fetch(lmsWebhook('useraccount'), {
           method: 'GET',
           signal: AbortSignal.timeout(3000),
         });

@@ -21,8 +21,11 @@ import { lookupBorrowerByPan } from '../services/panLookup/panLookup.service.js'
 import { parsePanLookupTarget } from '../services/panLookup/panLookup.mapper.js';
 import { matchIds } from '../utils/idMatcher.js';
 import { findLoanApplicationByParamId } from '../utils/findLoanApplicationByParamId.js';
+import { legacyWebhook } from '../services/airtable/n8nEndpoints.js';
 
-const GETLINK_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/getlink0';
+function getLinkWebhookUrl(): string {
+  return process.env.N8N_GET_LINK_WEBHOOK_URL?.trim() || legacyWebhook('getlink0');
+}
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_INITIAL_BACKOFF_MS = 300;
 
@@ -282,7 +285,7 @@ export class ClientController {
   async getLinkPool(_req: Request, res: Response): Promise<void> {
     try {
       const attemptResult = await callWebhookWithRetry(
-        () => fetch(GETLINK_WEBHOOK_URL, { method: 'GET' }),
+        () => fetch(getLinkWebhookUrl(), { method: 'GET' }),
         { retryOn4xx: false }
       );
       if (attemptResult.error) {
@@ -314,7 +317,7 @@ export class ClientController {
           for (let i = 0; i < 3; i += 1) {
             await sleep(350);
             const pollAttempt = await callWebhookWithRetry(
-              () => fetch(GETLINK_WEBHOOK_URL, { method: 'GET' }),
+              () => fetch(getLinkWebhookUrl(), { method: 'GET' }),
               { retryOn4xx: false }
             );
             if (pollAttempt.error || !pollAttempt.response.ok) continue;
@@ -364,7 +367,7 @@ export class ClientController {
 
       const webhookAttempt = await callWebhookWithRetry(
         () =>
-          fetch(GETLINK_WEBHOOK_URL, {
+          fetch(getLinkWebhookUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

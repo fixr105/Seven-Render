@@ -1,11 +1,20 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Test POST to Loan Products Webhook
- * Tests: https://fixrrahul.app.n8n.cloud/webhook/loanproducts
+ * Tests: ${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/loanproducts
  */
 
 import fetch from 'node-fetch';
 
-const WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/loanproducts';
+const WEBHOOK_URL = `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/loanproducts`;
 
 // Test data with exact fields as specified
 const testData = {

@@ -1,16 +1,15 @@
 /**
  * Direct n8n get-pager webhook client.
  * Bypasses the backend when configured for PAGER result fetch.
- * Set VITE_N8N_PAGER_FETCH_WEBHOOK_URL to enable (e.g. https://fixrrahul.app.n8n.cloud/webhook/get-pager).
- * When unset in production, uses default get-pager URL so PAGER reports load without backend proxy.
+ * Set VITE_N8N_PAGER_FETCH_WEBHOOK_URL to call n8n directly.
+ * When unset, NBFC Tools uses the backend API instead. There is no hardcoded host.
  *
  * List mode: POST {} = list all PAGER reports (same contract as get-raad).
  * Single mode: POST { loanApplicationId } = fetch one report.
  */
 
 const ENV_URL = (import.meta.env.VITE_N8N_PAGER_FETCH_WEBHOOK_URL || '').trim();
-const DEFAULT_PAGER_WEBHOOK = 'https://fixrrahul.app.n8n.cloud/webhook/get-pager';
-const PAGER_WEBHOOK_URL = ENV_URL || (import.meta.env.PROD ? DEFAULT_PAGER_WEBHOOK : '');
+const PAGER_WEBHOOK_URL = ENV_URL;
 
 export function hasDirectPagerWebhook(): boolean {
   return PAGER_WEBHOOK_URL.length > 0;

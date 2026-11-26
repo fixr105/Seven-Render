@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Verification Script: Webhook Paths and Test Users
  * 
@@ -14,7 +23,7 @@ import fetch from 'node-fetch';
 import { n8nEndpoints } from '../src/services/airtable/n8nEndpoints.js';
 import { n8nClient } from '../src/services/airtable/n8nClient.js';
 
-const N8N_BASE_URL = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
+const N8N_BASE_URL = requiredN8nOrigin('N8N_LMS_BASE_URL');
 
 // Expected webhook paths from n8n configuration
 const EXPECTED_WEBHOOK_PATHS = {

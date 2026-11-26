@@ -1,3 +1,4 @@
+import { legacyWebhook } from '../airtable/n8nEndpoints.js';
 import { defaultLogger } from '../../utils/logger.js';
 import {
   describeBureauOnlyAirtableResponse,
@@ -9,7 +10,6 @@ import {
   type PanLookupFieldPrefix,
 } from './panLookup.mapper.js';
 
-const DEFAULT_WEBHOOK_URL = 'https://fixrrahul.app.n8n.cloud/webhook/postMMfrontPAN';
 const WEBHOOK_TIMEOUT_MS = 150_000;
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_INITIAL_BACKOFF_MS = 300;
@@ -42,7 +42,7 @@ const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 function getWebhookUrl(): string {
-  return process.env.N8N_POST_MM_FRONT_PAN_URL?.trim() || DEFAULT_WEBHOOK_URL;
+  return process.env.N8N_POST_MM_FRONT_PAN_URL?.trim() || legacyWebhook('postMMfrontPAN');
 }
 
 function normalizePanInput(value: string): string {

@@ -1,3 +1,12 @@
+function requiredN8nOrigin(name) {
+  const raw = String(process.env[name] || '').trim().replace(/\/+$/, '').replace(/\/webhook$/i, '');
+  if (!raw) {
+    console.error(name + ' is required. Refusing to fall back to the old n8n host.');
+    process.exit(1);
+  }
+  return raw;
+}
+
 /**
  * Startup script to ensure test users exist in Airtable
  * 
@@ -13,11 +22,11 @@
 import fetch from 'node-fetch';
 import { n8nClient } from '../src/services/airtable/n8nClient.js';
 
-const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || 'https://fixrrahul.app.n8n.cloud/webhook/adduser';
-const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || 'https://fixrrahul.app.n8n.cloud/webhook/Client';
-const N8N_POST_KAM_USERS_URL = process.env.N8N_POST_KAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/KAMusers';
-const N8N_POST_CREDIT_TEAM_USERS_URL = process.env.N8N_POST_CREDIT_TEAM_USERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/CREDITTEAMUSERS';
-const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || 'https://fixrrahul.app.n8n.cloud/webhook/NBFCPartners';
+const N8N_ADD_USER_URL = process.env.N8N_POST_ADD_USER_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/adduser`;
+const N8N_POST_CLIENT_URL = process.env.N8N_POST_CLIENT_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/Client`;
+const N8N_POST_KAM_USERS_URL = process.env.N8N_POST_KAM_USERS_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/KAMusers`;
+const N8N_POST_CREDIT_TEAM_USERS_URL = process.env.N8N_POST_CREDIT_TEAM_USERS_URL || `${requiredN8nOrigin('N8N_LMS_BASE_URL')}/webhook/CREDITTEAMUSERS`;
+const N8N_POST_NBFC_PARTNERS_URL = process.env.N8N_POST_NBFC_PARTNERS_URL || `${requiredN8nOrigin('N8N_LEGACY_BASE_URL')}/webhook/NBFCPartners`;
 
 // Use environment variables for test users - NEVER hardcode credentials
 // WARNING: This script should ONLY be used in development/test environments

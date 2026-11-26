@@ -12,7 +12,7 @@ import { n8nConfig } from '../../config/airtable.js';
 import { N8nGetResponse, UserAccount } from '../../types/entities.js';
 import { getWebhookUrl, TABLE_NAMES } from '../../config/webhookConfig.js';
 import { cacheService } from './cache.service.js';
-import { n8nEndpoints, getTableToGetWebhookPath } from './n8nEndpoints.js';
+import { n8nEndpoints, getTableToGetWebhookPath, legacyWebhook } from './n8nEndpoints.js';
 import { mapLoanStatusForAirtablePost } from '../../utils/loanApplicationAirtableStatus.js';
 import {
   LOAN_APPLICATION_AIRTABLE_COLUMNS,
@@ -388,8 +388,6 @@ export class N8nClient {
     }
 
     try {
-      const n8nBaseUrl = process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud';
-      
       // Add timeout support to prevent hanging requests
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -1428,7 +1426,7 @@ export class N8nClient {
 
   /**
    * DELETE Loan Product - remove a loan product record.
-   * Requires id. Uses https://fixrrahul.app.n8n.cloud/webhook/loanproducts
+   * Requires id. Uses the legacy loanproducts webhook (DELETE is not on Hostinger).
    */
   async deleteLoanProduct(id: string) {
     const result = await this.requestWebhook('DELETE', n8nConfig.deleteLoanProductsUrl, { id });
@@ -1556,8 +1554,7 @@ export class N8nClient {
   }
 
   async listClientKyc(): Promise<ParsedRecord[]> {
-    const base = (process.env.N8N_BASE_URL || 'https://fixrrahul.app.n8n.cloud').replace(/\/$/, '');
-    const url = `${base}/webhook/clientkyc`;
+    const url = legacyWebhook('clientkyc');
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
