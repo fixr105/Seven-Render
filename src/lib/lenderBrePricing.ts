@@ -161,6 +161,36 @@ export function pickLenderBreBand(
   return candidates[0];
 }
 
+function applicableRows(rows: LenderBreRow[], lenderName: string, productId: string): LenderBreRow[] {
+  const lender = String(lenderName || '').trim().toLowerCase();
+  return rows.filter(
+    (row) =>
+      row.active &&
+      row.nbfcPartner.trim().toLowerCase() === lender &&
+      loanProductApplies(row.loanProduct, productId)
+  );
+}
+
+/**
+ * A score under the lender's lowest real band is new-to-credit when that band exists.
+ * The floor comes from the BRE rows, not a literal.
+ */
+function scoreOnLenderScale(
+  rows: LenderBreRow[],
+  pricingScore: number,
+  lenderName: string,
+  productId: string
+): number {
+  if (pickLenderBreBand(rows, pricingScore, lenderName, productId)) return pricingScore;
+  const applicable = applicableRows(rows, lenderName, productId);
+  const floors = applicable.map((row) => row.minCibil).filter((min) => min > -1);
+  const hasNtc = applicable.some((row) => row.minCibil === -1 && row.maxCibil === -1);
+  if (!hasNtc || floors.length === 0) return pricingScore;
+  const floor = Math.min(...floors);
+  if (pricingScore < floor) return -1;
+  return pricingScore;
+}
+
 function bandToResult(band: LenderBreRow): PricingOk | PricingNotEligible {
   const base = {
     rule_id: band.ruleId,
@@ -233,7 +263,12 @@ export async function getPricing(
     .map((record) => parseLenderBreRecord(record))
     .filter((row): row is LenderBreRow => Boolean(row));
 
-  const band = pickLenderBreBand(rows, pricingScore, lenderName, productId);
+  const band = pickLenderBreBand(
+    rows,
+    scoreOnLenderScale(rows, pricingScore, lenderName, productId),
+    lenderName,
+    productId
+  );
   if (!band) {
     return { unavailable: true, message: PRICING_UNAVAILABLE_MESSAGE };
   }

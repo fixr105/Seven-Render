@@ -208,6 +208,11 @@ if (!tool || tool.ok !== true) {
 }
 const result = tool.result || {};
 const name = result.name || {};
+const report = result.credit_report && typeof result.credit_report === 'object' ? result.credit_report : {};
+const trades = report.CAIS_Account && report.CAIS_Account.CAIS_Account_DETAILS;
+const noTrades = !Array.isArray(trades) || trades.length === 0;
+const exact = report.Match_result ? String(report.Match_result.Exact_match || '').toUpperCase() : '';
+const noHit = exact === 'N' && noTrades;
 const scoreRaw = result.score ?? result.credit_score ?? result.cibil_score ?? null;
 const score = scoreRaw == null || scoreRaw === '' ? null : Number(scoreRaw);
 return [{ json: {
@@ -215,7 +220,7 @@ return [{ json: {
   pass: true,
   score: Number.isFinite(score) ? score : null,
   bureau_ref: tool.ref_id || '',
-  is_ntc: result.is_ntc === true,
+  is_ntc: result.is_ntc === true || noHit,
   cached: false,
   applicant: {
     first_name: name.first_name || result.first_name || '',

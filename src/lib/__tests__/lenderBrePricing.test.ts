@@ -302,6 +302,77 @@ describe('getPricing', () => {
     });
   });
 
+  it('score below every priced band uses the new-to-credit band', async () => {
+    const airtableGet = vi.fn(async (input: { table: string }) => {
+      if (input.table === 'Bureau Cache') {
+        return {
+          ok: true,
+          count: 1,
+          records: [{ id: 'c', result_json: JSON.stringify({ score: 100, is_ntc: false }) }],
+        };
+      }
+      return {
+        ok: true,
+        count: FINTREE_BANDS.length,
+        records: FINTREE_BANDS.map((b) =>
+          breRecord({
+            'Rule ID': b.ruleId,
+            'NBFC Partner': b.nbfcPartner,
+            'Min CIBIL': b.minCibil,
+            'Max CIBIL': b.maxCibil,
+            Eligible: b.eligible,
+            ROI: b.roi,
+            PF: b.pf,
+            Active: b.active,
+            'Loan Product': b.loanProduct,
+          })
+        ),
+      };
+    });
+    const result = await getPricing('HSJPP5704A', 'Fintree', 'LP012', { airtableGet });
+    expect(result).toEqual({
+      rule_id: 0,
+      nbfc_partner: 'Fintree',
+      roi_pct: 32,
+      pf_pct: 8,
+      eligible: true,
+    });
+  });
+
+  it('score below every priced band stays unavailable when there is no new-to-credit band', async () => {
+    const airtableGet = vi.fn(async (input: { table: string }) => {
+      if (input.table === 'Bureau Cache') {
+        return {
+          ok: true,
+          count: 1,
+          records: [{ id: 'c', result_json: JSON.stringify({ score: 100, is_ntc: false }) }],
+        };
+      }
+      return {
+        ok: true,
+        count: 1,
+        records: [
+          breRecord({
+            'Rule ID': 2,
+            'NBFC Partner': 'Fintree',
+            'Min CIBIL': 650,
+            'Max CIBIL': 700,
+            Eligible: true,
+            ROI: 32,
+            PF: 8,
+            Active: true,
+            'Loan Product': '',
+          }),
+        ],
+      };
+    });
+    const result = await getPricing('HSJPP5704A', 'Fintree', 'LP012', { airtableGet });
+    expect(result).toEqual({
+      unavailable: true,
+      message: PRICING_UNAVAILABLE_MESSAGE,
+    });
+  });
+
   it('no cache row → unavailable with retry message', async () => {
     const airtableGet = vi.fn(async (input: { table: string }) => {
       if (input.table === 'Bureau Cache') {
