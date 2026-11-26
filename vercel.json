@@ -7,7 +7,7 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/engine/:path*", "destination": "/api/engine/:path*" },
+    { "source": "/engine/:path*", "destination": "/api" },
     { "source": "/tools/:path*", "destination": "https://n8n-fvmj.srv1499064.hstgr.cloud/webhook/:path*" },
     {
       "source": "/((?!api/|engine/|tools/|assets/|icons/|videos/|sw.js|manifest.webmanifest).*)",
